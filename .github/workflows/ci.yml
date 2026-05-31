@@ -1,0 +1,34 @@
+name: CI
+
+# Rule verification gate: license headers, formatting, strict static analysis,
+# and the full test suite must all pass on every push / PR.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: License headers (MIT SPDX on every .dart)
+        run: bash tool/check_license_headers.sh
+
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Static analysis (strict — see analysis_options.yaml)
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Tests
+        run: flutter test

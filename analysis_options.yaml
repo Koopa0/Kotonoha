@@ -1,0 +1,53 @@
+# Static analysis for Kana Loop.
+#
+# Baseline: package:flutter_lints (the Flutter team's recommended set), then a
+# strict layer aligned with Effective Dart / Google's Dart style. The analyzer's
+# strict language modes are on so implicit casts / raw types / weak inference are
+# errors, not silent risks. License headers are enforced separately by
+# tool/check_license_headers.sh.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  exclude:
+    - "build/**"
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  errors:
+    # Promote the lints that signal real risk from warning to error (fail CI).
+    unawaited_futures: error
+    avoid_dynamic_calls: error
+
+linter:
+  rules:
+    # Effective Dart — style & consistency
+    - always_declare_return_types
+    - always_put_required_named_parameters_first
+    - always_use_package_imports
+    - directives_ordering
+    - eol_at_end_of_file
+    - prefer_single_quotes
+    - require_trailing_commas
+    - sort_constructors_first
+    - sort_unnamed_constructors_first
+    - unnecessary_parenthesis
+    - unnecessary_raw_strings
+    # Effective Dart — design & safety
+    - avoid_bool_literals_in_conditional_expressions
+    - avoid_redundant_argument_values
+    - avoid_unused_constructor_parameters
+    - cast_nullable_to_non_nullable
+    - join_return_with_assignment
+    - prefer_const_constructors
+    - prefer_const_constructors_in_immutables
+    - prefer_const_declarations
+    - prefer_final_in_for_each
+    - prefer_final_locals
+    - throw_in_finally
+    - unawaited_futures
+    - unnecessary_await_in_return
+    - unnecessary_lambdas
+    - use_super_parameters

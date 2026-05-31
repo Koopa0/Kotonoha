@@ -1,0 +1,92 @@
+// Copyright (c) 2026 Koopa
+// SPDX-License-Identifier: MIT
+
+import 'package:kotonoha/domain/models/word.dart';
+
+/// Curated short words for contextual reading practice. Every word is written
+/// purely in hiragana with NO yōon (so each rune is one kana unit, which the
+/// "readable with your unlocked kana" gate relies on). Romaji is the literal
+/// kana-by-kana Hepburn reading, so sounding each kana out verifies the answer.
+///
+/// Ordered roughly easy → harder: seion-only words first, then ones needing
+/// dakuten / handakuten. Meanings are in Traditional Chinese.
+///
+/// Pure data: no `package:flutter/*` imports.
+const List<Word> kWords = <Word>[
+  // --- seion only (gojūon) ---
+  Word(kana: 'あい', romaji: 'ai', meaning: '愛'),
+  Word(kana: 'あお', romaji: 'ao', meaning: '藍、青'),
+  Word(kana: 'あさ', romaji: 'asa', meaning: '早晨'),
+  Word(kana: 'あめ', romaji: 'ame', meaning: '雨'),
+  Word(kana: 'いえ', romaji: 'ie', meaning: '家'),
+  Word(kana: 'いぬ', romaji: 'inu', meaning: '狗'),
+  Word(kana: 'いし', romaji: 'ishi', meaning: '石頭'),
+  Word(kana: 'うた', romaji: 'uta', meaning: '歌'),
+  Word(kana: 'うみ', romaji: 'umi', meaning: '海'),
+  Word(kana: 'うし', romaji: 'ushi', meaning: '牛'),
+  Word(kana: 'えき', romaji: 'eki', meaning: '車站'),
+  Word(kana: 'おに', romaji: 'oni', meaning: '鬼'),
+  Word(kana: 'かお', romaji: 'kao', meaning: '臉'),
+  Word(kana: 'かさ', romaji: 'kasa', meaning: '傘'),
+  Word(kana: 'かみ', romaji: 'kami', meaning: '紙；頭髮'),
+  Word(kana: 'きく', romaji: 'kiku', meaning: '菊花；聽'),
+  Word(kana: 'くも', romaji: 'kumo', meaning: '雲；蜘蛛'),
+  Word(kana: 'くち', romaji: 'kuchi', meaning: '嘴'),
+  Word(kana: 'くるま', romaji: 'kuruma', meaning: '車'),
+  Word(kana: 'くすり', romaji: 'kusuri', meaning: '藥'),
+  Word(kana: 'こえ', romaji: 'koe', meaning: '聲音'),
+  Word(kana: 'こめ', romaji: 'kome', meaning: '米'),
+  Word(kana: 'さかな', romaji: 'sakana', meaning: '魚'),
+  Word(kana: 'さくら', romaji: 'sakura', meaning: '櫻花'),
+  Word(kana: 'しお', romaji: 'shio', meaning: '鹽'),
+  Word(kana: 'すし', romaji: 'sushi', meaning: '壽司'),
+  Word(kana: 'せかい', romaji: 'sekai', meaning: '世界'),
+  Word(kana: 'そら', romaji: 'sora', meaning: '天空'),
+  Word(kana: 'たけ', romaji: 'take', meaning: '竹'),
+  Word(kana: 'つき', romaji: 'tsuki', meaning: '月亮'),
+  Word(kana: 'つくえ', romaji: 'tsukue', meaning: '桌子'),
+  Word(kana: 'てら', romaji: 'tera', meaning: '寺廟'),
+  Word(kana: 'とり', romaji: 'tori', meaning: '鳥'),
+  Word(kana: 'なつ', romaji: 'natsu', meaning: '夏天'),
+  Word(kana: 'なまえ', romaji: 'namae', meaning: '名字'),
+  Word(kana: 'にく', romaji: 'niku', meaning: '肉'),
+  Word(kana: 'ねこ', romaji: 'neko', meaning: '貓'),
+  Word(kana: 'はな', romaji: 'hana', meaning: '花；鼻子'),
+  Word(kana: 'はこ', romaji: 'hako', meaning: '箱子'),
+  Word(kana: 'ひと', romaji: 'hito', meaning: '人'),
+  Word(kana: 'ふね', romaji: 'fune', meaning: '船'),
+  Word(kana: 'へや', romaji: 'heya', meaning: '房間'),
+  Word(kana: 'ほし', romaji: 'hoshi', meaning: '星星'),
+  Word(kana: 'まち', romaji: 'machi', meaning: '城鎮'),
+  Word(kana: 'みち', romaji: 'michi', meaning: '道路'),
+  Word(kana: 'みみ', romaji: 'mimi', meaning: '耳朵'),
+  Word(kana: 'むら', romaji: 'mura', meaning: '村莊'),
+  Word(kana: 'もり', romaji: 'mori', meaning: '森林'),
+  Word(kana: 'やま', romaji: 'yama', meaning: '山'),
+  Word(kana: 'やさい', romaji: 'yasai', meaning: '蔬菜'),
+  Word(kana: 'ゆき', romaji: 'yuki', meaning: '雪'),
+  Word(kana: 'ゆめ', romaji: 'yume', meaning: '夢'),
+  Word(kana: 'よる', romaji: 'yoru', meaning: '夜晚'),
+  Word(kana: 'りす', romaji: 'risu', meaning: '松鼠'),
+  Word(kana: 'れきし', romaji: 'rekishi', meaning: '歷史'),
+  Word(kana: 'ろく', romaji: 'roku', meaning: '六'),
+  Word(kana: 'わに', romaji: 'wani', meaning: '鱷魚'),
+  // --- needs dakuten / handakuten ---
+  Word(kana: 'かぎ', romaji: 'kagi', meaning: '鑰匙'),
+  Word(kana: 'かぜ', romaji: 'kaze', meaning: '風；感冒'),
+  Word(kana: 'かばん', romaji: 'kaban', meaning: '包包'),
+  Word(kana: 'ちず', romaji: 'chizu', meaning: '地圖'),
+  Word(kana: 'みぎ', romaji: 'migi', meaning: '右'),
+  Word(kana: 'ひだり', romaji: 'hidari', meaning: '左'),
+  Word(kana: 'たまご', romaji: 'tamago', meaning: '蛋'),
+  Word(kana: 'ごはん', romaji: 'gohan', meaning: '飯'),
+  Word(kana: 'でんわ', romaji: 'denwa', meaning: '電話'),
+  Word(kana: 'めがね', romaji: 'megane', meaning: '眼鏡'),
+  Word(kana: 'ゆび', romaji: 'yubi', meaning: '手指'),
+  Word(kana: 'りんご', romaji: 'ringo', meaning: '蘋果'),
+  Word(kana: 'かがみ', romaji: 'kagami', meaning: '鏡子'),
+  Word(kana: 'ぶた', romaji: 'buta', meaning: '豬'),
+  Word(kana: 'ぞう', romaji: 'zou', meaning: '大象'),
+  Word(kana: 'はがき', romaji: 'hagaki', meaning: '明信片'),
+  Word(kana: 'さんぽ', romaji: 'sanpo', meaning: '散步'),
+];

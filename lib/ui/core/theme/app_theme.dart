@@ -1,0 +1,73 @@
+// Copyright (c) 2026 Koopa
+// SPDX-License-Identifier: MIT
+
+import 'package:flutter/material.dart';
+import 'package:kotonoha/ui/core/theme/app_colors.dart';
+
+/// Builds the calm, Material 3 light theme for Kotonoha.
+abstract final class AppTheme {
+  static ThemeData light() {
+    final scheme = ColorScheme.fromSeed(seedColor: AppColors.skyBlue).copyWith(
+      primary: AppColors.skyBlue,
+      primaryContainer: AppColors.skyBlueSoft,
+      surface: AppColors.card,
+      onSurface: AppColors.ink,
+      onSurfaceVariant: AppColors.inkMuted,
+      error: AppColors.error,
+      outlineVariant: AppColors.hairline,
+    );
+
+    final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: AppColors.paper,
+      splashFactory: InkSparkle.splashFactory,
+    );
+
+    return base.copyWith(
+      textTheme: base.textTheme.apply(
+        bodyColor: AppColors.ink,
+        displayColor: AppColors.ink,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.paper,
+        foregroundColor: AppColors.ink,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.card,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.hairline),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.skyBlue,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(56),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.hairline,
+        thickness: 1,
+        space: 1,
+      ),
+    );
+  }
+}
