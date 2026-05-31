@@ -14,7 +14,7 @@ LINE2='// SPDX-License-Identifier: MIT'
 
 # Dart sources we own. Generated files (*.g.dart, *.freezed.dart) are exempt.
 mapfile -t files < <(
-  find lib test integration_test tool -name '*.dart' \
+  find lib test integration_test test_driver tool -name '*.dart' \
     ! -name '*.g.dart' ! -name '*.freezed.dart' 2>/dev/null | sort
 )
 

@@ -1,0 +1,95 @@
+// Copyright (c) 2026 Koopa
+// SPDX-License-Identifier: MIT
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:kotonoha/app.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Drives the real app (with seeded progress, so screens are populated) to each
+/// key screen and captures a screenshot. Not a test of behaviour — a capture
+/// run for the README. Produces `screenshots/01-home` … `04-progress`.
+///
+/// ```sh
+/// flutter drive --driver=test_driver/screenshot.dart \
+///   --target=integration_test/screenshot_capture.dart -d emulator-5554
+/// ```
+Future<void> main() async {
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('capture product screenshots', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(393, 852));
+    SharedPreferences.setMockInitialValues({});
+    final store = await KanaProgressRepository.load();
+    // Learn the first three hiragana rows and record a spread of answers, so the
+    // ring, progress, reading entry, and a daily session all have real content.
+    for (final id in ['hira_row_0', 'hira_row_1', 'hira_row_2']) {
+      await store.markUnitLearned(id);
+    }
+    final learned = StudySet.learned(store);
+    for (var i = 0; i < learned.length; i++) {
+      await store.recordAnswer(
+        learned[i],
+        correct: i % 5 != 0,
+        at: DateTime(2026, 6),
+        latencyMs: 250 + i * 20,
+      );
+    }
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        ],
+        child: const KanaLoopApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await binding.convertFlutterSurfaceToImage();
+
+    Future<void> shot(String name) async {
+      await tester.pumpAndSettle();
+      await binding.takeScreenshot(name);
+    }
+
+    // Pop the top route via the root navigator (robust — no back-button finder).
+    Future<void> back() async {
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+    }
+
+    await shot('01-home');
+
+    // Reading practice — reveal so romaji + meaning show (card is above the fold).
+    await tester.tap(find.text(AppStrings.readingEntry));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.revealAnswer));
+    await shot('03-reading');
+    await back();
+
+    // A question inside today's adaptive session (the primary CTA, near the top).
+    await tester.tap(find.text(AppStrings.dailySession));
+    await shot('02-session');
+    await back();
+
+    // Progress — below the fold, so scroll it into view first (last, so the
+    // scroll offset doesn't disturb the earlier taps).
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.progress),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.progress));
+    await shot('04-progress');
+  });
+}

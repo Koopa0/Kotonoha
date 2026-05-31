@@ -13,8 +13,6 @@ Kotonoha(言の葉)是一個為成人設計的日文假名閱讀練習。每天�
 
 ## 畫面截圖
 
-<!-- 把截圖放進 screenshots/(說明見 screenshots/README.md)。 -->
-
 | 首頁 | 今天的練習 | 讀詞 | 進度 |
 |:---:|:---:|:---:|:---:|
 | ![首頁](screenshots/01-home.png) | ![練習](screenshots/02-session.png) | ![讀詞](screenshots/03-reading.png) | ![進度](screenshots/04-progress.png) |

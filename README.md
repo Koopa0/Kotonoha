@@ -14,8 +14,6 @@ app is built with Flutter.
 
 ## Screenshots
 
-<!-- Drop your captures into screenshots/ (see screenshots/README.md). -->
-
 | Home | Today's session | Reading | Progress |
 |:---:|:---:|:---:|:---:|
 | ![Home](screenshots/01-home.png) | ![Session](screenshots/02-session.png) | ![Reading](screenshots/03-reading.png) | ![Progress](screenshots/04-progress.png) |

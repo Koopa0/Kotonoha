@@ -14,8 +14,6 @@
 
 ## スクリーンショット
 
-<!-- 画像は screenshots/ に置いてください(詳しくは screenshots/README.md)。 -->
-
 | ホーム | 今日の練習 | 読み | 進捗 |
 |:---:|:---:|:---:|:---:|
 | ![ホーム](screenshots/01-home.png) | ![練習](screenshots/02-session.png) | ![読み](screenshots/03-reading.png) | ![進捗](screenshots/04-progress.png) |
