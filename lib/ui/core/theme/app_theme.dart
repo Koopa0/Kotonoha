@@ -21,6 +21,8 @@ abstract final class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.paper,
+      // Klee One: a calm textbook-handwriting face — the kana look written, not set.
+      fontFamily: 'KleeOne',
       // A soft ripple rather than the M3 sparkle — quieter, like ink spreading.
       splashFactory: InkRipple.splashFactory,
     );
@@ -39,7 +41,10 @@ abstract final class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: AppColors.card,
-        elevation: 0,
+        // A soft, diffuse shadow for gentle depth — no M3 tonal tint.
+        elevation: 3,
+        shadowColor: AppColors.ink.withValues(alpha: 0.06),
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: AppColors.hairline),
