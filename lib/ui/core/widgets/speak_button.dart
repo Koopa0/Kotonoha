@@ -19,7 +19,7 @@ class SpeakButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: Icon(Icons.volume_up_rounded, size: size),
-      color: AppColors.skyBlue,
+      color: AppColors.accent,
       tooltip: AppStrings.playSound,
       onPressed: () => context.read<SpeechService>().speak(text),
     );

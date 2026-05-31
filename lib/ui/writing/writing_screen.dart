@@ -133,7 +133,7 @@ class _WritingScreenState extends State<WritingScreen> {
                     style: const TextStyle(
                       fontSize: 56,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.skyBlue,
+                      color: AppColors.accent,
                     ),
                   ),
                   SpeakButton(text: _current.character, size: 30),

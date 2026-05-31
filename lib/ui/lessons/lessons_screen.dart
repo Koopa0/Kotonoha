@@ -100,12 +100,12 @@ class _LessonTile extends StatelessWidget {
           radius: 26,
           backgroundColor: learned
               ? AppColors.successSoft
-              : AppColors.skyBlueSoft,
+              : AppColors.accentSoft,
           child: Text(
             lesson.representative,
             style: TextStyle(
               fontSize: 26,
-              color: learned ? AppColors.success : AppColors.skyBlue,
+              color: learned ? AppColors.success : AppColors.accent,
             ),
           ),
         ),

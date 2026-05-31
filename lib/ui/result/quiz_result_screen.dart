@@ -119,7 +119,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     final perfect = missed.isEmpty;
     final ringColor = (perfect || (_isLesson && _lessonPassed))
         ? AppColors.success
-        : AppColors.skyBlue;
+        : AppColors.accent;
 
     return Scaffold(
       appBar: AppBar(

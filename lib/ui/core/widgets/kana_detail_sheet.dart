@@ -46,7 +46,7 @@ class KanaDetailSheet extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
-                color: AppColors.skyBlue,
+                color: AppColors.accent,
               ),
             ),
             const SizedBox(height: 8),

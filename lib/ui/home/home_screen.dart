@@ -50,6 +50,18 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
                 const SizedBox(height: 8),
+                // A quiet wordmark — the name and its meaning, 言の葉.
+                const Center(
+                  child: Text(
+                    '言の葉',
+                    style: TextStyle(
+                      fontSize: 15,
+                      letterSpacing: 6,
+                      color: AppColors.inkMuted,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 Center(
                   child: ProgressRing(
                     value: gojuon.isEmpty ? 0 : gojuonSeen / gojuon.length,
@@ -231,8 +243,8 @@ class _NavCard extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: AppColors.skyBlueSoft,
-          foregroundColor: AppColors.skyBlue,
+          backgroundColor: AppColors.accentSoft,
+          foregroundColor: AppColors.accent,
           child: Icon(icon),
         ),
         title: Text(

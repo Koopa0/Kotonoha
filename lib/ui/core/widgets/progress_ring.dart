@@ -14,7 +14,7 @@ class ProgressRing extends StatelessWidget {
     super.key,
     this.caption,
     this.size = 148,
-    this.color = AppColors.skyBlue,
+    this.color = AppColors.accent,
   });
 
   final double value;

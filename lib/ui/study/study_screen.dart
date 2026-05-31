@@ -179,7 +179,7 @@ class _StudyCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.w600,
-                color: AppColors.skyBlue,
+                color: AppColors.accent,
               ),
             ),
             const SizedBox(height: 12),

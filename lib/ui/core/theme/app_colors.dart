@@ -7,31 +7,32 @@ import 'package:kotonoha/domain/models/kana_stat.dart';
 /// The single source of truth for color in Kotonoha. Widgets read from here
 /// (or from the [ThemeData] built in `app_theme.dart`) — never hardcode hex.
 ///
-/// Mood: calm, Japanese-notebook. Soft sky blue on blue-tinted white.
+/// Mood: 言の葉 — rain-washed green on cool washi paper. The calm, wet-leaf
+/// palette of *The Garden of Words*: celadon green, pine ink, soft mist.
 abstract final class AppColors {
-  // Brand
-  static const Color skyBlue = Color(0xFF5B8DEF); // primary
-  static const Color skyBlueSoft = Color(0xFFD9E6FF); // primary container
+  // Brand — celadon / 青磁, like a leaf after rain.
+  static const Color accent = Color(0xFF5E9387); // primary
+  static const Color accentSoft = Color(0xFFE2EDEA); // soft fills
 
   // Neutrals
-  static const Color paper = Color(0xFFF4F8FF); // blue-tinted white (bg)
-  static const Color card = Color(0xFFFFFFFF); // surface
-  static const Color ink = Color(0xFF1F2A44); // deep navy text
-  static const Color inkMuted = Color(0xFF5A6786); // blue-gray secondary text
-  static const Color hairline = Color(0xFFE3EAF6); // subtle borders/dividers
+  static const Color paper = Color(0xFFF2F5F3); // cool washi (bg)
+  static const Color card = Color(0xFFFBFDFC); // near-white surface
+  static const Color ink = Color(0xFF2A332E); // deep pine text
+  static const Color inkMuted = Color(0xFF66726B); // misty green-gray
+  static const Color hairline = Color(0xFFDCE6E0); // subtle borders/dividers
 
   // Semantic
-  static const Color success = Color(0xFF5FB58A); // soft green
-  static const Color successSoft = Color(0xFFE2F2EA);
-  static const Color error = Color(0xFFE58A7D); // soft coral
-  static const Color errorSoft = Color(0xFFFBE7E3);
-  static const Color warning = Color(0xFFE5B45F); // soft amber (weak kana)
-  static const Color warningSoft = Color(0xFFFAF0DC);
+  static const Color success = Color(0xFF5E9E7E); // soft green
+  static const Color successSoft = Color(0xFFE3EFE8);
+  static const Color error = Color(0xFFD98A7C); // soft clay (missed)
+  static const Color errorSoft = Color(0xFFF6E7E1);
+  static const Color warning = Color(0xFFC2923F); // warm amber (weak kana)
+  static const Color warningSoft = Color(0xFFF1E7D3);
 
   /// The accent color for a kana's learning status (the status dot).
   static Color forStatus(KanaStatus status) => switch (status) {
     KanaStatus.unseen => hairline,
-    KanaStatus.learning => skyBlue,
+    KanaStatus.learning => accent,
     KanaStatus.weak => warning,
     KanaStatus.strong => success,
   };

@@ -160,7 +160,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.skyBlue,
+                        color: AppColors.accent,
                       ),
                     ),
                     const SizedBox(height: 6),

@@ -7,9 +7,9 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 /// Builds the calm, Material 3 light theme for Kotonoha.
 abstract final class AppTheme {
   static ThemeData light() {
-    final scheme = ColorScheme.fromSeed(seedColor: AppColors.skyBlue).copyWith(
-      primary: AppColors.skyBlue,
-      primaryContainer: AppColors.skyBlueSoft,
+    final scheme = ColorScheme.fromSeed(seedColor: AppColors.accent).copyWith(
+      primary: AppColors.accent,
+      primaryContainer: AppColors.accentSoft,
       surface: AppColors.card,
       onSurface: AppColors.ink,
       onSurfaceVariant: AppColors.inkMuted,
@@ -21,7 +21,8 @@ abstract final class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.paper,
-      splashFactory: InkSparkle.splashFactory,
+      // A soft ripple rather than the M3 sparkle — quieter, like ink spreading.
+      splashFactory: InkRipple.splashFactory,
     );
 
     return base.copyWith(
@@ -47,7 +48,7 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.skyBlue,
+          backgroundColor: AppColors.accent,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(56),
           textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
