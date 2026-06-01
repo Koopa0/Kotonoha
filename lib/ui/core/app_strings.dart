@@ -110,6 +110,7 @@ abstract final class AppStrings {
     'writing' => '手寫默寫',
     'reading' => '讀詞',
     'quickReview' => '快速複習',
+    'kanjiReading' => '漢字讀音',
     _ => mode,
   };
 
