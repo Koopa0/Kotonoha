@@ -78,6 +78,31 @@ abstract final class AppStrings {
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
 
+  // Insights (reads the analytics event stream)
+  static const String insightsEntry = '學習洞察';
+  static const String insightsSubtitle = '你的練習數據';
+  static const String insightsTitle = '學習洞察';
+  static const String insightsTotal = '總練習次數';
+  static const String insightsAccuracy = '整體正確率';
+  static const String insightsAvgRt = '平均反應時間';
+  static const String insightsDistinct = '練習過的假名・詞';
+  static const String insightsByMode = '各模式練習次數';
+  static const String insightsEmpty = '還沒有練習紀錄,先做一次「今天的練習」吧。';
+  static String insightsMs(int ms) => '$ms 毫秒';
+  static String insightsCount(int n) => '$n 次';
+
+  /// Human label for a [PracticeMode] name in the analytics stream.
+  static String modeLabel(String mode) => switch (mode) {
+    'daily' => '今天的練習',
+    'lessonTest' => '課程測驗',
+    'missed' => '複習答錯',
+    'confusable' => '易混淆',
+    'writing' => '手寫默寫',
+    'reading' => '讀詞',
+    'quickReview' => '快速複習',
+    _ => mode,
+  };
+
   // Result
   static const String sessionComplete = '本次完成';
   static const String correct = '答對';

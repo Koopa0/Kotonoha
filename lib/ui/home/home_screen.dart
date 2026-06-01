@@ -18,6 +18,7 @@ import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/insights/insights_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
@@ -155,6 +156,16 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (store.seenCount > 0) ...[
+                  const SizedBox(height: 12),
+                  _NavCard(
+                    icon: Icons.query_stats_rounded,
+                    label: AppStrings.insightsEntry,
+                    subtitle: AppStrings.insightsSubtitle,
+                    onTap: () =>
+                        Navigator.of(context).push(InsightsScreen.route()),
+                  ),
+                ],
               ],
             );
           },
