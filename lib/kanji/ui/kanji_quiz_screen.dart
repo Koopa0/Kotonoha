@@ -99,6 +99,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.readingSummary(_correct, widget.prompts.length),
+    note: AppStrings.closingNote(widget.prompts.first.entry.char),
     onDone: () => Navigator.of(context).pop(),
   );
 

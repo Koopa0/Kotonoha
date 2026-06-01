@@ -99,6 +99,7 @@ class _FerryScreenState extends State<FerryScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.readingSummary(_correct, widget.words.length),
+    note: AppStrings.closingNote(widget.words.first.kana),
     onDone: () => Navigator.of(context).pop(),
   );
 

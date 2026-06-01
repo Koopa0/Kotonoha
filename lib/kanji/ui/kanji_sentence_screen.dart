@@ -85,6 +85,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.readingSummary(_correct, widget.phrases.length),
+    note: AppStrings.closingNote(widget.phrases.first.written),
     onDone: () => Navigator.of(context).pop(),
   );
 
