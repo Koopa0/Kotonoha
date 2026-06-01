@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/use_cases/insights.dart';
+import 'package:kotonoha/domain/use_cases/self_portrait.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
@@ -43,9 +44,11 @@ class InsightsScreen extends StatelessWidget {
             }
             final modes = s.perMode.entries.toList()
               ..sort((a, b) => b.value.compareTo(a.value));
+            final observations = SelfPortrait.observe(snapshot.data!);
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
               children: [
+                for (final o in observations) _ObservationCard(observation: o),
                 _Stat(
                   label: AppStrings.insightsTotal,
                   value: AppStrings.insightsCount(s.total),
@@ -118,6 +121,45 @@ class _Stat extends StatelessWidget {
               color: AppColors.ink,
               fontSize: 18,
               fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A quiet line, written like a notebook margin note — being seen, not scored.
+class _ObservationCard extends StatelessWidget {
+  const _ObservationCard({required this.observation});
+
+  final Observation observation;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (observation) {
+      ConfusionObservation(:final target, :final mistakenFor) =>
+        AppStrings.confusionLine(target, mistakenFor),
+    };
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.spa_outlined, size: 18, color: AppColors.accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontSize: 15,
+                height: 1.4,
+              ),
             ),
           ),
         ],

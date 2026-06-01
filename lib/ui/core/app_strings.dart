@@ -119,6 +119,8 @@ abstract final class AppStrings {
   static const String insightsDistinct = '練習過的假名・詞';
   static const String insightsByMode = '各模式練習次數';
   static const String insightsEmpty = '還沒有練習紀錄,先做一次「今天的練習」吧。';
+  static String confusionLine(String target, String mistakenFor) =>
+      '最近,常把「$target」看成「$mistakenFor」。';
   static String insightsMs(int ms) => '$ms 毫秒';
   static String insightsCount(int n) => '$n 次';
 
