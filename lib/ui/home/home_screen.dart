@@ -57,15 +57,30 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
                 const SizedBox(height: 8),
-                // A quiet wordmark — the name and its meaning, 言の葉.
-                const Center(
-                  child: Text(
-                    '言の葉',
-                    style: TextStyle(
-                      fontSize: 15,
-                      letterSpacing: 6,
-                      color: AppColors.inkMuted,
-                    ),
+                // A quiet wordmark — the name and its meaning, 言の葉 — under a
+                // thread of warm light (komorebi).
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '言の葉',
+                        style: TextStyle(
+                          fontSize: 15,
+                          letterSpacing: 6,
+                          color: AppColors.inkMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 34,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: AppColors.komorebi,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 18),

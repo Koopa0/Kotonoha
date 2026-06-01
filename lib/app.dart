@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_theme.dart';
+import 'package:kotonoha/ui/core/widgets/washi_background.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 
 class KanaLoopApp extends StatelessWidget {
@@ -27,6 +28,10 @@ class KanaLoopApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Every screen sits on the washi paper (scaffolds are transparent in the
+      // theme, so this single backdrop shows through under all of them).
+      builder: (context, child) =>
+          WashiBackground(child: child ?? const SizedBox.shrink()),
       home: const HomeScreen(),
     );
   }

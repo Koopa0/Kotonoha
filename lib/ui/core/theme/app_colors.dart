@@ -14,6 +14,11 @@ abstract final class AppColors {
   static const Color accent = Color(0xFF5E9387); // primary
   static const Color accentSoft = Color(0xFFE2EDEA); // soft fills
 
+  /// Warm light through leaves (木漏れ日) — the ONLY "reward" colour. Reserved
+  /// for light moments (the wordmark underline, a session's closing glow), never
+  /// for status or chrome.
+  static const Color komorebi = Color(0xFFD8B36A);
+
   // Neutrals
   static const Color paper = Color(0xFFF2F5F3); // cool washi (bg)
   static const Color card = Color(0xFFFBFDFC); // near-white surface

@@ -20,11 +20,21 @@ abstract final class AppTheme {
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.paper,
+      // Transparent so the single washi backdrop (app.dart) shows under every
+      // scaffold rather than being painted over with a flat colour.
+      scaffoldBackgroundColor: Colors.transparent,
       // Klee One: a calm textbook-handwriting face — the kana look written, not set.
       fontFamily: 'KleeOne',
       // A soft ripple rather than the M3 sparkle — quieter, like ink spreading.
       splashFactory: InkRipple.splashFactory,
+      // Pages fade-and-rise like ink settling, not platform slides.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _InkPageTransitionsBuilder(),
+          TargetPlatform.iOS: _InkPageTransitionsBuilder(),
+          TargetPlatform.macOS: _InkPageTransitionsBuilder(),
+        },
+      ),
     );
 
     return base.copyWith(
@@ -33,7 +43,7 @@ abstract final class AppTheme {
         displayColor: AppColors.ink,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.paper,
+        backgroundColor: Colors.transparent,
         foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -73,6 +83,36 @@ abstract final class AppTheme {
         color: AppColors.hairline,
         thickness: 1,
         space: 1,
+      ),
+    );
+  }
+}
+
+/// A calm page transition: fade in while rising a touch, like ink settling onto
+/// paper — quieter than a platform slide.
+class _InkPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _InkPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.02),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
       ),
     );
   }
