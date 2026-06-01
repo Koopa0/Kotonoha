@@ -122,5 +122,17 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.revealAnswer));
     await shot('06-sentence');
+    await back();
+
+    // Kanji sentence — the furigana-fade prompt (furigana visible, unmastered).
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.kanjiSentenceEntry),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.kanjiSentenceEntry));
+    await tester.pumpAndSettle();
+    await shot('07-kanji-sentence');
   });
 }
