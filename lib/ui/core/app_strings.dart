@@ -78,6 +78,16 @@ abstract final class AppStrings {
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
 
+  // Kanji reading
+  static const String kanjiEntry = '漢字讀音';
+  static const String kanjiSubtitle = '讀出漢字的音読・訓読';
+  static const String kanjiTitle = '漢字讀音';
+  static const String kanjiPrompt = '在心裡讀出這個漢字的音';
+  static const String kanjiReveal = '顯示讀音';
+  static const String kanjiOnyomi = '音読み';
+  static const String kanjiKunyomi = '訓読み';
+  static String kanjiAlsoReads(String others) => '也讀:$others';
+
   // Insights (reads the analytics event stream)
   static const String insightsEntry = '學習洞察';
   static const String insightsSubtitle = '你的練習數據';

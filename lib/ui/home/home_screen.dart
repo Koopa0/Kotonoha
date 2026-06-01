@@ -15,6 +15,9 @@ import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
+import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
@@ -134,6 +137,13 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                _NavCard(
+                  icon: Icons.translate_rounded,
+                  label: AppStrings.kanjiEntry,
+                  subtitle: AppStrings.kanjiSubtitle,
+                  onTap: () => _startKanji(context),
+                ),
                 // The confusable drill targets look-alike kana specifically —
                 // the one review mode the adaptive daily session can't replace.
                 if (store.learnedUnitCount > 0) ...[
@@ -215,6 +225,19 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(
       context,
     ).push(ReadingScreen.route(picked, AppStrings.readingTitle));
+  }
+
+  void _startKanji(BuildContext context) {
+    final repo = context.read<KanjiReadingRepository>();
+    final prompts = KanjiSession.compose(
+      entries: repo.allKanji,
+      stats: repo.stats,
+      now: DateTime.now(),
+      rng: Random(),
+    );
+    Navigator.of(
+      context,
+    ).push(KanjiQuizScreen.route(prompts, AppStrings.kanjiTitle));
   }
 
   void _startConfusable(BuildContext context) {
