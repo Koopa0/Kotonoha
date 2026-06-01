@@ -5,9 +5,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
@@ -50,6 +52,7 @@ class HomeScreen extends StatelessWidget {
               store,
             ).map((k) => k.character).toSet();
             final readableWords = ReadingSet.readable(kWords, learnedChars);
+            final readablePhrases = ReadingSet.readable(kPhrases, learnedChars);
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
@@ -124,6 +127,15 @@ class HomeScreen extends StatelessWidget {
                     label: AppStrings.readingEntry,
                     subtitle: AppStrings.readingSubtitle,
                     onTap: () => _startReading(context, readableWords),
+                  ),
+                ],
+                if (readablePhrases.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _NavCard(
+                    icon: Icons.subject_rounded,
+                    label: AppStrings.sentenceEntry,
+                    subtitle: AppStrings.sentenceSubtitle,
+                    onTap: () => _startSentence(context, readablePhrases),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -225,6 +237,13 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(
       context,
     ).push(ReadingScreen.route(picked, AppStrings.readingTitle));
+  }
+
+  void _startSentence(BuildContext context, List<Phrase> readable) {
+    final picked = (List<Phrase>.of(readable)..shuffle()).take(8).toList();
+    Navigator.of(
+      context,
+    ).push(ReadingScreen.route(picked, AppStrings.sentenceTitle));
   }
 
   void _startKanji(BuildContext context) {

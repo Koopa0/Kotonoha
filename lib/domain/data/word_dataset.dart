@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 
 /// Curated short words for contextual reading practice. Every word is written
@@ -89,4 +90,85 @@ const List<Word> kWords = <Word>[
   Word(kana: 'ぞう', romaji: 'zou', meaning: '大象'),
   Word(kana: 'はがき', romaji: 'hagaki', meaning: '明信片'),
   Word(kana: 'さんぽ', romaji: 'sanpo', meaning: '散步'),
+  // --- themed to the learner's interests (ヨルシカ / anime / game / travel) ---
+  Word(kana: 'せみ', romaji: 'semi', meaning: '蟬', theme: ContentTheme.yorushika),
+  Word(
+    kana: 'なみ',
+    romaji: 'nami',
+    meaning: '波浪',
+    theme: ContentTheme.yorushika,
+  ),
+  Word(
+    kana: 'はる',
+    romaji: 'haru',
+    meaning: '春天',
+    theme: ContentTheme.yorushika,
+  ),
+  Word(kana: 'あき', romaji: 'aki', meaning: '秋天', theme: ContentTheme.yorushika),
+  Word(
+    kana: 'なみだ',
+    romaji: 'namida',
+    meaning: '眼淚',
+    theme: ContentTheme.yorushika,
+  ),
+  Word(
+    kana: 'ことば',
+    romaji: 'kotoba',
+    meaning: '話語、言葉',
+    theme: ContentTheme.yorushika,
+  ),
+  Word(
+    kana: 'てがみ',
+    romaji: 'tegami',
+    meaning: '信',
+    theme: ContentTheme.yorushika,
+  ),
+  Word(
+    kana: 'わすれる',
+    romaji: 'wasureru',
+    meaning: '忘記',
+    theme: ContentTheme.yorushika,
+  ),
+  Word(kana: 'きみ', romaji: 'kimi', meaning: '你', theme: ContentTheme.anime),
+  Word(kana: 'すき', romaji: 'suki', meaning: '喜歡', theme: ContentTheme.anime),
+  Word(
+    kana: 'ともだち',
+    romaji: 'tomodachi',
+    meaning: '朋友',
+    theme: ContentTheme.anime,
+  ),
+  Word(
+    kana: 'たのしい',
+    romaji: 'tanoshii',
+    meaning: '開心、好玩',
+    theme: ContentTheme.anime,
+  ),
+  Word(
+    kana: 'たたかう',
+    romaji: 'tatakau',
+    meaning: '戰鬥',
+    theme: ContentTheme.game,
+  ),
+  Word(kana: 'もどる', romaji: 'modoru', meaning: '返回', theme: ContentTheme.game),
+  Word(kana: 'すすむ', romaji: 'susumu', meaning: '前進', theme: ContentTheme.game),
+  Word(kana: 'つよい', romaji: 'tsuyoi', meaning: '強', theme: ContentTheme.game),
+  Word(
+    kana: 'はじめる',
+    romaji: 'hajimeru',
+    meaning: '開始',
+    theme: ContentTheme.game,
+  ),
+  Word(kana: 'ここ', romaji: 'koko', meaning: '這裡', theme: ContentTheme.travel),
+  Word(
+    kana: 'でぐち',
+    romaji: 'deguchi',
+    meaning: '出口',
+    theme: ContentTheme.travel,
+  ),
+  Word(
+    kana: 'いりぐち',
+    romaji: 'iriguchi',
+    meaning: '入口',
+    theme: ContentTheme.travel,
+  ),
 ];

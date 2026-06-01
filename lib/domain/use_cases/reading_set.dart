@@ -3,25 +3,28 @@
 
 import 'dart:math';
 
-import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 
-/// Selects the words a learner can actually read — every kana in the word must
-/// be one they've unlocked — and composes a short reading session from them.
+/// Selects the readable items (words or phrases) — every kana must be one the
+/// learner has unlocked — and composes a short reading session. Generic over
+/// [ReadingItem], so the same gating serves the word and the sentence track.
 ///
 /// Pure logic, deterministic under an injected [Random].
 abstract final class ReadingSet {
-  /// Words whose every kana is in [learnedChars].
-  static List<Word> readable(List<Word> words, Set<String> learnedChars) =>
-      words.where((w) => w.characters.every(learnedChars.contains)).toList();
+  /// Items whose every kana is in [learnedChars].
+  static List<T> readable<T extends ReadingItem>(
+    List<T> items,
+    Set<String> learnedChars,
+  ) => items.where((i) => i.characters.every(learnedChars.contains)).toList();
 
-  /// A shuffled session of up to [length] readable words.
-  static List<Word> session({
-    required List<Word> words,
+  /// A shuffled session of up to [length] readable items.
+  static List<T> session<T extends ReadingItem>({
+    required List<T> items,
     required Set<String> learnedChars,
     required Random rng,
     int length = 10,
   }) {
-    final pool = readable(words, learnedChars)..shuffle(rng);
+    final pool = readable(items, learnedChars)..shuffle(rng);
     return pool.take(length).toList();
   }
 }

@@ -27,7 +27,7 @@ void main() {
   test('session is deterministic, bounded, and only readable words', () {
     final chars = {'あ', 'い', 'ぬ', 'や', 'ま'};
     List<Word> run() => ReadingSet.session(
-      words: words,
+      items: words,
       learnedChars: chars,
       rng: Random(7),
       length: 2,
@@ -43,7 +43,7 @@ void main() {
 
   test('session length clamps to the readable supply', () {
     final out = ReadingSet.session(
-      words: words,
+      items: words,
       learnedChars: {'あ', 'い'},
       rng: Random(1),
     );

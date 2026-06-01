@@ -5,26 +5,26 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
-import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
-/// Contextual reading practice: show a kana word, the learner reads it in their
-/// head, then reveals the romaji + meaning, hears it, and self-grades. Records a
-/// word-level [Attempt] to the analytics stream (itemType=word, mode=reading);
-/// it deliberately does NOT touch per-kana SRS stats — reading fluency is a
-/// different signal from single-kana recognition.
+/// Contextual reading practice over [ReadingItem]s (words OR short phrases): read
+/// the kana, reveal the reading + meaning, hear it (the ear is the real grader),
+/// and self-grade. Records a reading [Attempt] to the analytics stream
+/// (itemType=word, mode=reading); it deliberately does NOT touch per-kana SRS —
+/// reading fluency is a different signal from single-kana recognition.
 class ReadingScreen extends StatefulWidget {
-  const ReadingScreen({required this.words, required this.title, super.key});
+  const ReadingScreen({required this.items, required this.title, super.key});
 
-  final List<Word> words;
+  final List<ReadingItem> items;
   final String title;
 
-  static Route<void> route(List<Word> words, String title) =>
+  static Route<void> route(List<ReadingItem> items, String title) =>
       MaterialPageRoute<void>(
-        builder: (_) => ReadingScreen(words: words, title: title),
+        builder: (_) => ReadingScreen(items: items, title: title),
       );
 
   @override
@@ -38,10 +38,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
   int _correct = 0;
   bool _done = false;
 
-  Word get _current => widget.words[_index];
+  ReadingItem get _current => widget.items[_index];
+
+  /// Speakable form — layout spaces removed.
+  String get _say => _current.displayText.replaceAll(' ', '');
 
   void _reveal() {
-    context.read<SpeechService>().speak(_current.kana);
+    context.read<SpeechService>().speak(_say);
     setState(() => _revealed = true);
   }
 
@@ -50,7 +53,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
     context.read<AnalyticsLog>().record(
       Attempt(
         ts: now.millisecondsSinceEpoch,
-        itemId: _current.kana,
+        itemId: _current.displayText,
         itemType: ItemType.word,
         mode: PracticeMode.reading.name,
         correct: correct,
@@ -59,7 +62,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
       ),
     );
     if (correct) _correct++;
-    if (_index + 1 >= widget.words.length) {
+    if (_index + 1 >= widget.items.length) {
       setState(() => _done = true);
     } else {
       setState(() {
@@ -85,7 +88,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              AppStrings.readingSummary(_correct, widget.words.length),
+              AppStrings.readingSummary(_correct, widget.items.length),
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -107,11 +110,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   Widget _question() {
+    // Phrases are longer than words — scale the glyphs down a touch.
+    final big = _say.length <= 4;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          '${_index + 1} / ${widget.words.length}',
+          '${_index + 1} / ${widget.items.length}',
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -131,13 +136,20 @@ class _ReadingScreenState extends State<ReadingScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Spacer(),
-                  Text(
-                    _current.kana,
-                    style: const TextStyle(
-                      fontSize: 64,
-                      height: 1.1,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.ink,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _current.displayText,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: big ? 64 : 44,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -158,7 +170,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                     Text(
                       _current.romaji,
                       style: const TextStyle(
-                        fontSize: 28,
+                        fontSize: 26,
                         fontWeight: FontWeight.w700,
                         color: AppColors.accent,
                       ),
@@ -171,7 +183,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                         color: AppColors.ink,
                       ),
                     ),
-                    SpeakButton(text: _current.kana, size: 30),
+                    SpeakButton(text: _say, size: 30),
                   ],
                   const Spacer(),
                 ],

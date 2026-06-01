@@ -78,6 +78,11 @@ abstract final class AppStrings {
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
 
+  // Sentence reading (the phrase track)
+  static const String sentenceEntry = '讀句練習';
+  static const String sentenceSubtitle = '讀短句,用耳朵確認';
+  static const String sentenceTitle = '讀句練習';
+
   // Kanji reading
   static const String kanjiEntry = '漢字讀音';
   static const String kanjiSubtitle = '讀出漢字的音読・訓読';
