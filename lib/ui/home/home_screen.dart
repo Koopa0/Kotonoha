@@ -18,8 +18,11 @@ import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
+import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
 import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
+import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
@@ -53,6 +56,11 @@ class HomeScreen extends StatelessWidget {
             ).map((k) => k.character).toSet();
             final readableWords = ReadingSet.readable(kWords, learnedChars);
             final readablePhrases = ReadingSet.readable(kPhrases, learnedChars);
+            // Kanji sentences are readable once their NON-kanji kana is known —
+            // the kanji themselves come with (fading) furigana.
+            final readableKanjiPhrases = kKanjiPhrases
+                .where((p) => p.plainKana.every(learnedChars.contains))
+                .toList();
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
@@ -171,6 +179,16 @@ class HomeScreen extends StatelessWidget {
                   subtitle: AppStrings.kanjiSubtitle,
                   onTap: () => _startKanji(context),
                 ),
+                if (readableKanjiPhrases.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _NavCard(
+                    icon: Icons.auto_stories_rounded,
+                    label: AppStrings.kanjiSentenceEntry,
+                    subtitle: AppStrings.kanjiSentenceSubtitle,
+                    onTap: () =>
+                        _startKanjiSentence(context, readableKanjiPhrases),
+                  ),
+                ],
                 // The confusable drill targets look-alike kana specifically —
                 // the one review mode the adaptive daily session can't replace.
                 if (store.learnedUnitCount > 0) ...[
@@ -272,6 +290,13 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(
       context,
     ).push(KanjiQuizScreen.route(prompts, AppStrings.kanjiTitle));
+  }
+
+  void _startKanjiSentence(BuildContext context, List<KanjiPhrase> readable) {
+    final picked = List<KanjiPhrase>.of(readable)..shuffle();
+    Navigator.of(
+      context,
+    ).push(KanjiSentenceScreen.route(picked, AppStrings.kanjiSentenceTitle));
   }
 
   void _startConfusable(BuildContext context) {

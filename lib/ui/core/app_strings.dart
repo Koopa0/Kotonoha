@@ -93,6 +93,12 @@ abstract final class AppStrings {
   static const String kanjiKunyomi = '訓読み';
   static String kanjiAlsoReads(String others) => '也讀:$others';
 
+  // Kanji sentence reading (furigana fades as readings mature)
+  static const String kanjiSentenceEntry = '漢字讀句';
+  static const String kanjiSentenceSubtitle = '讀有漢字的句子,讀音會慢慢淡出';
+  static const String kanjiSentenceTitle = '漢字讀句';
+  static const String kanjiSentencePrompt = '在心裡讀出整句';
+
   // Insights (reads the analytics event stream)
   static const String insightsEntry = '學習洞察';
   static const String insightsSubtitle = '你的練習數據';
