@@ -107,6 +107,7 @@ class _DictationScreenState extends State<DictationScreen> {
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.kana,
+        itemType: ItemType.word,
         mode: PracticeMode.dictation.name,
         correct: correct,
         rtMs: now.millisecondsSinceEpoch - _shownAtMs,

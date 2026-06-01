@@ -48,4 +48,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.readingSummary(1, 1)), findsOneWidget);
   });
+
+  testWidgets('wrong assembly is graded incorrect and reveals the answer', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    const words = [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')];
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsLog>.value(value: analytics),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: const MaterialApp(
+          home: DictationScreen(words: words, title: AppStrings.dictationTitle),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Assemble in the wrong order: み then き → みき ≠ きみ.
+    await tester.tap(find.text('み'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('き'));
+    await tester.pumpAndSettle();
+
+    // Graded incorrect; the correct answer + meaning is revealed.
+    expect((await analytics.all()).single.correct, isFalse);
+    expect(find.text('きみ・你'), findsOneWidget);
+    expect(find.text(AppStrings.dictationNext), findsOneWidget);
+  });
 }

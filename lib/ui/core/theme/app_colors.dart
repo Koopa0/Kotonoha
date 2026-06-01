@@ -21,6 +21,7 @@ abstract final class AppColors {
 
   // Neutrals
   static const Color paper = Color(0xFFF2F5F3); // cool washi (bg)
+  static const Color washiFleck = Color(0xFFFFFFFF); // pale pulp highlight
   static const Color card = Color(0xFFFBFDFC); // near-white surface
   static const Color ink = Color(0xFF2A332E); // deep pine text
   static const Color inkMuted = Color(0xFF66726B); // misty green-gray

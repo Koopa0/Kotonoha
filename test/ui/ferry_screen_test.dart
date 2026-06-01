@@ -58,6 +58,45 @@ void main() {
     final logged = await analytics.all();
     expect(logged.length, 2);
     expect(logged.every((a) => a.mode == PracticeMode.ferry.name), isTrue);
+    expect(logged.every((a) => a.itemType == ItemType.word), isTrue);
     expect(logged.first.itemId, 'きみ');
+  });
+
+  testWidgets('rtMs times only the read-back, not the see-beat dwell', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    var now = DateTime(2026, 6);
+    const words = [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')];
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsLog>.value(value: analytics),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: MaterialApp(
+          home: FerryScreen(
+            words: words,
+            title: AppStrings.ferryTitle,
+            clock: () => now,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.ferryShowText)); // → see beat
+    await tester.pumpAndSettle();
+    now = now.add(const Duration(seconds: 5)); // dwell on SEE — must NOT count
+    await tester.tap(
+      find.text(AppStrings.ferryReadSelf),
+    ); // read-back starts now
+    await tester.pumpAndSettle();
+    now = now.add(const Duration(milliseconds: 800)); // the read-back — counts
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+
+    expect((await analytics.all()).single.rtMs, 800);
   });
 }

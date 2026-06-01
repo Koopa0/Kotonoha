@@ -41,7 +41,7 @@ class _WashiPainter extends CustomPainter {
       final end = Offset(x + cos(angle) * len, y + sin(angle) * len * 0.55);
       // Mostly pale flecks with a few darker fibres — like pulp in the sheet.
       final dark = rng.nextInt(3) == 0;
-      fibre.color = (dark ? AppColors.ink : Colors.white).withValues(
+      fibre.color = (dark ? AppColors.ink : AppColors.washiFleck).withValues(
         alpha: dark ? 0.022 : 0.05,
       );
       canvas.drawLine(Offset(x, y), end, fibre);

@@ -9,6 +9,10 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 /// glow that gently settles in, one quiet [note] (a fact about today, never a
 /// count), and only then — quietly — the score. Light as the only "reward".
 /// Shared by every self-graded screen.
+///
+/// Deliberate decision (not an oversight): when a [note] is present the score is
+/// kept as a small, muted footnote rather than removed. It's honest feedback,
+/// never the reward — the closing FACT (the note) leads; the count never does.
 class SessionSummary extends StatelessWidget {
   const SessionSummary({
     required this.headline,

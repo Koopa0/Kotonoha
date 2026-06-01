@@ -17,10 +17,18 @@ import 'package:provider/provider.dart';
 /// (the binding), (3) read it back unaided. The thesis made mechanical. Records
 /// a reading [Attempt] (mode=ferry); reaction time is the read-back.
 class FerryScreen extends StatefulWidget {
-  const FerryScreen({required this.words, required this.title, super.key});
+  const FerryScreen({
+    required this.words,
+    required this.title,
+    this.clock,
+    super.key,
+  });
 
   final List<Word> words;
   final String title;
+
+  /// Injectable clock so the read-back reaction time is testable.
+  final DateTime Function()? clock;
 
   static Route<void> route(List<Word> words, String title) =>
       MaterialPageRoute<void>(
@@ -37,9 +45,11 @@ class _FerryScreenState extends State<FerryScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   int _index = 0;
   _Beat _beat = _Beat.hear;
-  int _seenAtMs = 0;
+  int _readbackAtMs = 0;
   int _correct = 0;
   bool _done = false;
+
+  DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   Word get _current => widget.words[_index];
 
@@ -56,23 +66,25 @@ class _FerryScreenState extends State<FerryScreen> {
 
   void _showText() {
     _speak();
-    setState(() {
-      _beat = _Beat.see;
-      _seenAtMs = DateTime.now().millisecondsSinceEpoch;
-    });
+    setState(() => _beat = _Beat.see);
   }
 
-  void _readSelf() => setState(() => _beat = _Beat.readback);
+  void _readSelf() => setState(() {
+    _beat = _Beat.readback;
+    // Time only the read-back — the see-beat dwell must not count.
+    _readbackAtMs = _clock().millisecondsSinceEpoch;
+  });
 
   void _grade(bool correct) {
-    final now = DateTime.now();
+    final now = _clock();
     context.read<AnalyticsLog>().record(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.kana,
+        itemType: ItemType.word,
         mode: PracticeMode.ferry.name,
         correct: correct,
-        rtMs: now.millisecondsSinceEpoch - _seenAtMs,
+        rtMs: now.millisecondsSinceEpoch - _readbackAtMs,
         sessionId: _sessionId,
         meta: {'romaji': _current.romaji},
       ),
