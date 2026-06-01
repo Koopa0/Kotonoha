@@ -7,21 +7,43 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
-/// A small speaker button that reads [text] aloud via the [SpeechService].
-/// Used on study cards, the dictionary detail sheet, and quiz prompts.
+/// A speaker button that reads [text] aloud via the [SpeechService]. Two roles,
+/// one widget: the default is a small "hear it again" affordance (study cards,
+/// detail sheet, quiz prompts); [prominent] renders a filled accent circle for
+/// the screens where the audio IS the prompt (渡し舟, 文字起こし).
 class SpeakButton extends StatelessWidget {
-  const SpeakButton({required this.text, super.key, this.size = 26});
+  const SpeakButton({
+    required this.text,
+    super.key,
+    this.size = 26,
+    this.prominent = false,
+  });
 
   final String text;
   final double size;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
+    void speak() => context.read<SpeechService>().speak(text);
+    if (prominent) {
+      return IconButton.filled(
+        onPressed: speak,
+        iconSize: size,
+        tooltip: AppStrings.playSound,
+        style: IconButton.styleFrom(
+          backgroundColor: AppColors.accentSoft,
+          foregroundColor: AppColors.accent,
+          padding: EdgeInsets.all(size * 0.4),
+        ),
+        icon: const Icon(Icons.volume_up_rounded),
+      );
+    }
     return IconButton(
       icon: Icon(Icons.volume_up_rounded, size: size),
       color: AppColors.accent,
       tooltip: AppStrings.playSound,
-      onPressed: () => context.read<SpeechService>().speak(text),
+      onPressed: speak,
     );
   }
 }

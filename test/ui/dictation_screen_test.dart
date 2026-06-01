@@ -74,9 +74,44 @@ void main() {
     await tester.tap(find.text('き'));
     await tester.pumpAndSettle();
 
-    // Graded incorrect; the correct answer + meaning is revealed.
+    // Graded incorrect; the correct answer's kana + romaji + meaning is revealed.
     expect((await analytics.all()).single.correct, isFalse);
-    expect(find.text('きみ・你'), findsOneWidget);
+    expect(find.text('きみ'), findsOneWidget);
+    expect(find.text('kimi'), findsOneWidget);
+    expect(find.text('你'), findsOneWidget);
     expect(find.text(AppStrings.dictationNext), findsOneWidget);
+  });
+
+  testWidgets('rtMs times the assembly from the injected clock', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    var now = DateTime(2026, 6);
+    const words = [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')];
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsLog>.value(value: analytics),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: MaterialApp(
+          home: DictationScreen(
+            words: words,
+            title: AppStrings.dictationTitle,
+            clock: () => now,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    now = now.add(const Duration(milliseconds: 1200)); // time spent assembling
+    await tester.tap(find.text('き'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('み'));
+    await tester.pumpAndSettle();
+
+    expect((await analytics.all()).single.rtMs, 1200);
   });
 }

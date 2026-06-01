@@ -55,6 +55,21 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Generates the platform launcher icons from the leaf source art rendered by
+  # tool/render_app_icon.dart. Regenerate with: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.1
+
+# The 言の葉 launcher icon — a single celadon leaf on cool washi. Source art is
+# rendered with the app's own canvas + palette by tool/render_app_icon.dart.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#F2F5F3" # AppColors.paper (cool washi)
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

@@ -12,6 +12,7 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
 /// 文字を起こす — dictation. Hear a word, then ASSEMBLE it from kana tiles (its
@@ -20,10 +21,18 @@ import 'package:provider/provider.dart';
 /// can call the written shape up himself. Records a [Attempt] (mode=dictation),
 /// rtMs = time to assemble.
 class DictationScreen extends StatefulWidget {
-  const DictationScreen({required this.words, required this.title, super.key});
+  const DictationScreen({
+    required this.words,
+    required this.title,
+    this.clock,
+    super.key,
+  });
 
   final List<Word> words;
   final String title;
+
+  /// Injectable clock so the assembled-word reaction time is testable.
+  final DateTime Function()? clock;
 
   static Route<void> route(List<Word> words, String title) =>
       MaterialPageRoute<void>(
@@ -49,6 +58,8 @@ class _DictationScreenState extends State<DictationScreen> {
 
   Word get _current => widget.words[_index];
 
+  DateTime Function() get _clock => widget.clock ?? DateTime.now;
+
   List<String> get _targetChars => [
     for (final r in _current.kana.runes) String.fromCharCode(r),
   ];
@@ -73,7 +84,7 @@ class _DictationScreenState extends State<DictationScreen> {
     _used = List<bool>.filled(_tiles.length, false);
     _picked.clear();
     _checked = false;
-    _shownAtMs = DateTime.now().millisecondsSinceEpoch;
+    _shownAtMs = _clock().millisecondsSinceEpoch;
   }
 
   void _speak() {
@@ -102,7 +113,7 @@ class _DictationScreenState extends State<DictationScreen> {
   void _check() {
     final built = _picked.map((i) => _tiles[i]).join();
     final correct = built == _current.kana;
-    final now = DateTime.now();
+    final now = _clock();
     context.read<AnalyticsLog>().record(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -162,16 +173,7 @@ class _DictationScreenState extends State<DictationScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        IconButton.filled(
-          onPressed: _speak,
-          iconSize: 40,
-          style: IconButton.styleFrom(
-            backgroundColor: AppColors.accentSoft,
-            foregroundColor: AppColors.accent,
-            padding: const EdgeInsets.all(18),
-          ),
-          icon: const Icon(Icons.volume_up_rounded),
-        ),
+        SpeakButton(text: _current.kana, prominent: true, size: 40),
         const SizedBox(height: 8),
         const Text(
           AppStrings.dictationPrompt,
@@ -207,11 +209,37 @@ class _DictationScreenState extends State<DictationScreen> {
             ),
           )
         else
-          Text(
-            _wasCorrect
-                ? _current.meaning
-                : '${_current.kana}・${_current.meaning}',
-            style: const TextStyle(color: AppColors.ink, fontSize: 18),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The same identity block the reading & ferry reveals show. On a
+              // miss, lead with the answer's kana; romaji + meaning follow.
+              if (!_wasCorrect) ...[
+                Text(
+                  _current.kana,
+                  style: const TextStyle(
+                    fontSize: 34,
+                    height: 1.1,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+              Text(
+                _current.romaji,
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _current.meaning,
+                style: const TextStyle(color: AppColors.ink, fontSize: 18),
+              ),
+            ],
           ),
         const Spacer(),
         Padding(

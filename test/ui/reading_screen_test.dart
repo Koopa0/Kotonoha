@@ -31,7 +31,7 @@ void main() {
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],
         child: const MaterialApp(
-          home: ReadingScreen(items: words, title: AppStrings.readingTitle),
+          home: ReadingScreen(items: words, title: AppStrings.sentenceTitle),
         ),
       ),
     );

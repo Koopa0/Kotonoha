@@ -88,6 +88,11 @@ void main() {
 
     await tester.tap(find.text(AppStrings.ferryShowText)); // → see beat
     await tester.pumpAndSettle();
+    expect(
+      find.text('你'),
+      findsOneWidget,
+    ); // the meaning is revealed with the kana
+    expect(find.text('kimi'), findsOneWidget); // romaji confirms the reading
     now = now.add(const Duration(seconds: 5)); // dwell on SEE — must NOT count
     await tester.tap(
       find.text(AppStrings.ferryReadSelf),

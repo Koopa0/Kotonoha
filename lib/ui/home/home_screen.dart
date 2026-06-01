@@ -10,7 +10,6 @@ import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
-import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
@@ -44,7 +43,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.appTitle)),
+      // No app-bar title — the wordmark below is the sole brand mark, so the
+      // name 「言の葉」 never appears twice (and never as bare romaji).
       body: SafeArea(
         child: Consumer<KanaProgressRepository>(
           builder: (context, store, _) {
@@ -77,18 +77,30 @@ class HomeScreen extends StatelessWidget {
                       const Text(
                         '言の葉',
                         style: TextStyle(
-                          fontSize: 15,
-                          letterSpacing: 6,
-                          color: AppColors.inkMuted,
+                          fontSize: 20,
+                          letterSpacing: 5,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 7),
                       Container(
-                        width: 34,
+                        width: 40,
                         height: 2,
                         decoration: BoxDecoration(
                           color: AppColors.komorebi,
                           borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      // The romaji only ever appears here — small, beneath the
+                      // wordmark, as a quiet romanization. Never alone.
+                      const Text(
+                        'KOTONOHA',
+                        style: TextStyle(
+                          fontSize: 9,
+                          letterSpacing: 4,
+                          color: AppColors.inkMuted,
                         ),
                       ),
                     ],
@@ -162,15 +174,6 @@ class HomeScreen extends StatelessWidget {
                   subtitle: AppStrings.writingSubtitle,
                   onTap: () => _startWriting(context),
                 ),
-                if (readableWords.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _NavCard(
-                    icon: Icons.menu_book_rounded,
-                    label: AppStrings.readingEntry,
-                    subtitle: AppStrings.readingSubtitle,
-                    onTap: () => _startReading(context, readableWords),
-                  ),
-                ],
                 if (readablePhrases.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _NavCard(
@@ -310,14 +313,6 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(context).push(
       WritingScreen.route(pool.take(12).toList(), AppStrings.writingTitle),
     );
-  }
-
-  void _startReading(BuildContext context, List<Word> readable) {
-    // [readable] is already gated to the learner's unlocked kana by the caller.
-    final picked = (List<Word>.of(readable)..shuffle()).take(10).toList();
-    Navigator.of(
-      context,
-    ).push(ReadingScreen.route(picked, AppStrings.readingTitle));
   }
 
   void _startSentence(BuildContext context, List<Phrase> readable) {

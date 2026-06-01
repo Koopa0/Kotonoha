@@ -82,11 +82,10 @@ Future<void> main() async {
     await shot('08-ferry');
     await back();
 
-    // Reading practice — reveal so romaji + meaning show (card is above the fold).
-    await tester.tap(find.text(AppStrings.readingEntry));
+    // Dictation — hear the word, then assemble it from the kana tile board.
+    await tester.tap(find.text(AppStrings.dictationEntry));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.revealAnswer));
-    await shot('03-reading');
+    await shot('03-dictation');
     await back();
 
     // A question inside today's adaptive session (the primary CTA, near the top).

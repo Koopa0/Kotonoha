@@ -73,7 +73,7 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    // Home → 循序學習
+    // Home → 手解き (the sequential-learning path)
     await tester.tap(find.text(AppStrings.continueLearning));
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.lessonsTitle), findsOneWidget);

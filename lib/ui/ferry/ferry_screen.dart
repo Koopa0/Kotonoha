@@ -9,6 +9,7 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
 /// 渡し舟 — the Ferry. For a learner whose ear runs ahead of his eye: a word he
@@ -141,7 +142,11 @@ class _FerryScreenState extends State<FerryScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Spacer(),
-                  _Speaker(onTap: _speak, big: !showKana),
+                  SpeakButton(
+                    text: _current.kana,
+                    prominent: true,
+                    size: showKana ? 34 : 56,
+                  ),
                   if (showKana) ...[
                     const SizedBox(height: 24),
                     // The kana inks in — fades and rises into being.
@@ -155,6 +160,26 @@ class _FerryScreenState extends State<FerryScreen> {
                           fontWeight: FontWeight.w500,
                           color: AppColors.ink,
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // The same identity block the reading screen reveals, kept
+                    // consistent: romaji (the reading) then meaning (the word
+                    // you own). The ear already gave him the sound; these confirm.
+                    Text(
+                      _current.romaji,
+                      style: const TextStyle(
+                        color: AppColors.accent,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _current.meaning,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 18,
                       ),
                     ),
                   ],
@@ -256,27 +281,6 @@ class _InkIn extends StatelessWidget {
         ),
       ),
       child: child,
-    );
-  }
-}
-
-class _Speaker extends StatelessWidget {
-  const _Speaker({required this.onTap, required this.big});
-
-  final VoidCallback onTap;
-  final bool big;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton.filled(
-      onPressed: onTap,
-      iconSize: big ? 56 : 34,
-      style: IconButton.styleFrom(
-        backgroundColor: AppColors.accentSoft,
-        foregroundColor: AppColors.accent,
-        padding: EdgeInsets.all(big ? 22 : 14),
-      ),
-      icon: const Icon(Icons.volume_up_rounded),
     );
   }
 }

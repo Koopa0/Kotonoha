@@ -50,7 +50,7 @@ void main() {
     expect(find.textContaining('選擇'), findsOneWidget);
   });
 
-  testWidgets('real navigation: the 五十音表 grid renders the full row span', (
+  testWidgets('real navigation: the 五十音図 grid renders the full row span', (
     tester,
   ) async {
     await tester.pumpWidget(await app.bootstrap());

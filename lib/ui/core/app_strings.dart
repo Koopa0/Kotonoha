@@ -8,16 +8,17 @@
 /// lives in one place.
 abstract final class AppStrings {
   // App / brand
-  static const String appTitle = 'Kotonoha';
+  // Presentation always uses 言の葉; "kotonoha" stays a code-only identifier.
+  static const String appTitle = '言の葉';
 
   // Home
-  static const String dailySession = '今天的練習';
-  static const String continueLearning = '開始學習';
-  static const String learnHiragana = '五十音表';
+  static const String dailySession = '今日の稽古';
+  static const String continueLearning = '手解き';
+  static const String learnHiragana = '五十音図';
   static const String learnHiraganaSubtitle = '瀏覽所有平假名';
 
   // Lessons (sequential learning)
-  static const String lessonsTitle = '循序學習';
+  static const String lessonsTitle = '手解き';
   static const String hiraganaSection = '平假名';
   static const String katakanaSection = '片假名';
   static const String extendedSection = '濁音・半濁音・拗音';
@@ -37,7 +38,7 @@ abstract final class AppStrings {
   static const String lessonNotPassed = '再多練幾次就好,不急。';
   static const String retryLesson = '再測一次';
   static const String backToLessons = '回課程';
-  static const String progress = '學習進度';
+  static const String progress = '歩み';
   static const String progressSubtitle = '目前的學習狀況';
   static const String practiced = '已練習';
   static const String startFirstReview = '開始你的第一次複習';
@@ -53,14 +54,14 @@ abstract final class AppStrings {
   static const String seeResults = '查看結果';
 
   // Confusable-pair drill
-  static const String confusableEntry = '易混淆練習';
-  static const String confusableSubtitle = '專練長得像的假名';
-  static const String quizTitleConfusable = '易混淆練習';
+  static const String confusableEntry = '目利き';
+  static const String confusableSubtitle = '專練長得像、容易看錯的假名';
+  static const String quizTitleConfusable = '目利き';
 
   // Handwriting recall (with paper practice book)
-  static const String writingEntry = '手寫默寫';
+  static const String writingEntry = '手習い';
   static const String writingSubtitle = '看題目,在習字本上寫';
-  static const String writingTitle = '手寫默寫';
+  static const String writingTitle = '手習い';
   static const String writePrompt = '在習字本上寫出這個音';
   static const String revealAnswer = '看答案';
   static const String iGotIt = '我寫對了';
@@ -68,20 +69,18 @@ abstract final class AppStrings {
   static String writingSummary(int correct, int total) =>
       '寫對 $correct / $total';
 
-  // Contextual word reading
-  static const String readingEntry = '讀詞練習';
-  static const String readingSubtitle = '用學過的假名讀出小詞';
-  static const String readingTitle = '讀詞練習';
-  static const String readPrompt = '心裡讀讀看這個詞';
+  // Shared reading-screen strings (讀句 + the 渡し舟 grade buttons). The
+  // word-reading entry was folded into 渡し舟 — the ear-first word reader.
+  static const String readPrompt = '心裡讀讀看';
   static const String iReadIt = '讀對了';
   static const String iCouldnt = '讀不出';
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
 
   // 文字を起こす Dictation (hear → assemble the kana)
-  static const String dictationEntry = '聽寫練習';
+  static const String dictationEntry = '文字起こし';
   static const String dictationSubtitle = '聽發音,自己拼出假名';
-  static const String dictationTitle = '聽寫練習';
+  static const String dictationTitle = '文字起こし';
   static const String dictationPrompt = '聽聽看,拼出這個詞';
   static const String dictationClear = '清除';
   static const String dictationNext = '下一個';
@@ -97,14 +96,14 @@ abstract final class AppStrings {
   static const String ferryReadSelf = '自己讀';
 
   // Sentence reading (the phrase track)
-  static const String sentenceEntry = '讀句練習';
-  static const String sentenceSubtitle = '讀短句,用耳朵確認';
-  static const String sentenceTitle = '讀句練習';
+  static const String sentenceEntry = '黙読';
+  static const String sentenceSubtitle = '讀短句,心裡默讀,再用耳朵確認';
+  static const String sentenceTitle = '黙読';
 
   // Kanji reading
-  static const String kanjiEntry = '漢字讀音';
+  static const String kanjiEntry = '漢字の声';
   static const String kanjiSubtitle = '讀出漢字的音読・訓読';
-  static const String kanjiTitle = '漢字讀音';
+  static const String kanjiTitle = '漢字の声';
   static const String kanjiPrompt = '在心裡讀出這個漢字的音';
   static const String kanjiReveal = '顯示讀音';
   static const String kanjiOnyomi = '音読み';
@@ -112,21 +111,21 @@ abstract final class AppStrings {
   static String kanjiAlsoReads(String others) => '也讀:$others';
 
   // Kanji sentence reading (furigana fades as readings mature)
-  static const String kanjiSentenceEntry = '漢字讀句';
+  static const String kanjiSentenceEntry = '名残の仮名';
   static const String kanjiSentenceSubtitle = '讀有漢字的句子,讀音會慢慢淡出';
-  static const String kanjiSentenceTitle = '漢字讀句';
+  static const String kanjiSentenceTitle = '名残の仮名';
   static const String kanjiSentencePrompt = '在心裡讀出整句';
 
   // Insights (reads the analytics event stream)
-  static const String insightsEntry = '學習洞察';
-  static const String insightsSubtitle = '你的練習數據';
-  static const String insightsTitle = '學習洞察';
+  static const String insightsEntry = '自画像';
+  static const String insightsSubtitle = '常認錯什麼、反應多快';
+  static const String insightsTitle = '自画像';
   static const String insightsTotal = '總練習次數';
   static const String insightsAccuracy = '整體正確率';
   static const String insightsAvgRt = '平均反應時間';
   static const String insightsDistinct = '練習過的假名・詞';
   static const String insightsByMode = '各模式練習次數';
-  static const String insightsEmpty = '還沒有練習紀錄,先做一次「今天的練習」吧。';
+  static const String insightsEmpty = '還沒有練習紀錄,先做一次「今日の稽古」吧。';
   static String confusionLine(String target, String mistakenFor) =>
       '最近,常把「$target」看成「$mistakenFor」。';
   static String insightsMs(int ms) => '$ms 毫秒';
@@ -134,14 +133,18 @@ abstract final class AppStrings {
 
   /// Human label for a [PracticeMode] name in the analytics stream.
   static String modeLabel(String mode) => switch (mode) {
-    'daily' => '今天的練習',
+    // The home-facing tracks reuse their tile names so the Insights breakdown
+    // never drifts from the home labels.
+    'daily' => dailySession, // 今日の稽古
     'lessonTest' => '課程測驗',
     'missed' => '複習答錯',
-    'confusable' => '易混淆',
-    'writing' => '手寫默寫',
-    'reading' => '讀詞',
+    'confusable' => confusableEntry, // 目利き
+    'writing' => writingEntry, // 手習い
+    'reading' => sentenceEntry, // 黙読 (the sentence track; 讀詞 was removed)
     'quickReview' => '快速複習',
-    'kanjiReading' => '漢字讀音',
+    'kanjiReading' => kanjiEntry, // 漢字の声
+    'ferry' => ferryEntry, // 渡し舟
+    'dictation' => dictationEntry, // 文字起こし
     _ => mode,
   };
 

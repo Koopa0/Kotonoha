@@ -12,7 +12,7 @@ import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
-/// Contextual reading practice over [ReadingItem]s (words OR short phrases): read
+/// Contextual reading practice over [ReadingItem]s (the 黙読 sentence track): read
 /// the kana, reveal the reading + meaning, hear it (the ear is the real grader),
 /// and self-grade. Records a reading [Attempt] to the analytics stream
 /// (itemType=word, mode=reading); it deliberately does NOT touch per-kana SRS —
