@@ -8,6 +8,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
@@ -74,34 +75,10 @@ class _WritingScreenState extends State<WritingScreen> {
     );
   }
 
-  Widget _summary() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              AppStrings.writingSummary(_correct, widget.targets.length),
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.ink,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(AppStrings.done),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _summary() => SessionSummary(
+    headline: AppStrings.writingSummary(_correct, widget.targets.length),
+    onDone: () => Navigator.of(context).pop(),
+  );
 
   Widget _question() {
     return Column(

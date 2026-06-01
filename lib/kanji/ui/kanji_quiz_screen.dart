@@ -11,6 +11,7 @@ import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
@@ -96,34 +97,10 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     );
   }
 
-  Widget _summary() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              AppStrings.readingSummary(_correct, widget.prompts.length),
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.ink,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(AppStrings.done),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _summary() => SessionSummary(
+    headline: AppStrings.readingSummary(_correct, widget.prompts.length),
+    onDone: () => Navigator.of(context).pop(),
+  );
 
   Widget _question() {
     final p = _current;

@@ -120,6 +120,7 @@ abstract final class AppStrings {
   };
 
   // Result
+  static const String sessionCloseLine = '今天就到這裡,辛苦了。';
   static const String sessionComplete = '本次完成';
   static const String correct = '答對';
   static const String missedKana = '答錯的假名';
