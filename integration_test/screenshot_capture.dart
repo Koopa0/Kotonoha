@@ -8,6 +8,8 @@ import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -29,10 +31,10 @@ Future<void> main() async {
     await tester.binding.setSurfaceSize(const Size(393, 852));
     SharedPreferences.setMockInitialValues({});
     final store = await KanaProgressRepository.load();
-    // Learn the first three hiragana rows and record a spread of answers, so the
-    // ring, progress, reading entry, and a daily session all have real content.
-    for (final id in ['hira_row_0', 'hira_row_1', 'hira_row_2']) {
-      await store.markUnitLearned(id);
+    // Learn all hiragana and record a spread of answers, so every track (words,
+    // phrases, kanji, confusable, insights) is unlocked and populated.
+    for (final l in Lessons.fromKana(store.allKana)) {
+      if (l.script == KanaScript.hiragana) await store.markUnitLearned(l.id);
     }
     final learned = StudySet.learned(store);
     for (var i = 0; i < learned.length; i++) {
@@ -107,5 +109,18 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.kanjiReveal));
     await shot('05-kanji');
+    await back();
+
+    // Sentence reading — a themed mini-phrase, revealed.
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.sentenceEntry),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.sentenceEntry));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.revealAnswer));
+    await shot('06-sentence');
   });
 }
