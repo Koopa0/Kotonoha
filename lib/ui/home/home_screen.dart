@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
+import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
@@ -26,6 +27,7 @@ import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/insights/insights_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
@@ -137,6 +139,15 @@ class HomeScreen extends StatelessWidget {
                     child: const Text(AppStrings.continueLearning),
                   ),
                 const SizedBox(height: 20),
+                if (readableWords.isNotEmpty) ...[
+                  _NavCard(
+                    icon: Icons.sailing_rounded,
+                    label: AppStrings.ferryEntry,
+                    subtitle: AppStrings.ferrySubtitle,
+                    onTap: () => _startFerry(context),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _NavCard(
                   icon: Icons.edit_note_rounded,
                   label: AppStrings.writingEntry,
@@ -254,6 +265,19 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(
       context,
     ).push(QuizScreen.routeItems(items: items, title: AppStrings.dailySession));
+  }
+
+  void _startFerry(BuildContext context) {
+    final store = context.read<KanaProgressRepository>();
+    final learnedChars = StudySet.learned(
+      store,
+    ).map((k) => k.character).toSet();
+    final words = FerrySession.compose(
+      words: kWords,
+      learnedChars: learnedChars,
+      rng: Random(),
+    );
+    Navigator.of(context).push(FerryScreen.route(words, AppStrings.ferryTitle));
   }
 
   void _startWriting(BuildContext context) {

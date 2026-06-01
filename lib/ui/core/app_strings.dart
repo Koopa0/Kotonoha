@@ -78,6 +78,16 @@ abstract final class AppStrings {
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
 
+  // 渡し舟 The Ferry (hear → see → read back)
+  static const String ferryEntry = '渡し舟';
+  static const String ferrySubtitle = '先聽,再讓文字浮現,然後自己讀';
+  static const String ferryTitle = '渡し舟';
+  static const String ferryHear = '先聽聽看';
+  static const String ferrySee = '聽到的,就是這個';
+  static const String ferryReadback = '現在,自己讀出聲';
+  static const String ferryShowText = '看文字';
+  static const String ferryReadSelf = '自己讀';
+
   // Sentence reading (the phrase track)
   static const String sentenceEntry = '讀句練習';
   static const String sentenceSubtitle = '讀短句,用耳朵確認';
