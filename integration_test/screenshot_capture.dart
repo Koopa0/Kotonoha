@@ -74,6 +74,14 @@ Future<void> main() async {
 
     await shot('01-home');
 
+    // The Ferry — the binding beat: kana inked in over the (still) audio.
+    await tester.tap(find.text(AppStrings.ferryEntry));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    await shot('08-ferry');
+    await back();
+
     // Reading practice — reveal so romaji + meaning show (card is above the fold).
     await tester.tap(find.text(AppStrings.readingEntry));
     await tester.pumpAndSettle();
