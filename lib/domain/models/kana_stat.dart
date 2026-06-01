@@ -18,6 +18,7 @@ class KanaStat {
     this.lastReviewedAt,
     this.srsLevel = 0,
     this.dueAt,
+    this.avgLatencyMs = 0,
   });
 
   factory KanaStat.fromJson(Map<String, dynamic> json) {
@@ -34,6 +35,7 @@ class KanaStat {
       dueAt: dueMillis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(dueMillis),
+      avgLatencyMs: (json['al'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -47,6 +49,12 @@ class KanaStat {
 
   /// When this kana is next due for review (null until first answered).
   final DateTime? dueAt;
+
+  /// Exponential moving average of *timed* reaction time (ms); 0 = no timed
+  /// reading yet. Untimed answers (paper writing, reading) don't change it, so
+  /// it stays a clean signal of recognition speed — the reading-fluency
+  /// bottleneck, not just correctness.
+  final int avgLatencyMs;
 
   bool get isSeen => seenCount > 0;
 
@@ -100,6 +108,16 @@ class KanaStat {
       1,
       1 << 30,
     );
+    // EMA the reaction time, but only on real timed readings — untimed answers
+    // leave the speed signal untouched.
+    final int nextAvgLatency;
+    if (latencyMs != null && latencyMs > 0) {
+      nextAvgLatency = avgLatencyMs == 0
+          ? latencyMs
+          : (0.7 * avgLatencyMs + 0.3 * latencyMs).round();
+    } else {
+      nextAvgLatency = avgLatencyMs;
+    }
     return KanaStat(
       seenCount: seenCount + 1,
       correctCount: correctCount + (correct ? 1 : 0),
@@ -107,6 +125,7 @@ class KanaStat {
       lastReviewedAt: at,
       srsLevel: nextLevel,
       dueAt: at.add(Duration(minutes: mins)),
+      avgLatencyMs: nextAvgLatency,
     );
   }
 
@@ -127,6 +146,7 @@ class KanaStat {
     // New fields are omitted at defaults so old kana_stats_v1 stays valid.
     if (srsLevel != 0) 'sl': srsLevel,
     if (dueAt != null) 'd': dueAt!.millisecondsSinceEpoch,
+    if (avgLatencyMs != 0) 'al': avgLatencyMs,
   };
 
   @override
