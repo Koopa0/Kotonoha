@@ -11,6 +11,7 @@ enum PracticeMode {
   writing, // paper recall (self-graded, paired with the user's paper book)
   reading, // contextual word reading (glyph string → sound, self-graded)
   ferry, // hear → watch the kana ink in → read it back (sound↔glyph binding)
+  dictation, // hear → assemble the kana (production / encoding)
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji

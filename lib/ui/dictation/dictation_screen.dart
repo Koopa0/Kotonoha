@@ -1,0 +1,313 @@
+// Copyright (c) 2026 Koopa
+// SPDX-License-Identifier: MIT
+
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:provider/provider.dart';
+
+/// 文字を起こす — dictation. Hear a word, then ASSEMBLE it from kana tiles (its
+/// own kana plus a few distractors). This is the production / encoding rep the
+/// learner is otherwise missing — recognition tells you nothing about whether he
+/// can call the written shape up himself. Records a [Attempt] (mode=dictation),
+/// rtMs = time to assemble.
+class DictationScreen extends StatefulWidget {
+  const DictationScreen({required this.words, required this.title, super.key});
+
+  final List<Word> words;
+  final String title;
+
+  static Route<void> route(List<Word> words, String title) =>
+      MaterialPageRoute<void>(
+        builder: (_) => DictationScreen(words: words, title: title),
+      );
+
+  @override
+  State<DictationScreen> createState() => _DictationScreenState();
+}
+
+class _DictationScreenState extends State<DictationScreen> {
+  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  final Random _rng = Random();
+  int _index = 0;
+  List<String> _tiles = const [];
+  List<bool> _used = const [];
+  final List<int> _picked = [];
+  bool _checked = false;
+  bool _wasCorrect = false;
+  int _correct = 0;
+  bool _done = false;
+  int _shownAtMs = 0;
+
+  Word get _current => widget.words[_index];
+
+  List<String> get _targetChars => [
+    for (final r in _current.kana.runes) String.fromCharCode(r),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _setup();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
+  }
+
+  void _setup() {
+    final chars = _targetChars;
+    final distractors =
+        (kHiraganaGojuon
+                .map((k) => k.character)
+                .where((c) => !chars.contains(c))
+                .toList()
+              ..shuffle(_rng))
+            .take(3);
+    _tiles = [...chars, ...distractors]..shuffle(_rng);
+    _used = List<bool>.filled(_tiles.length, false);
+    _picked.clear();
+    _checked = false;
+    _shownAtMs = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  void _speak() {
+    if (!mounted) return;
+    context.read<SpeechService>().speak(_current.kana);
+  }
+
+  void _tapTile(int i) {
+    if (_used[i] || _checked) return;
+    setState(() {
+      _used[i] = true;
+      _picked.add(i);
+    });
+    if (_picked.length == _targetChars.length) _check();
+  }
+
+  void _clear() {
+    setState(() {
+      for (final i in _picked) {
+        _used[i] = false;
+      }
+      _picked.clear();
+    });
+  }
+
+  void _check() {
+    final built = _picked.map((i) => _tiles[i]).join();
+    final correct = built == _current.kana;
+    final now = DateTime.now();
+    context.read<AnalyticsLog>().record(
+      Attempt(
+        ts: now.millisecondsSinceEpoch,
+        itemId: _current.kana,
+        mode: PracticeMode.dictation.name,
+        correct: correct,
+        rtMs: now.millisecondsSinceEpoch - _shownAtMs,
+        sessionId: _sessionId,
+        meta: {'romaji': _current.romaji},
+      ),
+    );
+    if (correct) _correct++;
+    setState(() {
+      _checked = true;
+      _wasCorrect = correct;
+    });
+    _speak();
+  }
+
+  void _next() {
+    if (_index + 1 >= widget.words.length) {
+      setState(() => _done = true);
+    } else {
+      setState(() {
+        _index++;
+        _setup();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title)),
+      body: SafeArea(child: _done ? _summary() : _question()),
+    );
+  }
+
+  Widget _summary() => SessionSummary(
+    headline: AppStrings.readingSummary(_correct, widget.words.length),
+    onDone: () => Navigator.of(context).pop(),
+  );
+
+  Widget _question() {
+    final target = _targetChars;
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          '${_index + 1} / ${widget.words.length}',
+          style: const TextStyle(
+            color: AppColors.inkMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 24),
+        IconButton.filled(
+          onPressed: _speak,
+          iconSize: 40,
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.accentSoft,
+            foregroundColor: AppColors.accent,
+            padding: const EdgeInsets.all(18),
+          ),
+          icon: const Icon(Icons.volume_up_rounded),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          AppStrings.dictationPrompt,
+          style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
+        ),
+        const SizedBox(height: 28),
+        // Answer slots.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < target.length; i++)
+              _Slot(
+                char: i < _picked.length ? _tiles[_picked[i]] : null,
+                state: !_checked
+                    ? _SlotState.building
+                    : (_wasCorrect ? _SlotState.right : _SlotState.wrong),
+              ),
+          ],
+        ),
+        const Spacer(),
+        if (!_checked)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (var i = 0; i < _tiles.length; i++)
+                  if (!_used[i])
+                    _Tile(label: _tiles[i], onTap: () => _tapTile(i)),
+              ],
+            ),
+          )
+        else
+          Text(
+            _wasCorrect
+                ? _current.meaning
+                : '${_current.kana}・${_current.meaning}',
+            style: const TextStyle(color: AppColors.ink, fontSize: 18),
+          ),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: _checked
+              ? SizedBox(
+                  height: 54,
+                  child: FilledButton(
+                    onPressed: _next,
+                    child: const Text(AppStrings.dictationNext),
+                  ),
+                )
+              : SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      side: const BorderSide(color: AppColors.hairline),
+                      foregroundColor: AppColors.inkMuted,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: _picked.isEmpty ? null : _clear,
+                    child: const Text(AppStrings.dictationClear),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _SlotState { building, right, wrong }
+
+class _Slot extends StatelessWidget {
+  const _Slot({required this.char, required this.state});
+
+  final String? char;
+  final _SlotState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final border = switch (state) {
+      _SlotState.building => AppColors.hairline,
+      _SlotState.right => AppColors.success,
+      _SlotState.wrong => AppColors.error,
+    };
+    return Container(
+      width: 52,
+      height: 64,
+      margin: const EdgeInsets.symmetric(horizontal: 5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border, width: 1.5),
+      ),
+      child: Text(
+        char ?? '',
+        style: const TextStyle(
+          fontSize: 30,
+          color: AppColors.ink,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+class _Tile extends StatelessWidget {
+  const _Tile({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.accentSoft,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 56,
+          height: 56,
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 28,
+              color: AppColors.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

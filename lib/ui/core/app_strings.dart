@@ -78,6 +78,14 @@ abstract final class AppStrings {
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
 
+  // 文字を起こす Dictation (hear → assemble the kana)
+  static const String dictationEntry = '聽寫練習';
+  static const String dictationSubtitle = '聽發音,自己拼出假名';
+  static const String dictationTitle = '聽寫練習';
+  static const String dictationPrompt = '聽聽看,拼出這個詞';
+  static const String dictationClear = '清除';
+  static const String dictationNext = '下一個';
+
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
   static const String ferrySubtitle = '先聽,再讓文字浮現,然後自己讀';

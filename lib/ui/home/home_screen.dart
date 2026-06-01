@@ -27,6 +27,7 @@ import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/insights/insights_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
@@ -145,6 +146,13 @@ class HomeScreen extends StatelessWidget {
                     label: AppStrings.ferryEntry,
                     subtitle: AppStrings.ferrySubtitle,
                     onTap: () => _startFerry(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _NavCard(
+                    icon: Icons.keyboard_rounded,
+                    label: AppStrings.dictationEntry,
+                    subtitle: AppStrings.dictationSubtitle,
+                    onTap: () => _startDictation(context),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -278,6 +286,22 @@ class HomeScreen extends StatelessWidget {
       rng: Random(),
     );
     Navigator.of(context).push(FerryScreen.route(words, AppStrings.ferryTitle));
+  }
+
+  void _startDictation(BuildContext context) {
+    final store = context.read<KanaProgressRepository>();
+    final learnedChars = StudySet.learned(
+      store,
+    ).map((k) => k.character).toSet();
+    final words = ReadingSet.session(
+      items: kWords,
+      learnedChars: learnedChars,
+      rng: Random(),
+      length: 8,
+    );
+    Navigator.of(
+      context,
+    ).push(DictationScreen.route(words, AppStrings.dictationTitle));
   }
 
   void _startWriting(BuildContext context) {
