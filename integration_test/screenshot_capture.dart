@@ -9,6 +9,7 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,10 +44,12 @@ Future<void> main() async {
       );
     }
 
+    final kanji = await KanjiReadingRepository.load();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+          ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
         ],
@@ -91,5 +94,18 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.progress));
     await shot('04-progress');
+    await back();
+
+    // Kanji reading — scroll to the tile, enter, reveal the reading.
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.kanjiEntry),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.kanjiEntry));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.kanjiReveal));
+    await shot('05-kanji');
   });
 }
