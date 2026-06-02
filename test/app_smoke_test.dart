@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -52,8 +52,10 @@ void main() {
     expect(find.text(AppStrings.learnHiragana), findsOneWidget);
     expect(find.text(AppStrings.progress), findsOneWidget);
     expect(find.text('0/92'), findsOneWidget); // ring tracks the 92 gojūon
-    // The confusable drill is gated until at least one lesson is learned.
+    // The confusable drill and paper handwriting are both gated until at least
+    // one lesson is learned (feature honesty: nothing to recall yet).
     expect(find.text(AppStrings.confusableEntry), findsNothing);
+    expect(find.text(AppStrings.writingEntry), findsNothing);
   });
 
   testWidgets('confusable drill launches once a lesson is learned', (
@@ -101,7 +103,9 @@ void main() {
   testWidgets('handwriting recall: prompt → reveal → self-grade', (
     tester,
   ) async {
-    await pumpApp(tester);
+    // 手習い is gated on a learned lesson, so seed one (the review pool is then
+    // kana the learner actually knows).
+    await pumpApp(tester, seedLearned: true);
     await tester.tap(find.text(AppStrings.writingEntry));
     await tester.pumpAndSettle();
 
@@ -122,6 +126,39 @@ void main() {
     await tester.pumpAndSettle();
     // A quiz question is showing (progress "N / M").
     expect(find.textContaining(' / '), findsOneWidget);
+  });
+
+  testWidgets('unlock line: shows for a new capability, then 知道了 clears it', (
+    tester,
+  ) async {
+    // Learning あ行 makes words like あい/あお readable → the 詞と句 track opens.
+    await pumpApp(tester, seedLearned: true);
+    // The unlock line takes the slot, replacing the steady-state next-step line.
+    expect(find.text(AppStrings.unlockWords), findsOneWidget);
+    expect(find.textContaining('該複習'), findsNothing);
+
+    // 知道了 marks it seen → it never returns; the next-step line resumes.
+    await tester.tap(find.text(AppStrings.unlockDismiss));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.unlockWords), findsNothing);
+    expect(find.textContaining('該複習'), findsOneWidget);
+  });
+
+  testWidgets('これは?: orientation reveals on demand and folds away', (
+    tester,
+  ) async {
+    await pumpApp(tester); // cold start — it must be there with the least app
+    expect(find.text(AppStrings.aboutTrigger), findsOneWidget);
+    expect(find.text(AppStrings.aboutBody), findsNothing); // pull, not pushed
+    expect(find.byType(Dialog), findsNothing); // never modal
+
+    await tester.tap(find.text(AppStrings.aboutTrigger));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.aboutBody), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.aboutTrigger));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.aboutBody), findsNothing); // self-dismisses
   });
 
   testWidgets('learn screen renders the gojūon grid', (tester) async {

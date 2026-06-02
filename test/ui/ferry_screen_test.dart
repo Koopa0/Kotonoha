@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/false_friend.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
@@ -103,5 +104,45 @@ void main() {
     await tester.pumpAndSettle();
 
     expect((await analytics.all()).single.rtMs, 800);
+  });
+
+  testWidgets('a 同形異義語 offers a gentle note, hidden until tapped', (
+    tester,
+  ) async {
+    const word = Word(
+      kana: 'てがみ',
+      romaji: 'tegami',
+      meaning: '信',
+      falseFriend: FalseFriend(
+        kanji: '手紙',
+        jaMeaning: '信',
+        zhNote: '中文直覺的「廁紙」,日文是別的詞。',
+      ),
+    );
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: const MaterialApp(
+          home: FerryScreen(words: [word], title: AppStrings.ferryTitle),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Hear beat: nothing revealed, so no note trigger yet.
+    expect(find.text(AppStrings.falseFriendTrigger), findsNothing);
+
+    await tester.tap(find.text(AppStrings.ferryShowText)); // → reveal
+    await tester.pumpAndSettle();
+    // The trigger appears post-reveal; the note itself stays folded (pull).
+    expect(find.text(AppStrings.falseFriendTrigger), findsOneWidget);
+    expect(find.textContaining('廁紙'), findsNothing);
+
+    await tester.tap(find.text(AppStrings.falseFriendTrigger));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('廁紙'), findsOneWidget); // unfolded on demand
   });
 }

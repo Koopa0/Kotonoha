@@ -1,6 +1,20 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:kotonoha/domain/models/false_friend.dart';
+
+/// Time-of-day band for the 凪 close — its send-off softens once it's late.
+enum ClosingBand {
+  day,
+  night;
+
+  /// Dusk threshold: at or after 19:00 the close gives permission to stop.
+  static const int _nightHour = 19;
+
+  static ClosingBand forHour(int hour) =>
+      hour >= _nightHour ? ClosingBand.night : ClosingBand.day;
+}
+
 /// All user-facing UI text, in Traditional Chinese (繁體中文).
 ///
 /// Kana glyphs and romaji are learning *content*, not UI chrome, so they are
@@ -16,6 +30,42 @@ abstract final class AppStrings {
   static const String continueLearning = '手解き';
   static const String learnHiragana = '五十音図';
   static const String learnHiraganaSubtitle = '瀏覽所有平假名';
+
+  // Guidance — the ambient one-line "next step" + the home card-path section
+  // headers. The pure use_case returns only a target (+ a count); the 繁中 copy
+  // lives here in the UI layer, so the domain stays Flutter-free.
+  static const String coldStartCaption = '五十音,先一行一行學起';
+  static const String guidanceStartLessons = '先從「手解き」開始,學會第一行假名 —— 它會一個一個帶你念。';
+  static String guidanceReview(int n) => '今天先做「今日の稽古」—— 有 $n 個假名該複習了。';
+  static const String guidanceLearnMore = '複習都跟上了 —— 繼續「手解き」,學新的一行。';
+  static const String guidanceCaughtUp = '今天的假名都熟了 —— 挑一個你想練的就好。';
+  static const String sectionKana = '假名';
+  static const String sectionWords = '詞と句';
+  static const String sectionKanji = '漢字';
+  static const String sectionLookBack = '回望';
+
+  // 同形異義語 — a gentle, on-demand note in 渡し舟 when a word's kanji means
+  // something different in Japanese than a Chinese reader would assume. Affirm
+  // the Japanese meaning first; the contrast is a soft aside, never a warning.
+  static const String falseFriendTrigger = '日文意思?';
+  static String falseFriendNote(FalseFriend ff) =>
+      '日文的「${ff.kanji}」,是「${ff.jaMeaning}」。${ff.zhNote}';
+
+  // ④ これは? — a pull-not-push orientation line at the foot of home. Always
+  // available, never auto-shown, never modal: tap to reveal how to learn.
+  static const String aboutTrigger = 'これは?';
+  static const String aboutBody =
+      '先學五十音,讀得動了再慢慢往「詞と句」、漢字走。「手解き」一行一行帶你認字,'
+      '「今日の稽古」幫你複習該複習的;其他的房間,等你讀得動了自然會開。';
+
+  // Unlock lines (guidance ③) — a quiet word the first time a new KIND of
+  // practice opens, instead of a card silently appearing. Warm, observational,
+  // never a trophy. Japanese feature names stay verbatim (learning content).
+  static const String unlockWords = '你學會的假名,已經拼得出一個詞了 —— 「詞と句」開了。';
+  static const String unlockPhrases = '假名夠多了,短句也讀得動了 —— 「黙読」開了。';
+  static const String unlockKanjiPhrases =
+      '帶漢字的句子,假名的部分你已經讀得出來了 —— 「名残の仮名」開了,讀音會慢慢淡出。';
+  static const String unlockDismiss = '知道了';
 
   // Lessons (sequential learning)
   static const String lessonsTitle = '手解き';
@@ -41,7 +91,6 @@ abstract final class AppStrings {
   static const String progress = '歩み';
   static const String progressSubtitle = '目前的學習狀況';
   static const String practiced = '已練習';
-  static const String startFirstReview = '開始你的第一次複習';
   static String overallAccuracy(int percent) => '整體正確率 $percent%';
 
   // Quiz
@@ -150,12 +199,25 @@ abstract final class AppStrings {
 
   // Result
   static const String sessionCloseLine = '今天就到這裡,辛苦了。';
-  static String closingNote(String item) => '今天,和「$item」更熟了一點。';
+
+  /// The 凪 close's quiet fact. The competence clause is identical all day; only
+  /// the send-off softens at night — where it gives permission to stop (余韻).
+  static String closingNote(String item, {required ClosingBand band}) {
+    final settled = '今天,和「$item」更熟了一點。';
+    return switch (band) {
+      ClosingBand.day => '$settled去過你的一天吧。',
+      ClosingBand.night => '$settled今天就到這裡,好好休息。',
+    };
+  }
+
   static const String sessionComplete = '本次完成';
   static const String correct = '答對';
   static const String missedKana = '答錯的假名';
   static String reviewMissedKana(int n) => '複習答錯的假名（$n）';
   static const String done = '完成';
+  // One calm, low-emphasis "one more round" on the 今日の稽古 / 目利き result —
+  // opt-in volume for those who want it, never the primary action.
+  static const String practiceAgain = 'もう一回';
   static const String resultPerfect = '全部答對，做得很好。';
   static const String resultStrong = '表現不錯，還有幾個要再複習。';
   static const String resultGood = '做得好，複習一下下面答錯的假名。';

@@ -15,16 +15,25 @@ import 'package:kotonoha/domain/models/kana_stat.dart';
 /// app; quiz session state lives in [QuizViewModel]. Persists through
 /// [PreferencesService].
 class KanaProgressRepository extends ChangeNotifier {
-  KanaProgressRepository._(this._prefs, this._stats, this._learnedUnits);
+  KanaProgressRepository._(
+    this._prefs,
+    this._stats,
+    this._learnedUnits,
+    this._seenUnlocks,
+  );
 
   static const String _storageKey = 'kana_stats_v1';
   static const String _learnedKey = 'learned_units_v1';
+  static const String _seenUnlocksKey = 'seen_unlocks_v1';
 
   final PreferencesService _prefs;
   final Map<String, KanaStat> _stats;
 
   /// Ids of lessons (or future units) the user has passed. See [Lesson.id].
   final Set<String> _learnedUnits;
+
+  /// Ids of one-time "unlocked" lines the user has already seen. See [Unlock.id].
+  final Set<String> _seenUnlocks;
 
   /// Loads persisted stats + learned units (or starts empty).
   static Future<KanaProgressRepository> load([
@@ -35,6 +44,7 @@ class KanaProgressRepository extends ChangeNotifier {
       service,
       _decode(service.readString(_storageKey)),
       _decodeLearned(service.readString(_learnedKey)),
+      _decodeSeenUnlocks(service.readString(_seenUnlocksKey)),
     );
   }
 
@@ -49,6 +59,26 @@ class KanaProgressRepository extends ChangeNotifier {
     if (_learnedUnits.add(unitId)) {
       notifyListeners();
       await _prefs.writeString(_learnedKey, jsonEncode(_learnedUnits.toList()));
+    }
+  }
+
+  // --- Seen unlock lines (the one-time "feature opened" moments) ---
+
+  bool isUnlockSeen(String id) => _seenUnlocks.contains(id);
+
+  /// Read-only view for the pure use_case (consistent with [stats]).
+  Set<String> get seenUnlocks => Set.unmodifiable(_seenUnlocks);
+
+  /// Marks an unlock line as seen and persists. No-op if already seen — the
+  /// guarded add → conditional notify is what lets tap-to-dismiss settle
+  /// instead of re-triggering the home's listener every frame.
+  Future<void> markUnlockSeen(String id) async {
+    if (_seenUnlocks.add(id)) {
+      notifyListeners();
+      await _prefs.writeString(
+        _seenUnlocksKey,
+        jsonEncode(_seenUnlocks.toList()),
+      );
     }
   }
 
@@ -124,9 +154,11 @@ class KanaProgressRepository extends ChangeNotifier {
   Future<void> reset() async {
     _stats.clear();
     _learnedUnits.clear();
+    _seenUnlocks.clear();
     notifyListeners();
     await _prefs.remove(_storageKey);
     await _prefs.remove(_learnedKey);
+    await _prefs.remove(_seenUnlocksKey);
   }
 
   Future<void> _persist() async {
@@ -147,6 +179,15 @@ class KanaProgressRepository extends ChangeNotifier {
   }
 
   static Set<String> _decodeLearned(String? raw) {
+    if (raw == null || raw.isEmpty) return <String>{};
+    try {
+      return (jsonDecode(raw) as List).cast<String>().toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  static Set<String> _decodeSeenUnlocks(String? raw) {
     if (raw == null || raw.isEmpty) return <String>{};
     try {
       return (jsonDecode(raw) as List).cast<String>().toSet();

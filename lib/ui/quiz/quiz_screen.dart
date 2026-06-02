@@ -27,6 +27,7 @@ class QuizScreen extends StatefulWidget {
     required this.title,
     super.key,
     this.lesson,
+    this.onAgain,
   });
 
   final List<SessionItem> items;
@@ -35,17 +36,23 @@ class QuizScreen extends StatefulWidget {
   /// Set when this is a lesson test — drives pass/learned handling on results.
   final Lesson? lesson;
 
+  /// Forwarded to the result screen as the "再来一回" action (repeatable drills
+  /// only). Null for lessons / one-shot pools.
+  final VoidCallback? onAgain;
+
   /// Single-mode session: wrap each question with the given [mode].
   static Route<void> route({
     required List<QuizQuestion> questions,
     required String title,
     required PracticeMode mode,
     Lesson? lesson,
+    VoidCallback? onAgain,
   }) {
     return routeItems(
       items: [for (final q in questions) SessionItem(question: q, mode: mode)],
       title: title,
       lesson: lesson,
+      onAgain: onAgain,
     );
   }
 
@@ -54,9 +61,15 @@ class QuizScreen extends StatefulWidget {
     required List<SessionItem> items,
     required String title,
     Lesson? lesson,
+    VoidCallback? onAgain,
   }) {
     return MaterialPageRoute<void>(
-      builder: (_) => QuizScreen(items: items, title: title, lesson: lesson),
+      builder: (_) => QuizScreen(
+        items: items,
+        title: title,
+        lesson: lesson,
+        onAgain: onAgain,
+      ),
     );
   }
 
@@ -129,7 +142,11 @@ class _QuizScreenState extends State<QuizScreen> {
     if (_navigated) return;
     _navigated = true;
     Navigator.of(context).pushReplacement(
-      QuizResultScreen.route(_vm.result, lesson: widget.lesson),
+      QuizResultScreen.route(
+        _vm.result,
+        lesson: widget.lesson,
+        onAgain: widget.onAgain,
+      ),
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/false_friend.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
@@ -112,7 +113,10 @@ class _FerryScreenState extends State<FerryScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.readingSummary(_correct, widget.words.length),
-    note: AppStrings.closingNote(widget.words.first.kana),
+    note: AppStrings.closingNote(
+      widget.words.first.kana,
+      band: ClosingBand.forHour(DateTime.now().hour),
+    ),
     onDone: () => Navigator.of(context).pop(),
   );
 
@@ -182,6 +186,14 @@ class _FerryScreenState extends State<FerryScreen> {
                         fontSize: 18,
                       ),
                     ),
+                    // 同形異義語: a quiet, on-demand note when the kanji means
+                    // something different in Japanese than a Chinese reader
+                    // would assume. Pull, never pushed.
+                    if (_current.falseFriend != null)
+                      _FalseFriendNote(
+                        _current.falseFriend!,
+                        key: ValueKey(_current.kana),
+                      ),
                   ],
                   const SizedBox(height: 16),
                   Text(
@@ -258,6 +270,53 @@ class _FerryScreenState extends State<FerryScreen> {
           ],
         );
     }
+  }
+}
+
+/// A pull-not-push 同形異義語 note: a quiet 「日文意思?」 that unfolds one calm
+/// line affirming the Japanese meaning. Ephemeral open state, no persistence —
+/// the ④ これは? pattern, reused.
+class _FalseFriendNote extends StatefulWidget {
+  const _FalseFriendNote(this.friend, {super.key});
+
+  final FalseFriend friend;
+
+  @override
+  State<_FalseFriendNote> createState() => _FalseFriendNoteState();
+}
+
+class _FalseFriendNoteState extends State<_FalseFriendNote> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
+          onPressed: () => setState(() => _open = !_open),
+          child: const Text(AppStrings.falseFriendTrigger),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: _open
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    AppStrings.falseFriendNote(widget.friend),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      height: 1.5,
+                    ),
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
+    );
   }
 }
 

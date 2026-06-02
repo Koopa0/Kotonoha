@@ -62,9 +62,39 @@ void main() {
     final store = await KanaProgressRepository.load();
     await store.recordAnswer(all[0], correct: true, at: now);
     await store.markUnitLearned('hira_row_0');
+    await store.markUnlockSeen('words');
     await store.reset();
     expect(store.seenCount, 0);
     expect(store.isUnitLearned('hira_row_0'), isFalse);
+    expect(store.isUnlockSeen('words'), isFalse);
+    expect(store.seenUnlocks, isEmpty);
+  });
+
+  group('seen unlocks', () {
+    test('marks an unlock seen and persists across reloads', () async {
+      final store = await KanaProgressRepository.load();
+      expect(store.isUnlockSeen('words'), isFalse);
+
+      await store.markUnlockSeen('words');
+      expect(store.isUnlockSeen('words'), isTrue);
+      expect(store.seenUnlocks, {'words'});
+
+      final reloaded = await KanaProgressRepository.load();
+      expect(reloaded.isUnlockSeen('words'), isTrue);
+    });
+
+    test('marking the same unlock twice is idempotent', () async {
+      final store = await KanaProgressRepository.load();
+      await store.markUnlockSeen('phrases');
+      await store.markUnlockSeen('phrases');
+      expect(store.seenUnlocks, {'phrases'});
+    });
+
+    test('a malformed stored value decodes to an empty set', () async {
+      SharedPreferences.setMockInitialValues({'seen_unlocks_v1': 'not json'});
+      final store = await KanaProgressRepository.load();
+      expect(store.seenUnlocks, isEmpty);
+    });
   });
 
   group('learned units', () {

@@ -22,14 +22,28 @@ import 'package:provider/provider.dart';
 /// End-of-session screen. For a plain review it shows score + missed kana; for
 /// a lesson test it also decides pass/fail and marks the lesson learned.
 class QuizResultScreen extends StatefulWidget {
-  const QuizResultScreen({required this.result, super.key, this.lesson});
+  const QuizResultScreen({
+    required this.result,
+    super.key,
+    this.lesson,
+    this.onAgain,
+  });
 
   final QuizResult result;
   final Lesson? lesson;
 
-  static Route<void> route(QuizResult result, {Lesson? lesson}) {
+  /// When set (only for repeatable non-lesson drills — 今日の稽古 / 目利き), a
+  /// calm "再来一回" composes a fresh session. Null hides it entirely.
+  final VoidCallback? onAgain;
+
+  static Route<void> route(
+    QuizResult result, {
+    Lesson? lesson,
+    VoidCallback? onAgain,
+  }) {
     return MaterialPageRoute<void>(
-      builder: (_) => QuizResultScreen(result: result, lesson: lesson),
+      builder: (_) =>
+          QuizResultScreen(result: result, lesson: lesson, onAgain: onAgain),
     );
   }
 
@@ -197,6 +211,11 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
         AppStrings.done,
         () => Navigator.of(context).popUntil((r) => r.isFirst),
       ),
+      // Opt-in "one more round" — last, low-emphasis, never the default.
+      if (widget.onAgain != null) ...[
+        const SizedBox(height: 12),
+        _outlined(AppStrings.practiceAgain, widget.onAgain!),
+      ],
     ];
   }
 

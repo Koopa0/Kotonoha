@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:kotonoha/domain/models/false_friend.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 
@@ -122,6 +123,11 @@ const List<Word> kWords = <Word>[
     romaji: 'tegami',
     meaning: '信',
     theme: ContentTheme.yorushika,
+    falseFriend: FalseFriend(
+      kanji: '手紙',
+      jaMeaning: '信',
+      zhNote: '中文直覺的「廁紙」,日文是別的詞。',
+    ),
   ),
   Word(
     kana: 'わすれる',
@@ -170,5 +176,38 @@ const List<Word> kWords = <Word>[
     romaji: 'iriguchi',
     meaning: '入口',
     theme: ContentTheme.travel,
+  ),
+  // --- 同形異義語: kanji a Chinese reader knows, but a different Japanese sense.
+  // Each carries a gentle on-demand note (渡し舟). Yōon/sokuon-free so each rune
+  // is one learnable kana and the readability gate still holds.
+  Word(
+    kana: 'しんぶん',
+    romaji: 'shinbun',
+    meaning: '報紙',
+    falseFriend: FalseFriend(
+      kanji: '新聞',
+      jaMeaning: '報紙',
+      zhNote: '中文的「新聞」,日文是「ニュース」。',
+    ),
+  ),
+  Word(
+    kana: 'やくそく',
+    romaji: 'yakusoku',
+    meaning: '約定、承諾',
+    falseFriend: FalseFriend(
+      kanji: '約束',
+      jaMeaning: '約定、承諾',
+      zhNote: '中文的「約束」是「限制」,日文不是。',
+    ),
+  ),
+  Word(
+    kana: 'けが',
+    romaji: 'kega',
+    meaning: '受傷',
+    falseFriend: FalseFriend(
+      kanji: '怪我',
+      jaMeaning: '受傷',
+      zhNote: '不是中文的「怪罪我」。',
+    ),
   ),
 ];

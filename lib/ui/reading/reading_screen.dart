@@ -83,7 +83,10 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.readingSummary(_correct, widget.items.length),
-    note: AppStrings.closingNote(widget.items.first.displayText),
+    note: AppStrings.closingNote(
+      widget.items.first.displayText,
+      band: ClosingBand.forHour(DateTime.now().hour),
+    ),
     onDone: () => Navigator.of(context).pop(),
   );
 

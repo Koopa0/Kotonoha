@@ -77,7 +77,10 @@ class _WritingScreenState extends State<WritingScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.writingSummary(_correct, widget.targets.length),
-    note: AppStrings.closingNote(widget.targets.first.character),
+    note: AppStrings.closingNote(
+      widget.targets.first.character,
+      band: ClosingBand.forHour(DateTime.now().hour),
+    ),
     onDone: () => Navigator.of(context).pop(),
   );
 

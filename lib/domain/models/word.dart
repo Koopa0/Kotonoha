@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:kotonoha/domain/models/false_friend.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 
@@ -17,6 +18,7 @@ class Word implements ReadingItem {
     required this.meaning,
     this.script = KanaScript.hiragana,
     this.theme,
+    this.falseFriend,
   });
 
   /// The word as written in kana, e.g. `いぬ`.
@@ -34,6 +36,10 @@ class Word implements ReadingItem {
 
   /// Optional interest flavour (ヨルシカ / anime / game / travel).
   final ContentTheme? theme;
+
+  /// Optional 同形異義語 note — a gentle "the Japanese meaning is…" for a kanji
+  /// the (Chinese-reading) learner already knows but that diverges in Japanese.
+  final FalseFriend? falseFriend;
 
   @override
   String get displayText => kana;
