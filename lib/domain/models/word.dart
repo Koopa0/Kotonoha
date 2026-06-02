@@ -4,6 +4,7 @@
 import 'package:kotonoha/domain/models/false_friend.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/season.dart';
 
 /// A short word the learner can read once they've unlocked its kana — the unit
 /// of the contextual *reading* practice (glyph string → sound), one step past
@@ -43,6 +44,11 @@ class Word implements ReadingItem {
 
   @override
   String get displayText => kana;
+
+  // Words carry no season (the seasonal corpus lives in the phrases); a word is
+  // always "in season", so the lift never sinks it.
+  @override
+  Season? get season => null;
 
   /// The distinct kana characters this word is built from. Single-codepoint per
   /// character (the dataset avoids yōon so each rune is one kana unit), which is

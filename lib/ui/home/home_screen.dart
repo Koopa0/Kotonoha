@@ -1,16 +1,19 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
+import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
@@ -314,33 +317,57 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _startFerry(BuildContext context) {
+  /// Most-recent attempt timestamp per item id (displayText), folded from the
+  /// analytics stream — the recency the reading composers use to float
+  /// least-recently-seen items up. Never a count, never shown.
+  Future<Map<String, int>> _lastSeen(BuildContext context) async {
+    final attempts = await context.read<AnalyticsLog>().all();
+    final m = <String, int>{};
+    for (final a in attempts) {
+      if (a.ts > (m[a.itemId] ?? 0)) m[a.itemId] = a.ts;
+    }
+    return m;
+  }
+
+  Future<void> _startFerry(BuildContext context) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
+    final lastSeen = await _lastSeen(context);
+    if (!context.mounted) return;
     final words = FerrySession.compose(
       words: kWords,
       learnedChars: learnedChars,
       rng: Random(),
+      lastSeen: lastSeen,
     );
-    Navigator.of(context).push(FerryScreen.route(words, AppStrings.ferryTitle));
+    unawaited(
+      Navigator.of(
+        context,
+      ).push(FerryScreen.route(words, AppStrings.ferryTitle)),
+    );
   }
 
-  void _startDictation(BuildContext context) {
+  Future<void> _startDictation(BuildContext context) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
+    final lastSeen = await _lastSeen(context);
+    if (!context.mounted) return;
     final words = ReadingSet.session(
       items: kWords,
       learnedChars: learnedChars,
       rng: Random(),
       length: 8,
+      lastSeen: lastSeen,
     );
-    Navigator.of(
-      context,
-    ).push(DictationScreen.route(words, AppStrings.dictationTitle));
+    unawaited(
+      Navigator.of(
+        context,
+      ).push(DictationScreen.route(words, AppStrings.dictationTitle)),
+    );
   }
 
   void _startWriting(BuildContext context) {
@@ -351,11 +378,29 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _startSentence(BuildContext context, List<Phrase> readable) {
-    final picked = (List<Phrase>.of(readable)..shuffle()).take(8).toList();
-    Navigator.of(
-      context,
-    ).push(ReadingScreen.route(picked, AppStrings.sentenceTitle));
+  Future<void> _startSentence(
+    BuildContext context,
+    List<Phrase> readable,
+  ) async {
+    final store = context.read<KanaProgressRepository>();
+    final learnedChars = StudySet.learned(
+      store,
+    ).map((k) => k.character).toSet();
+    final lastSeen = await _lastSeen(context);
+    if (!context.mounted) return;
+    final picked = ReadingSet.session(
+      items: readable,
+      learnedChars: learnedChars,
+      rng: Random(),
+      length: 8,
+      season: Season.forMonth(DateTime.now().month),
+      lastSeen: lastSeen,
+    );
+    unawaited(
+      Navigator.of(
+        context,
+      ).push(ReadingScreen.route(picked, AppStrings.sentenceTitle)),
+    );
   }
 
   void _startKanji(BuildContext context) {
