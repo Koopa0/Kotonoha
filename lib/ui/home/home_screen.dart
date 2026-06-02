@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -443,13 +444,26 @@ class HomeScreen extends StatelessWidget {
     ).push(KanjiSentenceScreen.route(picked, AppStrings.kanjiSentenceTitle));
   }
 
-  List<QuizQuestion> _composeConfusable(KanaProgressRepository store) =>
-      Confusable.session(
-        allKana: store.gojuonForScript(KanaScript.hiragana),
-        length: 12,
-        engine: const QuizEngine(),
-        rng: Random(),
-      );
+  List<QuizQuestion> _composeConfusable(KanaProgressRepository store) {
+    // Once the learner has met ANY katakana, 目利き quietly folds in the katakana
+    // look-alikes too (each question stays single-script — never a mixed pair, no
+    // new card, no toggle). Until then it is hiragana-only.
+    final katakanaStarted =
+        store.seenInSet(store.gojuonForScript(KanaScript.katakana)) > 0;
+    final sets = katakanaStarted
+        ? [...kConfusableSets, ...kKatakanaConfusableSets]
+        : kConfusableSets;
+    final pool = katakanaStarted
+        ? store.gojuonKana
+        : store.gojuonForScript(KanaScript.hiragana);
+    return Confusable.session(
+      allKana: pool,
+      length: 12,
+      engine: const QuizEngine(),
+      rng: Random(),
+      sets: sets,
+    );
+  }
 
   void _startConfusable(BuildContext context) {
     final store = context.read<KanaProgressRepository>();

@@ -9,17 +9,16 @@ import 'package:kotonoha/domain/models/kana.dart';
 /// Integrity of the hand-typed reading dataset — the value is catching typos in
 /// kana / romaji / meaning, since this is content not code.
 void main() {
-  // Single-rune hiragana characters (seion + dakuten + handakuten), and their
-  // canonical romaji, from the kana dataset.
-  final hiragana = kAllKana.where((k) => k.script == KanaScript.hiragana);
-  final validChars = {
-    for (final k in hiragana)
-      if (k.character.runes.length == 1) k.character,
-  };
-  final charToRomaji = {
-    for (final k in hiragana)
-      if (k.character.runes.length == 1) k.character: k.romaji,
-  };
+  // Single-rune kana per script (seion + dakuten + handakuten) and their
+  // canonical romaji, from the kana dataset — a word is validated against the
+  // script it declares.
+  final validByScript = <KanaScript, Set<String>>{};
+  final romajiByScript = <KanaScript, Map<String, String>>{};
+  for (final k in kAllKana) {
+    if (k.character.runes.length != 1) continue;
+    (validByScript[k.script] ??= {}).add(k.character);
+    (romajiByScript[k.script] ??= {})[k.character] = k.romaji;
+  }
 
   test('every word is non-empty and has a meaning', () {
     for (final w in kWords) {
@@ -29,23 +28,28 @@ void main() {
     }
   });
 
-  test('no yōon — every character is a single-rune hiragana kana', () {
-    for (final w in kWords) {
-      for (final r in w.kana.runes) {
-        final c = String.fromCharCode(r);
-        expect(
-          validChars.contains(c),
-          isTrue,
-          reason: '"$c" in ${w.kana} is not a single-rune hiragana',
-        );
+  test(
+    'no yōon / chōonpu — every char is a single-rune kana of its script',
+    () {
+      for (final w in kWords) {
+        for (final r in w.kana.runes) {
+          final c = String.fromCharCode(r);
+          expect(
+            validByScript[w.script]!.contains(c),
+            isTrue,
+            reason:
+                '"$c" in ${w.kana} is not a single-rune ${w.script.name} kana',
+          );
+        }
       }
-    }
-  });
+    },
+  );
 
   test('romaji equals the literal kana-by-kana reading (no typos)', () {
     for (final w in kWords) {
+      final map = romajiByScript[w.script]!;
       final derived = w.kana.runes
-          .map((r) => charToRomaji[String.fromCharCode(r)])
+          .map((r) => map[String.fromCharCode(r)])
           .join();
       expect(
         w.romaji,
