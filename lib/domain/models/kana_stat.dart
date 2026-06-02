@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:math' as math;
+
 /// Coarse learning status for a single kana, used for the calm status dot.
 ///
 /// This is a *display* classification. Weakness ranking for review uses the
@@ -19,6 +21,7 @@ class KanaStat {
     this.srsLevel = 0,
     this.dueAt,
     this.avgLatencyMs = 0,
+    this.varLatencyMs2 = 0,
   });
 
   factory KanaStat.fromJson(Map<String, dynamic> json) {
@@ -36,6 +39,7 @@ class KanaStat {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(dueMillis),
       avgLatencyMs: (json['al'] as num?)?.toInt() ?? 0,
+      varLatencyMs2: (json['vl'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -56,10 +60,22 @@ class KanaStat {
   /// bottleneck, not just correctness.
   final int avgLatencyMs;
 
+  /// Exponentially-weighted moving variance of *timed* RT (ms²); 0 = no/too
+  /// little timed spread yet. With [avgLatencyMs] it gives CVRT (stddev/mean),
+  /// the research-backed index of recognition automaticity — see [cvLatency].
+  final int varLatencyMs2;
+
   bool get isSeen => seenCount > 0;
 
   /// Accuracy in [0, 1]; 0 when never seen.
   double get accuracy => seenCount == 0 ? 0 : correctCount / seenCount;
+
+  /// Coefficient of variation of timed RT (stddev/mean) — the automaticity
+  /// index; infinity until there is timed data. Lower = steadier = more
+  /// automatic recognition.
+  double get cvLatency => avgLatencyMs <= 0
+      ? double.infinity
+      : math.sqrt(varLatencyMs2) / avgLatencyMs;
 
   /// Minutes until next review per SRS level (Leitner-ish). A wrong answer
   /// resets to level 0 (≈10 min); each correct answer steps up.
@@ -82,15 +98,43 @@ class KanaStat {
   /// graduating an item to long intervals on unproven reflex speed.
   static const int kUntimedCapLevel = 3;
 
+  /// Past [kUntimedCapLevel], a fast answer graduates to the longer intervals
+  /// only when reaction time is also CONSISTENT — CVRT (stddev/mean) at or
+  /// below this. Automaticity is consistent-fast, not fast-once; a fast-or-slow
+  /// guesser holds at the cap until their reading steadies. Below the cap,
+  /// early learning still graduates on speed alone (CV needs a few samples).
+  static const double kMaxGraduationCv = 0.30;
+
   /// Returns a copy with one answer recorded, advancing the SRS schedule.
-  /// [latencyMs] gates graduation (null/0/≥threshold = not fast); [intervalScale]
-  /// shrinks the next interval (e.g. 0.5 for confusable kana).
+  /// [latencyMs] gates graduation (null/0/≥threshold = not fast); past the
+  /// untimed cap a fast answer also needs a low [cvLatency] (consistent-fast).
+  /// [intervalScale] shrinks the next interval (e.g. 0.5 for confusable kana).
   KanaStat recordAnswer({
     required bool correct,
     required DateTime at,
     int? latencyMs,
     double intervalScale = 1.0,
   }) {
+    // EMA the reaction time AND its variance, but only on real timed readings —
+    // untimed answers (paper writing, reading-back) leave both signals untouched.
+    // The mean update is unchanged; variance uses the same 0.7/0.3 weights and
+    // the deviation from the pre-update mean (incremental EWMVar).
+    final int nextAvgLatency;
+    final int nextVarLatency2;
+    if (latencyMs != null && latencyMs > 0) {
+      if (avgLatencyMs == 0) {
+        nextAvgLatency = latencyMs; // first timed reading: seed the mean
+        nextVarLatency2 = 0; // a single point has no observed spread
+      } else {
+        final int dev = latencyMs - avgLatencyMs; // vs the pre-update mean
+        nextVarLatency2 = (0.7 * varLatencyMs2 + 0.3 * (dev * dev)).round();
+        nextAvgLatency = (0.7 * avgLatencyMs + 0.3 * latencyMs).round();
+      }
+    } else {
+      nextAvgLatency = avgLatencyMs;
+      nextVarLatency2 = varLatencyMs2;
+    }
+
     final int nextLevel;
     if (!correct) {
       nextLevel = 0;
@@ -98,7 +142,18 @@ class KanaStat {
       final fast =
           latencyMs != null && latencyMs > 0 && latencyMs < kFastThresholdMs;
       if (fast) {
-        nextLevel = (srsLevel + 1).clamp(0, _intervalsMinutes.length - 1);
+        // Below the cap, CV is statistically meaningless (too few samples), so
+        // graduate on speed alone — early learning is unchanged. At/above the
+        // cap, only graduate to the long intervals when reaction time is also
+        // consistent; an erratic fast-or-slow responder holds (never demotes).
+        final double cv = nextAvgLatency <= 0
+            ? double.infinity
+            : math.sqrt(nextVarLatency2) / nextAvgLatency;
+        final consistentEnough =
+            srsLevel < kUntimedCapLevel || cv <= kMaxGraduationCv;
+        nextLevel = consistentEnough
+            ? (srsLevel + 1).clamp(0, _intervalsMinutes.length - 1)
+            : srsLevel;
       } else {
         // Untimed/slow: climb toward the cap, then hold (never demote).
         nextLevel = srsLevel < kUntimedCapLevel ? srsLevel + 1 : srsLevel;
@@ -108,16 +163,6 @@ class KanaStat {
       1,
       1 << 30,
     );
-    // EMA the reaction time, but only on real timed readings — untimed answers
-    // leave the speed signal untouched.
-    final int nextAvgLatency;
-    if (latencyMs != null && latencyMs > 0) {
-      nextAvgLatency = avgLatencyMs == 0
-          ? latencyMs
-          : (0.7 * avgLatencyMs + 0.3 * latencyMs).round();
-    } else {
-      nextAvgLatency = avgLatencyMs;
-    }
     return KanaStat(
       seenCount: seenCount + 1,
       correctCount: correctCount + (correct ? 1 : 0),
@@ -126,6 +171,7 @@ class KanaStat {
       srsLevel: nextLevel,
       dueAt: at.add(Duration(minutes: mins)),
       avgLatencyMs: nextAvgLatency,
+      varLatencyMs2: nextVarLatency2,
     );
   }
 
@@ -147,6 +193,7 @@ class KanaStat {
     if (srsLevel != 0) 'sl': srsLevel,
     if (dueAt != null) 'd': dueAt!.millisecondsSinceEpoch,
     if (avgLatencyMs != 0) 'al': avgLatencyMs,
+    if (varLatencyMs2 != 0) 'vl': varLatencyMs2,
   };
 
   @override

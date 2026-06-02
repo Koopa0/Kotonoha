@@ -67,11 +67,22 @@ void main() {
             final fast =
                 latency != null && latency > 0 && latency < fastThreshold;
             if (fast) {
-              expect(
-                stat.srsLevel,
-                min(prevLevel + 1, maxLevel),
-                reason: 'fast climbs: $why',
-              );
+              if (prevLevel < cap) {
+                // Below the cap, a fast answer always climbs (CV needs samples).
+                expect(
+                  stat.srsLevel,
+                  prevLevel + 1,
+                  reason: 'fast climbs: $why',
+                );
+              } else {
+                // At/above the cap, a fast answer climbs only when RT is also
+                // consistent (CVRT ≤ cutoff); otherwise it holds — never demotes.
+                expect(
+                  stat.srsLevel,
+                  anyOf(prevLevel, min(prevLevel + 1, maxLevel)),
+                  reason: 'fast climbs-or-holds at cap: $why',
+                );
+              }
             } else {
               expect(
                 stat.srsLevel,
