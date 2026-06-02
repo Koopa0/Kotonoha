@@ -19,7 +19,9 @@ class KanjiPrompt {
 
 /// Composes a kanji reading session. Light guidance: surface new readings first,
 /// then ones that are due for review, then the rest — so early sessions teach
-/// and later ones reinforce. Deterministic under an injected [Random].
+/// and later ones reinforce. WITHIN a tier, the weaker reading (recently missed,
+/// or slow/erratic on the timed recall beat) resurfaces first, so the latency/CV
+/// signal has somewhere to land. Deterministic under an injected [Random].
 abstract final class KanjiSession {
   static List<KanjiPrompt> compose({
     required List<KanjiEntry> entries,
@@ -40,7 +42,38 @@ abstract final class KanjiSession {
       return 2; // not yet due
     }
 
-    all.sort((a, b) => rank(a).compareTo(rank(b)));
+    double weakness(KanjiPrompt p) {
+      final s = stats[p.readingId];
+      return s == null ? 0 : _readingWeakness(s);
+    }
+
+    all.sort((a, b) {
+      final byRank = rank(a).compareTo(rank(b));
+      if (byRank != 0) return byRank;
+      // Within a tier, weaker first; the shuffle breaks any remaining tie.
+      return weakness(b).compareTo(weakness(a));
+    });
     return all.take(length).toList();
+  }
+
+  /// A reading's weakness for in-tier ordering: wrong-rate (primary) plus, for
+  /// the timed recall beat, slowness and erratic timing (high CV) — so a reading
+  /// you produce slowly or unevenly comes back before a crisp one. New/unseen
+  /// readings score 0 here (their priority comes from the rank tier).
+  static double _readingWeakness(ReadingStat s) {
+    if (s.seenCount == 0) return 0;
+    final double wrongRate = s.wrongCount / s.seenCount;
+    double slowness = 0;
+    if (s.avgLatencyMs > ReadingStat.kFastThresholdMs) {
+      slowness =
+          ((s.avgLatencyMs - ReadingStat.kFastThresholdMs) /
+                  (2000 - ReadingStat.kFastThresholdMs))
+              .clamp(0.0, 1.0);
+    }
+    double erratic = 0;
+    if (s.avgLatencyMs > 0 && s.cvLatency.isFinite) {
+      erratic = (s.cvLatency / 0.6).clamp(0.0, 1.0);
+    }
+    return 0.7 * wrongRate + 0.2 * slowness + 0.2 * erratic;
   }
 }

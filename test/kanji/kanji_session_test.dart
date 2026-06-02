@@ -58,4 +58,40 @@ void main() {
     // The unseen 日#ニチ ranks ahead of the not-yet-due 人#ひと.
     expect(out.first.readingId, 'reading:日#ニチ');
   });
+
+  test('within a tier, a weaker reading resurfaces before a crisp one', () {
+    final past = DateTime(2026, 5);
+    final later = DateTime(2026, 6); // a month on — both stats are due
+    const weakK = KanjiEntry(
+      char: '一',
+      meaningZh: '一',
+      readings: [Reading(text: 'イチ', kind: ReadingKind.on)],
+    );
+    const strongK = KanjiEntry(
+      char: '二',
+      meaningZh: '二',
+      readings: [Reading(text: 'ニ', kind: ReadingKind.on)],
+    );
+    final stats = {
+      // missed → high wrong-rate, due since past+10min
+      KanjiEntry.readingId('一', 'イチ'): const ReadingStat().recordAnswer(
+        correct: false,
+        at: past,
+      ),
+      // crisp fast → low weakness, due since past+1day
+      KanjiEntry.readingId('二', 'ニ'): const ReadingStat().recordAnswer(
+        correct: true,
+        at: past,
+        latencyMs: 250,
+      ),
+    };
+    final out = KanjiSession.compose(
+      entries: const [strongK, weakK],
+      stats: stats,
+      now: later,
+      rng: Random(1),
+      length: 2,
+    );
+    expect(out.first.readingId, 'reading:一#イチ'); // weaker first
+  });
 }
