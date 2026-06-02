@@ -198,6 +198,37 @@ abstract final class AppStrings {
     };
   }
 
+  /// The 凪 close can echo the IMAGE just read (黙読 etc.) instead of the
+  /// glyph-familiarity line — 余韻 at the emotional peak. Keyed ONLY on the item
+  /// + band, never the score (performance-invariant). Curated for the strongest
+  /// images; null for everything else so the caller falls back to [closingNote].
+  static const Map<String, String> _closingImages = {
+    'ゆきが ふる': '雪,還在落著。',
+    'あめが ふる': '雨,還在下。',
+    'あめが やむ': '雨,停了。',
+    'はなが ちる': '花,正落著。',
+    'はなが さいた': '花,開了。',
+    'つきが でる': '月亮,出來了。',
+    'ほしが ながれる': '一顆星,劃過去了。',
+    'くもが ながれる': '雲,慢慢流過。',
+    'かぜが すずしい': '風,涼涼的。',
+    'ふゆの しずけさ': '冬日,靜了下來。',
+  };
+
+  static String? closingEcho(String item, {required ClosingBand band}) {
+    final image = _closingImages[item];
+    if (image == null) return null;
+    return switch (band) {
+      ClosingBand.day => '$image去過你的一天吧。',
+      ClosingBand.night => '$image今天就到這裡,好好休息。',
+    };
+  }
+
+  /// The 凪 close note: echo the image if it's a curated one (余韻), else the
+  /// quiet glyph-familiarity line. Both are performance-invariant.
+  static String closing(String item, {required ClosingBand band}) =>
+      closingEcho(item, band: band) ?? closingNote(item, band: band);
+
   static const String sessionComplete = '本次完成';
   static const String missedKana = '答錯的假名';
   static String reviewMissedKana(int n) => '複習答錯的假名（$n）';

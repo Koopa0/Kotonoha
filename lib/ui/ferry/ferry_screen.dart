@@ -113,8 +113,8 @@ class _FerryScreenState extends State<FerryScreen> {
 
   Widget _summary() => SessionSummary(
     headline: AppStrings.readingSummary(_correct, widget.words.length),
-    note: AppStrings.closingNote(
-      widget.words.first.kana,
+    note: AppStrings.closing(
+      widget.words.last.kana,
       band: ClosingBand.forHour(DateTime.now().hour),
     ),
     onDone: () => Navigator.of(context).pop(),
