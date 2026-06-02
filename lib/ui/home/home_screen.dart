@@ -31,7 +31,6 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
-import 'package:kotonoha/ui/insights/insights_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
@@ -127,16 +126,15 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    store.seenCount == 0
-                        ? AppStrings.coldStartCaption
-                        : AppStrings.overallAccuracy(
-                            (store.overallAccuracy * 100).round(),
-                          ),
-                    style: const TextStyle(color: AppColors.inkMuted),
+                // A cold-start hand only. Once practice begins, the ring and the
+                // next-step line carry the state — no accuracy score at the door.
+                if (store.seenCount == 0)
+                  const Center(
+                    child: Text(
+                      AppStrings.coldStartCaption,
+                      style: TextStyle(color: AppColors.inkMuted),
+                    ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 if (pending != null)
                   _buildUnlock(
@@ -256,14 +254,6 @@ class HomeScreen extends StatelessWidget {
                     onTap: () =>
                         Navigator.of(context).push(ProgressScreen.route()),
                   ),
-                  if (store.seenCount > 0)
-                    _NavCard(
-                      icon: Icons.query_stats_rounded,
-                      label: AppStrings.insightsEntry,
-                      subtitle: AppStrings.insightsSubtitle,
-                      onTap: () =>
-                          Navigator.of(context).push(InsightsScreen.route()),
-                    ),
                 ]),
                 // ④ A quiet, always-available "what is this / how do I learn"
                 // at the foot of the path — pull, never pushed.

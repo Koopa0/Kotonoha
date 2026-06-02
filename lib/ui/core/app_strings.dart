@@ -107,7 +107,6 @@ abstract final class AppStrings {
   static const String progress = '歩み';
   static const String progressSubtitle = '目前的學習狀況';
   static const String practiced = '已練習';
-  static String overallAccuracy(int percent) => '整體正確率 $percent%';
 
   // Quiz
   static const String quizTitleMissed = '複習答錯的假名';
@@ -181,37 +180,10 @@ abstract final class AppStrings {
   static const String kanjiSentenceTitle = '名残の仮名';
   static const String kanjiSentencePrompt = '在心裡讀出整句';
 
-  // Insights (reads the analytics event stream)
-  static const String insightsEntry = '自画像';
-  static const String insightsSubtitle = '常認錯什麼、反應多快';
-  static const String insightsTitle = '自画像';
-  static const String insightsTotal = '總練習次數';
-  static const String insightsAccuracy = '整體正確率';
-  static const String insightsAvgRt = '平均反應時間';
-  static const String insightsDistinct = '練習過的假名・詞';
-  static const String insightsByMode = '各模式練習次數';
-  static const String insightsEmpty = '還沒有練習紀錄,先做一次「今日の稽古」吧。';
+  // 回望 observation — the one quiet, hard-gated notebook line in 歩み, mined from
+  // real misclicks. It carries no number: being seen, not scored.
   static String confusionLine(String target, String mistakenFor) =>
       '最近,常把「$target」看成「$mistakenFor」。';
-  static String insightsMs(int ms) => '$ms 毫秒';
-  static String insightsCount(int n) => '$n 次';
-
-  /// Human label for a [PracticeMode] name in the analytics stream.
-  static String modeLabel(String mode) => switch (mode) {
-    // The home-facing tracks reuse their tile names so the Insights breakdown
-    // never drifts from the home labels.
-    'daily' => dailySession, // 今日の稽古
-    'lessonTest' => '課程測驗',
-    'missed' => '複習答錯',
-    'confusable' => confusableEntry, // 目利き
-    'writing' => writingEntry, // 手習い
-    'reading' => sentenceEntry, // 黙読 (the sentence track; 讀詞 was removed)
-    'quickReview' => '快速複習',
-    'kanjiReading' => kanjiEntry, // 漢字の声
-    'ferry' => ferryEntry, // 渡し舟
-    'dictation' => dictationEntry, // 文字起こし
-    _ => mode,
-  };
 
   // Result
   static const String sessionCloseLine = '今天就到這裡,辛苦了。';
@@ -249,9 +221,4 @@ abstract final class AppStrings {
   static const String statCorrect = '答對';
   static const String statMissed = '答錯';
   static const String statAccuracy = '正確率';
-
-  // Progress
-  static const String accuracy = '正確率';
-  static String practicedOfTotal(int seen, int total) =>
-      '已練習 $total 個假名中的 $seen 個';
 }

@@ -3,12 +3,20 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
+import 'package:kotonoha/domain/use_cases/self_portrait.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:provider/provider.dart';
 
+/// 歩み — the one quiet 回望 (look-back). It is a MAP, not a scoreboard: how far
+/// you've walked the syllabary (coverage), the present-tense state of each kana
+/// (which can rise or fall, and tells you where to look), and the occasional
+/// hard-gated observation. No accuracy %, no reaction-time number, no tally —
+/// those are private inputs to the silent scheduler, never shown.
 class ProgressScreen extends StatelessWidget {
   const ProgressScreen({super.key});
 
@@ -26,30 +34,92 @@ class ProgressScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
               children: [
                 const SizedBox(height: 8),
+                // Coverage of the whole syllabary — a map of how far you've come,
+                // never a grade. It can only grow by the honest act of meeting a
+                // kana, and it cannot be "lost".
                 Center(
                   child: ProgressRing(
-                    value: store.overallAccuracy,
-                    centerLabel: '${(store.overallAccuracy * 100).round()}%',
-                    caption: AppStrings.accuracy,
-                    color: AppColors.success,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    AppStrings.practicedOfTotal(
-                      store.seenCount,
-                      store.totalCount,
-                    ),
-                    style: const TextStyle(color: AppColors.inkMuted),
+                    value: store.totalCount == 0
+                        ? 0
+                        : store.seenCount / store.totalCount,
+                    centerLabel: '${store.seenCount}/${store.totalCount}',
+                    caption: AppStrings.practiced,
                   ),
                 ),
                 const SizedBox(height: 28),
                 _StatusBreakdown(store: store),
+                const _Observations(),
               ],
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// The hard-gated notebook observation(s), read from the analytics stream — the
+/// teaching signal that used to live in 自画像. Says nothing rather than something
+/// flimsy, so an empty result simply shows nothing.
+class _Observations extends StatelessWidget {
+  const _Observations();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Attempt>>(
+      future: context.read<AnalyticsLog>().all(),
+      builder: (context, snapshot) {
+        final observations = snapshot.hasData
+            ? SelfPortrait.observe(snapshot.data!)
+            : const <Observation>[];
+        if (observations.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              for (final o in observations) _ObservationCard(observation: o),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A quiet line, written like a notebook margin note — being seen, not scored.
+class _ObservationCard extends StatelessWidget {
+  const _ObservationCard({required this.observation});
+
+  final Observation observation;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (observation) {
+      ConfusionObservation(:final target, :final mistakenFor) =>
+        AppStrings.confusionLine(target, mistakenFor),
+    };
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.spa_outlined, size: 18, color: AppColors.accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -74,7 +144,6 @@ class _StatusBreakdown extends StatelessWidget {
           _StatusRow(
             label: label,
             count: store.countWithStatus(status),
-            total: store.totalCount,
             color: AppColors.forStatus(status),
           ),
           const SizedBox(height: 12),
@@ -88,13 +157,11 @@ class _StatusRow extends StatelessWidget {
   const _StatusRow({
     required this.label,
     required this.count,
-    required this.total,
     required this.color,
   });
 
   final String label;
   final int count;
-  final int total;
   final Color color;
 
   @override

@@ -120,17 +120,6 @@ class KanaProgressRepository extends ChangeNotifier {
   int countWithStatus(KanaStatus status) =>
       allKana.where((k) => statFor(k).status == status).length;
 
-  /// Overall accuracy across all answered questions, in [0, 1].
-  double get overallAccuracy {
-    var seen = 0;
-    var correct = 0;
-    for (final s in _stats.values) {
-      seen += s.seenCount;
-      correct += s.correctCount;
-    }
-    return seen == 0 ? 0 : correct / seen;
-  }
-
   /// Records a single answer for [kana] and persists.
   Future<void> recordAnswer(
     Kana kana, {
