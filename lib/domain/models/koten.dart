@@ -31,8 +31,8 @@ class KotenLine {
   /// The line as written (kanji + kana), shown large — the thing to read.
   final String text;
 
-  /// The full hiragana reading — furigana on the page and what TTS speaks, so a
-  /// kanji-literate reader meets the SOUND, not just the familiar meaning.
+  /// The full hiragana reading — shown as a reading row beneath the line and what
+  /// TTS speaks, so a kanji-literate reader meets the SOUND, not just the meaning.
   final String reading;
 
   /// ONE line of Traditional-Chinese 余韻 (the felt image / season). Never more.

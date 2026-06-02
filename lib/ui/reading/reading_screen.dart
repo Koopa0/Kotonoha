@@ -117,7 +117,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
     final band = ClosingBand.forHour(DateTime.now().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.items.length),
-      note: AppStrings.closing(widget.items.last.displayText, band: band),
+      // The classical 余韻 (when picked) replaces the close note — so only
+      // compute the note when no share will lead.
+      note: _share == null
+          ? AppStrings.closing(widget.items.last.displayText, band: band)
+          : null,
       share: _share,
       onDone: () => Navigator.of(context).pop(),
       // At night the close grants permission to stop — suppress もう一回 here, at

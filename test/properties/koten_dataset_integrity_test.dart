@@ -48,10 +48,13 @@ void main() {
   test('glosses are ONE calm line — no newline, never a paragraph', () {
     for (final e in kKoten) {
       expect(e.gloss.contains('\n'), isFalse, reason: e.text);
+      // 45 is the DESIGN maximum for one calm line on a narrow phone — the guard
+      // against a gloss swelling into a paragraph (the culture-blog drift). If a
+      // new gloss trips this, shorten the gloss; do NOT raise the ceiling.
       expect(
         e.gloss.length,
         lessThanOrEqualTo(45),
-        reason: '${e.text}: too long',
+        reason: '${e.text}: gloss too long — shorten it, do not raise the cap',
       );
     }
   });

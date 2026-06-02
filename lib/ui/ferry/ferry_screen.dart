@@ -141,7 +141,10 @@ class _FerryScreenState extends State<FerryScreen> {
     final band = ClosingBand.forHour(DateTime.now().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.words.length),
-      note: AppStrings.closing(widget.words.last.kana, band: band),
+      // The classical 余韻 (when picked) replaces the close note.
+      note: _share == null
+          ? AppStrings.closing(widget.words.last.kana, band: band)
+          : null,
       share: _share,
       onDone: () => Navigator.of(context).pop(),
       // Night close grants permission to stop — suppress もう一回 at render time.

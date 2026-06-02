@@ -145,8 +145,9 @@ class SessionSummary extends StatelessWidget {
   }
 }
 
-/// The three-part 余韻 block: the classical line READ (large + furigana + TTS),
-/// then its 繁中 echo, then a muted attribution. Reading first, meaning as echo.
+/// The three-part 余韻 block: the classical line READ (large, with a hiragana
+/// reading row + TTS), then its 繁中 echo, then a muted attribution. Reading
+/// first, meaning as echo.
 class _KotenShareView extends StatelessWidget {
   const _KotenShareView(this.line);
 
