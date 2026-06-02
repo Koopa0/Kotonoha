@@ -6,34 +6,44 @@
 
 **English** · [繁體中文](README.zh-TW.md) · [日本語](README.JP.md)
 
-> A calm, minimal companion for learning to read Japanese.
+> やまとうたは、人の心を種として、よろづの言の葉とぞなれりける。
 
 ---
 
-言の葉 (*kotonoha*, "leaves of words") is an adult-friendly trainer for **reading**
-Japanese. In a quiet few minutes a day it builds the reflex from glyph to sound —
-across all 208 hiragana and katakana — then carries you into small words, short
-sentences, and a first taste of kanji readings.
+言の葉 (_kotonoha_) means "leaves of words." The line above opens Ki no Tsurayuki's
+preface to the _Kokin Wakashū_ (c. 905): Japanese poetry takes the human heart as
+its seed and grows into the myriad leaves of words. Language, in this view, is not
+built or forged — it grows, the way a flowering follows from a seed. That is what
+this app is for: not to drill a language, but to help a few leaves grow.
 
-It is deliberately unhurried. No streaks, no badges, no XP, no mascots, no
-confetti. Just you, the kana, and a notebook-quiet space to practise — celadon
-green on washi paper, the calm of a garden after rain. The whole app is built
-with Flutter, runs entirely on your device, and asks for no account.
+So it is unhurried, and it is for **reading**. In a quiet few minutes a day it
+builds the reflex from glyph to sound across all 208 hiragana and katakana, then
+carries you into small words, short sentences, and a first taste of kanji
+readings. No streaks, no badges, no XP, no mascots, no confetti — just you, the
+kana, and a notebook-quiet space: celadon green on washi paper, the calm of a
+garden after rain. Built with Flutter, it runs entirely on your device and asks
+for no account.
+
+There is an older weight to the name, too. In archaic Japanese 言 (_koto_, "word")
+and 事 (_koto_, "thing") were one sound — to say a thing was, in a way, to touch
+it — the root of 言霊, the spirit that lives in words. And leaves fall: speech,
+like a leaf, has its season. That quiet _mono no aware_ is the mood the whole app
+is tuned to.
 
 ## Screenshots
 
-| 言の葉 (home) | 今日の稽古 (today) | 渡し舟 (the Ferry) | 文字起こし (dictation) |
-|:---:|:---:|:---:|:---:|
-| ![Home](screenshots/01-home.png) | ![Today's session](screenshots/02-session.png) | ![Ferry](screenshots/08-ferry.png) | ![Dictation](screenshots/03-dictation.png) |
-| **黙読 (sentences)** | **漢字の声 (kanji)** | **名残の仮名 (kanji sentences)** | **歩み (progress)** |
-| ![Sentence](screenshots/06-sentence.png) | ![Kanji](screenshots/05-kanji.png) | ![Kanji sentence](screenshots/07-kanji-sentence.png) | ![Progress](screenshots/04-progress.png) |
+|              言の葉 (home)               |               今日の稽古 (today)               |                  渡し舟 (the Ferry)                  |           文字起こし (dictation)           |
+| :--------------------------------------: | :--------------------------------------------: | :--------------------------------------------------: | :----------------------------------------: |
+|     ![Home](screenshots/01-home.png)     | ![Today's session](screenshots/02-session.png) |          ![Ferry](screenshots/08-ferry.png)          | ![Dictation](screenshots/03-dictation.png) |
+|           **黙読 (sentences)**           |              **漢字の声 (kanji)**              |           **名残の仮名 (kanji sentences)**           |            **歩み (progress)**             |
+| ![Sentence](screenshots/06-sentence.png) |       ![Kanji](screenshots/05-kanji.png)       | ![Kanji sentence](screenshots/07-kanji-sentence.png) |  ![Progress](screenshots/04-progress.png)  |
 
 ## How a day looks
 
 Open the app and tap **今日の稽古** ("today's practice") — one adaptive run that
 automatically mixes what's due for review, what you've been weak on, and a little
 that's new. There's nothing to configure; you just begin. A couple of minutes
-later, the session settles into 凪 (*nagi*) — a still, wordless close.
+later, the session settles into 凪 (_nagi_) — a still, wordless close.
 
 ## What's inside
 
