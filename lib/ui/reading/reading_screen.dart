@@ -6,8 +6,10 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
@@ -178,6 +180,24 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       ),
                     ),
                     SpeakButton(text: _say, size: 30),
+                    // A quiet 助詞 gloss for each particle in the phrase — pull,
+                    // never pushed; role + reading quirk only, never a lesson.
+                    for (final p in Particles.particlesIn(_current.displayText))
+                      if (AppStrings.particleGloss(p) case final gloss?)
+                        PullNote(
+                          trigger: AppStrings.particleGlossTrigger,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Text(
+                              gloss,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.inkMuted,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
                   ],
                   const Spacer(),
                 ],

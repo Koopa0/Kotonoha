@@ -32,6 +32,7 @@ import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
@@ -633,107 +634,68 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// ④ The pull-not-push "これは?" — a permanently re-openable orientation line
-/// at the foot of home. Tap to unfold two sentences on how to learn; tap again
-/// to fold them away. No persistence (it is not onboarding), never auto-shown,
-/// never modal. Holds only ephemeral open/closed state, so it never touches the
-/// repository and cannot loop the home's listener.
-class _AboutKotonoha extends StatefulWidget {
+/// ④ The pull-not-push "これは?" — a permanently re-openable orientation line at
+/// the foot of home: how to learn, then the name's meaning (the 仮名序 epigraph).
+/// The shared [PullNote] fold; never auto-shown, never modal, no persistence.
+class _AboutKotonoha extends StatelessWidget {
   const _AboutKotonoha();
 
   @override
-  State<_AboutKotonoha> createState() => _AboutKotonohaState();
-}
-
-class _AboutKotonohaState extends State<_AboutKotonoha> {
-  bool _open = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // The single trigger toggles both ways — it is also the dismiss handle,
-        // so there is never a second or dead control.
-        TextButton(
-          style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
-          onPressed: () => setState(() => _open = !_open),
-          child: const Text(AppStrings.aboutTrigger),
+    return PullNote(
+      trigger: AppStrings.aboutTrigger,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Column(
+          children: [
+            // The practical note — how to learn.
+            const Text(
+              AppStrings.aboutBody,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            // One thread of warm light parts the practical note from the name's
+            // meaning — the soul, woven in, not set apart.
+            Container(
+              width: 40,
+              height: 2,
+              decoration: BoxDecoration(
+                color: AppColors.komorebi,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              AppStrings.nameMeaningHeading,
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // The 仮名序 line — a quiet epigraph (public domain).
+            const Text(
+              AppStrings.nameMeaningLine,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.ink, height: 1.7, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              AppStrings.nameMeaningGloss,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.inkMuted, height: 1.6),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              AppStrings.nameMeaningAttribution,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.inkMuted, fontSize: 12),
+            ),
+          ],
         ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          child: _open
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  child: Column(
-                    children: [
-                      // The practical note — how to learn.
-                      const Text(
-                        AppStrings.aboutBody,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // One thread of warm light parts the practical note from
-                      // the name's meaning — the soul, woven in, not set apart.
-                      Container(
-                        width: 40,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: AppColors.komorebi,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        AppStrings.nameMeaningHeading,
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // The 仮名序 line — a quiet epigraph (public domain).
-                      const Text(
-                        AppStrings.nameMeaningLine,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          height: 1.7,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        AppStrings.nameMeaningGloss,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          height: 1.6,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        AppStrings.nameMeaningAttribution,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox(width: double.infinity),
-        ),
-      ],
+      ),
     );
   }
 }

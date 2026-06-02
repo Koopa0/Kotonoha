@@ -159,6 +159,19 @@ abstract final class AppStrings {
   static const String ferryShowText = '看文字';
   static const String ferryReadSelf = '自己讀';
 
+  // 助詞 gloss — a quiet on-tap in the 黙読 reveal naming a particle's role + its
+  // reading quirk (は→wa, を→o). Exposure, never a grammar lesson — one calm line.
+  static const String particleGlossTrigger = '助詞?';
+  static String? particleGloss(String particle) => switch (particle) {
+    'は' => 'は — 主題,讀作 wa(不是 ha)。',
+    'が' => 'が — 主語,點出「誰、什麼」。',
+    'を' => 'を — 受詞,讀作 o(不是 wo)。',
+    'に' => 'に — 方向・對象・時間的落點。',
+    'の' => 'の — 的(所屬)。',
+    'へ' => 'へ — 方向,讀作 e。',
+    _ => null,
+  };
+
   // Sentence reading (the phrase track)
   static const String sentenceEntry = '黙読';
   static const String sentenceSubtitle = '讀短句,心裡默讀,再用耳朵確認';
