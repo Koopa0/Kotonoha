@@ -164,15 +164,15 @@ abstract final class AppStrings {
   static const String sentenceSubtitle = '讀短句,心裡默讀,再用耳朵確認';
   static const String sentenceTitle = '黙読';
 
-  // Kanji reading
+  // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';
   static const String kanjiSubtitle = '讀出漢字的音読・訓読';
   static const String kanjiTitle = '漢字の声';
-  static const String kanjiPrompt = '在心裡讀出這個漢字的音';
-  static const String kanjiReveal = '顯示讀音';
   static const String kanjiOnyomi = '音読み';
   static const String kanjiKunyomi = '訓読み';
-  static String kanjiAlsoReads(String others) => '也讀:$others';
+  static const String kanjiTeachHint = '先聽它的音,記下來';
+  static const String kanjiChooseReading = '這個字,怎麼讀?';
+  static const String kanjiNext = '次へ';
 
   // Kanji sentence reading (furigana fades as readings mature)
   static const String kanjiSentenceEntry = '名残の仮名';

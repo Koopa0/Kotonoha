@@ -4,6 +4,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
 
@@ -96,6 +97,25 @@ void main() {
     expect(a.options, b.options);
     expect(a.correctIndex, b.correctIndex);
   });
+
+  test(
+    'the real dataset is thick enough to fill 4 options for every reading',
+    () {
+      // The screen assumes a choose-the-reading; guard that the shipped kKanji
+      // always yields the full 4 same-kind options (fails loud if it ever thins).
+      for (final e in kKanji) {
+        for (final r in e.readings) {
+          final q = const KanjiReadingQuiz().buildQuestion(
+            e,
+            r,
+            kKanji,
+            Random(1),
+          );
+          expect(q.options.length, 4, reason: '${e.char}#${r.text}');
+        }
+      }
+    },
+  );
 
   test('clamps options when same-kind distractors are scarce', () {
     // Only サン and カ are on-readings of other kanji → answer + 2 = 3 options.

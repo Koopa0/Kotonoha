@@ -105,7 +105,8 @@ Future<void> main() async {
     await shot('04-progress');
     await back();
 
-    // Kanji reading — scroll to the tile, enter, reveal the reading.
+    // Kanji reading — scroll to the tile, enter; a never-seen reading is taught
+    // ear-first, so the reading + meaning are shown without any reveal tap.
     await tester.scrollUntilVisible(
       find.text(AppStrings.kanjiEntry),
       120,
@@ -114,7 +115,6 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.kanjiEntry));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.kanjiReveal));
     await shot('05-kanji');
     await back();
 

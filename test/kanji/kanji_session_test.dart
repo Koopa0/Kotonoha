@@ -94,4 +94,21 @@ void main() {
     );
     expect(out.first.readingId, 'reading:一#イチ'); // weaker first
   });
+
+  test(
+    'each readingId appears at most once per session (teach XOR recall)',
+    () {
+      // The honest screen routes new→teach / seen→recall off this one-pass
+      // uniqueness: a reading is never taught AND recalled in the same session.
+      final out = KanjiSession.compose(
+        entries: kKanji,
+        stats: const {},
+        now: now,
+        rng: Random(5),
+        length: 1000, // larger than the dataset → take everything
+      );
+      final ids = out.map((p) => p.readingId).toList();
+      expect(ids.toSet().length, ids.length);
+    },
+  );
 }
