@@ -88,8 +88,10 @@ abstract final class AppTheme {
   }
 }
 
-/// A calm page transition: fade in while rising a touch, like ink settling onto
-/// paper — quieter than a platform slide.
+/// A calm page transition: the new page fades in while rising a touch, like ink
+/// settling onto paper, while the page beneath eases gently upward as it
+/// recedes — a soft parallax (no opacity flicker) that makes the change feel
+/// layered rather than a flat platform slide. The reverse (pop) eases too.
 class _InkPageTransitionsBuilder extends PageTransitionsBuilder {
   const _InkPageTransitionsBuilder();
 
@@ -101,18 +103,33 @@ class _InkPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curved = CurvedAnimation(
+    // Incoming page: fade + a small rise, smoothed in both directions so the
+    // pop back out feels as calm as the push in.
+    final enter = CurvedAnimation(
       parent: animation,
       curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
     );
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.02),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
+    // The page below: drifts up a touch as it is covered (and back as it
+    // returns) — depth without a cross-fade dip through the washi backdrop.
+    final recede = CurvedAnimation(
+      parent: secondaryAnimation,
+      curve: Curves.easeInOutCubic,
+    );
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(0, -0.02),
+      ).animate(recede),
+      child: FadeTransition(
+        opacity: enter,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.03),
+            end: Offset.zero,
+          ).animate(enter),
+          child: child,
+        ),
       ),
     );
   }
