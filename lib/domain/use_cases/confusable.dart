@@ -14,18 +14,23 @@ import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 ///
 /// Pure logic, no `package:flutter/*` imports.
 abstract final class Confusable {
-  /// All kana that appear in any confusable group.
-  static List<Kana> members(List<Kana> allKana) {
-    final chars = {for (final set in kConfusableSets) ...set};
+  /// All kana that appear in any group of [sets] (the curated hiragana groups by
+  /// default; the home passes the katakana groups too once katakana is met).
+  static List<Kana> members(
+    List<Kana> allKana, [
+    List<List<String>> sets = kConfusableSets,
+  ]) {
+    final chars = {for (final set in sets) ...set};
     return allKana.where((k) => chars.contains(k.character)).toList();
   }
 
-  /// The first group containing [char] (or just [char] if none).
-  static List<Kana> groupFor(String char, List<Kana> allKana) {
-    final set = kConfusableSets.firstWhere(
-      (s) => s.contains(char),
-      orElse: () => [char],
-    );
+  /// The first group of [sets] containing [char] (or just [char] if none).
+  static List<Kana> groupFor(
+    String char,
+    List<Kana> allKana, [
+    List<List<String>> sets = kConfusableSets,
+  ]) {
+    final set = sets.firstWhere((s) => s.contains(char), orElse: () => [char]);
     return [for (final c in set) ...allKana.where((k) => k.character == c)];
   }
 
@@ -34,8 +39,9 @@ abstract final class Confusable {
     required int length,
     required QuizEngine engine,
     required Random rng,
+    List<List<String>> sets = kConfusableSets,
   }) {
-    final mem = members(allKana);
+    final mem = members(allKana, sets);
     if (mem.isEmpty || length <= 0) return const [];
 
     final order = <Kana>[];
@@ -45,9 +51,12 @@ abstract final class Confusable {
 
     final result = <QuizQuestion>[];
     for (final target in order.take(length)) {
-      final pool = <Kana>{...groupFor(target.character, allKana)};
-      // Top up to at least 4 so there are always 4 options.
-      for (final k in List<Kana>.of(allKana)..shuffle(rng)) {
+      final pool = <Kana>{...groupFor(target.character, allKana, sets)};
+      // Top up to 4 — but only within the target's own script, so a hiragana
+      // question never gets a katakana distractor (single-script questions).
+      final topUp = allKana.where((k) => k.script == target.script).toList()
+        ..shuffle(rng);
+      for (final k in topUp) {
         if (pool.length >= 4) break;
         pool.add(k);
       }

@@ -28,3 +28,17 @@ const List<List<String>> kConfusableSets = [
   ['つ', 'し'],
   ['こ', 'に'],
 ];
+
+/// The katakana look-alikes — objectively the harder, real-world discrimination
+/// problem (game UI, song titles). Offered in 目利き only once the learner has met
+/// katakana; never mixed into a hiragana question (each group is single-script).
+const List<List<String>> kKatakanaConfusableSets = [
+  ['ソ', 'ン'],
+  ['シ', 'ツ'],
+  ['ク', 'ワ'],
+  ['ノ', 'メ', 'ヌ'],
+  ['ル', 'レ'],
+  ['ア', 'マ'],
+  ['ウ', 'ワ'],
+  ['コ', 'ユ'],
+];

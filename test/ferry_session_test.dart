@@ -36,6 +36,24 @@ void main() {
     expect(out.map((w) => w.kana), ['きみ']);
   });
 
+  test('within a tier, least-recently-seen leads and most-recent trails', () {
+    // All non-themed → same tier, so recency (not theme) decides the order.
+    const tier = [
+      Word(kana: 'いぬ', romaji: 'inu', meaning: '狗'),
+      Word(kana: 'やま', romaji: 'yama', meaning: '山'),
+      Word(kana: 'うみ', romaji: 'umi', meaning: '海'),
+    ];
+    final out = FerrySession.compose(
+      words: tier,
+      learnedChars: {'い', 'ぬ', 'や', 'ま', 'う', 'み'},
+      rng: Random(1),
+      length: 3,
+      lastSeen: {'いぬ': 200, 'やま': 100}, // うみ never seen (absent → 0)
+    );
+    expect(out.first.kana, 'うみ'); // never-seen surfaces first
+    expect(out.last.kana, 'いぬ'); // most-recently-seen sinks to the end
+  });
+
   test('is deterministic under a fixed seed', () {
     List<Word> run() => FerrySession.compose(
       words: words,

@@ -3,6 +3,7 @@
 
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/season.dart';
 
 /// Short readable phrases — the sentence layer. All hiragana, no yōon, no
 /// sokuon, layout spaces at word boundaries. Original motif sentences (NOT
@@ -25,6 +26,7 @@ const List<Phrase> kPhrases = <Phrase>[
     romaji: 'natsu no kaze',
     meaning: '夏天的風',
     theme: ContentTheme.yorushika,
+    season: Season.summer,
   ),
   Phrase(
     kana: 'うみが みえる',
@@ -87,30 +89,35 @@ const List<Phrase> kPhrases = <Phrase>[
     romaji: 'yuki ga furu',
     meaning: '雪落下',
     theme: ContentTheme.season,
+    season: Season.winter,
   ),
   Phrase(
     kana: 'かぜが すずしい',
     romaji: 'kaze ga suzushii',
     meaning: '風涼涼的',
     theme: ContentTheme.season,
+    season: Season.autumn,
   ),
   Phrase(
     kana: 'かぜが おどる',
     romaji: 'kaze ga odoru',
     meaning: '風在跳舞',
     theme: ContentTheme.season,
+    season: Season.spring,
   ),
   Phrase(
     kana: 'はなが さいた',
     romaji: 'hana ga saita',
     meaning: '花開了',
     theme: ContentTheme.season,
+    season: Season.spring,
   ),
   Phrase(
     kana: 'はなが ちる',
     romaji: 'hana ga chiru',
     meaning: '花謝了',
     theme: ContentTheme.season,
+    season: Season.spring,
   ),
   Phrase(
     kana: 'くもが ながれる',
@@ -129,12 +136,14 @@ const List<Phrase> kPhrases = <Phrase>[
     romaji: 'tsuki ga deru',
     meaning: '月亮升起',
     theme: ContentTheme.season,
+    season: Season.autumn,
   ),
   Phrase(
     kana: 'つきが まるい',
     romaji: 'tsuki ga marui',
     meaning: '月亮圓圓的',
     theme: ContentTheme.season,
+    season: Season.autumn,
   ),
   Phrase(
     kana: 'ほしが ひかる',
@@ -159,6 +168,7 @@ const List<Phrase> kPhrases = <Phrase>[
     romaji: 'fuyu no shizukesa',
     meaning: '冬日的靜謐',
     theme: ContentTheme.season,
+    season: Season.winter,
   ),
   // 日々 — small everyday moments and gentle feelings: home, a voice, a cat,
   // a little tiredness, a song. Warm and plain.

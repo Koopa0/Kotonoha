@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:kotonoha/domain/models/false_friend.dart';
+import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 
-/// Curated short words for contextual reading practice. Every word is written
-/// purely in hiragana with NO yōon (so each rune is one kana unit, which the
-/// "readable with your unlocked kana" gate relies on). Romaji is the literal
-/// kana-by-kana Hepburn reading, so sounding each kana out verifies the answer.
+/// Curated short words for contextual reading practice. Hiragana words, plus a
+/// few common katakana loanwords (no ー/yōon, so each rune is exactly one kana
+/// unit — what the "readable with your unlocked kana" gate relies on). Romaji is the
+/// literal kana-by-kana Hepburn reading, so sounding each kana out verifies it.
 ///
 /// Ordered roughly easy → harder: seion-only words first, then ones needing
 /// dakuten / handakuten. Meanings are in Traditional Chinese.
@@ -209,5 +210,25 @@ const List<Word> kWords = <Word>[
       jaMeaning: '受傷',
       zhNote: '不是中文的「怪罪我」。',
     ),
+  ),
+  // Common katakana loanwords — consolidate katakana in context (it is
+  // otherwise learned in lessons then never read). Generic nouns only (no
+  // in-copyright titles); each rune is one kana unit (ー / yōon loanwords like
+  // コーヒー wait for a gate that treats ー as punctuation).
+  Word(kana: 'パン', romaji: 'pan', meaning: '麵包', script: KanaScript.katakana),
+  Word(kana: 'バス', romaji: 'basu', meaning: '公車', script: KanaScript.katakana),
+  Word(kana: 'ペン', romaji: 'pen', meaning: '筆', script: KanaScript.katakana),
+  Word(kana: 'ドア', romaji: 'doa', meaning: '門', script: KanaScript.katakana),
+  Word(
+    kana: 'テスト',
+    romaji: 'tesuto',
+    meaning: '測驗',
+    script: KanaScript.katakana,
+  ),
+  Word(
+    kana: 'カメラ',
+    romaji: 'kamera',
+    meaning: '相機',
+    script: KanaScript.katakana,
   ),
 ];

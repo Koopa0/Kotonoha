@@ -18,6 +18,7 @@ class SessionSummary extends StatelessWidget {
     required this.headline,
     required this.onDone,
     this.note,
+    this.onMore,
     super.key,
   });
 
@@ -29,6 +30,11 @@ class SessionSummary extends StatelessWidget {
   final String? note;
 
   final VoidCallback onDone;
+
+  /// Opt-in "one more" — composes a fresh short session. Null = hidden. Rendered
+  /// as a muted button below 完成, never the default; the home suppresses it at
+  /// night (the close is there to grant permission to stop).
+  final VoidCallback? onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +102,16 @@ class SessionSummary extends StatelessWidget {
                 child: const Text(AppStrings.done),
               ),
             ),
+            if (onMore != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onMore,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.inkMuted,
+                ),
+                child: const Text(AppStrings.practiceAgain),
+              ),
+            ],
           ],
         ),
       ),

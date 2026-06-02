@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/season.dart';
 
 /// A short readable phrase — the sentence-level reading unit. Unlike [Word],
 /// its [romaji] is a free reading (particles read は→wa, を→o; spaces mark word
@@ -15,6 +16,7 @@ class Phrase implements ReadingItem {
     required this.romaji,
     required this.meaning,
     this.theme,
+    this.season,
   });
 
   /// The phrase in kana, with layout spaces at word boundaries (うみが みえる).
@@ -28,6 +30,11 @@ class Phrase implements ReadingItem {
 
   /// Optional interest flavour (ヨルシカ / anime / game / travel).
   final ContentTheme? theme;
+
+  /// The season this phrase evokes (null = season-neutral). Drives the silent
+  /// seasonal-lift; never displayed.
+  @override
+  final Season? season;
 
   @override
   String get displayText => kana;

@@ -9,8 +9,8 @@ bool _isKatakana(String s) => s.runes.every((r) => r >= 0x30A0 && r <= 0x30FF);
 bool _isHiragana(String s) => s.runes.every((r) => r >= 0x3040 && r <= 0x309F);
 
 void main() {
-  test('30 single-character kanji, each with 1–2 readings', () {
-    expect(kKanji.length, 30);
+  test('82 single-character kanji, each with 1–2 readings', () {
+    expect(kKanji.length, 82);
     for (final k in kKanji) {
       expect(k.char.runes.length, 1, reason: k.char);
       expect(k.meaningZh, isNotEmpty, reason: k.char);

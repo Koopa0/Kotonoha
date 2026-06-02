@@ -21,6 +21,18 @@ void main() {
     expect(night, isNot(contains('去過你的一天吧')));
   });
 
+  test('closing() echoes a curated image, else the familiarity line', () {
+    // A curated image (a phrase just read) → the image leads, no score clause.
+    final echo = AppStrings.closing('ゆきが ふる', band: ClosingBand.night);
+    expect(echo, contains('雪,還在落著'));
+    expect(echo, contains('好好休息'));
+    expect(echo, isNot(contains('更熟了一點'))); // the image IS the proof
+    // A non-curated item falls back to the familiarity line.
+    final fallback = AppStrings.closing('やま', band: ClosingBand.day);
+    expect(fallback, contains('和「やま」更熟了一點'));
+    expect(AppStrings.closingEcho('やま', band: ClosingBand.day), isNull);
+  });
+
   test('the close softens at dusk (19:00), two bands only', () {
     expect(ClosingBand.forHour(9), ClosingBand.day);
     expect(ClosingBand.forHour(18), ClosingBand.day);

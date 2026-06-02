@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 
@@ -109,6 +110,36 @@ void main() {
           reason: 'seed=$seed target ${q.target.character} not a member',
         );
       }
+    }
+  });
+
+  test('katakana confusable groups are well-formed real katakana', () {
+    final kataChars = {
+      for (final k in kAllKana)
+        if (k.script == KanaScript.katakana && k.character.runes.length == 1)
+          k.character,
+    };
+    for (final set in kKatakanaConfusableSets) {
+      expect(set.length, inInclusiveRange(2, 3), reason: 'bad size: $set');
+      expect(set.toSet().length, set.length, reason: 'internal dup: $set');
+      for (final c in set) {
+        expect(kataChars.contains(c), isTrue, reason: '"$c" is not katakana');
+      }
+    }
+  });
+
+  test('a katakana-sets session is katakana-only (never mixes scripts)', () {
+    const engine = QuizEngine();
+    final qs = Confusable.session(
+      allKana: kAllKana,
+      length: 12,
+      engine: engine,
+      rng: Random(2),
+      sets: kKatakanaConfusableSets,
+    );
+    expect(qs.length, 12);
+    for (final q in qs) {
+      expect(q.target.script, KanaScript.katakana, reason: q.target.character);
     }
   });
 }

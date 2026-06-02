@@ -1,16 +1,20 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
+import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
@@ -29,6 +33,7 @@ import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
@@ -314,33 +319,66 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _startFerry(BuildContext context) {
+  /// Most-recent attempt timestamp per item id (displayText), folded from the
+  /// analytics stream — the recency the reading composers use to float
+  /// least-recently-seen items up. Never a count, never shown.
+  Future<Map<String, int>> _lastSeen(BuildContext context) async {
+    final attempts = await context.read<AnalyticsLog>().all();
+    final m = <String, int>{};
+    for (final a in attempts) {
+      if (a.ts > (m[a.itemId] ?? 0)) m[a.itemId] = a.ts;
+    }
+    return m;
+  }
+
+  Future<void> _startFerry(BuildContext context, {bool replace = false}) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
+    final lastSeen = await _lastSeen(context);
+    if (!context.mounted) return;
     final words = FerrySession.compose(
       words: kWords,
       learnedChars: learnedChars,
       rng: Random(),
+      lastSeen: lastSeen,
     );
-    Navigator.of(context).push(FerryScreen.route(words, AppStrings.ferryTitle));
+    final nav = Navigator.of(context);
+    final route = FerryScreen.route(
+      words,
+      AppStrings.ferryTitle,
+      // Re-composes fresh; the close itself (SessionSummary, render-time band)
+      // suppresses it at night — so a session that crossed dusk still hides it.
+      onMore: () => unawaited(_startFerry(context, replace: true)),
+    );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  void _startDictation(BuildContext context) {
+  Future<void> _startDictation(
+    BuildContext context, {
+    bool replace = false,
+  }) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
+    final lastSeen = await _lastSeen(context);
+    if (!context.mounted) return;
     final words = ReadingSet.session(
       items: kWords,
       learnedChars: learnedChars,
       rng: Random(),
       length: 8,
+      lastSeen: lastSeen,
     );
-    Navigator.of(
-      context,
-    ).push(DictationScreen.route(words, AppStrings.dictationTitle));
+    final nav = Navigator.of(context);
+    final route = DictationScreen.route(
+      words,
+      AppStrings.dictationTitle,
+      onMore: () => unawaited(_startDictation(context, replace: true)),
+    );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
   void _startWriting(BuildContext context) {
@@ -351,11 +389,32 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _startSentence(BuildContext context, List<Phrase> readable) {
-    final picked = (List<Phrase>.of(readable)..shuffle()).take(8).toList();
-    Navigator.of(
-      context,
-    ).push(ReadingScreen.route(picked, AppStrings.sentenceTitle));
+  Future<void> _startSentence(
+    BuildContext context,
+    List<Phrase> readable, {
+    bool replace = false,
+  }) async {
+    final store = context.read<KanaProgressRepository>();
+    final learnedChars = StudySet.learned(
+      store,
+    ).map((k) => k.character).toSet();
+    final lastSeen = await _lastSeen(context);
+    if (!context.mounted) return;
+    final picked = ReadingSet.session(
+      items: readable,
+      learnedChars: learnedChars,
+      rng: Random(),
+      length: 8,
+      season: Season.forMonth(DateTime.now().month),
+      lastSeen: lastSeen,
+    );
+    final nav = Navigator.of(context);
+    final route = ReadingScreen.route(
+      picked,
+      AppStrings.sentenceTitle,
+      onMore: () => unawaited(_startSentence(context, readable, replace: true)),
+    );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
   void _startKanji(BuildContext context) {
@@ -378,13 +437,26 @@ class HomeScreen extends StatelessWidget {
     ).push(KanjiSentenceScreen.route(picked, AppStrings.kanjiSentenceTitle));
   }
 
-  List<QuizQuestion> _composeConfusable(KanaProgressRepository store) =>
-      Confusable.session(
-        allKana: store.gojuonForScript(KanaScript.hiragana),
-        length: 12,
-        engine: const QuizEngine(),
-        rng: Random(),
-      );
+  List<QuizQuestion> _composeConfusable(KanaProgressRepository store) {
+    // Once the learner has met ANY katakana, 目利き quietly folds in the katakana
+    // look-alikes too (each question stays single-script — never a mixed pair, no
+    // new card, no toggle). Until then it is hiragana-only.
+    final katakanaStarted =
+        store.seenInSet(store.gojuonForScript(KanaScript.katakana)) > 0;
+    final sets = katakanaStarted
+        ? [...kConfusableSets, ...kKatakanaConfusableSets]
+        : kConfusableSets;
+    final pool = katakanaStarted
+        ? store.gojuonKana
+        : store.gojuonForScript(KanaScript.hiragana);
+    return Confusable.session(
+      allKana: pool,
+      length: 12,
+      engine: const QuizEngine(),
+      rng: Random(),
+      sets: sets,
+    );
+  }
 
   void _startConfusable(BuildContext context) {
     final store = context.read<KanaProgressRepository>();
@@ -525,9 +597,9 @@ class HomeScreen extends StatelessWidget {
     store.markUnlockSeen(pending.id);
     switch (pending) {
       case Unlock.words:
-        _startFerry(context);
+        unawaited(_startFerry(context));
       case Unlock.phrases:
-        _startSentence(context, readablePhrases);
+        unawaited(_startSentence(context, readablePhrases));
       case Unlock.kanjiPhrases:
         _startKanjiSentence(context, readableKanjiPhrases);
     }
@@ -569,107 +641,68 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// ④ The pull-not-push "これは?" — a permanently re-openable orientation line
-/// at the foot of home. Tap to unfold two sentences on how to learn; tap again
-/// to fold them away. No persistence (it is not onboarding), never auto-shown,
-/// never modal. Holds only ephemeral open/closed state, so it never touches the
-/// repository and cannot loop the home's listener.
-class _AboutKotonoha extends StatefulWidget {
+/// ④ The pull-not-push "これは?" — a permanently re-openable orientation line at
+/// the foot of home: how to learn, then the name's meaning (the 仮名序 epigraph).
+/// The shared [PullNote] fold; never auto-shown, never modal, no persistence.
+class _AboutKotonoha extends StatelessWidget {
   const _AboutKotonoha();
 
   @override
-  State<_AboutKotonoha> createState() => _AboutKotonohaState();
-}
-
-class _AboutKotonohaState extends State<_AboutKotonoha> {
-  bool _open = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // The single trigger toggles both ways — it is also the dismiss handle,
-        // so there is never a second or dead control.
-        TextButton(
-          style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
-          onPressed: () => setState(() => _open = !_open),
-          child: const Text(AppStrings.aboutTrigger),
+    return PullNote(
+      trigger: AppStrings.aboutTrigger,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Column(
+          children: [
+            // The practical note — how to learn.
+            const Text(
+              AppStrings.aboutBody,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            // One thread of warm light parts the practical note from the name's
+            // meaning — the soul, woven in, not set apart.
+            Container(
+              width: 40,
+              height: 2,
+              decoration: BoxDecoration(
+                color: AppColors.komorebi,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              AppStrings.nameMeaningHeading,
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // The 仮名序 line — a quiet epigraph (public domain).
+            const Text(
+              AppStrings.nameMeaningLine,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.ink, height: 1.7, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              AppStrings.nameMeaningGloss,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.inkMuted, height: 1.6),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              AppStrings.nameMeaningAttribution,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.inkMuted, fontSize: 12),
+            ),
+          ],
         ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          child: _open
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  child: Column(
-                    children: [
-                      // The practical note — how to learn.
-                      const Text(
-                        AppStrings.aboutBody,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // One thread of warm light parts the practical note from
-                      // the name's meaning — the soul, woven in, not set apart.
-                      Container(
-                        width: 40,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: AppColors.komorebi,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        AppStrings.nameMeaningHeading,
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // The 仮名序 line — a quiet epigraph (public domain).
-                      const Text(
-                        AppStrings.nameMeaningLine,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          height: 1.7,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        AppStrings.nameMeaningGloss,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          height: 1.6,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        AppStrings.nameMeaningAttribution,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox(width: double.infinity),
-        ),
-      ],
+      ),
     );
   }
 }

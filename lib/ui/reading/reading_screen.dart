@@ -6,8 +6,10 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
@@ -18,15 +20,27 @@ import 'package:provider/provider.dart';
 /// (itemType=word, mode=reading); it deliberately does NOT touch per-kana SRS —
 /// reading fluency is a different signal from single-kana recognition.
 class ReadingScreen extends StatefulWidget {
-  const ReadingScreen({required this.items, required this.title, super.key});
+  const ReadingScreen({
+    required this.items,
+    required this.title,
+    this.onMore,
+    super.key,
+  });
 
   final List<ReadingItem> items;
   final String title;
 
-  static Route<void> route(List<ReadingItem> items, String title) =>
-      MaterialPageRoute<void>(
-        builder: (_) => ReadingScreen(items: items, title: title),
-      );
+  /// Opt-in "one more" — a fresh session in place of this one (home builds it,
+  /// night-suppressed). Null = hidden.
+  final VoidCallback? onMore;
+
+  static Route<void> route(
+    List<ReadingItem> items,
+    String title, {
+    VoidCallback? onMore,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => ReadingScreen(items: items, title: title, onMore: onMore),
+  );
 
   @override
   State<ReadingScreen> createState() => _ReadingScreenState();
@@ -81,14 +95,17 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
   }
 
-  Widget _summary() => SessionSummary(
-    headline: AppStrings.readingSummary(_correct, widget.items.length),
-    note: AppStrings.closingNote(
-      widget.items.first.displayText,
-      band: ClosingBand.forHour(DateTime.now().hour),
-    ),
-    onDone: () => Navigator.of(context).pop(),
-  );
+  Widget _summary() {
+    final band = ClosingBand.forHour(DateTime.now().hour);
+    return SessionSummary(
+      headline: AppStrings.readingSummary(_correct, widget.items.length),
+      note: AppStrings.closing(widget.items.last.displayText, band: band),
+      onDone: () => Navigator.of(context).pop(),
+      // At night the close grants permission to stop — suppress もう一回 here, at
+      // render time, so a session that began in daylight still hides it at dusk.
+      onMore: band == ClosingBand.day ? widget.onMore : null,
+    );
+  }
 
   Widget _question() {
     // Phrases are longer than words — scale the glyphs down a touch.
@@ -165,6 +182,24 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       ),
                     ),
                     SpeakButton(text: _say, size: 30),
+                    // A quiet 助詞 gloss for each particle in the phrase — pull,
+                    // never pushed; role + reading quirk only, never a lesson.
+                    for (final p in Particles.particlesIn(_current.displayText))
+                      if (AppStrings.particleGloss(p) case final gloss?)
+                        PullNote(
+                          trigger: AppStrings.particleGlossTrigger,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Text(
+                              gloss,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.inkMuted,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
                   ],
                   const Spacer(),
                 ],

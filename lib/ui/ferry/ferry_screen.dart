@@ -9,6 +9,7 @@ import 'package:kotonoha/domain/models/false_friend.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +24,7 @@ class FerryScreen extends StatefulWidget {
     required this.words,
     required this.title,
     this.clock,
+    this.onMore,
     super.key,
   });
 
@@ -32,10 +34,16 @@ class FerryScreen extends StatefulWidget {
   /// Injectable clock so the read-back reaction time is testable.
   final DateTime Function()? clock;
 
-  static Route<void> route(List<Word> words, String title) =>
-      MaterialPageRoute<void>(
-        builder: (_) => FerryScreen(words: words, title: title),
-      );
+  /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
+  final VoidCallback? onMore;
+
+  static Route<void> route(
+    List<Word> words,
+    String title, {
+    VoidCallback? onMore,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => FerryScreen(words: words, title: title, onMore: onMore),
+  );
 
   @override
   State<FerryScreen> createState() => _FerryScreenState();
@@ -111,14 +119,16 @@ class _FerryScreenState extends State<FerryScreen> {
     );
   }
 
-  Widget _summary() => SessionSummary(
-    headline: AppStrings.readingSummary(_correct, widget.words.length),
-    note: AppStrings.closingNote(
-      widget.words.first.kana,
-      band: ClosingBand.forHour(DateTime.now().hour),
-    ),
-    onDone: () => Navigator.of(context).pop(),
-  );
+  Widget _summary() {
+    final band = ClosingBand.forHour(DateTime.now().hour);
+    return SessionSummary(
+      headline: AppStrings.readingSummary(_correct, widget.words.length),
+      note: AppStrings.closing(widget.words.last.kana, band: band),
+      onDone: () => Navigator.of(context).pop(),
+      // Night close grants permission to stop — suppress もう一回 at render time.
+      onMore: band == ClosingBand.day ? widget.onMore : null,
+    );
+  }
 
   Widget _question() {
     final showKana = _beat != _Beat.hear;
@@ -273,49 +283,25 @@ class _FerryScreenState extends State<FerryScreen> {
   }
 }
 
-/// A pull-not-push 同形異義語 note: a quiet 「日文意思?」 that unfolds one calm
-/// line affirming the Japanese meaning. Ephemeral open state, no persistence —
-/// the ④ これは? pattern, reused.
-class _FalseFriendNote extends StatefulWidget {
+/// A pull-not-push 同形異義語 note: a quiet 「日文意思?」 that unfolds one calm line
+/// affirming the Japanese meaning — the shared [PullNote] fold.
+class _FalseFriendNote extends StatelessWidget {
   const _FalseFriendNote(this.friend, {super.key});
 
   final FalseFriend friend;
 
   @override
-  State<_FalseFriendNote> createState() => _FalseFriendNoteState();
-}
-
-class _FalseFriendNoteState extends State<_FalseFriendNote> {
-  bool _open = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextButton(
-          style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
-          onPressed: () => setState(() => _open = !_open),
-          child: const Text(AppStrings.falseFriendTrigger),
+    return PullNote(
+      trigger: AppStrings.falseFriendTrigger,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Text(
+          AppStrings.falseFriendNote(friend),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
         ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          child: _open
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    AppStrings.falseFriendNote(widget.friend),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      height: 1.5,
-                    ),
-                  ),
-                )
-              : const SizedBox(width: double.infinity),
-        ),
-      ],
+      ),
     );
   }
 }
