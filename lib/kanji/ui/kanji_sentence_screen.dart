@@ -58,6 +58,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.written,
+        itemType: ItemType.kanji,
         mode: PracticeMode.reading.name,
         correct: correct,
         sessionId: _sessionId,
