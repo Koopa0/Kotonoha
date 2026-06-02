@@ -331,11 +331,6 @@ class HomeScreen extends StatelessWidget {
     return m;
   }
 
-  /// Wraps an opt-in "one more" so it's only offered in the DAY band — at night
-  /// the close grants permission to stop, so もう一回 is suppressed.
-  VoidCallback? _dayOnly(VoidCallback more) =>
-      ClosingBand.forHour(DateTime.now().hour) == ClosingBand.day ? more : null;
-
   Future<void> _startFerry(BuildContext context, {bool replace = false}) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
@@ -353,7 +348,9 @@ class HomeScreen extends StatelessWidget {
     final route = FerryScreen.route(
       words,
       AppStrings.ferryTitle,
-      onMore: _dayOnly(() => unawaited(_startFerry(context, replace: true))),
+      // Re-composes fresh; the close itself (SessionSummary, render-time band)
+      // suppresses it at night — so a session that crossed dusk still hides it.
+      onMore: () => unawaited(_startFerry(context, replace: true)),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -379,9 +376,7 @@ class HomeScreen extends StatelessWidget {
     final route = DictationScreen.route(
       words,
       AppStrings.dictationTitle,
-      onMore: _dayOnly(
-        () => unawaited(_startDictation(context, replace: true)),
-      ),
+      onMore: () => unawaited(_startDictation(context, replace: true)),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -417,9 +412,7 @@ class HomeScreen extends StatelessWidget {
     final route = ReadingScreen.route(
       picked,
       AppStrings.sentenceTitle,
-      onMore: _dayOnly(
-        () => unawaited(_startSentence(context, readable, replace: true)),
-      ),
+      onMore: () => unawaited(_startSentence(context, readable, replace: true)),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -604,9 +597,9 @@ class HomeScreen extends StatelessWidget {
     store.markUnlockSeen(pending.id);
     switch (pending) {
       case Unlock.words:
-        _startFerry(context);
+        unawaited(_startFerry(context));
       case Unlock.phrases:
-        _startSentence(context, readablePhrases);
+        unawaited(_startSentence(context, readablePhrases));
       case Unlock.kanjiPhrases:
         _startKanjiSentence(context, readableKanjiPhrases);
     }

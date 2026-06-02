@@ -1,14 +1,16 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-/// The closed set of grammar particles a 漢字-literate reader skims past, with a
-/// one-line role/reading gloss each — exposure, NOT a grammar lesson (deliberately
-/// no は/が topic-vs-subject contrast; the role label is the ceiling).
+/// The particles a 漢字-literate reader MIS-READS: spelled one way, read another
+/// (は→wa, を→o, へ→e). Those are a genuine *reading* trap, so a quiet gloss is a
+/// reading aid — exposure, not a lesson. が・の・に read exactly as spelled, carry no
+/// reading quirk, and are deliberately NOT glossed (a role gloss would be
+/// grammar-teaching — out of scope: teach readings, not meanings).
 ///
 /// Pure logic: no `package:flutter/*` imports.
 abstract final class Particles {
-  /// The post-nominal / genitive particles we gloss.
-  static const Set<String> known = {'は', 'が', 'を', 'に', 'の', 'へ'};
+  /// The read-differently-than-spelled particles we gloss.
+  static const Set<String> known = {'は', 'を', 'へ'};
 
   /// The distinct particles in a space-separated [kana] phrase, in reading order.
   ///

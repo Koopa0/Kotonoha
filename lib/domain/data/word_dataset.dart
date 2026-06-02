@@ -7,8 +7,8 @@ import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 
 /// Curated short words for contextual reading practice. Hiragana words, plus a
-/// few common SEION katakana loanwords (no ー/yōon, so each rune is one kana unit
-/// — what the "readable with your unlocked kana" gate relies on). Romaji is the
+/// few common katakana loanwords (no ー/yōon, so each rune is exactly one kana
+/// unit — what the "readable with your unlocked kana" gate relies on). Romaji is the
 /// literal kana-by-kana Hepburn reading, so sounding each kana out verifies it.
 ///
 /// Ordered roughly easy → harder: seion-only words first, then ones needing
@@ -211,10 +211,10 @@ const List<Word> kWords = <Word>[
       zhNote: '不是中文的「怪罪我」。',
     ),
   ),
-  // Common seion katakana loanwords — consolidate katakana in context (it is
+  // Common katakana loanwords — consolidate katakana in context (it is
   // otherwise learned in lessons then never read). Generic nouns only (no
-  // in-copyright titles); ー / yōon loanwords (コーヒー…) wait for a gate that
-  // treats ー as punctuation.
+  // in-copyright titles); each rune is one kana unit (ー / yōon loanwords like
+  // コーヒー wait for a gate that treats ー as punctuation).
   Word(kana: 'パン', romaji: 'pan', meaning: '麵包', script: KanaScript.katakana),
   Word(kana: 'バス', romaji: 'basu', meaning: '公車', script: KanaScript.katakana),
   Word(kana: 'ペン', romaji: 'pen', meaning: '筆', script: KanaScript.katakana),

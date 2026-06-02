@@ -119,15 +119,16 @@ class _FerryScreenState extends State<FerryScreen> {
     );
   }
 
-  Widget _summary() => SessionSummary(
-    headline: AppStrings.readingSummary(_correct, widget.words.length),
-    note: AppStrings.closing(
-      widget.words.last.kana,
-      band: ClosingBand.forHour(DateTime.now().hour),
-    ),
-    onDone: () => Navigator.of(context).pop(),
-    onMore: widget.onMore,
-  );
+  Widget _summary() {
+    final band = ClosingBand.forHour(DateTime.now().hour);
+    return SessionSummary(
+      headline: AppStrings.readingSummary(_correct, widget.words.length),
+      note: AppStrings.closing(widget.words.last.kana, band: band),
+      onDone: () => Navigator.of(context).pop(),
+      // Night close grants permission to stop — suppress もう一回 at render time.
+      onMore: band == ClosingBand.day ? widget.onMore : null,
+    );
+  }
 
   Widget _question() {
     final showKana = _beat != _Beat.hear;

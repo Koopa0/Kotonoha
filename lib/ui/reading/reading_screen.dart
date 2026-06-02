@@ -95,15 +95,17 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
   }
 
-  Widget _summary() => SessionSummary(
-    headline: AppStrings.readingSummary(_correct, widget.items.length),
-    note: AppStrings.closing(
-      widget.items.last.displayText,
-      band: ClosingBand.forHour(DateTime.now().hour),
-    ),
-    onDone: () => Navigator.of(context).pop(),
-    onMore: widget.onMore,
-  );
+  Widget _summary() {
+    final band = ClosingBand.forHour(DateTime.now().hour);
+    return SessionSummary(
+      headline: AppStrings.readingSummary(_correct, widget.items.length),
+      note: AppStrings.closing(widget.items.last.displayText, band: band),
+      onDone: () => Navigator.of(context).pop(),
+      // At night the close grants permission to stop — suppress もう一回 here, at
+      // render time, so a session that began in daylight still hides it at dusk.
+      onMore: band == ClosingBand.day ? widget.onMore : null,
+    );
+  }
 
   Widget _question() {
     // Phrases are longer than words — scale the glyphs down a touch.

@@ -7,12 +7,13 @@ import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 
 void main() {
-  test('particlesIn finds the trailing particle of each non-final token', () {
-    expect(Particles.particlesIn('そらが あおい'), ['が']);
-    expect(Particles.particlesIn('なつの かぜ'), ['の']);
+  test('only the read-differently particles (は/を/へ) are detected', () {
     expect(Particles.particlesIn('みずを ください'), ['を']);
     expect(Particles.particlesIn('えきは どこ'), ['は']);
-    expect(Particles.particlesIn('みずに うつる そら'), ['に']);
+    // が・の・に read exactly as spelled — no reading trap, so no gloss.
+    expect(Particles.particlesIn('そらが あおい'), isEmpty);
+    expect(Particles.particlesIn('なつの かぜ'), isEmpty);
+    expect(Particles.particlesIn('みずに うつる そら'), isEmpty);
   });
 
   test('a single-token word/phrase has no particle', () {
