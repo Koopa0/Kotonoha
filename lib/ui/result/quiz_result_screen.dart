@@ -14,7 +14,6 @@ import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
-import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:provider/provider.dart';
@@ -131,9 +130,6 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     final result = widget.result;
     final missed = result.missedKana;
     final perfect = missed.isEmpty;
-    final ringColor = (perfect || (_isLesson && _lessonPassed))
-        ? AppColors.success
-        : AppColors.accent;
 
     return Scaffold(
       appBar: AppBar(
@@ -145,19 +141,46 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           children: [
             const SizedBox(height: 8),
+            // 凪 — the session settles in stillness. A komorebi glow, then the
+            // close line (which never varies with how it went), and the score
+            // recedes to a quiet footnote — never the reward.
             Center(
-              child: ProgressRing(
-                value: result.scoreFraction,
-                centerLabel: '${result.correctCount}/${result.total}',
-                caption: AppStrings.correct,
-                color: ringColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                _headline(result, perfect),
-                style: const TextStyle(color: AppColors.inkMuted, fontSize: 15),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 104,
+                    height: 104,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.komorebi.withValues(alpha: 0.30),
+                          AppColors.komorebi.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _note(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      height: 1.5,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${result.correctCount}/${result.total}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.inkMuted,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 28),
@@ -232,17 +255,16 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     );
   }
 
-  String _headline(QuizResult result, bool perfect) {
+  /// The leading line. A lesson keeps an honest pass / not-yet gate (it decides
+  /// whether the row is learned); every other session closes on the same calm,
+  /// performance-invariant line — the score never tiers the words.
+  String _note() {
     if (_isLesson) {
       return _lessonPassed
           ? AppStrings.lessonPassed
           : AppStrings.lessonNotPassed;
     }
-    final f = result.scoreFraction;
-    if (perfect) return AppStrings.resultPerfect;
-    if (f >= 0.8) return AppStrings.resultStrong;
-    if (f >= 0.5) return AppStrings.resultGood;
-    return AppStrings.resultKeepGoing;
+    return AppStrings.sessionCloseLine;
   }
 }
 

@@ -199,17 +199,12 @@ abstract final class AppStrings {
   }
 
   static const String sessionComplete = '本次完成';
-  static const String correct = '答對';
   static const String missedKana = '答錯的假名';
   static String reviewMissedKana(int n) => '複習答錯的假名（$n）';
   static const String done = '完成';
   // One calm, low-emphasis "one more round" on the 今日の稽古 / 目利き result —
   // opt-in volume for those who want it, never the primary action.
   static const String practiceAgain = 'もう一回';
-  static const String resultPerfect = '全部答對，做得很好。';
-  static const String resultStrong = '表現不錯，還有幾個要再複習。';
-  static const String resultGood = '做得好，複習一下下面答錯的假名。';
-  static const String resultKeepGoing = '這些需要多練習，放輕鬆來。';
 
   // Learn — status legend & detail sheet
   static const String statusNew = '未學';
