@@ -4,6 +4,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
@@ -48,5 +49,21 @@ void main() {
       rng: Random(1),
     );
     expect(out.length, 1); // only あい is readable
+  });
+
+  // The 黙読 track flows the real phrase corpus through the SAME generic — guard
+  // that Phrase composes a bounded, readable session too (not just Word).
+  test('session is generic: it composes a readable Phrase session', () {
+    final allChars = {for (final p in kPhrases) ...p.characters};
+    final out = ReadingSet.session(
+      items: kPhrases,
+      learnedChars: allChars,
+      rng: Random(3),
+      length: 5,
+    );
+    expect(out.length, 5);
+    for (final p in out) {
+      expect(p.characters.every(allChars.contains), isTrue);
+    }
   });
 }

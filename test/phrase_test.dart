@@ -31,6 +31,23 @@ void main() {
     }
   });
 
+  test(
+    'no phrase uses a small (yōon) or sokuon kana — the readability gate',
+    () {
+      // A small/sokuon kana is never a learnable single unit, so a phrase
+      // containing one could never become readable. Enforce it explicitly.
+      const small = {
+        'ゃ', 'ゅ', 'ょ', 'っ', 'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'ゎ', //
+        'ャ', 'ュ', 'ョ', 'ッ', 'ァ', 'ィ', 'ゥ', 'ェ', 'ォ', 'ヮ',
+      };
+      for (final p in kPhrases) {
+        for (final c in p.characters) {
+          expect(small.contains(c), isFalse, reason: '"$c" in ${p.kana}');
+        }
+      }
+    },
+  );
+
   test('ReadingSet gates phrases by the learner\'s unlocked kana', () {
     final justSora = {'そ', 'ら', 'が', 'あ', 'お', 'い'};
     final readable = ReadingSet.readable(kPhrases, justSora);

@@ -155,6 +155,8 @@ void main() {
     await tester.tap(find.text(AppStrings.aboutTrigger));
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.aboutBody), findsOneWidget);
+    // The name's meaning (the 仮名序 epigraph) is woven into the same fold.
+    expect(find.text(AppStrings.nameMeaningLine), findsOneWidget);
 
     await tester.tap(find.text(AppStrings.aboutTrigger));
     await tester.pumpAndSettle();

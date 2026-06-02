@@ -82,11 +82,8 @@ abstract final class AppStrings {
   static const String hiraganaSection = '平假名';
   static const String katakanaSection = '片假名';
   static const String extendedSection = '濁音・半濁音・拗音';
-  static const String learned = '已學';
-  static const String studyThisRow = '學這一行';
   static const String testThisRow = '測驗這一行';
   static const String nextCard = '下一個';
-  static const String startTest = '開始測驗';
 
   /// The "n / m" position counter shared by every paged practice (手解き study,
   /// 黙読, 渡し舟, 文字起こし, 漢字の声, 名残の仮名) — one source so the format
