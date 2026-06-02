@@ -12,6 +12,9 @@ import 'package:provider/provider.dart';
 class ProgressScreen extends StatelessWidget {
   const ProgressScreen({super.key});
 
+  static Route<void> route() =>
+      MaterialPageRoute<void>(builder: (_) => const ProgressScreen());
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

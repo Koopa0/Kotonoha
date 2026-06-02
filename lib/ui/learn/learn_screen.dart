@@ -15,6 +15,9 @@ import 'package:provider/provider.dart';
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
 
+  static Route<void> route() =>
+      MaterialPageRoute<void>(builder: (_) => const LearnScreen());
+
   @override
   State<LearnScreen> createState() => _LearnScreenState();
 }

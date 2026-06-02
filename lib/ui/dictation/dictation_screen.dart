@@ -169,7 +169,7 @@ class _DictationScreenState extends State<DictationScreen> {
       children: [
         const SizedBox(height: 8),
         Text(
-          '${_index + 1} / ${widget.words.length}',
+          AppStrings.itemProgress(_index + 1, widget.words.length),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,

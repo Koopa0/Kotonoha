@@ -99,7 +99,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
       children: [
         const SizedBox(height: 8),
         Text(
-          '${_index + 1} / ${widget.phrases.length}',
+          AppStrings.itemProgress(_index + 1, widget.phrases.length),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,

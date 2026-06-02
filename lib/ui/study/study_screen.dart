@@ -31,9 +31,21 @@ class StudyScreen extends StatefulWidget {
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
+/// 手解き runs in two passes: an honest ENCODE (every glyph shown with its
+/// romaji + audio — you cannot recall a kana you have never met), then an
+/// optional, self-paced RECAP (glyph only, romaji behind a tap) so the row test
+/// is no longer the first time the learner retrieves anything. The recap is
+/// opt-in — the default is straight to 測驗這一行 — and is never graded or scored.
+enum _Phase { encode, recap }
+
 class _StudyScreenState extends State<StudyScreen> {
   final PageController _controller = PageController();
   int _index = 0;
+  _Phase _phase = _Phase.encode;
+  // Recap-only: whether the current card's romaji is revealed. Held in the State
+  // and reset on every page change (mirrors reading_screen), so the
+  // PageView.builder cards can stay stateless.
+  bool _revealed = false;
 
   List<Kana> get _kana => widget.lesson.kana;
   bool get _isLast => _index >= _kana.length - 1;
@@ -50,19 +62,38 @@ class _StudyScreenState extends State<StudyScreen> {
   }
 
   void _onPageChanged(int i) {
-    setState(() => _index = i);
-    _speakCurrent();
+    setState(() {
+      _index = i;
+      _revealed = false;
+    });
+    // The recap is a silent recall — don't auto-speak the answer; the learner
+    // hears it on reveal (or via the speak button) instead.
+    if (_phase == _Phase.encode) _speakCurrent();
   }
 
   void _next() {
-    if (_isLast) {
-      _startTest();
-    } else {
-      _controller.nextPage(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOut,
-      );
-    }
+    _controller.nextPage(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  /// Enter the optional recall lap: walk the SAME row again from the top with
+  /// romaji hidden behind a tap. Reachable only from the last encode card, so
+  /// every recap glyph has already been met with its romaji + audio.
+  void _enterRecap() {
+    setState(() {
+      _phase = _Phase.recap;
+      _index = 0;
+      _revealed = false;
+    });
+    _controller.jumpToPage(0);
+  }
+
+  /// Confirm a recap card: reveal the romaji and speak the kana.
+  void _reveal() {
+    setState(() => _revealed = true);
+    _speakCurrent();
   }
 
   void _startTest() {
@@ -100,6 +131,48 @@ class _StudyScreenState extends State<StudyScreen> {
         .toList();
   }
 
+  /// The footer button(s). The only new branch on the default path is the last
+  /// ENCODE card, which offers a choice: go to the test now (primary, = today's
+  /// behaviour) or take the optional recall lap (secondary). Every other card —
+  /// and the last recap card — keeps a single full-width button.
+  Widget _footer() {
+    if (_phase == _Phase.encode && _isLast) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                side: const BorderSide(color: AppColors.hairline),
+                foregroundColor: AppColors.ink,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onPressed: _enterRecap,
+              child: const Text(AppStrings.studyReviewOnce),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+              ),
+              onPressed: _startTest,
+              child: const Text(AppStrings.testThisRow),
+            ),
+          ),
+        ],
+      );
+    }
+    final isRecapLast = _phase == _Phase.recap && _isLast;
+    return FilledButton(
+      onPressed: isRecapLast ? _startTest : _next,
+      child: Text(isRecapLast ? AppStrings.testThisRow : AppStrings.nextCard),
+    );
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -115,7 +188,7 @@ class _StudyScreenState extends State<StudyScreen> {
           children: [
             const SizedBox(height: 8),
             Text(
-              AppStrings.lessonProgress(_index + 1, _kana.length),
+              AppStrings.itemProgress(_index + 1, _kana.length),
               style: const TextStyle(
                 color: AppColors.inkMuted,
                 fontWeight: FontWeight.w600,
@@ -126,17 +199,17 @@ class _StudyScreenState extends State<StudyScreen> {
                 controller: _controller,
                 onPageChanged: _onPageChanged,
                 itemCount: _kana.length,
-                itemBuilder: (context, i) => _StudyCard(kana: _kana[i]),
+                itemBuilder: (context, i) => _StudyCard(
+                  kana: _kana[i],
+                  recall: _phase == _Phase.recap,
+                  revealed: i == _index && _revealed,
+                  onReveal: _reveal,
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: FilledButton(
-                onPressed: _next,
-                child: Text(
-                  _isLast ? AppStrings.testThisRow : AppStrings.nextCard,
-                ),
-              ),
+              child: _footer(),
             ),
           ],
         ),
@@ -146,9 +219,23 @@ class _StudyScreenState extends State<StudyScreen> {
 }
 
 class _StudyCard extends StatelessWidget {
-  const _StudyCard({required this.kana});
+  const _StudyCard({
+    required this.kana,
+    this.recall = false,
+    this.revealed = false,
+    this.onReveal,
+  }) : assert(
+         !recall || onReveal != null,
+         'a recall card needs an onReveal callback',
+       );
 
   final Kana kana;
+
+  /// In the recall lap the romaji is withheld behind a tap; in the encode pass
+  /// (the default) it is always shown — today's card, verbatim.
+  final bool recall;
+  final bool revealed;
+  final VoidCallback? onReveal;
 
   @override
   Widget build(BuildContext context) {
@@ -174,27 +261,51 @@ class _StudyCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              kana.romaji,
-              style: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w600,
-                color: AppColors.accent,
-              ),
-            ),
-            const SizedBox(height: 12),
-            SpeakButton(text: kana.character, size: 34),
+            ..._body(),
             const Spacer(),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 16),
-              child: Text(
-                AppStrings.tapToHear,
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+            if (!recall)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Text(
+                  AppStrings.tapToHear,
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  /// ENCODE (or a revealed recap card) shows the romaji + speak button outright.
+  /// An unrevealed RECAP card withholds them behind 看答案 — the learner reads
+  /// the glyph in their head first, then confirms.
+  List<Widget> _body() {
+    if (!recall || revealed) {
+      return [
+        Text(
+          kana.romaji,
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w600,
+            color: AppColors.accent,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SpeakButton(text: kana.character, size: 34),
+      ];
+    }
+    return [
+      const Text(
+        AppStrings.readPrompt,
+        style: TextStyle(color: AppColors.inkMuted, fontSize: 15),
+      ),
+      const SizedBox(height: 16),
+      TextButton(
+        onPressed: onReveal,
+        style: TextButton.styleFrom(foregroundColor: AppColors.accent),
+        child: const Text(AppStrings.revealAnswer),
+      ),
+    ];
   }
 }

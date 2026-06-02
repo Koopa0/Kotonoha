@@ -23,4 +23,4 @@ abstract interface class ReadingItem {
 
 /// Interest flavour for content, so practice can lean into what the learner
 /// loves (ヨルシカ, anime, games, travel) without changing the mechanics.
-enum ContentTheme { yorushika, anime, game, travel, daily }
+enum ContentTheme { yorushika, anime, game, travel, daily, season }

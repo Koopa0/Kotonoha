@@ -97,7 +97,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
       children: [
         const SizedBox(height: 8),
         Text(
-          '${_index + 1} / ${widget.items.length}',
+          AppStrings.itemProgress(_index + 1, widget.items.length),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,

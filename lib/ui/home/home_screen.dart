@@ -205,11 +205,8 @@ class HomeScreen extends StatelessWidget {
                     icon: Icons.grid_view_rounded,
                     label: AppStrings.learnHiragana,
                     subtitle: AppStrings.learnHiraganaSubtitle,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const LearnScreen(),
-                      ),
-                    ),
+                    onTap: () =>
+                        Navigator.of(context).push(LearnScreen.route()),
                   ),
                 ]),
                 ..._section(AppStrings.sectionWords, [
@@ -256,11 +253,8 @@ class HomeScreen extends StatelessWidget {
                     icon: Icons.insights_outlined,
                     label: AppStrings.progress,
                     subtitle: AppStrings.progressSubtitle,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const ProgressScreen(),
-                      ),
-                    ),
+                    onTap: () =>
+                        Navigator.of(context).push(ProgressScreen.route()),
                   ),
                   if (store.seenCount > 0)
                     _NavCard(
@@ -615,12 +609,72 @@ class _AboutKotonohaState extends State<_AboutKotonoha> {
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           child: _open
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Text(
-                    AppStrings.aboutBody,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Column(
+                    children: [
+                      // The practical note — how to learn.
+                      const Text(
+                        AppStrings.aboutBody,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // One thread of warm light parts the practical note from
+                      // the name's meaning — the soul, woven in, not set apart.
+                      Container(
+                        width: 40,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: AppColors.komorebi,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        AppStrings.nameMeaningHeading,
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // The 仮名序 line — a quiet epigraph (public domain).
+                      const Text(
+                        AppStrings.nameMeaningLine,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          height: 1.7,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.nameMeaningGloss,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        AppStrings.nameMeaningAttribution,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 )
               : const SizedBox(width: double.infinity),

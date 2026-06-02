@@ -58,6 +58,16 @@ abstract final class AppStrings {
       '先學五十音,讀得動了再慢慢往「詞と句」、漢字走。「手解き」一行一行帶你認字,'
       '「今日の稽古」幫你複習該複習的;其他的房間,等你讀得動了自然會開。';
 
+  // ④ 言の葉 とは — the name's meaning, woven into the same fold (pull, never
+  // pushed). The 仮名序 line is public domain (Ki no Tsurayuki, c. 905); the
+  // gloss is our own. Presented by restraint — a quiet epigraph, not a lecture.
+  static const String nameMeaningHeading = '言の葉 とは';
+  static const String nameMeaningLine = 'やまとうたは、人の心を種として、よろづの言の葉とぞなれりける';
+  static const String nameMeaningGloss =
+      '「言葉的葉子」。歌以人的心為種子,長成萬片言の葉 —— 語言不是被操練出來的,'
+      '是像花開一樣,慢慢長出來的。這個 app 想做的,就是陪你長出幾片。';
+  static const String nameMeaningAttribution = '紀貫之・古今和歌集 仮名序(約 905 年)';
+
   // Unlock lines (guidance ③) — a quiet word the first time a new KIND of
   // practice opens, instead of a card silently appearing. Warm, observational,
   // never a trophy. Japanese feature names stay verbatim (learning content).
@@ -77,11 +87,20 @@ abstract final class AppStrings {
   static const String testThisRow = '測驗這一行';
   static const String nextCard = '下一個';
   static const String startTest = '開始測驗';
-  static String lessonProgress(int current, int total) => '$current / $total';
+
+  /// The "n / m" position counter shared by every paged practice (手解き study,
+  /// 黙読, 渡し舟, 文字起こし, 漢字の声, 名残の仮名) — one source so the format
+  /// never drifts between screens.
+  static String itemProgress(int current, int total) => '$current / $total';
 
   // Study card / TTS
   static const String playSound = '發音';
   static const String tapToHear = '點假名可以聽發音';
+
+  // The optional recall lap on the last 手解き encode card — a calm second pass
+  // (glyph only, romaji behind a tap) before the row test. Opt-in: the default
+  // is to go straight to 測驗這一行. Never graded, never scored.
+  static const String studyReviewOnce = '再看一次';
 
   // Lesson result
   static const String lessonPassed = '這一行學會了!';
