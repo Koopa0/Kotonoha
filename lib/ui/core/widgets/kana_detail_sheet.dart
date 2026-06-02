@@ -8,8 +8,10 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 
-/// A calm bottom sheet showing a single kana large, with its romaji and the
-/// user's practice record. Opened from the Learn grid.
+/// A calm bottom sheet showing a single kana large, with its romaji, audio, and
+/// a quiet present-tense STATUS (a state, never a grade). Opened from the Learn
+/// grid. Per the retention ruler, no count / accuracy / score is ever shown here
+/// — accuracy stays a private scheduler input.
 class KanaDetailSheet extends StatelessWidget {
   const KanaDetailSheet({required this.kana, required this.stat, super.key});
 
@@ -53,7 +55,7 @@ class KanaDetailSheet extends StatelessWidget {
             SpeakButton(text: kana.character, size: 32),
             const SizedBox(height: 16),
             if (stat.isSeen)
-              _StatsRow(stat: stat)
+              _StatusLine(status: stat.status)
             else
               const Text(
                 AppStrings.notPracticedYet,
@@ -66,59 +68,37 @@ class KanaDetailSheet extends StatelessWidget {
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.stat});
+/// A single calm line: a status dot + present-tense label (學習中 / 待加強 / 熟練).
+/// A STATE, not a grade — no count, no accuracy. Mirrors 歩み's status language.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.status});
 
-  final KanaStat stat;
+  final KanaStatus status;
+
+  String get _label => switch (status) {
+    KanaStatus.strong => AppStrings.statusStrong,
+    KanaStatus.weak => AppStrings.statusWeak,
+    KanaStatus.learning => AppStrings.statusLearning,
+    KanaStatus.unseen => AppStrings.statusNew,
+  };
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _Stat(label: AppStrings.statSeen, value: '${stat.seenCount}'),
-        _Stat(
-          label: AppStrings.statCorrect,
-          value: '${stat.correctCount}',
-          color: AppColors.success,
-        ),
-        _Stat(
-          label: AppStrings.statMissed,
-          value: '${stat.wrongCount}',
-          color: stat.wrongCount > 0 ? AppColors.warning : AppColors.inkMuted,
-        ),
-        _Stat(
-          label: AppStrings.statAccuracy,
-          value: '${(stat.accuracy * 100).round()}%',
-        ),
-      ],
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value, this.color});
-
-  final String label;
-  final String value;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: color ?? AppColors.ink,
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.forStatus(status),
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(width: 8),
         Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
+          _label,
+          style: const TextStyle(fontSize: 14, color: AppColors.inkMuted),
         ),
       ],
     );

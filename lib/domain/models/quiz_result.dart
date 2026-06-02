@@ -37,7 +37,4 @@ class QuizResult {
     }
     return result;
   }
-
-  /// Score as a fraction in [0, 1]; 0 for an empty session.
-  double get scoreFraction => total == 0 ? 0 : correctCount / total;
 }

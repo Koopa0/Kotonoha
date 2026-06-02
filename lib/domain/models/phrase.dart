@@ -15,7 +15,6 @@ class Phrase implements ReadingItem {
     required this.kana,
     required this.romaji,
     required this.meaning,
-    this.theme,
     this.season,
   });
 
@@ -27,9 +26,6 @@ class Phrase implements ReadingItem {
 
   @override
   final String meaning;
-
-  /// Optional interest flavour (ヨルシカ / anime / game / travel).
-  final ContentTheme? theme;
 
   /// The season this phrase evokes (null = season-neutral). Drives the silent
   /// seasonal-lift; never displayed.

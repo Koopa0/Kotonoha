@@ -30,7 +30,6 @@ void main() {
       );
       expect(result.total, 3);
       expect(result.correctCount, 2);
-      expect(result.scoreFraction, closeTo(2 / 3, 1e-9));
     });
 
     test('missedKana lists distinct wrong kana in order', () {
@@ -59,7 +58,6 @@ void main() {
     test('empty result is safe', () {
       const result = QuizResult(answers: []);
       expect(result.total, 0);
-      expect(result.scoreFraction, 0);
       expect(result.missedKana, isEmpty);
     });
   });

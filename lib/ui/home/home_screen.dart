@@ -91,7 +91,7 @@ class HomeScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text(
-                        '言の葉',
+                        AppStrings.appTitle,
                         style: TextStyle(
                           fontSize: 20,
                           letterSpacing: 5,

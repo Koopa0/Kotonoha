@@ -257,8 +257,4 @@ abstract final class AppStrings {
   static const String statusWeak = '待加強';
   static const String statusStrong = '熟練';
   static const String notPracticedYet = '尚未練習';
-  static const String statSeen = '練習次數';
-  static const String statCorrect = '答對';
-  static const String statMissed = '答錯';
-  static const String statAccuracy = '正確率';
 }
