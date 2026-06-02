@@ -240,6 +240,10 @@ abstract final class AppStrings {
   static String closing(String item, {required ClosingBand band}) =>
       closingEcho(item, band: band) ?? closingNote(item, band: band);
 
+  // The opt-in 「釋」 pull under a classical 余韻 line at the close: tap to unfold a
+  // slightly deeper background / 季語 / 詩境 note. Default stays one calm line.
+  static const String kotenNoteTrigger = '釋';
+
   static const String sessionComplete = '本次完成';
   static const String missedKana = '答錯的假名';
   static String reviewMissedKana(int n) => '複習答錯的假名（$n）';

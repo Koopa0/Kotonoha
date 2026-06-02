@@ -4,11 +4,16 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/data/koten_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/koten.dart';
+import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
@@ -53,6 +58,9 @@ class DictationScreen extends StatefulWidget {
 class _DictationScreenState extends State<DictationScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final Random _rng = Random();
+
+  /// Picked once, at the close — an occasional classical 余韻 (often null).
+  KotenLine? _share;
   int _index = 0;
   List<String> _tiles = const [];
   List<bool> _used = const [];
@@ -143,6 +151,13 @@ class _DictationScreenState extends State<DictationScreen> {
 
   void _next() {
     if (_index + 1 >= widget.words.length) {
+      final store = context.read<KanaProgressRepository>();
+      _share = KotenShare.pick(
+        pool: kKoten,
+        seenKanaCount: store.seenCount,
+        rng: _rng,
+        season: Season.forMonth(_clock().month),
+      );
       setState(() => _done = true);
     } else {
       setState(() {
@@ -165,7 +180,11 @@ class _DictationScreenState extends State<DictationScreen> {
     final band = ClosingBand.forHour(DateTime.now().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.words.length),
-      note: AppStrings.closing(widget.words.last.kana, band: band),
+      // The classical 余韻 (when picked) replaces the close note.
+      note: _share == null
+          ? AppStrings.closing(widget.words.last.kana, band: band)
+          : null,
+      share: _share,
       onDone: () => Navigator.of(context).pop(),
       // Night close grants permission to stop — suppress もう一回 at render time.
       onMore: band == ClosingBand.day ? widget.onMore : null,

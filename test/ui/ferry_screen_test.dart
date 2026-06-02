@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -11,11 +12,16 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('hear → see → read-back advances and logs a ferry attempt', (
     tester,
   ) async {
+    // Fresh store (seenCount 0) keeps the occasional 凪 余韻 out of this flow test.
+    final store = await KanaProgressRepository.load();
     final analytics = InMemoryAnalyticsLog();
     const words = [
       Word(kana: 'きみ', romaji: 'kimi', meaning: '你'),
@@ -25,6 +31,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
           Provider<AnalyticsLog>.value(value: analytics),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],
@@ -66,6 +73,7 @@ void main() {
   testWidgets('rtMs times only the read-back, not the see-beat dwell', (
     tester,
   ) async {
+    final store = await KanaProgressRepository.load();
     final analytics = InMemoryAnalyticsLog();
     var now = DateTime(2026, 6);
     const words = [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')];
@@ -73,6 +81,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
           Provider<AnalyticsLog>.value(value: analytics),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],

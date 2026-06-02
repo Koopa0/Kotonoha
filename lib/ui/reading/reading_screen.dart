@@ -1,11 +1,18 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/data/koten_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/season.dart';
+import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
@@ -48,10 +55,14 @@ class ReadingScreen extends StatefulWidget {
 
 class _ReadingScreenState extends State<ReadingScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  final Random _rng = Random();
   int _index = 0;
   bool _revealed = false;
   int _correct = 0;
   bool _done = false;
+
+  /// Picked once, at the close — an occasional classical 余韻 (often null).
+  KotenLine? _share;
 
   ReadingItem get _current => widget.items[_index];
 
@@ -78,6 +89,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
     if (correct) _correct++;
     if (_index + 1 >= widget.items.length) {
+      final store = context.read<KanaProgressRepository>();
+      _share = KotenShare.pick(
+        pool: kKoten,
+        seenKanaCount: store.seenCount,
+        rng: _rng,
+        season: Season.forMonth(now.month),
+      );
       setState(() => _done = true);
     } else {
       setState(() {
@@ -99,7 +117,12 @@ class _ReadingScreenState extends State<ReadingScreen> {
     final band = ClosingBand.forHour(DateTime.now().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.items.length),
-      note: AppStrings.closing(widget.items.last.displayText, band: band),
+      // The classical 余韻 (when picked) replaces the close note — so only
+      // compute the note when no share will lead.
+      note: _share == null
+          ? AppStrings.closing(widget.items.last.displayText, band: band)
+          : null,
+      share: _share,
       onDone: () => Navigator.of(context).pop(),
       // At night the close grants permission to stop — suppress もう一回 here, at
       // render time, so a session that began in daylight still hides it at dusk.

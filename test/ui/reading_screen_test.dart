@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -10,14 +11,20 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Widget test for contextual reading: kana shown, reveal exposes romaji +
 /// meaning, self-grade advances, and each answer is logged as a word-level
 /// reading Attempt (and NOT as a kana stat).
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('reveal → self-grade twice reaches summary and logs words', (
     tester,
   ) async {
+    // A fresh store (seenCount 0) keeps the occasional 凪 余韻 out of this flow
+    // test — the classical-line gate is covered in session_summary_test.
+    final store = await KanaProgressRepository.load();
     final analytics = InMemoryAnalyticsLog();
     const words = [
       Word(kana: 'いぬ', romaji: 'inu', meaning: '狗'),
@@ -27,6 +34,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
           Provider<AnalyticsLog>.value(value: analytics),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],
