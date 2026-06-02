@@ -1,12 +1,19 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/data/koten_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/false_friend.dart';
+import 'package:kotonoha/domain/models/koten.dart';
+import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
@@ -53,11 +60,15 @@ enum _Beat { hear, see, readback }
 
 class _FerryScreenState extends State<FerryScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  final Random _rng = Random();
   int _index = 0;
   _Beat _beat = _Beat.hear;
   int _readbackAtMs = 0;
   int _correct = 0;
   bool _done = false;
+
+  /// Picked once, at the close — an occasional classical 余韻 (often null).
+  KotenLine? _share;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
@@ -101,6 +112,13 @@ class _FerryScreenState extends State<FerryScreen> {
     );
     if (correct) _correct++;
     if (_index + 1 >= widget.words.length) {
+      final store = context.read<KanaProgressRepository>();
+      _share = KotenShare.pick(
+        pool: kKoten,
+        seenKanaCount: store.seenCount,
+        rng: _rng,
+        season: Season.forMonth(now.month),
+      );
       setState(() => _done = true);
     } else {
       setState(() {
@@ -124,6 +142,7 @@ class _FerryScreenState extends State<FerryScreen> {
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.words.length),
       note: AppStrings.closing(widget.words.last.kana, band: band),
+      share: _share,
       onDone: () => Navigator.of(context).pop(),
       // Night close grants permission to stop — suppress もう一回 at render time.
       onMore: band == ClosingBand.day ? widget.onMore : null,
