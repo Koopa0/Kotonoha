@@ -199,15 +199,17 @@ abstract final class AppStrings {
   // Result
   static const String sessionCloseLine = '今天就到這裡,辛苦了。';
 
+  /// The shared send-off clause: the same all day, softening at night where it
+  /// gives permission to stop (余韻). One source for both close variants below.
+  static String _sendOff(ClosingBand band) => switch (band) {
+    ClosingBand.day => '去過你的一天吧。',
+    ClosingBand.night => '今天就到這裡,好好休息。',
+  };
+
   /// The 凪 close's quiet fact. The competence clause is identical all day; only
   /// the send-off softens at night — where it gives permission to stop (余韻).
-  static String closingNote(String item, {required ClosingBand band}) {
-    final settled = '今天,和「$item」更熟了一點。';
-    return switch (band) {
-      ClosingBand.day => '$settled去過你的一天吧。',
-      ClosingBand.night => '$settled今天就到這裡,好好休息。',
-    };
-  }
+  static String closingNote(String item, {required ClosingBand band}) =>
+      '今天,和「$item」更熟了一點。${_sendOff(band)}';
 
   /// The 凪 close can echo the IMAGE just read (黙読 etc.) instead of the
   /// glyph-familiarity line — 余韻 at the emotional peak. Keyed ONLY on the item
@@ -229,10 +231,7 @@ abstract final class AppStrings {
   static String? closingEcho(String item, {required ClosingBand band}) {
     final image = _closingImages[item];
     if (image == null) return null;
-    return switch (band) {
-      ClosingBand.day => '$image去過你的一天吧。',
-      ClosingBand.night => '$image今天就到這裡,好好休息。',
-    };
+    return '$image${_sendOff(band)}';
   }
 
   /// The 凪 close note: echo the image if it's a curated one (余韻), else the

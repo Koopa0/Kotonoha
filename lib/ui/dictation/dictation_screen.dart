@@ -177,7 +177,7 @@ class _DictationScreenState extends State<DictationScreen> {
   }
 
   Widget _summary() {
-    final band = ClosingBand.forHour(DateTime.now().hour);
+    final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.words.length),
       // The classical 余韻 (when picked) replaces the close note.

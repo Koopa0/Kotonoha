@@ -67,7 +67,8 @@ void main() {
   });
 
   test('is deterministic under a fixed seed', () {
-    expect(pick(Random(7))?.text, pick(Random(7))?.text);
+    // Same const line → same identity, so compare the whole object, not just text.
+    expect(pick(Random(7)), same(pick(Random(7))));
   });
 
   test('off-season lines are weighted down but NEVER excluded (名残)', () {
