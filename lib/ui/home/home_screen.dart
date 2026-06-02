@@ -329,7 +329,12 @@ class HomeScreen extends StatelessWidget {
     return m;
   }
 
-  Future<void> _startFerry(BuildContext context) async {
+  /// Wraps an opt-in "one more" so it's only offered in the DAY band — at night
+  /// the close grants permission to stop, so もう一回 is suppressed.
+  VoidCallback? _dayOnly(VoidCallback more) =>
+      ClosingBand.forHour(DateTime.now().hour) == ClosingBand.day ? more : null;
+
+  Future<void> _startFerry(BuildContext context, {bool replace = false}) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
@@ -342,14 +347,19 @@ class HomeScreen extends StatelessWidget {
       rng: Random(),
       lastSeen: lastSeen,
     );
-    unawaited(
-      Navigator.of(
-        context,
-      ).push(FerryScreen.route(words, AppStrings.ferryTitle)),
+    final nav = Navigator.of(context);
+    final route = FerryScreen.route(
+      words,
+      AppStrings.ferryTitle,
+      onMore: _dayOnly(() => unawaited(_startFerry(context, replace: true))),
     );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  Future<void> _startDictation(BuildContext context) async {
+  Future<void> _startDictation(
+    BuildContext context, {
+    bool replace = false,
+  }) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
@@ -363,11 +373,15 @@ class HomeScreen extends StatelessWidget {
       length: 8,
       lastSeen: lastSeen,
     );
-    unawaited(
-      Navigator.of(
-        context,
-      ).push(DictationScreen.route(words, AppStrings.dictationTitle)),
+    final nav = Navigator.of(context);
+    final route = DictationScreen.route(
+      words,
+      AppStrings.dictationTitle,
+      onMore: _dayOnly(
+        () => unawaited(_startDictation(context, replace: true)),
+      ),
     );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
   void _startWriting(BuildContext context) {
@@ -380,8 +394,9 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _startSentence(
     BuildContext context,
-    List<Phrase> readable,
-  ) async {
+    List<Phrase> readable, {
+    bool replace = false,
+  }) async {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
@@ -396,11 +411,15 @@ class HomeScreen extends StatelessWidget {
       season: Season.forMonth(DateTime.now().month),
       lastSeen: lastSeen,
     );
-    unawaited(
-      Navigator.of(
-        context,
-      ).push(ReadingScreen.route(picked, AppStrings.sentenceTitle)),
+    final nav = Navigator.of(context);
+    final route = ReadingScreen.route(
+      picked,
+      AppStrings.sentenceTitle,
+      onMore: _dayOnly(
+        () => unawaited(_startSentence(context, readable, replace: true)),
+      ),
     );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
   void _startKanji(BuildContext context) {

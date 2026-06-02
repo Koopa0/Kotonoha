@@ -25,6 +25,7 @@ class DictationScreen extends StatefulWidget {
     required this.words,
     required this.title,
     this.clock,
+    this.onMore,
     super.key,
   });
 
@@ -34,10 +35,16 @@ class DictationScreen extends StatefulWidget {
   /// Injectable clock so the assembled-word reaction time is testable.
   final DateTime Function()? clock;
 
-  static Route<void> route(List<Word> words, String title) =>
-      MaterialPageRoute<void>(
-        builder: (_) => DictationScreen(words: words, title: title),
-      );
+  /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
+  final VoidCallback? onMore;
+
+  static Route<void> route(
+    List<Word> words,
+    String title, {
+    VoidCallback? onMore,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => DictationScreen(words: words, title: title, onMore: onMore),
+  );
 
   @override
   State<DictationScreen> createState() => _DictationScreenState();
@@ -161,6 +168,7 @@ class _DictationScreenState extends State<DictationScreen> {
       band: ClosingBand.forHour(DateTime.now().hour),
     ),
     onDone: () => Navigator.of(context).pop(),
+    onMore: widget.onMore,
   );
 
   Widget _question() {

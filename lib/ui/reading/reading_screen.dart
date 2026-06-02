@@ -18,15 +18,27 @@ import 'package:provider/provider.dart';
 /// (itemType=word, mode=reading); it deliberately does NOT touch per-kana SRS —
 /// reading fluency is a different signal from single-kana recognition.
 class ReadingScreen extends StatefulWidget {
-  const ReadingScreen({required this.items, required this.title, super.key});
+  const ReadingScreen({
+    required this.items,
+    required this.title,
+    this.onMore,
+    super.key,
+  });
 
   final List<ReadingItem> items;
   final String title;
 
-  static Route<void> route(List<ReadingItem> items, String title) =>
-      MaterialPageRoute<void>(
-        builder: (_) => ReadingScreen(items: items, title: title),
-      );
+  /// Opt-in "one more" — a fresh session in place of this one (home builds it,
+  /// night-suppressed). Null = hidden.
+  final VoidCallback? onMore;
+
+  static Route<void> route(
+    List<ReadingItem> items,
+    String title, {
+    VoidCallback? onMore,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => ReadingScreen(items: items, title: title, onMore: onMore),
+  );
 
   @override
   State<ReadingScreen> createState() => _ReadingScreenState();
@@ -88,6 +100,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
       band: ClosingBand.forHour(DateTime.now().hour),
     ),
     onDone: () => Navigator.of(context).pop(),
+    onMore: widget.onMore,
   );
 
   Widget _question() {

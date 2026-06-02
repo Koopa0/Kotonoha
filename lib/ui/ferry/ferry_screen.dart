@@ -23,6 +23,7 @@ class FerryScreen extends StatefulWidget {
     required this.words,
     required this.title,
     this.clock,
+    this.onMore,
     super.key,
   });
 
@@ -32,10 +33,16 @@ class FerryScreen extends StatefulWidget {
   /// Injectable clock so the read-back reaction time is testable.
   final DateTime Function()? clock;
 
-  static Route<void> route(List<Word> words, String title) =>
-      MaterialPageRoute<void>(
-        builder: (_) => FerryScreen(words: words, title: title),
-      );
+  /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
+  final VoidCallback? onMore;
+
+  static Route<void> route(
+    List<Word> words,
+    String title, {
+    VoidCallback? onMore,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => FerryScreen(words: words, title: title, onMore: onMore),
+  );
 
   @override
   State<FerryScreen> createState() => _FerryScreenState();
@@ -118,6 +125,7 @@ class _FerryScreenState extends State<FerryScreen> {
       band: ClosingBand.forHour(DateTime.now().hour),
     ),
     onDone: () => Navigator.of(context).pop(),
+    onMore: widget.onMore,
   );
 
   Widget _question() {
