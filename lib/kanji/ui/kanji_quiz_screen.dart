@@ -139,6 +139,9 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
 
   // TEACH 次へ: record an honest ENCODE (untimed correct → isSeen, so it returns
   // as a recall in a future session). Not a graded test, not counted in the score.
+  // Untimed by design — latencyMs is omitted on every beat (no clock; format-only),
+  // so ReadingStat's RT/CVRT gate and KanjiSession's slowness/CV terms stay dormant
+  // until a timed kanji beat ships (parity pin: test/kanji/reading_cvrt_test.dart).
   void _teachNext() {
     final now = DateTime.now();
     context.read<KanjiReadingRepository>().recordAnswer(
@@ -150,7 +153,8 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     _advance();
   }
 
-  // RECALL pick: graded (untimed), then the sound confirms AFTER the choice.
+  // RECALL pick: graded but untimed (latencyMs null — no clock; see _teachNext),
+  // then the sound confirms AFTER the choice.
   void _answer(int i) {
     if (_picked != null) return;
     final now = DateTime.now();

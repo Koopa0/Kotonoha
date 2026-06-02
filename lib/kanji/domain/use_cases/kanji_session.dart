@@ -60,6 +60,11 @@ abstract final class KanjiSession {
   /// the timed recall beat, slowness and erratic timing (high CV) — so a reading
   /// you produce slowly or unevenly comes back before a crisp one. New/unseen
   /// readings score 0 here (their priority comes from the rank tier).
+  ///
+  /// CURRENTLY the slowness + CV terms are DORMANT: the kanji UI is untimed
+  /// (latencyMs null), so avgLatencyMs stays 0 and only the wrong-rate term has
+  /// any effect — this degrades gracefully to pure wrong-rate ordering. They
+  /// activate the moment a timed kanji beat feeds real latency (mirrors KanaStat).
   static double _readingWeakness(ReadingStat s) {
     if (s.seenCount == 0) return 0;
     final double wrongRate = s.wrongCount / s.seenCount;

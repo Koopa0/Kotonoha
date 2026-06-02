@@ -4,9 +4,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
-/// The kanji track's CVRT gate (a faithful copy of KanaStat's): timed recall
-/// graduates on consistent-fast, not fast-once. Self-graded (untimed) answers
-/// still only climb to the cap.
+/// PARITY PIN — ReadingStat mirrors KanaStat's RT+CVRT Leitner verbatim (ADR
+/// docs/architecture.md: the kanji module owns its own copy; unify only when the
+/// reading shape proves itself). On the kanji side this machinery is intentionally
+/// UNFED today — kanji_quiz_screen passes latencyMs: null (no clock, format-only,
+/// retention-ruler). These tests guard the mirror so it stays drift-free and ready
+/// for the first timed kanji beat. Keep them; do not delete to chase coverage.
+///
+/// What they verify: timed recall graduates on consistent-fast (not fast-once);
+/// self-graded (untimed) answers still only climb to the cap.
 void main() {
   final at = DateTime(2026, 6);
 
