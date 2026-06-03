@@ -4,6 +4,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/domain/data/koten_dataset.dart';
 import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
@@ -80,5 +81,30 @@ void main() {
       if (l != null) seen.add(l.text);
     }
     expect(seen, containsAll(<String>{'はる', 'ふゆ', 'む'}));
+  });
+
+  // The test above proves the WEIGHTING logic on a synthetic pool that hand-builds
+  // a winter line — so it stays green no matter what the real kKoten contains. That
+  // is the "saluting scarecrow": it verifies its own fixture, not the shipped pool.
+  // This one runs against the REAL kKoten, so the seasonal lift is verified on the
+  // object that actually ships — and it fails the day a season has no in-season line.
+  test('the REAL kKoten can float an in-season line in EVERY season', () {
+    for (final season in Season.values) {
+      final surfaced = <Season?>{};
+      for (var s = 0; s < 300; s++) {
+        final l = KotenShare.pick(
+          pool: kKoten,
+          seenKanaCount: 100,
+          rng: Random(s),
+          season: season,
+        );
+        if (l != null) surfaced.add(l.season);
+      }
+      expect(
+        surfaced,
+        contains(season),
+        reason: 'no in-season line ever surfaced for $season from real kKoten',
+      );
+    }
   });
 }

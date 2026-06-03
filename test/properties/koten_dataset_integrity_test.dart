@@ -3,6 +3,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/koten_dataset.dart';
+import 'package:kotonoha/domain/models/season.dart';
 
 /// The classical pool is hand-transcribed PD data, so the value here is catching
 /// transcription slips and guarding the invariants that keep it from drifting:
@@ -42,6 +43,24 @@ void main() {
               '${e.text}: non-hiragana "${String.fromCharCode(r)}" in reading',
         );
       }
+    }
+  });
+
+  test('every Season carries an in-season line — the lift is never inert', () {
+    // KotenShare gives an in-season line weight 3; with 0 lines for a season,
+    // that branch can never fire and the seasonal lift is dead for those months
+    // (this was the winter=0 live bug — "the year turns in what you read" was
+    // false all winter). This runs against the REAL kKoten, not a synthetic pool,
+    // so it fails the day any season's count drops to 0. ~6 each is the floor.
+    for (final s in Season.values) {
+      final n = kKoten.where((l) => l.season == s).length;
+      expect(
+        n,
+        greaterThanOrEqualTo(2),
+        reason:
+            'only $n in-season koten line(s) for $s — the seasonal lift is '
+            'weak/inert every $s month; add curated $s lines',
+      );
     }
   });
 

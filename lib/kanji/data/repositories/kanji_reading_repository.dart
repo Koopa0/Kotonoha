@@ -49,11 +49,10 @@ class KanjiReadingRepository extends ChangeNotifier {
     String readingId, {
     required bool correct,
     required DateTime at,
-    int? latencyMs,
   }) async {
     _stats[readingId] = statForReading(
       readingId,
-    ).recordAnswer(correct: correct, at: at, latencyMs: latencyMs);
+    ).recordAnswer(correct: correct, at: at);
     notifyListeners();
     await _persist();
   }

@@ -4,16 +4,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
 
 void main() {
-  test('furigana opacity fades as the reading matures', () {
-    expect(RubyText.furiganaOpacity(0), 1.0); // brand new — full
-    expect(RubyText.furiganaOpacity(1), 1.0);
-    expect(RubyText.furiganaOpacity(2), 0.42); // learning — faint
-    expect(RubyText.furiganaOpacity(3), 0.42);
-    expect(RubyText.furiganaOpacity(5), 0.0); // mastered — gone
-  });
+  test(
+    'furigana opacity thins as the reading matures and is gone at the cap',
+    () {
+      expect(RubyText.furiganaOpacity(0), 1.0); // brand new — full
+      expect(RubyText.furiganaOpacity(1), 0.7); // first recalls — thinning
+      expect(RubyText.furiganaOpacity(2), 0.4); // one below the cap — faint
+      // GONE at the untimed mastery ceiling — reachable by correct recall alone,
+      // no timed beat needed (the coupling that once froze it at 0.42).
+      expect(RubyText.furiganaOpacity(ReadingStat.kUntimedCapLevel), 0.0);
+      expect(RubyText.furiganaOpacity(5), 0.0);
+    },
+  );
 
   testWidgets('renders the kanji and its furigana', (tester) async {
     const phrase = KanjiPhrase(

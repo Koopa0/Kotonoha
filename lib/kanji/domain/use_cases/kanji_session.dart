@@ -56,29 +56,14 @@ abstract final class KanjiSession {
     return all.take(length).toList();
   }
 
-  /// A reading's weakness for in-tier ordering: wrong-rate (primary) plus, for
-  /// the timed recall beat, slowness and erratic timing (high CV) — so a reading
-  /// you produce slowly or unevenly comes back before a crisp one. New/unseen
-  /// readings score 0 here (their priority comes from the rank tier).
-  ///
-  /// CURRENTLY the slowness + CV terms are DORMANT: the kanji UI is untimed
-  /// (latencyMs null), so avgLatencyMs stays 0 and only the wrong-rate term has
-  /// any effect — this degrades gracefully to pure wrong-rate ordering. They
-  /// activate the moment a timed kanji beat feeds real latency (mirrors KanaStat).
+  /// A reading's weakness for in-tier ordering: its wrong-rate. A reading you
+  /// miss more often comes back before a crisp one. New/unseen readings score 0
+  /// here (their priority comes from the rank tier). The kanji track is untimed —
+  /// reading mastery is a near-binary retrieval, not a reaction-time reflex, so
+  /// the timed slowness/CV terms `KanaStat` carries were retired (2026-06-03);
+  /// wrong-rate is the whole signal.
   static double _readingWeakness(ReadingStat s) {
     if (s.seenCount == 0) return 0;
-    final double wrongRate = s.wrongCount / s.seenCount;
-    double slowness = 0;
-    if (s.avgLatencyMs > ReadingStat.kFastThresholdMs) {
-      slowness =
-          ((s.avgLatencyMs - ReadingStat.kFastThresholdMs) /
-                  (2000 - ReadingStat.kFastThresholdMs))
-              .clamp(0.0, 1.0);
-    }
-    double erratic = 0;
-    if (s.avgLatencyMs > 0 && s.cvLatency.isFinite) {
-      erratic = (s.cvLatency / 0.6).clamp(0.0, 1.0);
-    }
-    return 0.7 * wrongRate + 0.2 * slowness + 0.2 * erratic;
+    return s.wrongCount / s.seenCount;
   }
 }

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 
 /// Renders a [KanjiPhrase] with furigana above each kanji — and fades that
@@ -20,11 +21,19 @@ class RubyText extends StatelessWidget {
   final int Function(String readingId) srsLevelOf;
   final double fontSize;
 
-  /// Full furigana while a reading is new, faint while learning, gone once known.
+  /// Full furigana while a reading is new, thinning as it matures, and GONE once
+  /// it reaches the untimed mastery ceiling ([ReadingStat.kUntimedCapLevel]) — the
+  /// level every reading reaches by correct (untimed) recall alone. Tied to the cap
+  /// on purpose: the terminal fade was once gated one step ABOVE the reachable cap,
+  /// so it never completed in real play (furigana froze half-faded). Binding it to
+  /// the cap means the two can never silently diverge again.
   static double furiganaOpacity(int srsLevel) {
-    if (srsLevel <= 1) return 1;
-    if (srsLevel <= 3) return 0.42;
-    return 0;
+    if (srsLevel >= ReadingStat.kUntimedCapLevel) {
+      return 0; // known — the support comes off (was once unreachable)
+    }
+    if (srsLevel <= 0) return 1; // brand new — full support
+    if (srsLevel == 1) return 0.7; // first recalls — thinning
+    return 0.4; // one below the cap — faint
   }
 
   @override

@@ -5,14 +5,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 
 void main() {
   // An empty answer list is a finished session with nothing missed — a "perfect"
   // result — enough to exercise the action set without composing questions.
   const perfect = QuizResult(answers: []);
+
+  QuizQuestion q(String character) {
+    final target = kHiraganaGojuon.firstWhere((k) => k.character == character);
+    return QuizQuestion(
+      target: target,
+      direction: QuizDirection.kanaToRomaji,
+      options: [target.romaji, 'xx', 'yy', 'zz'],
+      correctIndex: 0,
+    );
+  }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
     await tester.pumpWidget(MaterialApp(home: child));
@@ -55,5 +67,31 @@ void main() {
     );
     expect(find.text(AppStrings.practiceAgain), findsNothing);
     expect(find.text(AppStrings.backToLessons), findsOneWidget);
+  });
+
+  // RULER guard (retention-ruler #1): the 凪 close shows the score ONLY as a raw,
+  // muted footnote — never an accuracy %, never a headline. The screen's only test
+  // used to assert button placement, so promoting the footnote to a big accuracy %
+  // would have left the suite green. This pins it.
+  testWidgets('the score is a muted N/M footnote — never a % or a headline', (
+    tester,
+  ) async {
+    final twoOfThree = QuizResult(
+      answers: [
+        AnsweredQuestion(question: q('あ'), selectedIndex: 0), // correct
+        AnsweredQuestion(question: q('い'), selectedIndex: 1), // wrong
+        AnsweredQuestion(question: q('う'), selectedIndex: 0), // correct
+      ],
+    );
+    await pump(tester, QuizResultScreen(result: twoOfThree, onAgain: () {}));
+
+    // No accuracy leaks anywhere on the close.
+    expect(find.textContaining('%'), findsNothing);
+    // The score is a raw count, and it is the muted footnote (14px, inkMuted) —
+    // not a headline-sized or accent-coloured reward.
+    expect(find.text('2/3'), findsOneWidget);
+    final score = tester.widget<Text>(find.text('2/3'));
+    expect(score.style?.fontSize, 14);
+    expect(score.style?.color, AppColors.inkMuted);
   });
 }

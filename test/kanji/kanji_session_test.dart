@@ -78,11 +78,10 @@ void main() {
         correct: false,
         at: past,
       ),
-      // crisp fast → low weakness, due since past+1day
+      // correct → low wrong-rate, due since past+1day
       KanjiEntry.readingId('二', 'ニ'): const ReadingStat().recordAnswer(
         correct: true,
         at: past,
-        latencyMs: 250,
       ),
     };
     final out = KanjiSession.compose(

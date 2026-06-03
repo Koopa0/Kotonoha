@@ -92,9 +92,7 @@ void main() {
       final logged = await analytics.all();
       expect(logged.single.meta['beat'], 'teach');
       expect(logged.single.correct, isTrue);
-      expect(logged.single.rtMs, 0); // clock off
-      // No latencyMs ever flowed to the stat — the RT signal stays untouched.
-      expect(repo.statForReading(readingId).avgLatencyMs, 0);
+      expect(logged.single.rtMs, 0); // clock off — the kanji track is untimed
     },
   );
 
