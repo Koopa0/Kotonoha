@@ -192,9 +192,18 @@ abstract final class AppStrings {
   static const String kanjiSentencePrompt = '在心裡讀出整句';
 
   // 回望 observation — the one quiet, hard-gated notebook line in 歩み, mined from
-  // real misclicks. It carries no number: being seen, not scored.
-  static String confusionLine(String target, String mistakenFor) =>
-      '最近,常把「$target」看成「$mistakenFor」。';
+  // real misclicks. It carries no number: a present-tense STATE, being seen not
+  // scored. Several sibling phrasings, picked DETERMINISTICALLY per pair (the same
+  // confusion always reads the same), so the notebook feels observed, not templated.
+  // Every sibling must stay number-free and present-tense — never praise/progress.
+  static String confusionLine(String target, String mistakenFor) {
+    final i = (target.hashCode ^ mistakenFor.hashCode).abs() % 3;
+    return switch (i) {
+      0 => '最近,常把「$target」看成「$mistakenFor」。',
+      1 => '「$target」和「$mistakenFor」,還沒完全分開。',
+      _ => '「$target」這陣子,還容易和「$mistakenFor」靠在一起。',
+    };
+  }
 
   // Result
   static const String sessionCloseLine = '今天就到這裡,辛苦了。';
