@@ -22,6 +22,12 @@ class FileAnalyticsLog implements AnalyticsLog {
 
   final File _file;
 
+  /// Parsed attempts, loaded from disk once then kept in sync by [record].
+  /// Holding them in memory keeps [all]/[count] off the disk + JSON-parse path,
+  /// so navigations that read recency (the home's reading composers) never
+  /// stall on the ever-growing append-only log. Null until first loaded.
+  List<Attempt>? _cache;
+
   static const String _fileName = 'kana_analytics.jsonl';
 
   static Future<FileAnalyticsLog> open() async {
@@ -30,7 +36,11 @@ class FileAnalyticsLog implements AnalyticsLog {
     if (!await file.exists()) {
       await file.create(recursive: true);
     }
-    return FileAnalyticsLog._(file);
+    final log = FileAnalyticsLog._(file);
+    // Warm the cache at startup — bootstrap already awaits this, off the tap
+    // path — so even the first navigation is instant.
+    await log._ensureLoaded();
+    return log;
   }
 
   static Future<Directory> _directory() async {
@@ -42,20 +52,15 @@ class FileAnalyticsLog implements AnalyticsLog {
     return getApplicationDocumentsDirectory();
   }
 
-  @override
-  Future<void> record(Attempt attempt) async {
-    await _file.writeAsString(
-      '${jsonEncode(attempt.toJson())}\n',
-      mode: FileMode.append,
-      flush: true,
-    );
-  }
-
-  @override
-  Future<List<Attempt>> all() async {
-    if (!await _file.exists()) return const [];
+  /// Parses the JSONL file into [_cache] once; a no-op once loaded.
+  Future<void> _ensureLoaded() async {
+    if (_cache != null) return;
+    if (!await _file.exists()) {
+      _cache = [];
+      return;
+    }
     final lines = await _file.readAsLines();
-    return [
+    _cache = [
       for (final line in lines)
         if (line.trim().isNotEmpty)
           Attempt.fromJson(jsonDecode(line) as Map<String, Object?>),
@@ -63,5 +68,26 @@ class FileAnalyticsLog implements AnalyticsLog {
   }
 
   @override
-  Future<int> count() async => (await all()).length;
+  Future<void> record(Attempt attempt) async {
+    await _file.writeAsString(
+      '${jsonEncode(attempt.toJson())}\n',
+      mode: FileMode.append,
+      flush: true,
+    );
+    // Keep the in-memory view in sync if it's already loaded; otherwise the
+    // next read parses the file, which now includes this line.
+    _cache?.add(attempt);
+  }
+
+  @override
+  Future<List<Attempt>> all() async {
+    await _ensureLoaded();
+    return List.unmodifiable(_cache!);
+  }
+
+  @override
+  Future<int> count() async {
+    await _ensureLoaded();
+    return _cache!.length;
+  }
 }

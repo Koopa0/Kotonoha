@@ -81,4 +81,13 @@ void main() {
     await log.record(attempt('す'));
     expect((await log.all()).single.itemId, 'す');
   });
+
+  test('a record after a read stays in sync without re-reading disk', () async {
+    final log = FileAnalyticsLog.forFile(file);
+    await log.record(attempt('あ'));
+    expect((await log.all()).map((a) => a.itemId), ['あ']); // loads the cache
+    await log.record(attempt('か')); // must reach the in-memory cache too
+    expect((await log.all()).map((a) => a.itemId), ['あ', 'か']);
+    expect(await log.count(), 2);
+  });
 }
