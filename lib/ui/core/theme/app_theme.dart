@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/washi_background.dart';
 
 /// Builds the calm, Material 3 light theme for Kotonoha.
 abstract final class AppTheme {
@@ -121,14 +122,20 @@ class _InkPageTransitionsBuilder extends PageTransitionsBuilder {
         begin: Offset.zero,
         end: const Offset(0, -0.02),
       ).animate(recede),
-      child: FadeTransition(
-        opacity: enter,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.03),
-            end: Offset.zero,
-          ).animate(enter),
-          child: child,
+      // The page paints its OWN opaque washi, so the screen beneath is fully
+      // occluded while pushing in: the incoming content settles onto paper
+      // rather than ghosting over the previous screen (scaffolds are
+      // transparent, so without this the fade would show the page below).
+      child: WashiBackground(
+        child: FadeTransition(
+          opacity: enter,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.03),
+              end: Offset.zero,
+            ).animate(enter),
+            child: child,
+          ),
         ),
       ),
     );

@@ -27,6 +27,9 @@ abstract final class AppStrings {
 
   // Home
   static const String dailySession = '今日の稽古';
+  // A quiet, per-tap alternate door into 今日の稽古: a silent run with no
+  // listening prompts — for practising without sound (e.g. on a commute).
+  static const String dailyQuiet = '静かに';
   static const String continueLearning = '手解き';
   static const String learnHiragana = '五十音図';
   static const String learnHiraganaSubtitle = '瀏覽所有平假名';

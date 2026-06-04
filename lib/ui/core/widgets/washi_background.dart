@@ -17,7 +17,10 @@ class WashiBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(painter: _WashiPainter(), child: child);
+    // isComplex (with the painter's shouldRepaint == false and willChange at
+    // its default false): the grain is static, so the engine caches it as a
+    // raster and skips re-drawing the fibres while a page animates over it.
+    return CustomPaint(painter: _WashiPainter(), isComplex: true, child: child);
   }
 }
 

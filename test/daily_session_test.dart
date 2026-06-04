@@ -4,9 +4,11 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 
 void main() {
@@ -86,4 +88,101 @@ void main() {
       }
     },
   );
+
+  test('quiet run never generates a listening prompt', () {
+    for (var seed = 0; seed < 200; seed++) {
+      final items = DailySession.compose(
+        pool: all,
+        stats: noStats,
+        newCandidates: const [],
+        now: now,
+        rng: Random(seed),
+        quiet: true,
+      );
+      for (final i in items) {
+        expect(
+          i.question.direction,
+          isNot(QuizDirection.soundToKana),
+          reason: 'seed=$seed leaked a listening prompt into a quiet run',
+        );
+      }
+    }
+  });
+
+  test('the default (non-quiet) run still includes listening prompts', () {
+    var sawListening = false;
+    for (var seed = 0; seed < 30 && !sawListening; seed++) {
+      final items = DailySession.compose(
+        pool: all,
+        stats: noStats,
+        newCandidates: const [],
+        now: now,
+        rng: Random(seed),
+      );
+      sawListening = items.any(
+        (i) => i.question.direction == QuizDirection.soundToKana,
+      );
+    }
+    expect(sawListening, isTrue);
+  });
+
+  test('quiet does not break the new-item guard (always kanaToRomaji)', () {
+    final items = DailySession.compose(
+      pool: all,
+      stats: noStats,
+      newCandidates: all.take(3).toList(),
+      now: now,
+      rng: Random(7),
+      quiet: true,
+    );
+    final newIds = all.take(3).map((k) => k.id).toSet();
+    final newItems = items.where((i) => newIds.contains(i.question.target.id));
+    // Not vacuous: the new items really do surface (added before the fill).
+    expect(newItems, isNotEmpty);
+    for (final i in newItems) {
+      expect(i.question.direction, QuizDirection.kanaToRomaji);
+    }
+  });
+
+  test('review distractors lean on the target\'s look-alike group', () {
+    final byChar = {for (final k in all) k.character: k};
+    // The first curated group containing [char], minus the char itself.
+    List<String> siblingsOf(String char) {
+      final set = kConfusableSets.firstWhere(
+        (s) => s.contains(char),
+        orElse: () => const [],
+      );
+      return [
+        for (final c in set)
+          if (c != char && byChar.containsKey(c)) c,
+      ];
+    }
+
+    for (var seed = 0; seed < 100; seed++) {
+      final items = DailySession.compose(
+        pool: all,
+        stats: noStats,
+        newCandidates: const [],
+        now: now,
+        rng: Random(seed),
+      );
+      for (final i in items) {
+        final q = i.question;
+        // Reviews are glyph-answered (romajiToKana / soundToKana), so options
+        // are kana characters — a sibling shows up as its own glyph. Guard the
+        // assumption explicitly: kanaToRomaji (new-item) options are romaji, a
+        // different alphabet, and never occur here (no new candidates).
+        if (q.direction == QuizDirection.kanaToRomaji) continue;
+        final siblings = siblingsOf(q.target.character);
+        if (siblings.isEmpty) continue;
+        expect(
+          q.options.any(siblings.contains),
+          isTrue,
+          reason:
+              'seed=$seed ${q.target.character} (${q.direction.name}) had no '
+              'look-alike among $siblings — options ${q.options}',
+        );
+      }
+    }
+  });
 }

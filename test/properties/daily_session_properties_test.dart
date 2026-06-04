@@ -116,6 +116,53 @@ void main() {
     }
   });
 
+  test('quiet: no listening prompt ever; new items still kanaToRomaji', () {
+    final hira = kAllKana
+        .where((k) => k.script == KanaScript.hiragana)
+        .toList();
+    for (var seed = 0; seed < 300; seed++) {
+      final rng = Random(seed);
+      final pool = (List<Kana>.of(
+        hira,
+      )..shuffle(rng)).take(rng.nextInt(hira.length + 1)).toList();
+      final stats = randomStats(pool, Random(seed));
+      final newCandidates = (List<Kana>.of(
+        hira,
+      )..shuffle(Random(seed + 7))).take(rng.nextInt(6)).toList();
+      // compose introduces at most kNew new items; any extra candidate that
+      // surfaces does so as a review, so mirror take(kNew) here.
+      final newIds = newCandidates
+          .take(DailySession.kNew)
+          .map((k) => k.id)
+          .toSet();
+
+      final items = DailySession.compose(
+        pool: pool,
+        stats: stats,
+        newCandidates: newCandidates,
+        now: base,
+        rng: Random(seed),
+        length: 1 + rng.nextInt(16),
+        quiet: true,
+      );
+      for (final i in items) {
+        final q = i.question;
+        expect(
+          q.direction,
+          isNot(QuizDirection.soundToKana),
+          reason: 'quiet leaked a listening prompt: seed=$seed',
+        );
+        if (newIds.contains(q.target.id)) {
+          expect(
+            q.direction,
+            QuizDirection.kanaToRomaji,
+            reason: 'quiet broke the new-item guard: seed=$seed',
+          );
+        }
+      }
+    }
+  });
+
   test('empty pool and empty new candidates compose to nothing', () {
     final items = DailySession.compose(
       pool: const [],

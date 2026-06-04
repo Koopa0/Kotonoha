@@ -161,6 +161,18 @@ class HomeScreen extends StatelessWidget {
                     onPressed: () => _startDaily(context),
                     child: const Text(AppStrings.dailySession),
                   ),
+                  // A quiet aside under the same button — two doors to the same
+                  // 稽古. 静かに composes a silent run (no listening prompts) for
+                  // practising without sound. Per-tap, never a saved mode; it
+                  // hugs its text (like 知道了) so it reads as a subordinate
+                  // aside, not a second full-width primary action.
+                  TextButton(
+                    onPressed: () => _startDaily(context, quiet: true),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.inkMuted,
+                    ),
+                    child: const Text(AppStrings.dailyQuiet),
+                  ),
                   const SizedBox(height: 12),
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
@@ -272,21 +284,24 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  List<SessionItem> _composeDaily(KanaProgressRepository store) =>
-      DailySession.compose(
-        pool: StudySet.reviewPool(store),
-        stats: store.stats,
-        // 今日の稽古 REVIEWS only kana the learner has already met — it never
-        // introduces new ones (so it can never cold-test you). New kana are
-        // learned in 手解き; the next-step line points there when it's time.
-        newCandidates: const <Kana>[],
-        now: DateTime.now(),
-        rng: Random(),
-      );
+  List<SessionItem> _composeDaily(
+    KanaProgressRepository store, {
+    bool quiet = false,
+  }) => DailySession.compose(
+    pool: StudySet.reviewPool(store),
+    stats: store.stats,
+    // 今日の稽古 REVIEWS only kana the learner has already met — it never
+    // introduces new ones (so it can never cold-test you). New kana are
+    // learned in 手解き; the next-step line points there when it's time.
+    newCandidates: const <Kana>[],
+    now: DateTime.now(),
+    rng: Random(),
+    quiet: quiet,
+  );
 
-  void _startDaily(BuildContext context) {
+  void _startDaily(BuildContext context, {bool quiet = false}) {
     final store = context.read<KanaProgressRepository>();
-    final items = _composeDaily(store);
+    final items = _composeDaily(store, quiet: quiet);
     if (items.isEmpty) {
       // Nothing learned/due yet — go learn instead (feature honesty).
       Navigator.of(context).push(LessonsScreen.route());
@@ -296,16 +311,17 @@ class HomeScreen extends StatelessWidget {
       QuizScreen.routeItems(
         items: items,
         title: AppStrings.dailySession,
-        onAgain: () => _againDaily(context),
+        onAgain: () => _againDaily(context, quiet: quiet),
       ),
     );
   }
 
   /// "再来一回" for 今日の稽古: a fresh session in place of the result screen. If
   /// the pool has drained mid-grind, return home rather than an empty quiz.
-  void _againDaily(BuildContext context) {
+  /// [quiet] carries the silent-run choice across rounds.
+  void _againDaily(BuildContext context, {bool quiet = false}) {
     final store = context.read<KanaProgressRepository>();
-    final items = _composeDaily(store);
+    final items = _composeDaily(store, quiet: quiet);
     if (items.isEmpty) {
       Navigator.of(context).popUntil((r) => r.isFirst);
       return;
@@ -314,7 +330,7 @@ class HomeScreen extends StatelessWidget {
       QuizScreen.routeItems(
         items: items,
         title: AppStrings.dailySession,
-        onAgain: () => _againDaily(context),
+        onAgain: () => _againDaily(context, quiet: quiet),
       ),
     );
   }
