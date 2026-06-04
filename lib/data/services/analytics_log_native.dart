@@ -26,6 +26,9 @@ class FileAnalyticsLog implements AnalyticsLog {
   /// Holding them in memory keeps [all]/[count] off the disk + JSON-parse path,
   /// so navigations that read recency (the home's reading composers) never
   /// stall on the ever-growing append-only log. Null until first loaded.
+  /// The app provides ONE instance (a Provider singleton) on Dart's single
+  /// isolate, so this needs no locking; sharing a file across instances is not
+  /// supported.
   List<Attempt>? _cache;
 
   static const String _fileName = 'kana_analytics.jsonl';
@@ -52,7 +55,10 @@ class FileAnalyticsLog implements AnalyticsLog {
     return getApplicationDocumentsDirectory();
   }
 
-  /// Parses the JSONL file into [_cache] once; a no-op once loaded.
+  /// Parses the JSONL file into [_cache] once; a no-op once loaded. A single
+  /// corrupt line (e.g. a last write truncated by a crash) is skipped rather
+  /// than discarding the whole history — the export contract values the good
+  /// rows over strictness.
   Future<void> _ensureLoaded() async {
     if (_cache != null) return;
     if (!await _file.exists()) {
@@ -60,11 +66,16 @@ class FileAnalyticsLog implements AnalyticsLog {
       return;
     }
     final lines = await _file.readAsLines();
-    _cache = [
-      for (final line in lines)
-        if (line.trim().isNotEmpty)
-          Attempt.fromJson(jsonDecode(line) as Map<String, Object?>),
-    ];
+    final parsed = <Attempt>[];
+    for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+      try {
+        parsed.add(Attempt.fromJson(jsonDecode(line) as Map<String, Object?>));
+      } catch (_) {
+        // Skip a malformed/partial line; keep every other attempt.
+      }
+    }
+    _cache = parsed;
   }
 
   @override

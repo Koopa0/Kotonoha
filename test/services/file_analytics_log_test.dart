@@ -90,4 +90,14 @@ void main() {
     expect((await log.all()).map((a) => a.itemId), ['あ', 'か']);
     expect(await log.count(), 2);
   });
+
+  test('skips a corrupt line instead of losing the whole log', () async {
+    // A line truncated by a crash mid-append, then a good record after it.
+    await file.writeAsString('{"ts":1,"itemId":"x"  <- truncated\n');
+    final log = FileAnalyticsLog.forFile(file);
+    await log.record(attempt('す'));
+    final all = await log.all();
+    expect(all.map((a) => a.itemId), ['す']); // good rows survive
+    expect(await log.count(), 1);
+  });
 }
