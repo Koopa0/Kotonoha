@@ -16,8 +16,18 @@ class PreferencesService {
 
   String? readString(String key) => _prefs.getString(key);
 
-  Future<void> writeString(String key, String value) =>
+  /// True when the platform store accepted the write. shared_preferences
+  /// reports failure as a `false` return, not an exception, so callers must
+  /// check the result (see `RecoverableStore`).
+  Future<bool> writeString(String key, String value) =>
       _prefs.setString(key, value);
 
-  Future<void> remove(String key) => _prefs.remove(key);
+  /// True when the platform store accepted the removal.
+  Future<bool> remove(String key) => _prefs.remove(key);
+
+  /// Re-reads the platform's durable state into the plugin cache. The legacy
+  /// shared_preferences API serves reads from a cache that mutates BEFORE
+  /// the platform verdict, so after a failed write/remove the cache can run
+  /// ahead of disk — reads are only trustworthy again after this.
+  Future<void> reload() => _prefs.reload();
 }
