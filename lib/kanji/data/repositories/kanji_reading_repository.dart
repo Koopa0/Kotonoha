@@ -99,6 +99,14 @@ class KanjiReadingRepository extends ChangeNotifier {
     return _serialized(_flush);
   }
 
+  /// Flushes the store to disk WITHOUT applying a new domain mutation — the
+  /// app-scoped persistence owner calls this to retry a write that failed after
+  /// the screen that caused it moved on. It joins the same serialized queue,
+  /// is a safe no-op when clean, and rethrows [StoreWriteFailure] like a
+  /// mutation so the owner can observe the outcome. It advances no generation
+  /// itself ([_flush] moves persistedGen only on a confirmed write).
+  Future<void> flushPending() => _serialized(_flush);
+
   /// Reading ids due for review now (dueAt ≤ now), earliest first.
   List<String> dueReadingIds(DateTime now) {
     final due =

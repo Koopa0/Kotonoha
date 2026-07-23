@@ -1304,4 +1304,126 @@ void main() {
       },
     );
   });
+
+  group('flushPending — P0-B owner retry', () {
+    const statsKey = 'kana_stats_v1';
+    const learnedKey = 'learned_units_v1';
+    const unlocksKey = 'seen_unlocks_v1';
+
+    test(
+      're-persists a failed stats write exactly once, no new mutation',
+      () async {
+        final fake = FakePreferencesService();
+        fake.failWrites.add(statsKey);
+        final store = await KanaProgressRepository.load(fake);
+
+        await expectLater(
+          store.recordAnswer(all.first, correct: true, at: now),
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        // Fault cleared; retry with NO further domain mutation.
+        fake.failWrites.clear();
+        fake.writeLog.clear();
+        await store.flushPending();
+
+        expect(fake.writeLog.where((k) => k == statsKey).length, 1);
+        final fresh = await KanaProgressRepository.load(
+          FakePreferencesService.restarted(fake),
+        );
+        expect(fresh.statFor(all.first).seenCount, 1); // exactly once
+      },
+    );
+
+    test('re-persists a failed learned-units write exactly once', () async {
+      final fake = FakePreferencesService();
+      fake.failWrites.add(learnedKey);
+      final store = await KanaProgressRepository.load(fake);
+
+      await expectLater(
+        store.markUnitLearned('hira_row_0'),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      fake.failWrites.clear();
+      fake.writeLog.clear();
+      await store.flushPending();
+
+      expect(fake.writeLog.where((k) => k == learnedKey).length, 1);
+      final fresh = await KanaProgressRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(fresh.isUnitLearned('hira_row_0'), isTrue);
+    });
+
+    test('re-persists a failed seen-unlocks write exactly once', () async {
+      final fake = FakePreferencesService();
+      fake.failWrites.add(unlocksKey);
+      final store = await KanaProgressRepository.load(fake);
+
+      await expectLater(
+        store.markUnlockSeen('words'),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      fake.failWrites.clear();
+      fake.writeLog.clear();
+      await store.flushPending();
+
+      expect(fake.writeLog.where((k) => k == unlocksKey).length, 1);
+      final fresh = await KanaProgressRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(fresh.isUnlockSeen('words'), isTrue);
+    });
+
+    test('is a safe no-op when nothing is dirty', () async {
+      final fake = FakePreferencesService();
+      final store = await KanaProgressRepository.load(fake);
+      await store.recordAnswer(all.first, correct: true, at: now); // persisted
+      fake.writeLog.clear();
+
+      await store.flushPending();
+
+      expect(fake.writeLog, isEmpty); // clean → writes nothing, still succeeds
+    });
+
+    test(
+      'a failed flushPending keeps the queue alive for a later retry',
+      () async {
+        final fake = FakePreferencesService();
+        fake.failWrites.add(statsKey);
+        final store = await KanaProgressRepository.load(fake);
+
+        await expectLater(
+          store.recordAnswer(all.first, correct: true, at: now),
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        await expectLater(
+          store.flushPending(), // still failing — surfaces honestly
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        fake.failWrites.clear();
+        await store.flushPending(); // queue survived → now persists
+
+        final fresh = await KanaProgressRepository.load(
+          FakePreferencesService.restarted(fake),
+        );
+        expect(fresh.statFor(all.first).seenCount, 1);
+      },
+    );
+
+    test('queued behind a gated write, it does not interleave', () async {
+      final fake = FakePreferencesService();
+      final store = await KanaProgressRepository.load(fake);
+      final gate = PlatformGate();
+      fake.writeGates[statsKey] = gate;
+
+      final mutation = store.recordAnswer(all.first, correct: true, at: now);
+      await gate.entered; // frozen mid-write
+      final flush = store.flushPending(); // queued strictly behind
+      fake.writeGates.remove(statsKey);
+      gate.release();
+      await Future.wait([mutation, flush]);
+
+      expect(fake.sawOverlap, isFalse);
+    });
+  });
 }

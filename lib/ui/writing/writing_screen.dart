@@ -7,6 +7,7 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
@@ -41,10 +42,12 @@ class _WritingScreenState extends State<WritingScreen> {
 
   void _grade(bool correct) {
     final now = DateTime.now();
-    context.read<KanaProgressRepository>().recordAnswer(
-      _current,
-      correct: correct,
-      at: now,
+    context.read<ProgressPersistenceController>().trackKana(
+      context.read<KanaProgressRepository>().recordAnswer(
+        _current,
+        correct: correct,
+        at: now,
+      ),
     );
     context.read<AnalyticsLog>().record(
       Attempt(

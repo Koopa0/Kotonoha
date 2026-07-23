@@ -224,6 +224,16 @@ class KanaProgressRepository extends ChangeNotifier {
     return _serialized(_flushAll);
   }
 
+  /// Flushes any store still holding unpersisted mutations to disk WITHOUT
+  /// applying a new domain mutation — the app-scoped persistence owner calls
+  /// this to retry a write that failed after the screen that caused it moved
+  /// on. It joins the same serialized queue (never interleaving with an
+  /// in-flight write), is a safe no-op when every store is clean, and rethrows
+  /// [StoreWriteFailure] like a mutation so the owner can observe the outcome.
+  /// It advances no generation itself: [_flushAll] moves persistedGen only on a
+  /// confirmed write, exactly as a mutation's flush does.
+  Future<void> flushPending() => _serialized(_flushAll);
+
   /// Clears all progress (used by tests and any future "reset" affordance).
   /// Removes exactly the keys this repository owns — primaries plus their
   /// last-known-good and quarantine copies — never a blanket clear. When a
