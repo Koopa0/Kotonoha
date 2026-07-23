@@ -9,6 +9,7 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,12 @@ void main() {
         MultiProvider(
           providers: [
             ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: store.flushPending,
+                kanjiFlush: () async {},
+              ),
+            ),
             Provider<AnalyticsLog>.value(value: analytics),
             Provider<SpeechService>.value(value: const SilentSpeechService()),
           ],

@@ -9,6 +9,7 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -30,10 +31,22 @@ Future<void> pumpApp(WidgetTester tester, {bool seedLearned = false}) async {
       );
     }
   }
+  final persistence = ProgressPersistenceController(
+    kanaFlush: store.flushPending,
+    kanjiFlush: () async {},
+    health: [
+      store.statsHealth,
+      store.learnedUnitsHealth,
+      store.seenUnlocksHealth,
+    ],
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: persistence,
+        ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
       ],

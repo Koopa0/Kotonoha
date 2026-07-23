@@ -8,6 +8,7 @@ import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/quiz/quiz_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const all = kHiraganaGojuon;
   final fixedNow = DateTime(2026, 5, 29, 12);
+
+  ProgressPersistenceController owner() => ProgressPersistenceController(
+    kanaFlush: () async {},
+    kanjiFlush: () async {},
+  );
 
   QuizQuestion question(String character) {
     final target = all.firstWhere((k) => k.character == character);
@@ -39,6 +45,7 @@ void main() {
           SessionItem(question: question(c), mode: PracticeMode.quickReview),
       ],
       repository: repo,
+      persistence: owner(),
       analytics: analytics,
       clock: () => fixedNow,
     );
@@ -121,6 +128,7 @@ void main() {
         SessionItem(question: question('な'), mode: PracticeMode.quickReview),
       ],
       repository: repo,
+      persistence: owner(),
       clock: () => fixedNow,
     );
     vm.selectAnswer(0);

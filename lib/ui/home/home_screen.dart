@@ -31,6 +31,7 @@ import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
 import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
@@ -593,7 +594,9 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         TextButton(
-          onPressed: () => store.markUnlockSeen(pending.id),
+          onPressed: () => context
+              .read<ProgressPersistenceController>()
+              .trackKana(store.markUnlockSeen(pending.id)),
           style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
           child: const Text(AppStrings.unlockDismiss),
         ),
@@ -610,7 +613,9 @@ class HomeScreen extends StatelessWidget {
     List<Phrase> readablePhrases,
     List<KanjiPhrase> readableKanjiPhrases,
   ) {
-    store.markUnlockSeen(pending.id);
+    context.read<ProgressPersistenceController>().trackKana(
+      store.markUnlockSeen(pending.id),
+    );
     switch (pending) {
       case Unlock.words:
         unawaited(_startFerry(context));

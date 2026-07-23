@@ -269,4 +269,31 @@ abstract final class AppStrings {
   static const String statusWeak = '待加強';
   static const String statusStrong = '熟練';
   static const String notPracticedYet = '尚未練習';
+
+  // Progress persistence — the one calm, cross-route surface. Normal saving is
+  // silent; these speak only when a write failed (offering a retry) or when a
+  // damaged store recovered at startup (an honest, session-dismissible notice).
+  // 歩み = the learner's progress. No number, no alarm — the same quiet voice.
+  static const String persistFailedLine = '這次的歩み還沒寫進裝置。';
+  static const String persistFailedDetail = '內容仍留在這次開啟中,可以再試一次。';
+  static const String persistRetry = '再試一次';
+  // Shown on the retry action while a retry is in flight — the button is not a
+  // live target, so a second tap can't be silently swallowed.
+  static const String persistRetrying = '正在再試…';
+  static const String persistAck = '知道了';
+
+  // One honest recovery line per StoreHealth outcome — each says exactly what
+  // happened to the old data, never claiming more safety than is true and never
+  // calling a recovery a fresh start. Most-severe wins when stores coalesce.
+  // salvaged names no proportion (the count is unknown); it only affirms the
+  // readable rest and the raw were both kept.
+  static const String persistRecoverySalvaged = '有些舊的歩み讀不回來,其餘可讀的都保住了,原始資料也留著。';
+  static const String persistRecoveryRestored = '這次的歩み是從上一次完好的存檔接回來的,原始資料留著。';
+  // A startup-time fact (not a present claim a later successful write would
+  // silently falsify): at this launch the damaged raw was not yet confirmed
+  // set aside, while the progress itself was recovered.
+  static const String persistRecoveryPreservationPending =
+      '這次啟動時,損壞的原始資料還沒能確認另存;歩み已先接回來了。';
+  static const String persistRecoveryRecoveryRequired =
+      '先前的歩み一時讀不回來,現在可能是空的;原始資料還留著,沒有被蓋掉。';
 }

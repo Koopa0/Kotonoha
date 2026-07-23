@@ -13,6 +13,7 @@ import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
 import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -52,6 +53,12 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider<KanjiReadingRepository>.value(value: repo),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: () async {},
+              kanjiFlush: repo.flushPending,
+            ),
+          ),
           Provider<AnalyticsLog>.value(value: analytics),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],

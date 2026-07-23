@@ -9,6 +9,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 
 /// Owns the state and logic of one session: the cursor, the selected answer,
@@ -18,6 +19,7 @@ class QuizViewModel extends ChangeNotifier {
   QuizViewModel({
     required this.items,
     required this.repository,
+    required this.persistence,
     this.analytics,
     this.sessionId = '',
     DateTime Function()? clock,
@@ -27,6 +29,7 @@ class QuizViewModel extends ChangeNotifier {
 
   final List<SessionItem> items;
   final KanaProgressRepository repository;
+  final ProgressPersistenceController persistence;
   final AnalyticsLog? analytics;
   final String sessionId;
   final DateTime Function() _clock;
@@ -76,11 +79,16 @@ class QuizViewModel extends ChangeNotifier {
     _answers.add(
       AnsweredQuestion(question: question, selectedIndex: optionIndex),
     );
-    repository.recordAnswer(
-      question.target,
-      correct: correct,
-      at: now,
-      latencyMs: now.millisecondsSinceEpoch - _shownAtMs,
+    // Answering never waits on disk (the in-memory effect + notify below are
+    // synchronous); the app-scoped owner observes the write so a failure is
+    // surfaced instead of dropped.
+    persistence.trackKana(
+      repository.recordAnswer(
+        question.target,
+        correct: correct,
+        at: now,
+        latencyMs: now.millisecondsSinceEpoch - _shownAtMs,
+      ),
     );
     analytics?.record(
       Attempt(

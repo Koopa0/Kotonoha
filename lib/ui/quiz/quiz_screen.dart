@@ -12,6 +12,7 @@ import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
@@ -96,6 +97,7 @@ class _QuizScreenState extends State<QuizScreen> {
     _vm = QuizViewModel(
       items: widget.items,
       repository: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
       analytics: context.read<AnalyticsLog>(),
       sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
     )..addListener(_onChanged);

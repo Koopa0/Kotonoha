@@ -14,6 +14,7 @@ import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
@@ -144,10 +145,12 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   // until a timed kanji beat ships (parity pin: test/kanji/reading_cvrt_test.dart).
   void _teachNext() {
     final now = DateTime.now();
-    context.read<KanjiReadingRepository>().recordAnswer(
-      _current.readingId,
-      correct: true,
-      at: now,
+    context.read<ProgressPersistenceController>().trackKanji(
+      context.read<KanjiReadingRepository>().recordAnswer(
+        _current.readingId,
+        correct: true,
+        at: now,
+      ),
     );
     _logAttempt(correct: true, beat: 'teach', now: now);
     _advance();
@@ -159,10 +162,12 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     if (_picked != null) return;
     final now = DateTime.now();
     final correct = i == _question!.correctIndex;
-    context.read<KanjiReadingRepository>().recordAnswer(
-      _current.readingId,
-      correct: correct,
-      at: now,
+    context.read<ProgressPersistenceController>().trackKanji(
+      context.read<KanjiReadingRepository>().recordAnswer(
+        _current.readingId,
+        correct: correct,
+        at: now,
+      ),
     );
     _logAttempt(
       correct: correct,

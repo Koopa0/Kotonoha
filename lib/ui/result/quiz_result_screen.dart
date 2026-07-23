@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
@@ -61,10 +62,15 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     if (_isLesson) {
       _lessonPassed = Lessons.isPassed(widget.lesson!, widget.result);
       if (_lessonPassed) {
-        // Persist after the first frame to avoid notifying during build.
+        // Persist after the first frame to avoid notifying during build; the
+        // app-scoped owner observes the write so a failure survives even if
+        // this screen is popped before it settles.
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.read<KanaProgressRepository>().markUnitLearned(
-            widget.lesson!.id,
+          if (!context.mounted) return;
+          context.read<ProgressPersistenceController>().trackKana(
+            context.read<KanaProgressRepository>().markUnitLearned(
+              widget.lesson!.id,
+            ),
           );
         });
       }

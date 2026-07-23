@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -47,11 +48,26 @@ Future<void> main() async {
     }
 
     final kanji = await KanjiReadingRepository.load();
+    // The same app-scoped owner main.dart wires — real flush callbacks and the
+    // real startup StoreHealth of every store (no silent/no-op fallback).
+    final persistence = ProgressPersistenceController(
+      kanaFlush: store.flushPending,
+      kanjiFlush: kanji.flushPending,
+      health: [
+        store.statsHealth,
+        store.learnedUnitsHealth,
+        store.seenUnlocksHealth,
+        kanji.statsHealth,
+      ],
+    );
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
           ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: persistence,
+          ),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
         ],

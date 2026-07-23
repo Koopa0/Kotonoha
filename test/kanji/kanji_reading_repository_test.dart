@@ -437,4 +437,65 @@ void main() {
       });
     });
   });
+
+  group('flushPending — P0-B owner retry', () {
+    const statsKey = 'kanji_stats_v1';
+
+    test('re-persists a failed write exactly once, no new mutation', () async {
+      final fake = FakePreferencesService();
+      fake.failWrites.add(statsKey);
+      final repo = await KanjiReadingRepository.load(fake);
+
+      await expectLater(
+        repo.recordAnswer(id, correct: true, at: now),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      // Fault cleared; retry with NO further domain mutation.
+      fake.failWrites.clear();
+      fake.writeLog.clear();
+      await repo.flushPending();
+
+      expect(fake.writeLog.where((k) => k == statsKey).length, 1);
+      final fresh = await KanjiReadingRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(fresh.statForReading(id).correctCount, 1); // exactly once
+    });
+
+    test('is a safe no-op when nothing is dirty', () async {
+      final fake = FakePreferencesService();
+      final repo = await KanjiReadingRepository.load(fake);
+      await repo.recordAnswer(id, correct: true, at: now); // persisted
+      fake.writeLog.clear();
+
+      await repo.flushPending();
+
+      expect(fake.writeLog, isEmpty);
+    });
+
+    test(
+      'a failed flushPending keeps the queue alive for a later retry',
+      () async {
+        final fake = FakePreferencesService();
+        fake.failWrites.add(statsKey);
+        final repo = await KanjiReadingRepository.load(fake);
+
+        await expectLater(
+          repo.recordAnswer(id, correct: true, at: now),
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        await expectLater(
+          repo.flushPending(),
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        fake.failWrites.clear();
+        await repo.flushPending();
+
+        final fresh = await KanjiReadingRepository.load(
+          FakePreferencesService.restarted(fake),
+        );
+        expect(fresh.statForReading(id).correctCount, 1);
+      },
+    );
+  });
 }
