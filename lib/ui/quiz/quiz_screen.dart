@@ -302,6 +302,7 @@ class _SoundPrompt extends StatelessWidget {
           IconButton.filled(
             onPressed: onReplay,
             iconSize: 56,
+            tooltip: AppStrings.replaySound,
             style: IconButton.styleFrom(
               backgroundColor: AppColors.accentSoft,
               foregroundColor: AppColors.accent,

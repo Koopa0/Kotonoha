@@ -3,7 +3,8 @@
 
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
 
-/// The starter kanji set — 30 JLPT N5 kanji in frequency order, 1–2 readings
+/// The kanji set — 82 kanji in rough frequency order (seeded from JLPT N5
+/// outward), 1–2 readings
 /// each (capped to avoid retrieval interference). On-yomi in katakana, kun-yomi
 /// in hiragana; one example word (in kana) + a Traditional-Chinese gloss per
 /// reading, shown only on reveal. The 月火水木金土日 day-of-week set is kept

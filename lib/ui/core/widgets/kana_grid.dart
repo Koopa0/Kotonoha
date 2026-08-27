@@ -21,41 +21,41 @@ class KanaGrid extends StatelessWidget {
   final KanaStatus Function(Kana) statusOf;
   final void Function(Kana) onTapKana;
 
-  Kana? _at(int row, int column) {
-    for (final k in kana) {
-      if (k.row == row && k.column == column) return k;
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     const gap = 8.0;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cell =
-            (constraints.maxWidth - gap * (kGojuonColumnCount - 1)) /
-            kGojuonColumnCount;
-        return Column(
-          children: [
-            for (int row = 0; row < kGojuonRowCount; row++) ...[
-              if (row > 0) const SizedBox(height: gap),
-              Row(
-                children: [
-                  for (int col = 0; col < kGojuonColumnCount; col++) ...[
-                    if (col > 0) const SizedBox(width: gap),
-                    SizedBox(
-                      width: cell,
-                      height: cell,
-                      child: _buildCell(_at(row, col)),
-                    ),
+    final byPosition = {for (final k in kana) (k.row, k.column): k};
+    // The grid is fixed square cells (an overview map, not a reading surface),
+    // so unbounded system text scaling overflows every cell. Cap growth here;
+    // KanaDetailSheet is the place where a single kana scales up for reading.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.2,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cell =
+              (constraints.maxWidth - gap * (kGojuonColumnCount - 1)) /
+              kGojuonColumnCount;
+          return Column(
+            children: [
+              for (int row = 0; row < kGojuonRowCount; row++) ...[
+                if (row > 0) const SizedBox(height: gap),
+                Row(
+                  children: [
+                    for (int col = 0; col < kGojuonColumnCount; col++) ...[
+                      if (col > 0) const SizedBox(width: gap),
+                      SizedBox(
+                        width: cell,
+                        height: cell,
+                        child: _buildCell(byPosition[(row, col)]),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
+              ],
             ],
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

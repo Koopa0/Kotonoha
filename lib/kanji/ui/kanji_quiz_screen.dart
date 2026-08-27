@@ -140,9 +140,9 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
 
   // TEACH 次へ: record an honest ENCODE (untimed correct → isSeen, so it returns
   // as a recall in a future session). Not a graded test, not counted in the score.
-  // Untimed by design — latencyMs is omitted on every beat (no clock; format-only),
-  // so ReadingStat's RT/CVRT gate and KanjiSession's slowness/CV terms stay dormant
-  // until a timed kanji beat ships (parity pin: test/kanji/reading_cvrt_test.dart).
+  // Untimed by design — there is no clock anywhere on this screen: ReadingStat is
+  // a plain untimed Leitner (its RT/CVRT machinery was retired 2026-06-03; kanji
+  // mastery is retrieval, not a reflex — see furigana_terminal_fade_test).
   void _teachNext() {
     final now = DateTime.now();
     context.read<ProgressPersistenceController>().trackKanji(

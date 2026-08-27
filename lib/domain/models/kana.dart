@@ -3,9 +3,8 @@
 
 /// The writing system a [Kana] belongs to.
 ///
-/// MVP only populates [hiragana]. [katakana] exists so future expansion is a
-/// data addition rather than a model refactor — but it is never shown in the
-/// MVP UI (see CLAUDE.md, "feature honesty").
+/// Both scripts are fully populated and live: each is a complete syllabary in
+/// the dataset, taught by 手解き and shown throughout the UI.
 enum KanaScript { hiragana, katakana }
 
 /// The orthography variant of a kana. [seion] = base gojūon (default, so every
