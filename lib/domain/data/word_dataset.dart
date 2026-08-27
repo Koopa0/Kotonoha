@@ -218,8 +218,8 @@ const List<Word> kWords = <Word>[
   ),
   // Common katakana loanwords — consolidate katakana in context (it is
   // otherwise learned in lessons then never read). Generic nouns only (no
-  // in-copyright titles); each rune is one kana unit (ー / yōon loanwords like
-  // コーヒー wait for a gate that treats ー as punctuation).
+  // in-copyright titles). This early batch predates the tokenizer and happens
+  // to be single-rune; the ー / combo loanwords live in the later section.
   Word(kana: 'パン', romaji: 'pan', meaning: '麵包', script: KanaScript.katakana),
   Word(kana: 'バス', romaji: 'basu', meaning: '公車', script: KanaScript.katakana),
   Word(kana: 'ペン', romaji: 'pen', meaning: '筆', script: KanaScript.katakana),
