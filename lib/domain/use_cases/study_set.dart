@@ -15,9 +15,11 @@ class StudySet {
   const StudySet._();
 
   /// Kana from every learned lesson, across all scripts and kinds.
-  static List<Kana> learned(KanaProgressRepository store) => Lessons.fromKana(
-    store.allKana,
-  ).where((l) => store.isUnitLearned(l.id)).expand((l) => l.kana).toList();
+  static List<Kana> learned(KanaProgressRepository store) =>
+      Lessons.fromKana(store.allKana)
+          .where((l) => store.isUnitLearned(l.id))
+          .expand((l) => l.kana)
+          .toList();
 
   /// Targets/distractors for review-style practice: learned kana, falling back
   /// to あ行 only as a cold-start crash-safety (review entries are gated on

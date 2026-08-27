@@ -34,16 +34,13 @@ void main() {
     }
   });
 
-  test(
-    'the note affirms the Japanese meaning first, gently — never a warning',
-    () {
-      final tegami = seeded().firstWhere((w) => w.kana == 'てがみ');
-      final note = AppStrings.falseFriendNote(tegami.falseFriend!);
-      // The Japanese sense leads; the Chinese trap is a soft aside that follows.
-      expect(note.indexOf('手紙'), lessThan(note.indexOf('廁紙')));
-      expect(note, contains('信'));
-      expect(note, isNot(contains('小心')));
-      expect(note, isNot(contains('!')));
-    },
-  );
+  test('the note affirms the Japanese meaning first, gently — never a warning', () {
+    final tegami = seeded().firstWhere((w) => w.kana == 'てがみ');
+    final note = AppStrings.falseFriendNote(tegami.falseFriend!);
+    // The Japanese sense leads; the Chinese trap is a soft aside that follows.
+    expect(note.indexOf('手紙'), lessThan(note.indexOf('廁紙')));
+    expect(note, contains('信'));
+    expect(note, isNot(contains('小心')));
+    expect(note, isNot(contains('!')));
+  });
 }

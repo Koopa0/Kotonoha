@@ -92,9 +92,8 @@ class WordProgressRepository extends ChangeNotifier {
     required bool correct,
     required DateTime at,
   }) {
-    _stats[progressId] = statForItem(
-      progressId,
-    ).recordAnswer(correct: correct, at: at);
+    _stats[progressId] = statForItem(progressId)
+        .recordAnswer(correct: correct, at: at);
     _statsGen++;
     notifyListeners();
     return _serialized(_flush);

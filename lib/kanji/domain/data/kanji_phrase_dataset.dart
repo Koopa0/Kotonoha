@@ -360,7 +360,7 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: 'きる'),
     ],
     romaji: 'asa hayaku okiru',
-    meaning: '早上早起',
+    meaning: '一早起床',
   ),
   KanjiPhrase(
     segments: [
@@ -390,7 +390,7 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: 'く'),
     ],
     romaji: 'machi o aruku',
-    meaning: '走在城裡',
+    meaning: '在鎮上走走',
   ),
   KanjiPhrase(
     segments: [
@@ -419,7 +419,7 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
     ],
     romaji: 'atarashii mise',
-    meaning: '新開的店',
+    meaning: '新的店',
   ),
   KanjiPhrase(
     segments: [
@@ -438,7 +438,7 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: '声', furigana: 'こえ', readingId: 'reading:声#こえ'),
     ],
     romaji: 'akarui koe',
-    meaning: '開朗的聲音',
+    meaning: '開朗的嗓音',
   ),
   KanjiPhrase(
     segments: [
@@ -522,18 +522,20 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: 'う'),
     ],
     romaji: 'baiten de kau',
-    meaning: '在小賣店買',
+    meaning: '在販賣部買',
   ),
   KanjiPhrase(
     segments: [
       RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
       RubySegment(text: 'で'),
+      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: 'を'),
       RubySegment(text: '売', furigana: 'ばい', readingId: 'reading:売#バイ'),
       RubySegment(text: '買', furigana: 'ばい', readingId: 'reading:買#バイ'),
       RubySegment(text: 'する'),
     ],
-    romaji: 'mise de baibai suru',
-    meaning: '在店裡買賣',
+    romaji: 'mise de hon o baibai suru',
+    meaning: '在店裡買賣書籍',
   ),
   KanjiPhrase(
     segments: [
@@ -608,14 +610,15 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '早', furigana: 'はや', readingId: 'reading:早#はや'),
-      RubySegment(text: 'い'),
       RubySegment(text: '春', furigana: 'はる', readingId: 'reading:春#はる'),
-      RubySegment(text: 'の'),
-      RubySegment(text: '風', furigana: 'かぜ', readingId: 'reading:風#かぜ'),
+      RubySegment(text: 'が'),
+      RubySegment(text: '早', furigana: 'はや', readingId: 'reading:早#はや'),
+      RubySegment(text: 'く'),
+      RubySegment(text: '来', furigana: 'く', readingId: 'reading:来#く'),
+      RubySegment(text: 'る'),
     ],
-    romaji: 'hayai haru no kaze',
-    meaning: '早春的風',
+    romaji: 'haru ga hayaku kuru',
+    meaning: '春天來得早',
   ),
   KanjiPhrase(
     segments: [
@@ -684,7 +687,7 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: 'く'),
     ],
     romaji: 'umi no chikaku',
-    meaning: '海的附近',
+    meaning: '海附近',
   ),
   KanjiPhrase(
     segments: [
@@ -764,12 +767,12 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '近', furigana: 'ちか', readingId: 'reading:近#ちか'),
-      RubySegment(text: 'い'),
+      RubySegment(text: 'くの'),
       RubySegment(text: '海', furigana: 'うみ', readingId: 'reading:海#うみ'),
       RubySegment(text: 'へ'),
     ],
-    romaji: 'chikai umi e',
-    meaning: '往附近的海',
+    romaji: 'chikaku no umi e',
+    meaning: '前往附近的海邊',
   ),
   KanjiPhrase(
     segments: [
@@ -778,7 +781,7 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
     ],
     romaji: 'machi no mise',
-    meaning: '城裡的店',
+    meaning: '鎮上的店',
   ),
   KanjiPhrase(
     segments: [
@@ -799,6 +802,6 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
       RubySegment(text: 'く'),
     ],
     romaji: 'eki kara aruku',
-    meaning: '從車站走路',
+    meaning: '從車站步行',
   ),
 ];

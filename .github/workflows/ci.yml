@@ -16,6 +16,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Pinned to the version pubspec floors (flutter: ">=3.47.0") — an
+          # unpinned stable can flip the format/analyze gates red with zero
+          # code change. Bump this together with the pubspec environment.
+          flutter-version: 3.47.1
           cache: true
 
       - name: Install dependencies

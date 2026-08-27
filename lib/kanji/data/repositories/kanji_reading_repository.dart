@@ -91,9 +91,8 @@ class KanjiReadingRepository extends ChangeNotifier {
     required bool correct,
     required DateTime at,
   }) {
-    _stats[readingId] = statForReading(
-      readingId,
-    ).recordAnswer(correct: correct, at: at);
+    _stats[readingId] = statForReading(readingId)
+        .recordAnswer(correct: correct, at: at);
     _statsGen++;
     notifyListeners();
     return _serialized(_flush);

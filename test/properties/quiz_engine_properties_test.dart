@@ -66,36 +66,33 @@ void main() {
       }
     });
 
-    test(
-      'romaji→kana: the answer is the ONLY option carrying the prompt romaji',
-      () {
-        // The real "answerable" invariant: a romaji prompt (e.g. "ji") must map to
-        // exactly one correct glyph. Distractors may share a romaji with EACH
-        // OTHER (ヂ/ジ as two wrong options for a "zu" prompt is fine) — what must
-        // never happen is a distractor sharing the *target's* romaji.
-        for (var seed = 0; seed < iterations; seed++) {
-          final rng = Random(seed);
-          final pool = pools[seed % pools.length];
-          final target = pool[rng.nextInt(pool.length)];
-          final q = engine.buildQuestion(
-            target,
-            QuizDirection.romajiToKana,
-            pool,
-            rng,
-          );
-          final optionsWithPromptRomaji = q.options
-              .where((c) => romajiOf[c] == target.romaji)
-              .toList();
-          expect(
-            optionsWithPromptRomaji,
-            [target.character],
-            reason:
-                'seed=$seed target=${target.id} '
-                'options=${q.options} prompt=${target.romaji}',
-          );
-        }
-      },
-    );
+    test('romaji→kana: the answer is the ONLY option carrying the prompt romaji', () {
+      // The real "answerable" invariant: a romaji prompt (e.g. "ji") must map to
+      // exactly one correct glyph. Distractors may share a romaji with EACH
+      // OTHER (ヂ/ジ as two wrong options for a "zu" prompt is fine) — what must
+      // never happen is a distractor sharing the *target's* romaji.
+      for (var seed = 0; seed < iterations; seed++) {
+        final rng = Random(seed);
+        final pool = pools[seed % pools.length];
+        final target = pool[rng.nextInt(pool.length)];
+        final q = engine.buildQuestion(
+          target,
+          QuizDirection.romajiToKana,
+          pool,
+          rng,
+        );
+        final optionsWithPromptRomaji = q.options
+            .where((c) => romajiOf[c] == target.romaji)
+            .toList();
+        expect(
+          optionsWithPromptRomaji,
+          [target.character],
+          reason:
+              'seed=$seed target=${target.id} '
+              'options=${q.options} prompt=${target.romaji}',
+        );
+      }
+    });
   });
 
   group('generateSession invariants (swept over seeds)', () {

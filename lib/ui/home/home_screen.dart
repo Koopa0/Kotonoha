@@ -69,9 +69,9 @@ class HomeScreen extends StatelessWidget {
             final gojuonSeen = store.seenInSet(gojuon);
             // Words readable with the learner's unlocked kana (feature honesty:
             // the reading entry only appears when something is actually readable).
-            final learnedChars = StudySet.learned(
-              store,
-            ).map((k) => k.character).toSet();
+            final learnedChars = StudySet.learned(store)
+                .map((k) => k.character)
+                .toSet();
             final readableWords = ReadingSet.readable(kWords, learnedChars);
             final readablePhrases = ReadingSet.readable(kPhrases, learnedChars);
             // Kanji sentences are readable once their NON-kanji kana is known —
@@ -361,9 +361,9 @@ class HomeScreen extends StatelessWidget {
 
   void _startFerry(BuildContext context, {bool replace = false}) {
     final store = context.read<KanaProgressRepository>();
-    final learnedChars = StudySet.learned(
-      store,
-    ).map((k) => k.character).toSet();
+    final learnedChars = StudySet.learned(store)
+        .map((k) => k.character)
+        .toSet();
     final words = FerrySession.compose(
       words: kWords,
       learnedChars: learnedChars,
@@ -384,9 +384,9 @@ class HomeScreen extends StatelessWidget {
 
   void _startDictation(BuildContext context, {bool replace = false}) {
     final store = context.read<KanaProgressRepository>();
-    final learnedChars = StudySet.learned(
-      store,
-    ).map((k) => k.character).toSet();
+    final learnedChars = StudySet.learned(store)
+        .map((k) => k.character)
+        .toSet();
     // Dictation never introduces (maxNew: 0): a word is met ear-first in the
     // ferry before it can be tested cold here.
     final words = ReadingSet.session(
@@ -421,9 +421,9 @@ class HomeScreen extends StatelessWidget {
     bool replace = false,
   }) {
     final store = context.read<KanaProgressRepository>();
-    final learnedChars = StudySet.learned(
-      store,
-    ).map((k) => k.character).toSet();
+    final learnedChars = StudySet.learned(store)
+        .map((k) => k.character)
+        .toSet();
     final now = DateTime.now();
     final picked = ReadingSet.session(
       items: readable,
@@ -450,16 +450,14 @@ class HomeScreen extends StatelessWidget {
       now: DateTime.now(),
       rng: Random(),
     );
-    Navigator.of(
-      context,
-    ).push(KanjiQuizScreen.route(prompts, AppStrings.kanjiTitle));
+    Navigator.of(context)
+        .push(KanjiQuizScreen.route(prompts, AppStrings.kanjiTitle));
   }
 
   void _startKanjiSentence(BuildContext context, List<KanjiPhrase> readable) {
     final picked = List<KanjiPhrase>.of(readable)..shuffle();
-    Navigator.of(
-      context,
-    ).push(KanjiSentenceScreen.route(picked, AppStrings.kanjiSentenceTitle));
+    Navigator.of(context)
+        .push(KanjiSentenceScreen.route(picked, AppStrings.kanjiSentenceTitle));
   }
 
   List<QuizQuestion> _composeConfusable(KanaProgressRepository store) {

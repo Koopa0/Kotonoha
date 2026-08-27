@@ -115,9 +115,8 @@ abstract final class Guidance {
       return GuidanceStep(GuidanceTarget.daily, dueCount: due);
     }
     // C — caught up, but there is still a row left to learn.
-    final hasUnlearned = Lessons.fromKana(
-      store.allKana,
-    ).any((l) => !store.isUnitLearned(l.id));
+    final hasUnlearned = Lessons.fromKana(store.allKana)
+        .any((l) => !store.isUnitLearned(l.id));
     if (hasUnlearned) {
       return const GuidanceStep(GuidanceTarget.lessons);
     }

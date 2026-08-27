@@ -46,9 +46,8 @@ void main() {
   });
 
   test('a wrong answer resets srsLevel and schedules a soon review', () {
-    final strong = const KanaStat(
-      srsLevel: 4,
-    ).recordAnswer(correct: false, at: now);
+    final strong = const KanaStat(srsLevel: 4)
+        .recordAnswer(correct: false, at: now);
     expect(strong.srsLevel, 0);
     expect(strong.dueAt!.isBefore(now.add(const Duration(hours: 1))), isTrue);
   });

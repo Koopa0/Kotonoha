@@ -35,7 +35,7 @@ void main() {
               value: ProgressPersistenceController(
                 kanaFlush: store.flushPending,
                 kanjiFlush: () async {},
-      wordFlush: () async {},
+                wordFlush: () async {},
               ),
             ),
             Provider<AnalyticsLog>.value(value: analytics),

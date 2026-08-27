@@ -68,9 +68,9 @@ void main() {
       expect(kConfusableChars.contains(c), isTrue);
     }
     // members() over the full universe finds exactly the hiragana members.
-    final members = Confusable.members(
-      kAllKana,
-    ).map((k) => k.character).toSet();
+    final members = Confusable.members(kAllKana)
+        .map((k) => k.character)
+        .toSet();
     expect(members, kConfusableChars);
   });
 

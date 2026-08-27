@@ -34,14 +34,17 @@ void main() {
     expect(s.srsLevel, ReadingStat.kMaxLevel);
   });
 
-  test('a fresh / cooled reading still shows full furigana (support returns)', () {
-    // srsLevel 0 = brand new OR just-missed (recordAnswer resets to 0 on wrong) —
-    // either way the support is back at full, so a relapsed reading is re-supported.
-    expect(RubyText.furiganaOpacity(0), 1.0);
-    final missed = const ReadingStat()
-        .recordAnswer(correct: true, at: DateTime(2026, 6))
-        .recordAnswer(correct: false, at: DateTime(2026, 6));
-    expect(missed.srsLevel, 0);
-    expect(RubyText.furiganaOpacity(missed.srsLevel), 1.0);
-  });
+  test(
+    'a fresh / cooled reading still shows full furigana (support returns)',
+    () {
+      // srsLevel 0 = brand new OR just-missed (recordAnswer resets to 0 on wrong) —
+      // either way the support is back at full, so a relapsed reading is re-supported.
+      expect(RubyText.furiganaOpacity(0), 1.0);
+      final missed = const ReadingStat()
+          .recordAnswer(correct: true, at: DateTime(2026, 6))
+          .recordAnswer(correct: false, at: DateTime(2026, 6));
+      expect(missed.srsLevel, 0);
+      expect(RubyText.furiganaOpacity(missed.srsLevel), 1.0);
+    },
+  );
 }

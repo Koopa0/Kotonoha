@@ -1493,7 +1493,7 @@ const List<KanjiEntry> kKanji = <KanjiEntry>[
         text: 'バイ',
         kind: ReadingKind.on,
         exampleWord: 'ばいてん',
-        exampleMeaning: '小賣店',
+        exampleMeaning: '販賣部',
       ),
     ],
   ),

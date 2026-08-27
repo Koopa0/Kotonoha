@@ -54,6 +54,9 @@ class WordStat {
   final DateTime? dueAt;
 
   bool get isSeen => seenCount > 0;
+
+  /// Test-only convenience (mirrors the other stat types). Accuracy is NEVER
+  /// shown in the UI — no visible score is a product non-negotiable.
   double get accuracy => seenCount == 0 ? 0 : correctCount / seenCount;
 
   static const List<int> _intervalsMinutes = [

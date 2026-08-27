@@ -8,18 +8,15 @@ import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
 
 void main() {
-  test(
-    'furigana opacity thins as the reading matures and is gone at the cap',
-    () {
-      expect(RubyText.furiganaOpacity(0), 1.0); // brand new — full
-      expect(RubyText.furiganaOpacity(1), 0.7); // first recalls — thinning
-      expect(RubyText.furiganaOpacity(2), 0.4); // one below the cap — faint
-      // GONE at the untimed mastery ceiling — reachable by correct recall alone,
-      // no timed beat needed (the coupling that once froze it at 0.42).
-      expect(RubyText.furiganaOpacity(ReadingStat.kFuriganaFadeLevel), 0.0);
-      expect(RubyText.furiganaOpacity(5), 0.0);
-    },
-  );
+  test('furigana opacity thins as the reading matures and is gone at the cap', () {
+    expect(RubyText.furiganaOpacity(0), 1.0); // brand new — full
+    expect(RubyText.furiganaOpacity(1), 0.7); // first recalls — thinning
+    expect(RubyText.furiganaOpacity(2), 0.4); // one below the cap — faint
+    // GONE at the untimed mastery ceiling — reachable by correct recall alone,
+    // no timed beat needed (the coupling that once froze it at 0.42).
+    expect(RubyText.furiganaOpacity(ReadingStat.kFuriganaFadeLevel), 0.0);
+    expect(RubyText.furiganaOpacity(5), 0.0);
+  });
 
   testWidgets('renders the kanji and its furigana', (tester) async {
     const phrase = KanjiPhrase(

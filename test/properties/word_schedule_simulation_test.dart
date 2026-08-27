@@ -33,49 +33,43 @@ import 'package:kotonoha/domain/use_cases/reading_set.dart';
 /// the backlog stays bounded at ANY pace, and that throughput SCALES with
 /// appetite — a learner who taps もう一回 gets proportionally more corpus.
 void main() {
-  test(
-    'one review session a day: bounded backlog, steady (capacity-limited) intake',
-    () {
-      final r = _simulate(reviewSessionsPerDay: 1);
-      expect(
-        r.maxBacklogAfterSettling,
-        lessThanOrEqualTo(16),
-        reason: 'due backlog diverged: ${r.maxBacklogAfterSettling}',
-      );
-      expect(
-        r.introduced,
-        greaterThanOrEqualTo(150),
-        reason: 'introduction collapsed: only ${r.introduced} of 400 met',
-      );
-      expect(
-        r.mature,
-        greaterThanOrEqualTo(100),
-        reason: 'items are not maturing: ${r.mature} at level >= 4',
-      );
-    },
-  );
+  test('one review session a day: bounded backlog, steady (capacity-limited) intake', () {
+    final r = _simulate(reviewSessionsPerDay: 1);
+    expect(
+      r.maxBacklogAfterSettling,
+      lessThanOrEqualTo(16),
+      reason: 'due backlog diverged: ${r.maxBacklogAfterSettling}',
+    );
+    expect(
+      r.introduced,
+      greaterThanOrEqualTo(150),
+      reason: 'introduction collapsed: only ${r.introduced} of 400 met',
+    );
+    expect(
+      r.mature,
+      greaterThanOrEqualTo(100),
+      reason: 'items are not maturing: ${r.mature} at level >= 4',
+    );
+  });
 
-  test(
-    'three review sessions a day (もう一回): the corpus opens ~3x faster, still bounded',
-    () {
-      final r = _simulate(reviewSessionsPerDay: 3);
-      expect(
-        r.maxBacklogAfterSettling,
-        lessThanOrEqualTo(16),
-        reason: 'due backlog diverged: ${r.maxBacklogAfterSettling}',
-      );
-      expect(
-        r.introduced,
-        greaterThanOrEqualTo(380),
-        reason: 'appetite did not scale: only ${r.introduced} of 400 met',
-      );
-      expect(
-        r.mature,
-        greaterThanOrEqualTo(300),
-        reason: 'items are not maturing: ${r.mature} at level >= 4',
-      );
-    },
-  );
+  test('three review sessions a day (もう一回): the corpus opens ~3x faster, still bounded', () {
+    final r = _simulate(reviewSessionsPerDay: 3);
+    expect(
+      r.maxBacklogAfterSettling,
+      lessThanOrEqualTo(16),
+      reason: 'due backlog diverged: ${r.maxBacklogAfterSettling}',
+    );
+    expect(
+      r.introduced,
+      greaterThanOrEqualTo(380),
+      reason: 'appetite did not scale: only ${r.introduced} of 400 met',
+    );
+    expect(
+      r.mature,
+      greaterThanOrEqualTo(300),
+      reason: 'items are not maturing: ${r.mature} at level >= 4',
+    );
+  });
 }
 
 typedef _SimResult = ({
