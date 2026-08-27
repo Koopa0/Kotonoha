@@ -5,50 +5,47 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/models/kana.dart';
-import 'package:kotonoha/domain/models/phrase.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
+import 'helpers/kana_orthography.dart';
+
 void main() {
-  final hiragana = {
+  final allHiraganaUnits = {
     for (final k in kAllKana)
-      if (k.script == KanaScript.hiragana && k.character.runes.length == 1)
-        k.character,
+      if (k.script == KanaScript.hiragana) k.character,
   };
 
-  test('phrase characters exclude layout spaces', () {
-    const p = Phrase(kana: 'そらが あおい', romaji: 'sora ga aoi', meaning: '天空是藍的');
-    expect(p.characters.contains(' '), isFalse);
-    expect(p.characters, {'そ', 'ら', 'が', 'あ', 'お', 'い'});
+  test('phrase tokens exclude layout spaces', () {
+    expect(KanaTokenizer.tokenize('そらが あおい'), ['そ', 'ら', 'が', 'あ', 'お', 'い']);
   });
 
-  test('every phrase is built from real single-rune hiragana', () {
+  test('every phrase is orthographically clean hiragana', () {
     for (final p in kPhrases) {
       expect(p.romaji, isNotEmpty, reason: p.kana);
       expect(p.meaning, isNotEmpty, reason: p.kana);
-      for (final c in p.characters) {
-        expect(hiragana.contains(c), isTrue, reason: '"$c" in ${p.kana}');
-      }
+      expect(
+        validateKanaOrthography(p.kana, KanaScript.hiragana),
+        isEmpty,
+        reason: p.kana,
+      );
     }
   });
 
-  test(
-    'no phrase uses a small (yōon) or sokuon kana — the readability gate',
-    () {
-      // A small/sokuon kana is never a learnable single unit, so a phrase
-      // containing one could never become readable. Enforce it explicitly.
-      const small = {
-        'ゃ', 'ゅ', 'ょ', 'っ', 'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'ゎ', //
-        'ャ', 'ュ', 'ョ', 'ッ', 'ァ', 'ィ', 'ゥ', 'ェ', 'ォ', 'ヮ',
-      };
-      for (final p in kPhrases) {
-        for (final c in p.characters) {
-          expect(small.contains(c), isFalse, reason: '"$c" in ${p.kana}');
-        }
-      }
-    },
-  );
+  test('every phrase is readable once the full syllabary is learned', () {
+    // The gate understands special moras (っ needs つ, digraph units gate as
+    // themselves) — so with every hiragana unit learned, nothing in the corpus
+    // can be permanently locked out.
+    for (final p in kPhrases) {
+      expect(
+        KanaTokenizer.isReadable(p.kana, allHiraganaUnits),
+        isTrue,
+        reason: p.kana,
+      );
+    }
+  });
 
-  test('ReadingSet gates phrases by the learner\'s unlocked kana', () {
+  test("ReadingSet gates phrases by the learner's unlocked kana", () {
     final justSora = {'そ', 'ら', 'が', 'あ', 'お', 'い'};
     final readable = ReadingSet.readable(kPhrases, justSora);
     expect(readable.map((p) => p.kana), contains('そらが あおい'));

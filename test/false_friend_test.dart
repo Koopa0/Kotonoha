@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 
 void main() {
@@ -16,23 +18,19 @@ void main() {
     );
   });
 
-  test('every false-friend word is readable (no yōon/sokuon)', () {
-    // A note can only ever surface once its word is readable, and the gate is
-    // per-rune. A small kana (yōon/sokuon) would never satisfy it — so a seeded
-    // false-friend word containing one would be a permanently-hidden note.
-    const smallKana = {
-      'ゃ', 'ゅ', 'ょ', 'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', //
-      'ャ', 'ュ', 'ョ', 'ッ',
-    };
+  test('every false-friend word becomes readable with the full syllabary', () {
+    // A note can only ever surface once its word is readable — a word the gate
+    // could never pass would be a permanently-hidden note.
     for (final w in seeded()) {
-      for (final ch in w.characters) {
-        expect(
-          smallKana.contains(ch),
-          isFalse,
-          reason:
-              '${w.kana} has a small kana ($ch) → its note could never show',
-        );
-      }
+      final units = {
+        for (final k in kAllKana)
+          if (k.script == w.script) k.character,
+      };
+      expect(
+        KanaTokenizer.isReadable(w.kana, units),
+        isTrue,
+        reason: '${w.kana}: its false-friend note could never show',
+      );
     }
   });
 

@@ -20,6 +20,7 @@ import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/guidance.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -70,7 +71,11 @@ class HomeScreen extends StatelessWidget {
             // Kanji sentences are readable once their NON-kanji kana is known —
             // the kanji themselves come with (fading) furigana.
             final readableKanjiPhrases = kKanjiPhrases
-                .where((p) => p.plainKana.every(learnedChars.contains))
+                .where(
+                  (p) => p.plainSegments.every(
+                    (s) => KanaTokenizer.isReadable(s, learnedChars),
+                  ),
+                )
                 .toList();
             final step = Guidance.nextStep(store, now: DateTime.now());
             // A track that just opened borrows the next-step slot for one quiet

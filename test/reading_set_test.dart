@@ -4,10 +4,13 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
+import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
 void main() {
@@ -40,7 +43,7 @@ void main() {
     expect(a.length, 2);
     expect(a.map((w) => w.kana), b.map((w) => w.kana)); // deterministic
     for (final w in a) {
-      expect(w.characters.every(chars.contains), isTrue);
+      expect(KanaTokenizer.isReadable(w.kana, chars), isTrue);
     }
   });
 
@@ -56,7 +59,10 @@ void main() {
   // The 黙読 track flows the real phrase corpus through the SAME generic — guard
   // that Phrase composes a bounded, readable session too (not just Word).
   test('session is generic: it composes a readable Phrase session', () {
-    final allChars = {for (final p in kPhrases) ...p.characters};
+    final allChars = {
+      for (final k in kAllKana)
+        if (k.script == KanaScript.hiragana) k.character,
+    };
     final out = ReadingSet.session(
       items: kPhrases,
       learnedChars: allChars,
@@ -65,7 +71,7 @@ void main() {
     );
     expect(out.length, 5);
     for (final p in out) {
-      expect(p.characters.every(allChars.contains), isTrue);
+      expect(KanaTokenizer.isReadable(p.kana, allChars), isTrue);
     }
   });
 

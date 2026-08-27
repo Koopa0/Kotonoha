@@ -10,9 +10,11 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/data/koten_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
@@ -75,9 +77,9 @@ class _DictationScreenState extends State<DictationScreen> {
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
-  List<String> get _targetChars => [
-    for (final r in _current.kana.runes) String.fromCharCode(r),
-  ];
+  /// The word split into learning-unit tiles (きゃ stays one tile, っ/ー are
+  /// their own tiles) — assembly works in the units the learner reads in.
+  List<String> get _targetChars => KanaTokenizer.tokenize(_current.kana);
 
   @override
   void initState() {
@@ -88,8 +90,13 @@ class _DictationScreenState extends State<DictationScreen> {
 
   void _setup() {
     final chars = _targetChars;
+    // Distractor tiles come from the word's own script — cross-script tiles
+    // would give the answer away by shape alone.
+    final distractorPool = _current.script == KanaScript.katakana
+        ? kKatakanaGojuon
+        : kHiraganaGojuon;
     final distractors =
-        (kHiraganaGojuon
+        (distractorPool
                 .map((k) => k.character)
                 .where((c) => !chars.contains(c))
                 .toList()

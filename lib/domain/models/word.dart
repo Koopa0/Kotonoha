@@ -22,10 +22,14 @@ class Word implements ReadingItem {
     this.falseFriend,
   });
 
-  /// The word as written in kana, e.g. `いぬ`.
+  /// The word as written in kana, e.g. `いぬ` or `がっこう`. May use yōon,
+  /// sokuon, chōonpu and small-vowel combinations — readability is decided per
+  /// learning unit by `KanaTokenizer`.
   final String kana;
 
-  /// Canonical Hepburn reading, e.g. `inu` (shi/chi/tsu/fu/wo/n).
+  /// Canonical Hepburn reading, e.g. `inu` / `gakkou` / `koohii`
+  /// (shi/chi/tsu/fu/wo/n; sokuon doubles the next consonant, chōonpu repeats
+  /// the previous vowel, ん before a vowel or y is n').
   @override
   final String romaji;
 
@@ -49,12 +53,4 @@ class Word implements ReadingItem {
   // always "in season", so the lift never sinks it.
   @override
   Season? get season => null;
-
-  /// The distinct kana characters this word is built from. Single-codepoint per
-  /// character (the dataset avoids yōon so each rune is one kana unit), which is
-  /// what gating against the learner's unlocked kana relies on.
-  @override
-  Set<String> get characters => {
-    for (final r in kana.runes) String.fromCharCode(r),
-  };
 }

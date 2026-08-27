@@ -18,10 +18,6 @@ abstract interface class ReadingItem {
   /// Meaning, in Traditional Chinese.
   String get meaning;
 
-  /// Distinct kana characters this item is built from (whitespace excluded) —
-  /// what the "readable with your unlocked kana" gate checks.
-  Set<String> get characters;
-
   /// The season this reading evokes, or null for a season-neutral one (always
   /// "in season"). Drives the silent seasonal-lift in sampling, never displayed.
   Season? get season;

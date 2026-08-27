@@ -34,12 +34,4 @@ class Phrase implements ReadingItem {
 
   @override
   String get displayText => kana;
-
-  /// Distinct kana characters, EXCLUDING the layout spaces — so the gate only
-  /// asks whether the learner has unlocked the kana, not the spacing.
-  @override
-  Set<String> get characters => {
-    for (final r in kana.runes)
-      if (r != 0x20) String.fromCharCode(r),
-  };
 }

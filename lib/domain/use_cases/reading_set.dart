@@ -5,18 +5,22 @@ import 'dart:math';
 
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 
-/// Selects the readable items (words or phrases) — every kana must be one the
-/// learner has unlocked — and composes a short reading session. Generic over
-/// [ReadingItem], so the same gating serves the word and the sentence track.
+/// Selects the readable items (words or phrases) — every learning unit must be
+/// one the learner can read (see [KanaTokenizer]) — and composes a short
+/// reading session. Generic over [ReadingItem], so the same gating serves the
+/// word and the sentence track.
 ///
 /// Pure logic, deterministic under an injected [Random].
 abstract final class ReadingSet {
-  /// Items whose every kana is in [learnedChars].
+  /// Items every learning unit of which is readable given [learnedChars].
   static List<T> readable<T extends ReadingItem>(
     List<T> items,
     Set<String> learnedChars,
-  ) => items.where((i) => i.characters.every(learnedChars.contains)).toList();
+  ) => items
+      .where((i) => KanaTokenizer.isReadable(i.displayText, learnedChars))
+      .toList();
 
   /// A session of up to [length] readable items, ordered (highest priority first):
   /// in-season / season-neutral over off-season ([season]; off-season is never

@@ -7,7 +7,7 @@ import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 
 void main() {
-  test('written / reading / plainKana getters', () {
+  test('written / reading / plainSegments getters', () {
     const p = KanjiPhrase(
       segments: [
         RubySegment(text: '山', furigana: 'やま', readingId: 'reading:山#やま'),
@@ -20,7 +20,7 @@ void main() {
     );
     expect(p.written, '山を見る');
     expect(p.reading, 'やまをみる');
-    expect(p.plainKana, {'を', 'る'});
+    expect(p.plainSegments, ['を', 'る']);
   });
 
   test('every furigana segment resolves to a real reading id (fade works)', () {

@@ -4,6 +4,7 @@
 import 'dart:math';
 
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 
 /// Composes a 渡し舟 (Ferry) session: words whose kana are all unlocked, with
 /// interest-themed words (the ones his ear is most likely to already know)
@@ -20,7 +21,7 @@ abstract final class FerrySession {
     Map<String, int> lastSeen = const {},
   }) {
     final readable = words
-        .where((w) => w.characters.every(learnedChars.contains))
+        .where((w) => KanaTokenizer.isReadable(w.kana, learnedChars))
         .toList();
     final shuffleKey = [for (final _ in readable) rng.nextDouble()];
     int themedRank(Word w) => w.theme != null ? 0 : 1; // themed first

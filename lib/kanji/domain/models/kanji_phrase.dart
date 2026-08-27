@@ -38,12 +38,11 @@ class KanjiPhrase {
   /// The full kana reading, e.g. やまをみる.
   String get reading => segments.map((s) => s.furigana ?? s.text).join();
 
-  /// Non-kanji kana the learner must already know to read this (the kanji are
-  /// furigana-supported, so they don't gate).
-  Set<String> get plainKana => {
+  /// The non-kanji stretches of the phrase, one string per plain segment (the
+  /// kanji are furigana-supported, so they don't gate). Each segment must be
+  /// independently readable — a chōonpu never leans across a kanji boundary.
+  List<String> get plainSegments => [
     for (final s in segments)
-      if (!s.isKanji)
-        for (final r in s.text.runes)
-          if (r != 0x20) String.fromCharCode(r),
-  };
+      if (!s.isKanji) s.text,
+  ];
 }
