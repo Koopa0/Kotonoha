@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
+import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
 // ---------------------------------------------------------------------------
@@ -15,7 +16,7 @@ import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 // the codec's canonical checksum, used to hand-sign fixtures — including
 // deliberately invalid ones — so a test can prove the codec ACCEPTS a
 // correctly-checksummed file and only THEN judges its payload. It is pinned to
-// the codec's own canonicalization by the hand-written v1 fixture test: if this
+// the codec's own canonicalization by the hand-written v2 fixture test: if this
 // diverged, that fixture would fail on checksum, not decode.
 Object? _canonical(Object? value) {
   if (value is Map) {
@@ -45,12 +46,13 @@ String _file(Map<String, Object?> unsigned) => jsonEncode(<String, Object?>{
 /// valid and deliberately broken fixtures.
 Map<String, Object?> _unsigned({
   String kind = 'kotonoha.progress',
-  Object? schemaVersion = 1,
+  Object? schemaVersion = 2,
   String createdAt = '2026-07-24T12:00:00.000Z',
   Map<String, Object?>? kanaStats,
   List<Object?>? learnedUnits,
   List<Object?>? seenUnlocks,
   Map<String, Object?>? kanjiReadingStats,
+  Map<String, Object?>? wordStats,
 }) => <String, Object?>{
   'kind': kind,
   'schemaVersion': schemaVersion,
@@ -60,6 +62,7 @@ Map<String, Object?> _unsigned({
     'learnedUnits': learnedUnits ?? <Object?>[],
     'seenUnlocks': seenUnlocks ?? <Object?>[],
     'kanjiReadingStats': kanjiReadingStats ?? <String, Object?>{},
+    'wordStats': wordStats ?? <String, Object?>{},
   },
 };
 
@@ -87,6 +90,17 @@ ProgressSnapshot _populated() => ProgressSnapshot(
       srsLevel: 3,
     ),
     'reading:日#ニチ': const ReadingStat(seenCount: 1, wrongCount: 1),
+  },
+  wordStats: {
+    'word:いぬ': WordStat(
+      seenCount: 4,
+      correctCount: 3,
+      wrongCount: 1,
+      lastReviewedAt: DateTime.fromMillisecondsSinceEpoch(1748509200000),
+      srsLevel: 6,
+      dueAt: DateTime.fromMillisecondsSinceEpoch(1748595600000),
+    ),
+    'phrase:そらが あおい': const WordStat(seenCount: 1, correctCount: 1),
   },
 );
 
@@ -121,14 +135,17 @@ void main() {
       const k2 = KanaStat(seenCount: 1, correctCount: 1);
       const r1 = ReadingStat(seenCount: 2, correctCount: 2);
       const r2 = ReadingStat(seenCount: 1, wrongCount: 1);
+      const w1 = WordStat(seenCount: 4, correctCount: 3, wrongCount: 1);
+      const w2 = WordStat(seenCount: 1, correctCount: 1);
 
-      // A: keys inserted あ,い / ジン,ニチ; sets one way.
+      // A: keys inserted あ,い / ジン,ニチ / いぬ,あおい; sets one way.
       final a = ProgressSnapshot(
         createdAt: createdAt,
         kanaStats: {'あ': k1, 'い': k2},
         learnedUnits: {'hira_row_0', 'kata_row_1'},
         seenUnlocks: {'words', 'phrases'},
         kanjiReadingStats: {'reading:人#ジン': r1, 'reading:日#ニチ': r2},
+        wordStats: {'word:いぬ': w1, 'phrase:そらが あおい': w2},
       );
       // B: every insertion order reversed.
       final b = ProgressSnapshot(
@@ -137,6 +154,7 @@ void main() {
         learnedUnits: {'kata_row_1', 'hira_row_0'},
         seenUnlocks: {'phrases', 'words'},
         kanjiReadingStats: {'reading:日#ニチ': r2, 'reading:人#ジン': r1},
+        wordStats: {'phrase:そらが あおい': w2, 'word:いぬ': w1},
       );
       expect(codec.encode(a), codec.encode(b));
     });
@@ -162,6 +180,7 @@ void main() {
         learnedUnits: const {},
         seenUnlocks: const {},
         kanjiReadingStats: const {},
+        wordStats: const {},
       );
       final bytes = codec.encode(s);
       final back = decoded(bytes);
@@ -169,6 +188,7 @@ void main() {
       expect(back.learnedUnits, isEmpty);
       expect(back.seenUnlocks, isEmpty);
       expect(back.kanjiReadingStats, isEmpty);
+      expect(back.wordStats, isEmpty);
       expect(codec.encode(back), bytes);
     });
 
@@ -191,6 +211,7 @@ void main() {
             learnedUnits: const {},
             seenUnlocks: const {},
             kanjiReadingStats: const {},
+            wordStats: const {},
           ),
         ),
       ).kanaStats['き']!;
@@ -224,6 +245,7 @@ void main() {
             learnedUnits: const {},
             seenUnlocks: const {},
             kanjiReadingStats: {'reading:人#ジン': full},
+            wordStats: const {},
           ),
         ),
       ).kanjiReadingStats['reading:人#ジン']!;
@@ -248,6 +270,7 @@ void main() {
         learnedUnits: {'legacy_unit_removed_2099'},
         seenUnlocks: {'unlock_from_the_future'},
         kanjiReadingStats: {'reading:𠀀#みず': const ReadingStat(seenCount: 1)},
+        wordStats: const {},
       );
       final back = decoded(codec.encode(s));
       expect(back.kanaStats.keys, contains('retired_kana_x'));
@@ -307,22 +330,20 @@ void main() {
       );
     });
 
-    test(
-      'absent, zero, negative and future schema versions are unsupported',
-      () {
-        final absent = _unsigned()..remove('schemaVersion');
+    test('absent, zero, negative, the superseded v1, and future schema '
+        'versions are unsupported', () {
+      final absent = _unsigned()..remove('schemaVersion');
+      expect(
+        failure(_file(absent)),
+        SnapshotDecodeError.unsupportedSchemaVersion,
+      );
+      for (final v in const [0, -1, 1, 99]) {
         expect(
-          failure(_file(absent)),
+          failure(_file(_unsigned(schemaVersion: v))),
           SnapshotDecodeError.unsupportedSchemaVersion,
         );
-        for (final v in const [0, -1, 2, 99]) {
-          expect(
-            failure(_file(_unsigned(schemaVersion: v))),
-            SnapshotDecodeError.unsupportedSchemaVersion,
-          );
-        }
-      },
-    );
+      }
+    });
 
     test(
       'there is no schema v0 — a zero version is rejected, not migrated',
@@ -532,14 +553,14 @@ void main() {
     });
   });
 
-  group('hand-written v1 fixture', () {
-    test('kana s/c/w/l only, kanji with retired al/vl — decodes and tolerates '
-        'the retired fields', () {
+  group('hand-written v2 fixture', () {
+    test('kana s/c/w/l only, kanji with retired al/vl, empty wordStats — '
+        'decodes and tolerates the retired fields', () {
       // Payload literals TYPED BY HAND — not produced by the encoder or by
       // any model.toJson — so the wire format itself stays pinned.
       final unsigned = <String, Object?>{
         'kind': 'kotonoha.progress',
-        'schemaVersion': 1,
+        'schemaVersion': 2,
         'createdAt': '2026-03-04T05:06:07.000Z',
         'payload': <String, Object?>{
           'kanaStats': <String, Object?>{
@@ -559,6 +580,7 @@ void main() {
               'vl': 900,
             },
           },
+          'wordStats': <String, Object?>{},
         },
       };
       final s = decoded(_file(unsigned));
@@ -582,6 +604,7 @@ void main() {
       expect(jin.correctCount, 2);
       expect(jin.srsLevel, 2);
       expect(jin.dueAt, DateTime.fromMillisecondsSinceEpoch(1748595600000));
+      expect(s.wordStats, isEmpty);
 
       // The retired al/vl were tolerated but dropped by ReadingStat, so a
       // re-encode omits them entirely.
@@ -592,6 +615,41 @@ void main() {
               as Map;
       expect(jinOut.containsKey('al'), isFalse);
       expect(jinOut.containsKey('vl'), isFalse);
+    });
+  });
+
+  group('hand-written v1 fixture is superseded', () {
+    test('a v1 envelope is rejected as unsupportedSchemaVersion', () {
+      // The SAME shape the codec accepted before v2 — schemaVersion 1, no
+      // `wordStats` section — legal in every other respect (correctly signed,
+      // well-formed payload). It must fail on the version check alone,
+      // BEFORE the payload shape (missing wordStats) is ever considered.
+      final unsigned = <String, Object?>{
+        'kind': 'kotonoha.progress',
+        'schemaVersion': 1,
+        'createdAt': '2026-03-04T05:06:07.000Z',
+        'payload': <String, Object?>{
+          'kanaStats': <String, Object?>{
+            'あ': <String, Object?>{'s': 3, 'c': 2, 'w': 1, 'l': 1748509200000},
+          },
+          'learnedUnits': <Object?>['hira_row_0'],
+          'seenUnlocks': <Object?>['words'],
+          'kanjiReadingStats': <String, Object?>{
+            'reading:人#ジン': <String, Object?>{
+              's': 2,
+              'c': 2,
+              'w': 0,
+              'l': 1748509200000,
+              'sl': 2,
+              'd': 1748595600000,
+            },
+          },
+        },
+      };
+      expect(
+        failure(_file(unsigned)),
+        SnapshotDecodeError.unsupportedSchemaVersion,
+      );
     });
   });
 
@@ -606,6 +664,7 @@ void main() {
         learnedUnits: learned,
         seenUnlocks: const {},
         kanjiReadingStats: const {},
+        wordStats: const {},
       );
       expect(() => s.kanaStats['い'] = const KanaStat(), throwsUnsupportedError);
       expect(() => s.learnedUnits.add('x'), throwsUnsupportedError);
@@ -614,6 +673,7 @@ void main() {
         () => s.kanjiReadingStats['r'] = const ReadingStat(),
         throwsUnsupportedError,
       );
+      expect(() => s.wordStats['w'] = const WordStat(), throwsUnsupportedError);
       // Mutating the SOURCE after construction must not touch the snapshot.
       kana['う'] = const KanaStat(seenCount: 9);
       learned.add('kata_row_0');
@@ -644,6 +704,7 @@ void main() {
       learnedUnits: const {},
       seenUnlocks: const {},
       kanjiReadingStats: const {},
+      wordStats: const {},
     );
 
     test('correct + wrong exceeds seen → SnapshotEncodeException', () {
@@ -682,6 +743,7 @@ void main() {
             learnedUnits: {''},
             seenUnlocks: const {},
             kanjiReadingStats: const {},
+            wordStats: const {},
           ),
         ),
         throwsA(isA<SnapshotEncodeException>()),
@@ -697,6 +759,7 @@ void main() {
             learnedUnits: const {},
             seenUnlocks: {''},
             kanjiReadingStats: const {},
+            wordStats: const {},
           ),
         ),
         throwsA(isA<SnapshotEncodeException>()),
@@ -770,10 +833,10 @@ void main() {
       // is computable — the decoder must reject BEFORE checksum. The checksum
       // value here is a syntactically valid but unused placeholder.
       const raw =
-          '{"kind":"kotonoha.progress","schemaVersion":1,'
+          '{"kind":"kotonoha.progress","schemaVersion":2,'
           '"createdAt":"2026-07-24T12:00:00.000Z","payload":{'
           '"kanaStats":{"あ":{"s":1,"l":1e309}},"learnedUnits":[],'
-          '"seenUnlocks":[],"kanjiReadingStats":{}},'
+          '"seenUnlocks":[],"kanjiReadingStats":{},"wordStats":{}},'
           '"checksum":{"algorithm":"sha256","value":'
           '"0000000000000000000000000000000000000000000000000000000000000000"}}';
       expect(failure(raw), SnapshotDecodeError.invalidPayload);
@@ -831,6 +894,7 @@ void main() {
         learnedUnits: const {},
         seenUnlocks: const {},
         kanjiReadingStats: const {},
+        wordStats: const {},
       );
       final bytes = codec.encode(s);
       final createdAt = (jsonDecode(bytes) as Map)['createdAt'] as String;

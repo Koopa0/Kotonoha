@@ -27,6 +27,7 @@ void main() {
     return ProgressPersistenceController(
       kanaFlush: kanaFlush ?? () async {},
       kanjiFlush: () async {},
+      wordFlush: () async {},
       health: health,
     );
   }
@@ -226,6 +227,7 @@ void main() {
         flushes++;
       },
       kanjiFlush: () async {},
+      wordFlush: () async {},
     );
     await pumpBanner(tester, controller);
     // The OS backgrounds the app: resumed → … → paused fires onHide/onPause,
@@ -244,6 +246,7 @@ void main() {
         throw const StoreWriteFailure('kana');
       },
       kanjiFlush: () async {},
+      wordFlush: () async {},
     );
     await pumpBanner(tester, controller);
     // Backgrounding drains best-effort; the flush fails and the owner catches
@@ -297,6 +300,7 @@ void main() {
     final controller = ProgressPersistenceController(
       kanaFlush: () => gate.future, // the retry parks here
       kanjiFlush: () async {},
+      wordFlush: () async {},
     );
     await pumpBanner(tester, controller);
     controller.trackKana(Future<void>.error(const StoreWriteFailure('kana')));

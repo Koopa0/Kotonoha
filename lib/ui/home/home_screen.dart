@@ -6,7 +6,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
@@ -14,6 +14,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
@@ -51,6 +52,11 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Watched (not just read): the dictation entry and the guidance line move
+    // with 詞と句 progress — e.g. finishing a first ferry session must reveal
+    // 文字起こし when the learner lands back here.
+    final wordProgress = context.watch<WordProgressRepository>();
+    final kanjiProgress = context.watch<KanjiReadingRepository>();
     return Scaffold(
       // No app-bar title — the wordmark below is the sole brand mark, so the
       // name 「言の葉」 never appears twice (and never as bare romaji).
@@ -77,7 +83,14 @@ class HomeScreen extends StatelessWidget {
                   ),
                 )
                 .toList();
-            final step = Guidance.nextStep(store, now: DateTime.now());
+            final now = DateTime.now();
+            final step = Guidance.nextStep(
+              store,
+              now: now,
+              words: _trackDue(readableWords, wordProgress, now),
+              sentences: _trackDue(readablePhrases, wordProgress, now),
+              kanji: _kanjiTrackDue(kanjiProgress, now),
+            );
             // A track that just opened borrows the next-step slot for one quiet
             // line until the learner acknowledges it (taps in, or 「知道了」).
             final pending = Unlocks.pending(
@@ -160,6 +173,7 @@ class HomeScreen extends StatelessWidget {
                     context,
                     step,
                     coldStart: store.learnedUnitCount == 0,
+                    readablePhrases: readablePhrases,
                   ),
                 const SizedBox(height: 20),
                 if (store.learnedUnitCount > 0) ...[
@@ -238,7 +252,11 @@ class HomeScreen extends StatelessWidget {
                       subtitle: AppStrings.ferrySubtitle,
                       onTap: () => _startFerry(context),
                     ),
-                  if (readableWords.isNotEmpty)
+                  // 文字起こし tests cold what the ferry introduced — it opens
+                  // only once something has actually been met (feature honesty).
+                  if (readableWords.any(
+                    (w) => wordProgress.statForItem(w.progressId).isSeen,
+                  ))
                     _NavCard(
                       icon: Icons.keyboard_rounded,
                       label: AppStrings.dictationEntry,
@@ -341,30 +359,17 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Most-recent attempt timestamp per item id (displayText), folded from the
-  /// analytics stream — the recency the reading composers use to float
-  /// least-recently-seen items up. Never a count, never shown.
-  Future<Map<String, int>> _lastSeen(BuildContext context) async {
-    final attempts = await context.read<AnalyticsLog>().all();
-    final m = <String, int>{};
-    for (final a in attempts) {
-      if (a.ts > (m[a.itemId] ?? 0)) m[a.itemId] = a.ts;
-    }
-    return m;
-  }
-
-  Future<void> _startFerry(BuildContext context, {bool replace = false}) async {
+  void _startFerry(BuildContext context, {bool replace = false}) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
-    final lastSeen = await _lastSeen(context);
-    if (!context.mounted) return;
     final words = FerrySession.compose(
       words: kWords,
       learnedChars: learnedChars,
       rng: Random(),
-      lastSeen: lastSeen,
+      now: DateTime.now(),
+      stats: context.read<WordProgressRepository>().stats,
     );
     final nav = Navigator.of(context);
     final route = FerryScreen.route(
@@ -372,33 +377,32 @@ class HomeScreen extends StatelessWidget {
       AppStrings.ferryTitle,
       // Re-composes fresh; the close itself (SessionSummary, render-time band)
       // suppresses it at night — so a session that crossed dusk still hides it.
-      onMore: () => unawaited(_startFerry(context, replace: true)),
+      onMore: () => _startFerry(context, replace: true),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  Future<void> _startDictation(
-    BuildContext context, {
-    bool replace = false,
-  }) async {
+  void _startDictation(BuildContext context, {bool replace = false}) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
-    final lastSeen = await _lastSeen(context);
-    if (!context.mounted) return;
+    // Dictation never introduces (maxNew: 0): a word is met ear-first in the
+    // ferry before it can be tested cold here.
     final words = ReadingSet.session(
       items: kWords,
       learnedChars: learnedChars,
       rng: Random(),
-      length: 8,
-      lastSeen: lastSeen,
+      now: DateTime.now(),
+      stats: context.read<WordProgressRepository>().stats,
+      maxNew: 0,
     );
+    if (words.isEmpty) return; // nothing met yet — the entry is hidden anyway
     final nav = Navigator.of(context);
     final route = DictationScreen.route(
       words,
       AppStrings.dictationTitle,
-      onMore: () => unawaited(_startDictation(context, replace: true)),
+      onMore: () => _startDictation(context, replace: true),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -411,30 +415,29 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _startSentence(
+  void _startSentence(
     BuildContext context,
     List<Phrase> readable, {
     bool replace = false,
-  }) async {
+  }) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(
       store,
     ).map((k) => k.character).toSet();
-    final lastSeen = await _lastSeen(context);
-    if (!context.mounted) return;
+    final now = DateTime.now();
     final picked = ReadingSet.session(
       items: readable,
       learnedChars: learnedChars,
       rng: Random(),
-      length: 8,
-      season: Season.forMonth(DateTime.now().month),
-      lastSeen: lastSeen,
+      now: now,
+      stats: context.read<WordProgressRepository>().stats,
+      season: Season.forMonth(now.month),
     );
     final nav = Navigator.of(context);
     final route = ReadingScreen.route(
       picked,
       AppStrings.sentenceTitle,
-      onMore: () => unawaited(_startSentence(context, readable, replace: true)),
+      onMore: () => _startSentence(context, readable, replace: true),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -506,6 +509,47 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  /// One reading track's schedule standing, summarised over its READABLE items
+  /// for [Guidance] — computed from the same stats its sessions draw on.
+  TrackDue _trackDue(
+    List<ReadingItem> readable,
+    WordProgressRepository repo,
+    DateTime now,
+  ) {
+    var due = 0;
+    DateTime? oldest;
+    var unmet = 0;
+    for (final item in readable) {
+      final s = repo.statForItem(item.progressId);
+      if (!s.isSeen) {
+        unmet++;
+        continue;
+      }
+      final d = s.dueAt;
+      if (d != null && !d.isAfter(now)) {
+        due++;
+        if (oldest == null || d.isBefore(oldest)) oldest = d;
+      }
+    }
+    return TrackDue(dueCount: due, oldestDue: oldest, unmet: unmet);
+  }
+
+  TrackDue _kanjiTrackDue(KanjiReadingRepository repo, DateTime now) {
+    final dueIds = repo.dueReadingIds(now);
+    final oldest = dueIds.isEmpty
+        ? null
+        : repo.statForReading(dueIds.first).dueAt;
+    final totalReadings = repo.allKanji.fold<int>(
+      0,
+      (n, k) => n + k.readings.length,
+    );
+    return TrackDue(
+      dueCount: dueIds.length,
+      oldestDue: oldest,
+      unmet: totalReadings - repo.seenReadingCount,
+    );
+  }
+
   /// The ambient one-line "next step" — a hand on the shoulder, not a banner.
   /// It is tappable (routing to its target) in every state except
   /// [GuidanceTarget.rest], which is a calm closing line and stays inert so it
@@ -514,6 +558,7 @@ class HomeScreen extends StatelessWidget {
     BuildContext context,
     GuidanceStep step, {
     required bool coldStart,
+    required List<Phrase> readablePhrases,
   }) {
     final text = switch (step.target) {
       GuidanceTarget.lessons =>
@@ -521,6 +566,16 @@ class HomeScreen extends StatelessWidget {
             ? AppStrings.guidanceStartLessons
             : AppStrings.guidanceLearnMore,
       GuidanceTarget.daily => AppStrings.guidanceReview(step.dueCount),
+      GuidanceTarget.dictation => AppStrings.guidanceWordsReview(step.dueCount),
+      GuidanceTarget.sentences =>
+        step.dueCount > 0
+            ? AppStrings.guidanceSentencesReview(step.dueCount)
+            : AppStrings.guidanceMeetSentences,
+      GuidanceTarget.kanji =>
+        step.dueCount > 0
+            ? AppStrings.guidanceKanjiReview(step.dueCount)
+            : AppStrings.guidanceMeetKanji,
+      GuidanceTarget.ferry => AppStrings.guidanceMeetWords,
       GuidanceTarget.rest => AppStrings.guidanceCaughtUp,
     };
     final line = Text(
@@ -531,12 +586,19 @@ class HomeScreen extends StatelessWidget {
     if (step.target == GuidanceTarget.rest) {
       return Center(child: line);
     }
-    final VoidCallback onTap;
-    if (step.target == GuidanceTarget.daily) {
-      onTap = () => _startDaily(context);
-    } else {
-      onTap = () => Navigator.of(context).push(LessonsScreen.route());
-    }
+    final onTap = switch (step.target) {
+      GuidanceTarget.daily => () => _startDaily(context),
+      GuidanceTarget.ferry => () => _startFerry(context),
+      GuidanceTarget.dictation => () => _startDictation(context),
+      GuidanceTarget.sentences => () => _startSentence(
+        context,
+        readablePhrases,
+      ),
+      GuidanceTarget.kanji => () => _startKanji(context),
+      GuidanceTarget.lessons || GuidanceTarget.rest => () => Navigator.of(
+        context,
+      ).push(LessonsScreen.route()),
+    };
     return Center(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -623,9 +685,9 @@ class HomeScreen extends StatelessWidget {
     );
     switch (pending) {
       case Unlock.words:
-        unawaited(_startFerry(context));
+        _startFerry(context);
       case Unlock.phrases:
-        unawaited(_startSentence(context, readablePhrases));
+        _startSentence(context, readablePhrases);
       case Unlock.kanjiPhrases:
         _startKanjiSentence(context, readableKanjiPhrases);
     }

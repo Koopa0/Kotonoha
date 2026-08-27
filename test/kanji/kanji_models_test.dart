@@ -51,15 +51,34 @@ void main() {
       expect(s.toJson().containsKey('sl'), isFalse); // level 0 omitted
     });
 
-    test('untimed correct climbs to the cap then holds; wrong resets', () {
+    test(
+      'untimed correct climbs to the max level then holds; wrong resets',
+      () {
+        var s = const ReadingStat();
+        for (var i = 0; i < 10; i++) {
+          s = s.recordAnswer(correct: true, at: at.add(Duration(days: i)));
+        }
+        expect(s.srsLevel, ReadingStat.kMaxLevel);
+        s = s.recordAnswer(correct: false, at: at);
+        expect(s.srsLevel, 0);
+        expect(s.dueAt!.isAfter(at), isTrue);
+      },
+    );
+
+    test('the schedule climbs past the furigana-fade level (decoupled)', () {
       var s = const ReadingStat();
-      for (var i = 0; i < 10; i++) {
+      for (var i = 0; i < ReadingStat.kFuriganaFadeLevel + 1; i++) {
         s = s.recordAnswer(correct: true, at: at.add(Duration(days: i)));
       }
-      expect(s.srsLevel, ReadingStat.kUntimedCapLevel);
-      s = s.recordAnswer(correct: false, at: at);
-      expect(s.srsLevel, 0);
-      expect(s.dueAt!.isAfter(at), isTrue);
+      expect(s.srsLevel, greaterThan(ReadingStat.kFuriganaFadeLevel));
+    });
+
+    test('fromJson clamps a corrupt level instead of trusting it', () {
+      final s = ReadingStat.fromJson(const {'s': 4, 'c': 4, 'w': 0, 'sl': 999});
+      expect(s.srsLevel, ReadingStat.kMaxLevel);
+      // A clamped stat must still schedule without crashing.
+      final next = s.recordAnswer(correct: true, at: at);
+      expect(next.dueAt, isNotNull);
     });
   });
 }

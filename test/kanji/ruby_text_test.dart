@@ -16,7 +16,7 @@ void main() {
       expect(RubyText.furiganaOpacity(2), 0.4); // one below the cap — faint
       // GONE at the untimed mastery ceiling — reachable by correct recall alone,
       // no timed beat needed (the coupling that once froze it at 0.42).
-      expect(RubyText.furiganaOpacity(ReadingStat.kUntimedCapLevel), 0.0);
+      expect(RubyText.furiganaOpacity(ReadingStat.kFuriganaFadeLevel), 0.0);
       expect(RubyText.furiganaOpacity(5), 0.0);
     },
   );

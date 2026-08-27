@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +21,11 @@ Future<void> pumpApp(WidgetTester tester, {bool seedLearned = false}) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
   final store = await KanaProgressRepository.load();
+  // HomeScreen watches both tracks unconditionally (dictation-entry gating,
+  // the guidance next-step line), so both must be in the tree even though
+  // these 仮名-only smoke tests never populate them.
+  final kanji = await KanjiReadingRepository.load();
+  final words = await WordProgressRepository.load();
   if (seedLearned) {
     // Learn あ行 so review entries (gated on learnedUnitCount) appear.
     await store.markUnitLearned('hira_row_0');
@@ -33,17 +40,22 @@ Future<void> pumpApp(WidgetTester tester, {bool seedLearned = false}) async {
   }
   final persistence = ProgressPersistenceController(
     kanaFlush: store.flushPending,
-    kanjiFlush: () async {},
+    kanjiFlush: kanji.flushPending,
+    wordFlush: words.flushPending,
     health: [
       store.statsHealth,
       store.learnedUnitsHealth,
       store.seenUnlocksHealth,
+      kanji.statsHealth,
+      words.statsHealth,
     ],
   );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+        ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+        ChangeNotifierProvider<WordProgressRepository>.value(value: words),
         ChangeNotifierProvider<ProgressPersistenceController>.value(
           value: persistence,
         ),

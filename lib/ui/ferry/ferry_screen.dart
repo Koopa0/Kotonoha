@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/koten_dataset.dart';
@@ -15,6 +16,7 @@ import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
@@ -108,6 +110,17 @@ class _FerryScreenState extends State<FerryScreen> {
         rtMs: now.millisecondsSinceEpoch - _readbackAtMs,
         sessionId: _sessionId,
         meta: {'romaji': _current.romaji},
+      ),
+    );
+    // 渡し舟 introduces, it never reviews: a first meeting enters the schedule
+    // (an encode credit, like the kanji TEACH beat — the cold modes will grade
+    // it honestly from tomorrow), and re-ferrying a seen word is exposure only
+    // (introduce is a no-op then). The self-grade above still lands honestly
+    // in the analytics stream.
+    context.read<ProgressPersistenceController>().trackWord(
+      context.read<WordProgressRepository>().introduce(
+        _current.progressId,
+        at: now,
       ),
     );
     if (correct) _correct++;

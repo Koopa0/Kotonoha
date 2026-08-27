@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/analytics_opener.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -22,25 +23,29 @@ Future<void> main() async {
 Future<Widget> bootstrap() async {
   final store = await KanaProgressRepository.load();
   final kanji = await KanjiReadingRepository.load();
+  final words = await WordProgressRepository.load();
   final speech = await FlutterTtsSpeechService.create();
   final analytics = await openAnalyticsLog();
   // The app-scoped owner of every progress-persistence future: it takes the
   // startup health of each store (to surface an honest recovery notice) and
-  // flushes either repository on retry / lifecycle drain.
+  // flushes any repository on retry / lifecycle drain.
   final persistence = ProgressPersistenceController(
     kanaFlush: store.flushPending,
     kanjiFlush: kanji.flushPending,
+    wordFlush: words.flushPending,
     health: [
       store.statsHealth,
       store.learnedUnitsHealth,
       store.seenUnlocksHealth,
       kanji.statsHealth,
+      words.statsHealth,
     ],
   );
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
       ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+      ChangeNotifierProvider<WordProgressRepository>.value(value: words),
       ChangeNotifierProvider<ProgressPersistenceController>.value(
         value: persistence,
       ),

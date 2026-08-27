@@ -34,4 +34,7 @@ class Phrase implements ReadingItem {
 
   @override
   String get displayText => kana;
+
+  @override
+  String get progressId => 'phrase:$kana';
 }

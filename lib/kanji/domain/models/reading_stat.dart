@@ -8,10 +8,14 @@
 /// a near-binary RETRIEVAL signal, not a reaction-time reflex. So the timed RT/CVRT
 /// graduation `KanaStat` carries is NOT mirrored here — it was retired rather than
 /// kept dormant, because a dormant timed gate was the ONLY path to the furigana
-/// fully fading, which silently froze 名残の仮名 at half-opacity. Now every correct
-/// recall climbs one level up to [kUntimedCapLevel], the ceiling — which is exactly
-/// where `RubyText.furiganaOpacity` reaches 0, so untimed mastery alone takes the
-/// training wheels off. One [ReadingStat] per `reading:漢字#ヨミ`.
+/// fully fading, which silently froze 名残の仮名 at half-opacity.
+///
+/// Two thresholds, deliberately decoupled (2026-08-27): furigana fully fades at
+/// [kFuriganaFadeLevel] (the 名残 promise — the support comes off on untimed
+/// mastery alone), while the SCHEDULE keeps climbing to [kMaxLevel] (60 days) so
+/// a mature reading drifts out to a bimonthly hello instead of returning every
+/// week forever — with a growing kanji corpus, a 7-day ceiling would drown the
+/// due queue. One [ReadingStat] per `reading:漢字#ヨミ`.
 ///
 /// Pure data: no `package:flutter/*` imports.
 class ReadingStat {
@@ -29,14 +33,17 @@ class ReadingStat {
     final int? dueMillis = (json['d'] as num?)?.toInt();
     // Legacy 'al'/'vl' (the retired timed RT/CVRT signal) are simply ignored if
     // present in an old kanji_stats_v1 blob — forward-compatible, no key bump.
+    // Counts and level are clamped, not trusted: one corrupt entry must never
+    // be able to crash the interval lookup on the next answer.
+    int clampCount(Object? v) => ((v as num?)?.toInt() ?? 0).clamp(0, 1 << 30);
     return ReadingStat(
-      seenCount: (json['s'] as num?)?.toInt() ?? 0,
-      correctCount: (json['c'] as num?)?.toInt() ?? 0,
-      wrongCount: (json['w'] as num?)?.toInt() ?? 0,
+      seenCount: clampCount(json['s']),
+      correctCount: clampCount(json['c']),
+      wrongCount: clampCount(json['w']),
       lastReviewedAt: millis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(millis),
-      srsLevel: (json['sl'] as num?)?.toInt() ?? 0,
+      srsLevel: ((json['sl'] as num?)?.toInt() ?? 0).clamp(0, kMaxLevel),
       dueAt: dueMillis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(dueMillis),
@@ -63,11 +70,16 @@ class ReadingStat {
     60 * 24 * 60,
   ];
 
-  /// Correct recalls climb one level each, up to this ceiling, then hold. It is
-  /// also the level at which furigana fully fades ([RubyText.furiganaOpacity]),
-  /// so reaching it by correct untimed recall means "the reading is known, the
-  /// support comes off" — the 名残 promise, completable without any timed beat.
-  static const int kUntimedCapLevel = 3;
+  /// The level at which furigana fully fades ([RubyText.furiganaOpacity]) —
+  /// reaching it by correct untimed recall means "the reading is known, the
+  /// support comes off": the 名残 promise, completable without any timed beat.
+  /// The schedule itself keeps climbing past it (see [kMaxLevel]).
+  static const int kFuriganaFadeLevel = 3;
+
+  /// The top of the interval table (60 days). Correct recalls climb one level
+  /// each and hold here — maturity nearly retires a reading, it never locks it
+  /// into a permanent weekly loop.
+  static const int kMaxLevel = 6;
 
   ReadingStat recordAnswer({
     required bool correct,
@@ -76,7 +88,7 @@ class ReadingStat {
   }) {
     final int nextLevel = !correct
         ? 0
-        : (srsLevel < kUntimedCapLevel ? srsLevel + 1 : srsLevel);
+        : (srsLevel < kMaxLevel ? srsLevel + 1 : srsLevel);
     final mins = (_intervalsMinutes[nextLevel] * intervalScale).round().clamp(
       1,
       1 << 30,

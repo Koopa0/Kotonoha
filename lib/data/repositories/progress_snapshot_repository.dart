@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
@@ -27,7 +28,7 @@ class SnapshotExportBlocked implements Exception {
 /// Captures the app's in-memory canonical progress into a portable
 /// [ProgressSnapshot] and encodes it.
 ///
-/// It reads the two source repositories' current in-memory state — it never
+/// It reads the three source repositories' current in-memory state — it never
 /// writes, flushes, removes a key, or notifies a listener. In particular it does
 /// NOT call `flushPending` and does not require a prior platform write to have
 /// succeeded: a mutation that is committed to memory but whose platform write
@@ -38,11 +39,13 @@ class ProgressSnapshotRepository {
   ProgressSnapshotRepository({
     required this._kana,
     required this._kanji,
+    required this._words,
     this._codec = const ProgressSnapshotCodec(),
   });
 
   final KanaProgressRepository _kana;
   final KanjiReadingRepository _kanji;
+  final WordProgressRepository _words;
   final ProgressSnapshotCodec _codec;
 
   // Store identities reported when a store needs recovery — the same primary
@@ -51,10 +54,11 @@ class ProgressSnapshotRepository {
   static const String _learnedUnitsStore = 'learned_units_v1';
   static const String _seenUnlocksStore = 'seen_unlocks_v1';
   static const String _kanjiStatsStore = 'kanji_stats_v1';
+  static const String _wordStatsStore = 'word_stats_v1';
 
-  /// Synchronously captures the four in-memory progress bodies into an
+  /// Synchronously captures the five in-memory progress bodies into an
   /// immutable [ProgressSnapshot] — no await, so nothing can interleave between
-  /// reading the kana and the kanji state and the capture is a single
+  /// reading the three repositories' state and the capture is a single
   /// consistent instant.
   ///
   /// Throws [SnapshotExportBlocked] if any canonical store came up
@@ -69,6 +73,7 @@ class ProgressSnapshotRepository {
       if (_kana.seenUnlocksHealth == StoreHealth.recoveryRequired)
         _seenUnlocksStore,
       if (_kanji.statsHealth == StoreHealth.recoveryRequired) _kanjiStatsStore,
+      if (_words.statsHealth == StoreHealth.recoveryRequired) _wordStatsStore,
     ];
     if (blocked.isNotEmpty) throw SnapshotExportBlocked(blocked);
 
@@ -78,10 +83,11 @@ class ProgressSnapshotRepository {
       learnedUnits: _kana.learnedUnits,
       seenUnlocks: _kana.seenUnlocks,
       kanjiReadingStats: _kanji.stats,
+      wordStats: _words.stats,
     );
   }
 
-  /// [capture]s the current state and encodes it to the canonical Snapshot v1
+  /// [capture]s the current state and encodes it to the canonical Snapshot v2
   /// string.
   String exportEncoded({required DateTime createdAt}) =>
       _codec.encode(capture(createdAt: createdAt));

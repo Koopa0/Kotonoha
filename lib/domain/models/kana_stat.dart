@@ -27,19 +27,25 @@ class KanaStat {
   factory KanaStat.fromJson(Map<String, dynamic> json) {
     final int? millis = (json['l'] as num?)?.toInt();
     final int? dueMillis = (json['d'] as num?)?.toInt();
+    // Counts, level and latency moments are clamped, not trusted: one corrupt
+    // persisted entry must never crash the interval lookup or the CV math.
+    int clampCount(Object? v) => ((v as num?)?.toInt() ?? 0).clamp(0, 1 << 30);
     return KanaStat(
-      seenCount: (json['s'] as num?)?.toInt() ?? 0,
-      correctCount: (json['c'] as num?)?.toInt() ?? 0,
-      wrongCount: (json['w'] as num?)?.toInt() ?? 0,
+      seenCount: clampCount(json['s']),
+      correctCount: clampCount(json['c']),
+      wrongCount: clampCount(json['w']),
       lastReviewedAt: millis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(millis),
-      srsLevel: (json['sl'] as num?)?.toInt() ?? 0,
+      srsLevel: ((json['sl'] as num?)?.toInt() ?? 0).clamp(
+        0,
+        _intervalsMinutes.length - 1,
+      ),
       dueAt: dueMillis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(dueMillis),
-      avgLatencyMs: (json['al'] as num?)?.toInt() ?? 0,
-      varLatencyMs2: (json['vl'] as num?)?.toInt() ?? 0,
+      avgLatencyMs: clampCount(json['al']),
+      varLatencyMs2: clampCount(json['vl']),
     );
   }
 

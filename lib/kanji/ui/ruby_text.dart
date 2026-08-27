@@ -22,13 +22,13 @@ class RubyText extends StatelessWidget {
   final double fontSize;
 
   /// Full furigana while a reading is new, thinning as it matures, and GONE once
-  /// it reaches the untimed mastery ceiling ([ReadingStat.kUntimedCapLevel]) — the
-  /// level every reading reaches by correct (untimed) recall alone. Tied to the cap
-  /// on purpose: the terminal fade was once gated one step ABOVE the reachable cap,
-  /// so it never completed in real play (furigana froze half-faded). Binding it to
-  /// the cap means the two can never silently diverge again.
+  /// it reaches [ReadingStat.kFuriganaFadeLevel] — a level every reading reaches
+  /// by correct (untimed) recall alone. Bound to that named constant on purpose:
+  /// the terminal fade was once gated one step ABOVE the reachable ceiling, so it
+  /// never completed in real play (furigana froze half-faded). The SCHEDULE now
+  /// climbs past the fade level (to [ReadingStat.kMaxLevel]) without moving it.
   static double furiganaOpacity(int srsLevel) {
-    if (srsLevel >= ReadingStat.kUntimedCapLevel) {
+    if (srsLevel >= ReadingStat.kFuriganaFadeLevel) {
       return 0; // known — the support comes off (was once unreachable)
     }
     if (srsLevel <= 0) return 1; // brand new — full support

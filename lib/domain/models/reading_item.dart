@@ -12,6 +12,12 @@ abstract interface class ReadingItem {
   /// The kana as displayed (phrases keep their layout spaces).
   String get displayText;
 
+  /// Stable, namespaced progress identity (`word:いぬ` / `phrase:そらが あおい`)
+  /// — the key `WordProgressRepository` schedules by. Namespacing keeps a word
+  /// and a same-written phrase from ever sharing a stat; within a type the
+  /// kana is unique (dataset-test-guarded).
+  String get progressId;
+
   /// Canonical reading (romaji for a word; a spaced reading for a phrase).
   String get romaji;
 

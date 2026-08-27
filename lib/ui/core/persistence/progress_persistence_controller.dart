@@ -10,7 +10,7 @@ import 'package:kotonoha/data/services/recoverable_store.dart';
 /// tracked per repository, not per store, because a repository flushes ALL of
 /// its dirty stores together — so one confirmed write clears the whole
 /// repository's backlog.
-enum _Repo { kana, kanji }
+enum _Repo { kana, kanji, word }
 
 /// The startup recovery notice, coalesced most-severe-wins across every store.
 /// Ordered by how much it should worry the reader ([none] < [salvaged] <
@@ -41,7 +41,7 @@ enum PersistenceStatus {
 /// any route, so a failure survives the screen that caused it.
 ///
 /// Screens hand it the future a repository mutation returns ([trackKana] /
-/// [trackKanji]) instead of dropping it. The mutation's in-memory effect and
+/// [trackKanji] / [trackWord]) instead of dropping it. The mutation's in-memory effect and
 /// its UI feedback have already fired synchronously, so tracking never delays
 /// the response — it only observes the disk outcome out-of-band. Every tracked
 /// error is handled here, so none escapes to the uncaught zone.
@@ -57,20 +57,25 @@ class ProgressPersistenceController extends ChangeNotifier {
   ProgressPersistenceController({
     required Future<void> Function() kanaFlush,
     required Future<void> Function() kanjiFlush,
+    required Future<void> Function() wordFlush,
     Iterable<StoreHealth> health = const [],
-  }) : _flush = {_Repo.kana: kanaFlush, _Repo.kanji: kanjiFlush},
+  }) : _flush = {
+         _Repo.kana: kanaFlush,
+         _Repo.kanji: kanjiFlush,
+         _Repo.word: wordFlush,
+       },
        _recovery = _noticeFor(health);
 
   final Map<_Repo, Future<void> Function()> _flush;
 
   // A monotonic stamp per repository, assigned at submission, so a completion
   // is compared by age (seq) rather than by the order futures happen to settle.
-  final Map<_Repo, int> _seq = {_Repo.kana: 0, _Repo.kanji: 0};
+  final Map<_Repo, int> _seq = {for (final r in _Repo.values) r: 0};
   // The newest confirmed-on-disk seq per repository. A failure older than this
   // is stale — a later flush already persisted its data too.
-  final Map<_Repo, int> _maxOk = {_Repo.kana: 0, _Repo.kanji: 0};
+  final Map<_Repo, int> _maxOk = {for (final r in _Repo.values) r: 0};
   // The outstanding failure per repository (its seq), or null when clean.
-  final Map<_Repo, int?> _failed = {_Repo.kana: null, _Repo.kanji: null};
+  final Map<_Repo, int?> _failed = {for (final r in _Repo.values) r: null};
 
   final RecoveryNotice _recovery;
   bool _recoveryAck = false;
@@ -80,8 +85,7 @@ class ProgressPersistenceController extends ChangeNotifier {
 
   /// True while any repository holds an unpersisted write no later confirmed
   /// flush has covered. The one app-level failure surface shows iff this.
-  bool get hasWriteFailure =>
-      _failed[_Repo.kana] != null || _failed[_Repo.kanji] != null;
+  bool get hasWriteFailure => _failed.values.any((seq) => seq != null);
 
   /// The current observable state. A failure outranks in-flight saving.
   PersistenceStatus get status {
@@ -109,6 +113,9 @@ class ProgressPersistenceController extends ChangeNotifier {
 
   /// Observes a kanji-progress mutation's future. See [trackKana].
   void trackKanji(Future<void> save) => _track(_Repo.kanji, save);
+
+  /// Observes a 詞と句-progress mutation's future. See [trackKana].
+  void trackWord(Future<void> save) => _track(_Repo.word, save);
 
   // The observable signature the banner reacts to; notify only when it moves.
   (PersistenceStatus, bool) _view() => (status, _retrying);
@@ -178,12 +185,13 @@ class ProgressPersistenceController extends ChangeNotifier {
     }
   }
 
-  /// Best-effort flush of both repositories for a lifecycle hide/pause/detach
+  /// Best-effort flush of every repository for a lifecycle hide/pause/detach
   /// drain. A clean repository is a no-op; a failure is observed like any
   /// tracked write. Never a guarantee the OS lets it finish before a kill.
   void drain() {
-    trackKana(_flush[_Repo.kana]!());
-    trackKanji(_flush[_Repo.kanji]!());
+    for (final repo in _Repo.values) {
+      _track(repo, _flush[repo]!());
+    }
   }
 
   /// Dismisses the startup recovery notice for this app session only (not

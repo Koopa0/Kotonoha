@@ -41,7 +41,13 @@ abstract final class AppStrings {
   static const String guidanceStartLessons = '先從「手解き」開始,學會第一行假名 —— 它會一個一個帶你念。';
   static String guidanceReview(int n) => '今天先做「今日の稽古」—— 有 $n 個假名該複習了。';
   static const String guidanceLearnMore = '複習都跟上了 —— 繼續「手解き」,學新的一行。';
-  static const String guidanceCaughtUp = '今天的假名都熟了 —— 挑一個你想練的就好。';
+  static String guidanceWordsReview(int n) => '今天先做「文字起こし」—— 有 $n 個詞等著再會。';
+  static String guidanceSentencesReview(int n) => '今天先讀「黙読」—— 有 $n 句想被再讀一次。';
+  static String guidanceKanjiReview(int n) => '今天先做「漢字の声」—— 有 $n 個讀音該複習了。';
+  static const String guidanceMeetWords = '假名都熟了 —— 坐「渡し舟」,去見新的詞。';
+  static const String guidanceMeetSentences = '詞都見過了 —— 到「黙読」,讀新的句子。';
+  static const String guidanceMeetKanji = '到「漢字の声」看看 —— 還有新的讀音等著見面。';
+  static const String guidanceCaughtUp = '該複習的都熟了 —— 今天想讀什麼都好。';
   static const String sectionKana = '假名';
   static const String sectionWords = '詞と句';
   static const String sectionKanji = '漢字';

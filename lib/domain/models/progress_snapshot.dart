@@ -2,16 +2,18 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:kotonoha/domain/models/kana_stat.dart';
+import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
 /// An immutable, portable capture of the app's canonical progress: per-kana
-/// stats, learned unit ids, seen unlock ids, and per-reading kanji stats.
+/// stats, learned unit ids, seen unlock ids, per-reading kanji stats, and
+/// per-item 詞と句 stats.
 ///
 /// This is the ONLY body a portable snapshot carries — never analytics, the
 /// last-good / quarantine copies, store health, session state, or device info
-/// (see `ProgressSnapshotCodec`). It aggregates the two tracks' progress without
-/// generalising their stat types: `KanaStat` and `ReadingStat` stay distinct
-/// (the kanji module deliberately copies rather than shares the kana types).
+/// (see `ProgressSnapshotCodec`). It aggregates the three tracks' progress
+/// without generalising their stat types: `KanaStat`, `ReadingStat` and
+/// `WordStat` stay distinct (the ADR forbids sharing them).
 ///
 /// Pure data: no `package:flutter/*` imports. Every collection is
 /// defensively copied at construction and exposed only as an unmodifiable
@@ -24,11 +26,13 @@ class ProgressSnapshot {
     required Set<String> learnedUnits,
     required Set<String> seenUnlocks,
     required Map<String, ReadingStat> kanjiReadingStats,
+    required Map<String, WordStat> wordStats,
   }) : createdAtUtc = createdAt.toUtc(),
        kanaStats = Map.unmodifiable(kanaStats),
        learnedUnits = Set.unmodifiable(learnedUnits),
        seenUnlocks = Set.unmodifiable(seenUnlocks),
-       kanjiReadingStats = Map.unmodifiable(kanjiReadingStats);
+       kanjiReadingStats = Map.unmodifiable(kanjiReadingStats),
+       wordStats = Map.unmodifiable(wordStats);
 
   /// The capture instant, normalised to UTC.
   final DateTime createdAtUtc;
@@ -45,4 +49,8 @@ class ProgressSnapshot {
 
   /// Per-reading kanji stats keyed by reading id. Unmodifiable.
   final Map<String, ReadingStat> kanjiReadingStats;
+
+  /// Per-item 詞と句 stats keyed by progress id (`word:…` / `phrase:…`).
+  /// Unmodifiable.
+  final Map<String, WordStat> wordStats;
 }

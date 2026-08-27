@@ -50,11 +50,13 @@ void main() {
   ProgressPersistenceController owner({
     Future<void> Function()? kanaFlush,
     Future<void> Function()? kanjiFlush,
+    Future<void> Function()? wordFlush,
     List<StoreHealth> health = const [],
   }) {
     return ProgressPersistenceController(
       kanaFlush: kanaFlush ?? () async {},
       kanjiFlush: kanjiFlush ?? () async {},
+      wordFlush: wordFlush ?? () async {},
       health: health,
     );
   }
@@ -202,12 +204,16 @@ void main() {
     () async {
       var kanaFlushes = 0;
       var kanjiFlushes = 0;
+      var wordFlushes = 0;
       final c = owner(
         kanaFlush: () async {
           kanaFlushes++;
         },
         kanjiFlush: () async {
           kanjiFlushes++;
+        },
+        wordFlush: () async {
+          wordFlushes++;
         },
       );
       final f = Future<void>.error(fail());
@@ -217,6 +223,7 @@ void main() {
       await c.retry();
       expect(kanjiFlushes, 1);
       expect(kanaFlushes, 0); // kana was clean — not touched
+      expect(wordFlushes, 0); // word was clean — not touched
       expect(c.hasWriteFailure, isFalse);
     },
   );
@@ -276,9 +283,10 @@ void main() {
     expect(c.hasWriteFailure, isFalse);
   });
 
-  test('drain flushes both repositories best-effort', () async {
+  test('drain flushes every repository best-effort', () async {
     var kanaFlushes = 0;
     var kanjiFlushes = 0;
+    var wordFlushes = 0;
     final c = owner(
       kanaFlush: () async {
         kanaFlushes++;
@@ -286,10 +294,14 @@ void main() {
       kanjiFlush: () async {
         kanjiFlushes++;
       },
+      wordFlush: () async {
+        wordFlushes++;
+      },
     );
     c.drain();
-    expect(kanaFlushes, 1); // both invoked synchronously by drain
+    expect(kanaFlushes, 1); // all three invoked synchronously by drain
     expect(kanjiFlushes, 1);
+    expect(wordFlushes, 1);
     await nextWhere(c, () => c.status == PersistenceStatus.idle);
     expect(
       c.hasWriteFailure,
@@ -372,6 +384,7 @@ void main() {
           return flush;
         },
         kanjiFlush: () async {},
+        wordFlush: () async {},
       );
 
       // The answer applies in memory, but its write fails; the owner takes it.

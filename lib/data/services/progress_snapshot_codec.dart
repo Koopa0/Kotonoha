@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
+import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
 /// Typed reason a candidate snapshot was rejected. A caller never has to guess
@@ -21,8 +22,9 @@ enum SnapshotDecodeError {
   /// `kind` is not exactly `kotonoha.progress`.
   wrongKind,
 
-  /// `schemaVersion` is not the integer `1` (absent / 0 / negative / future /
-  /// non-integer — never coerced to v1).
+  /// `schemaVersion` is not the integer `2` (absent / 0 / 1 / negative /
+  /// future / non-integer — never coerced). v1 is rejected too: no importer
+  /// ever shipped for it, and the wire shape changed with the version.
   unsupportedSchemaVersion,
 
   /// The embedded checksum does not match the canonical payload — the bytes
@@ -74,23 +76,29 @@ class SnapshotEncodeException implements Exception {
   String toString() => 'SnapshotEncodeException: $detail';
 }
 
-/// Encodes/decodes the portable **Snapshot v1** envelope.
+/// Encodes/decodes the portable **Snapshot v2** envelope.
 ///
 /// Envelope (canonical, compact, keys recursively sorted):
 /// ```json
 /// {
 ///   "kind": "kotonoha.progress",
-///   "schemaVersion": 1,
+///   "schemaVersion": 2,
 ///   "createdAt": "<UTC ISO-8601 ending in Z>",
 ///   "payload": {
 ///     "kanaStats": { "<id>": { s,c,w,l,sl,d,al,vl }, ... },
 ///     "learnedUnits": [ "<id>", ... ],
 ///     "seenUnlocks": [ "<id>", ... ],
-///     "kanjiReadingStats": { "<id>": { s,c,w,l,sl,d }, ... }
+///     "kanjiReadingStats": { "<id>": { s,c,w,l,sl,d }, ... },
+///     "wordStats": { "<word:…|phrase:…>": { s,c,w,l,sl,d }, ... }
 ///   },
 ///   "checksum": { "algorithm": "sha256", "value": "<64 lowercase hex>" }
 /// }
 /// ```
+///
+/// v2 added `wordStats` (2026-08-27) and became the ONLY accepted version — a
+/// v1 envelope is rejected as unsupported rather than upgraded, because no
+/// importer ever shipped while v1 was current and two wire shapes must never
+/// share a version number.
 ///
 /// The checksum is a SHA-256 over the UTF-8 bytes of the CANONICAL envelope with
 /// the `checksum` field removed. It only detects accidental corruption — not a
@@ -116,7 +124,7 @@ class ProgressSnapshotCodec {
   const ProgressSnapshotCodec();
 
   static const String kind = 'kotonoha.progress';
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const String _algorithm = 'sha256';
 
   static const Set<String> _topKeys = {
@@ -132,6 +140,7 @@ class ProgressSnapshotCodec {
     'learnedUnits',
     'seenUnlocks',
     'kanjiReadingStats',
+    'wordStats',
   };
 
   /// The complete set of wire field names either stat may carry. Kana uses
@@ -162,7 +171,7 @@ class ProgressSnapshotCodec {
 
   // --- Encode -------------------------------------------------------------
 
-  /// Encodes [snapshot] into the canonical Snapshot v1 string.
+  /// Encodes [snapshot] into the canonical Snapshot v2 string.
   ///
   /// Throws [SnapshotEncodeException] if the snapshot violates the portable
   /// contract (the SAME rules the decoder enforces), so encode can never emit a
@@ -198,6 +207,9 @@ class ProgressSnapshotCodec {
       'seenUnlocks': s.seenUnlocks.toList(),
       'kanjiReadingStats': <String, Object?>{
         for (final e in s.kanjiReadingStats.entries) e.key: e.value.toJson(),
+      },
+      'wordStats': <String, Object?>{
+        for (final e in s.wordStats.entries) e.key: e.value.toJson(),
       },
     },
   };
@@ -246,7 +258,8 @@ class ProgressSnapshotCodec {
     if (top['kind'] != kind) {
       return const SnapshotDecodeFailure(SnapshotDecodeError.wrongKind);
     }
-    // schemaVersion — the integer 1 only; anything else is unsupported.
+    // schemaVersion — the integer 2 only; anything else (v1 included) is
+    // unsupported.
     final version = top['schemaVersion'];
     if (version is! int || version != schemaVersion) {
       return const SnapshotDecodeFailure(
@@ -334,6 +347,10 @@ class ProgressSnapshotCodec {
       for (final e in (p['kanjiReadingStats'] as Map<String, dynamic>).entries)
         e.key: ReadingStat.fromJson(e.value as Map<String, dynamic>),
     };
+    final wordStats = <String, WordStat>{
+      for (final e in (p['wordStats'] as Map<String, dynamic>).entries)
+        e.key: WordStat.fromJson(e.value as Map<String, dynamic>),
+    };
     final learnedUnits = <String>{
       for (final e in (p['learnedUnits'] as List)) e as String,
     };
@@ -348,6 +365,7 @@ class ProgressSnapshotCodec {
         learnedUnits: learnedUnits,
         seenUnlocks: seenUnlocks,
         kanjiReadingStats: kanjiStats,
+        wordStats: wordStats,
       ),
     );
   }
@@ -364,6 +382,7 @@ class ProgressSnapshotCodec {
     }
     return _statMapError(payload['kanaStats'], 'kanaStats') ??
         _statMapError(payload['kanjiReadingStats'], 'kanjiReadingStats') ??
+        _statMapError(payload['wordStats'], 'wordStats') ??
         _idListError(payload['learnedUnits'], 'learnedUnits') ??
         _idListError(payload['seenUnlocks'], 'seenUnlocks');
   }

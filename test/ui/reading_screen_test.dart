@@ -4,11 +4,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +27,12 @@ void main() {
     // A fresh store (seenCount 0) keeps the occasional 凪 余韻 out of this flow
     // test — the classical-line gate is covered in session_summary_test.
     final store = await KanaProgressRepository.load();
+    final wordRepo = await WordProgressRepository.load();
+    final persistence = ProgressPersistenceController(
+      kanaFlush: store.flushPending,
+      kanjiFlush: () async {},
+      wordFlush: wordRepo.flushPending,
+    );
     final analytics = InMemoryAnalyticsLog();
     const words = [
       Word(kana: 'いぬ', romaji: 'inu', meaning: '狗'),
@@ -35,6 +43,10 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: persistence,
+          ),
           Provider<AnalyticsLog>.value(value: analytics),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],

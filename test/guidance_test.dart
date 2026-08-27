@@ -63,7 +63,7 @@ void main() {
     expect(step.target, isNot(GuidanceTarget.daily)); // distinct from B
   });
 
-  test('D — every row learned and nothing due: rest', () async {
+  test('F — every row learned and nothing due anywhere: rest', () async {
     final store = await KanaProgressRepository.load();
     for (final lesson in Lessons.fromKana(store.allKana)) {
       await store.markUnitLearned(lesson.id);
@@ -74,6 +74,114 @@ void main() {
     expect(step, const GuidanceStep(GuidanceTarget.rest));
     expect(step.dueCount, 0);
   });
+
+  test(
+    'D — reading-era due: the track whose oldest item waited longest wins',
+    () async {
+      final store = await KanaProgressRepository.load();
+      for (final lesson in Lessons.fromKana(store.allKana)) {
+        await store.markUnitLearned(lesson.id);
+      }
+
+      final step = Guidance.nextStep(
+        store,
+        now: now,
+        words: TrackDue(
+          dueCount: 5,
+          oldestDue: now.subtract(const Duration(days: 2)),
+        ),
+        kanji: TrackDue(
+          dueCount: 1,
+          oldestDue: now.subtract(const Duration(days: 6)),
+        ),
+      );
+
+      // Fewer due, but its oldest waited longest — kanji is not starved by the
+      // words track's bigger backlog.
+      expect(step.target, GuidanceTarget.kanji);
+      expect(step.dueCount, 1);
+    },
+  );
+
+  test('D outranks E: a due review beats meeting new material', () async {
+    final store = await KanaProgressRepository.load();
+    for (final lesson in Lessons.fromKana(store.allKana)) {
+      await store.markUnitLearned(lesson.id);
+    }
+
+    final step = Guidance.nextStep(
+      store,
+      now: now,
+      words: const TrackDue(unmet: 200),
+      sentences: TrackDue(
+        dueCount: 1,
+        oldestDue: now.subtract(const Duration(hours: 1)),
+      ),
+    );
+
+    expect(step.target, GuidanceTarget.sentences);
+  });
+
+  test('E — nothing due: meet unmet material in curriculum order', () async {
+    final store = await KanaProgressRepository.load();
+    for (final lesson in Lessons.fromKana(store.allKana)) {
+      await store.markUnitLearned(lesson.id);
+    }
+
+    expect(
+      Guidance.nextStep(
+        store,
+        now: now,
+        words: const TrackDue(unmet: 3),
+        sentences: const TrackDue(unmet: 9),
+        kanji: const TrackDue(unmet: 100),
+      ).target,
+      GuidanceTarget.ferry,
+    );
+    expect(
+      Guidance.nextStep(
+        store,
+        now: now,
+        sentences: const TrackDue(unmet: 9),
+        kanji: const TrackDue(unmet: 100),
+      ).target,
+      GuidanceTarget.sentences,
+    );
+    expect(
+      Guidance.nextStep(
+        store,
+        now: now,
+        kanji: const TrackDue(unmet: 100),
+      ).target,
+      GuidanceTarget.kanji,
+    );
+  });
+
+  test(
+    'the kana era always speaks first: kana due outranks every track',
+    () async {
+      final store = await KanaProgressRepository.load();
+      for (final lesson in Lessons.fromKana(store.allKana)) {
+        await store.markUnitLearned(lesson.id);
+      }
+      await store.recordAnswer(
+        aRow(store).first,
+        correct: false,
+        at: now.subtract(const Duration(hours: 1)),
+      );
+
+      final step = Guidance.nextStep(
+        store,
+        now: now,
+        words: TrackDue(
+          dueCount: 50,
+          oldestDue: now.subtract(const Duration(days: 30)),
+        ),
+      );
+
+      expect(step.target, GuidanceTarget.daily);
+    },
+  );
 
   test('A wins over the reviewPool cold-start fallback', () async {
     final store = await KanaProgressRepository.load();

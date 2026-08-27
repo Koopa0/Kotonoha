@@ -21,6 +21,7 @@ void main() {
   ProgressPersistenceController owner() => ProgressPersistenceController(
     kanaFlush: () async {},
     kanjiFlush: () async {},
+    wordFlush: () async {},
   );
 
   QuizQuestion question(String character) {

@@ -5,12 +5,13 @@ import 'dart:math';
 
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
+import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 
 /// Selects the readable items (words or phrases) — every learning unit must be
 /// one the learner can read (see [KanaTokenizer]) — and composes a short
-/// reading session. Generic over [ReadingItem], so the same gating serves the
-/// word and the sentence track.
+/// reading session scheduled by the 詞と句 stats. Generic over [ReadingItem],
+/// so the same gating serves the word and the sentence track.
 ///
 /// Pure logic, deterministic under an injected [Random].
 abstract final class ReadingSet {
@@ -22,39 +23,80 @@ abstract final class ReadingSet {
       .where((i) => KanaTokenizer.isReadable(i.displayText, learnedChars))
       .toList();
 
-  /// A session of up to [length] readable items, ordered (highest priority first):
-  /// in-season / season-neutral over off-season ([season]; off-season is never
-  /// excluded — it just sinks, so a falling cherry can still surface in winter),
-  /// then least-recently-seen over recently-seen ([lastSeen]: displayText → last
-  /// attempt ms; absent = never seen = surfaces first, so the deeper corpus keeps
-  /// feeling fresh), with a soft shuffle within each tier. Both biases are felt,
-  /// never shown. With no [season]/[lastSeen] it is a plain deterministic shuffle.
+  /// A session of up to [length] readable items, composed in three tiers and
+  /// then shuffled together (so the learner never sees the seams):
+  ///
+  /// 1. **Due** — items whose `dueAt` has passed, oldest due first. The review
+  ///    backlog always outranks novelty.
+  /// 2. **New** — up to [maxNew] never-seen items, taken in the order they
+  ///    appear in [items] (the dataset's order IS the introduction order).
+  ///    Skipped entirely while the due backlog alone fills the session — new
+  ///    material never buries overdue material.
+  /// 3. **Fill** — seen, not-yet-due items: in-season / season-neutral over
+  ///    off-season ([season]; off-season only sinks, never excluded), then
+  ///    soonest-due first (closest to fading gets the early review), with a
+  ///    soft shuffle within a tier.
+  ///
+  /// [stats] is keyed by [ReadingItem.progressId]; an absent entry means
+  /// never seen. With no stats at all a session is just the paced trickle of
+  /// new items — deliberately small: the corpus arrives a few leaves at a
+  /// time, and a learner who wants more taps もう一回.
   static List<T> session<T extends ReadingItem>({
     required List<T> items,
     required Set<String> learnedChars,
     required Random rng,
-    int length = 10,
+    required DateTime now,
+    Map<String, WordStat> stats = const {},
+    int length = 8,
+    int maxNew = 3,
     Season? season,
-    Map<String, int> lastSeen = const {},
   }) {
     final pool = readable(items, learnedChars);
-    // A deterministic per-item key — Dart's List.sort is NOT stable, so we order
-    // fully; this key is the soft shuffle within a tier.
-    final shuffleKey = [for (final _ in pool) rng.nextDouble()];
-    // Season-neutral (null) and current-season items share the top band; with no
-    // current season given, every item is top-band (no lift).
-    int band(T it) =>
-        (season == null || it.season == null || it.season == season) ? 0 : 1;
-    // Never-seen (absent → 0) sorts before seen; among seen, oldest-seen first.
-    int lastTs(T it) => lastSeen[it.displayText] ?? 0;
-    final order = List<int>.generate(pool.length, (i) => i)
-      ..sort((a, b) {
-        final byBand = band(pool[a]).compareTo(band(pool[b]));
+    WordStat statOf(T it) => stats[it.progressId] ?? const WordStat();
+
+    final due = <T>[];
+    final fresh = <T>[]; // never seen, in dataset order
+    final rest = <T>[]; // seen, not yet due
+    for (final it in pool) {
+      final s = statOf(it);
+      if (!s.isSeen) {
+        fresh.add(it);
+      } else if (s.dueAt != null && !s.dueAt!.isAfter(now)) {
+        due.add(it);
+      } else {
+        rest.add(it);
+      }
+    }
+
+    due.sort(
+      (a, b) => (statOf(a).dueAt ?? now).compareTo(statOf(b).dueAt ?? now),
+    );
+    final taken = <T>[...due.take(length)];
+
+    // Backlog gate: introduce nothing while due reviews alone fill the session.
+    final newAllowance = taken.length >= length
+        ? 0
+        : min(maxNew, length - taken.length);
+    taken.addAll(fresh.take(newAllowance));
+
+    if (taken.length < length && rest.isNotEmpty) {
+      final shuffleKey = {
+        for (final it in rest) it.progressId: rng.nextDouble(),
+      };
+      int band(T it) =>
+          (season == null || it.season == null || it.season == season) ? 0 : 1;
+      rest.sort((a, b) {
+        final byBand = band(a).compareTo(band(b));
         if (byBand != 0) return byBand;
-        final byTs = lastTs(pool[a]).compareTo(lastTs(pool[b]));
-        if (byTs != 0) return byTs;
-        return shuffleKey[a].compareTo(shuffleKey[b]);
+        final byDue = (statOf(a).dueAt ?? now).compareTo(
+          statOf(b).dueAt ?? now,
+        );
+        if (byDue != 0) return byDue;
+        return shuffleKey[a.progressId]!.compareTo(shuffleKey[b.progressId]!);
       });
-    return [for (final i in order.take(length)) pool[i]];
+      taken.addAll(rest.take(length - taken.length));
+    }
+
+    return taken..shuffle(rng);
   }
 }

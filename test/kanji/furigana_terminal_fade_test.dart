@@ -17,14 +17,21 @@ void main() {
     final at = DateTime(2026, 6);
     var s = const ReadingStat();
     // Correct recalls only, NEVER a clock — exactly how 漢字の声 records every beat.
-    for (var i = 0; i < 20; i++) {
+    // The fade level must be reachable this way, and once reached the furigana
+    // stays gone for every level the schedule climbs to beyond it.
+    for (var i = 0; i < ReadingStat.kFuriganaFadeLevel; i++) {
       s = s.recordAnswer(correct: true, at: at);
     }
-    // The reading climbs to the untimed ceiling on correct recall alone...
-    expect(s.srsLevel, ReadingStat.kUntimedCapLevel);
-    // ...and at that level the furigana is fully transparent — the training wheels
-    // come off without any timed beat. (Was 0.42 before the fade was tied to the cap.)
+    expect(s.srsLevel, ReadingStat.kFuriganaFadeLevel);
+    // At the fade level the furigana is fully transparent — the training wheels
+    // come off without any timed beat. (Was 0.42 before this was made reachable.)
     expect(RubyText.furiganaOpacity(s.srsLevel), 0.0);
+    // The schedule keeps climbing (to kMaxLevel) — the support must never return.
+    for (var i = 0; i < 20; i++) {
+      s = s.recordAnswer(correct: true, at: at);
+      expect(RubyText.furiganaOpacity(s.srsLevel), 0.0);
+    }
+    expect(s.srsLevel, ReadingStat.kMaxLevel);
   });
 
   test('a fresh / cooled reading still shows full furigana (support returns)', () {

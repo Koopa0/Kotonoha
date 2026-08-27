@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
@@ -17,6 +18,7 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
@@ -146,6 +148,15 @@ class _DictationScreenState extends State<DictationScreen> {
         rtMs: now.millisecondsSinceEpoch - _shownAtMs,
         sessionId: _sessionId,
         meta: {'romaji': _current.romaji},
+      ),
+    );
+    // 文字起こし is the words' objective schedule authority: assembled right
+    // or not, no self-grade involved.
+    context.read<ProgressPersistenceController>().trackWord(
+      context.read<WordProgressRepository>().recordAnswer(
+        _current.progressId,
+        correct: correct,
+        at: now,
       ),
     );
     if (correct) _correct++;

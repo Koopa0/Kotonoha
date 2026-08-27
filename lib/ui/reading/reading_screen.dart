@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/koten_dataset.dart';
@@ -15,6 +16,7 @@ import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
@@ -85,6 +87,15 @@ class _ReadingScreenState extends State<ReadingScreen> {
         correct: correct,
         sessionId: _sessionId,
         meta: {'romaji': _current.romaji},
+      ),
+    );
+    // 黙読 is a schedule authority for its items: the cold self-graded read
+    // advances (or resets) the item's Leitner box.
+    context.read<ProgressPersistenceController>().trackWord(
+      context.read<WordProgressRepository>().recordAnswer(
+        _current.progressId,
+        correct: correct,
+        at: now,
       ),
     );
     if (correct) _correct++;

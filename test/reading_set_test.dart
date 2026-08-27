@@ -7,9 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/models/kana.dart';
-import 'package:kotonoha/domain/models/phrase.dart';
-import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
@@ -19,6 +18,15 @@ void main() {
     Word(kana: 'いぬ', romaji: 'inu', meaning: '狗'), // needs い, ぬ
     Word(kana: 'やま', romaji: 'yama', meaning: '山'), // needs や, ま
   ];
+  final now = DateTime(2026, 8, 27, 9);
+
+  WordStat seenStat({DateTime? dueAt, int level = 1}) => WordStat.fromJson({
+    's': 3,
+    'c': 3,
+    'w': 0,
+    'sl': level,
+    if (dueAt != null) 'd': dueAt.millisecondsSinceEpoch,
+  });
 
   test('readable returns only words whose every kana is unlocked', () {
     expect(ReadingSet.readable(words, {'あ', 'い'}).map((w) => w.kana), ['あい']);
@@ -36,7 +44,9 @@ void main() {
       items: words,
       learnedChars: chars,
       rng: Random(7),
+      now: now,
       length: 2,
+      maxNew: 2,
     );
     final a = run();
     final b = run();
@@ -47,13 +57,74 @@ void main() {
     }
   });
 
-  test('session length clamps to the readable supply', () {
+  test('with no stats a session is only the paced trickle of new items', () {
     final out = ReadingSet.session(
       items: words,
-      learnedChars: {'あ', 'い'},
+      learnedChars: {'あ', 'い', 'ぬ', 'や', 'ま'},
       rng: Random(1),
+      now: now,
+      maxNew: 2,
     );
-    expect(out.length, 1); // only あい is readable
+    // Three unseen candidates, but only maxNew board — and in dataset order
+    // (the introduction order), so やま is the one left waiting.
+    expect(out.length, 2);
+    expect(out.map((w) => w.kana).toSet(), {'あい', 'いぬ'});
+  });
+
+  test('due items are always included, oldest due first when over length', () {
+    final chars = {'あ', 'い', 'ぬ', 'や', 'ま'};
+    final stats = {
+      'word:あい': seenStat(dueAt: now.subtract(const Duration(days: 3))),
+      'word:いぬ': seenStat(dueAt: now.subtract(const Duration(days: 9))),
+      'word:やま': seenStat(dueAt: now.subtract(const Duration(days: 1))),
+    };
+    final out = ReadingSet.session(
+      items: words,
+      learnedChars: chars,
+      rng: Random(2),
+      now: now,
+      stats: stats,
+      length: 2,
+    );
+    // The two longest-overdue items are chosen (order then shuffled).
+    expect(out.map((w) => w.kana).toSet(), {'いぬ', 'あい'});
+  });
+
+  test('the backlog gate: no new items while due alone fills the session', () {
+    final chars = {'あ', 'い', 'ぬ', 'や', 'ま'};
+    final stats = {
+      'word:あい': seenStat(dueAt: now.subtract(const Duration(days: 1))),
+      'word:いぬ': seenStat(dueAt: now.subtract(const Duration(days: 2))),
+      // やま never seen.
+    };
+    final out = ReadingSet.session(
+      items: words,
+      learnedChars: chars,
+      rng: Random(3),
+      now: now,
+      stats: stats,
+      length: 2,
+    );
+    expect(out.map((w) => w.kana).toSet(), {'あい', 'いぬ'});
+  });
+
+  test('seen not-yet-due items fill the remainder, soonest due first', () {
+    final chars = {'あ', 'い', 'ぬ', 'や', 'ま'};
+    final stats = {
+      'word:あい': seenStat(dueAt: now.add(const Duration(days: 30))),
+      'word:いぬ': seenStat(dueAt: now.add(const Duration(days: 1))),
+      'word:やま': seenStat(dueAt: now.add(const Duration(days: 7))),
+    };
+    final out = ReadingSet.session(
+      items: words,
+      learnedChars: chars,
+      rng: Random(4),
+      now: now,
+      stats: stats,
+      length: 2,
+    );
+    // Nothing due, nothing new — the two closest-to-due fill the session.
+    expect(out.map((w) => w.kana).toSet(), {'いぬ', 'やま'});
   });
 
   // The 黙読 track flows the real phrase corpus through the SAME generic — guard
@@ -67,54 +138,13 @@ void main() {
       items: kPhrases,
       learnedChars: allChars,
       rng: Random(3),
+      now: now,
       length: 5,
+      maxNew: 5,
     );
     expect(out.length, 5);
     for (final p in out) {
       expect(KanaTokenizer.isReadable(p.kana, allChars), isTrue);
     }
-  });
-
-  test('Season.forMonth maps each month to its season', () {
-    expect(Season.forMonth(4), Season.spring);
-    expect(Season.forMonth(7), Season.summer);
-    expect(Season.forMonth(10), Season.autumn);
-    expect(Season.forMonth(1), Season.winter);
-    expect(Season.forMonth(12), Season.winter);
-  });
-
-  test('seasonal-lift floats in-season + season-neutral above off-season', () {
-    const phrases = [
-      Phrase(kana: 'ふゆ', romaji: 'fuyu', meaning: '冬', season: Season.winter),
-      Phrase(kana: 'なつ', romaji: 'natsu', meaning: '夏', season: Season.summer),
-      Phrase(kana: 'そら', romaji: 'sora', meaning: '天'), // season-neutral
-    ];
-    final out = ReadingSet.session(
-      items: phrases,
-      learnedChars: {'ふ', 'ゆ', 'な', 'つ', 'そ', 'ら'},
-      rng: Random(1),
-      length: 3,
-      season: Season.winter,
-    );
-    // Winter (in-season) + そら (neutral) lead; summer sinks last — never excluded.
-    expect(out.last.kana, 'なつ');
-    expect(out.take(2).map((p) => p.kana), containsAll(['ふゆ', 'そら']));
-  });
-
-  test('novelty-bias surfaces never-seen, then least-recently-seen', () {
-    const words = [
-      Word(kana: 'あ', romaji: 'a', meaning: 'a'),
-      Word(kana: 'い', romaji: 'i', meaning: 'i'),
-      Word(kana: 'う', romaji: 'u', meaning: 'u'),
-    ];
-    final out = ReadingSet.session(
-      items: words,
-      learnedChars: {'あ', 'い', 'う'},
-      rng: Random(1),
-      length: 3,
-      lastSeen: {'あ': 1000, 'い': 100}, // う never seen
-    );
-    expect(out.first.kana, 'う'); // never-seen first
-    expect(out.last.kana, 'あ'); // most-recently-seen last
   });
 }
