@@ -27,6 +27,10 @@ class RubyText extends StatelessWidget {
   /// the terminal fade was once gated one step ABOVE the reachable ceiling, so it
   /// never completed in real play (furigana froze half-faded). The SCHEDULE now
   /// climbs past the fade level (to [ReadingStat.kMaxLevel]) without moving it.
+  ///
+  /// A kanji the curriculum has not taught yet has no reading id and so no
+  /// level: it stays at full support (see [_opacityFor]), which is the honest
+  /// answer — the app never fades a reading it never taught.
   static double furiganaOpacity(int srsLevel) {
     if (srsLevel >= ReadingStat.kFuriganaFadeLevel) {
       return 0; // known — the support comes off (was once unreachable)
@@ -35,6 +39,11 @@ class RubyText extends StatelessWidget {
     if (srsLevel == 1) return 0.7; // first recalls — thinning
     return 0.4; // one below the cap — faint
   }
+
+  /// Full support for a kanji whose reading is not in the curriculum (no
+  /// [RubySegment.readingId]); otherwise the reading's own maturity decides.
+  double _opacityFor(RubySegment s) =>
+      s.fades ? furiganaOpacity(srsLevelOf(s.readingId!)) : 1.0;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +60,7 @@ class RubyText extends StatelessWidget {
                 height: furiSize * 1.4,
                 child: s.isKanji
                     ? Opacity(
-                        opacity: furiganaOpacity(srsLevelOf(s.readingId!)),
+                        opacity: _opacityFor(s),
                         child: Text(
                           s.furigana!,
                           style: TextStyle(

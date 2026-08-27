@@ -15,12 +15,20 @@ import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 ///
 /// Pure logic, deterministic under an injected [Random].
 abstract final class ReadingSet {
-  /// Items every learning unit of which is readable given [learnedChars].
+  /// Items every gating stretch of which is readable given [learnedChars] —
+  /// the whole kana for a word or phrase, the plain-kana runs for a
+  /// mixed-script sentence (see [ReadingItem.gatingText]).
   static List<T> readable<T extends ReadingItem>(
     List<T> items,
     Set<String> learnedChars,
   ) => items
-      .where((i) => KanaTokenizer.isReadable(i.displayText, learnedChars))
+      .where(
+        (i) =>
+            i.gatingText.isNotEmpty &&
+            i.gatingText.every(
+              (t) => KanaTokenizer.isReadable(t, learnedChars),
+            ),
+      )
       .toList();
 
   /// A session of up to [length] readable items, composed in three tiers and

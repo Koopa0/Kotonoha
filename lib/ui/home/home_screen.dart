@@ -14,14 +14,12 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
-import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/guidance.dart';
-import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -74,21 +72,27 @@ class HomeScreen extends StatelessWidget {
                 .toSet();
             final readableWords = ReadingSet.readable(kWords, learnedChars);
             final readablePhrases = ReadingSet.readable(kPhrases, learnedChars);
-            // Kanji sentences are readable once their NON-kanji kana is known —
-            // the kanji themselves come with (fading) furigana.
-            final readableKanjiPhrases = kKanjiPhrases
-                .where(
-                  (p) => p.plainSegments.every(
-                    (s) => KanaTokenizer.isReadable(s, learnedChars),
-                  ),
-                )
-                .toList();
+            // Mixed-script sentences gate on their NON-kanji kana only — the
+            // kanji come with furigana (see ReadingItem.gatingText).
+            final readableKanjiPhrases = ReadingSet.readable(
+              kKanjiPhrases,
+              learnedChars,
+            );
             final now = DateTime.now();
             final step = Guidance.nextStep(
               store,
               now: now,
-              words: _trackDue(readableWords, wordProgress, now),
-              sentences: _trackDue(readablePhrases, wordProgress, now),
+              words: TrackDue.fromItems(readableWords, wordProgress.stats, now),
+              sentences: TrackDue.fromItems(
+                readablePhrases,
+                wordProgress.stats,
+                now,
+              ),
+              kanjiSentences: TrackDue.fromItems(
+                readableKanjiPhrases,
+                wordProgress.stats,
+                now,
+              ),
               kanji: _kanjiTrackDue(kanjiProgress, now),
             );
             // A track that just opened borrows the next-step slot for one quiet
@@ -174,6 +178,7 @@ class HomeScreen extends StatelessWidget {
                     step,
                     coldStart: store.learnedUnitCount == 0,
                     readablePhrases: readablePhrases,
+                    readableKanjiPhrases: readableKanjiPhrases,
                   ),
                 const SizedBox(height: 20),
                 if (store.learnedUnitCount > 0) ...[
@@ -454,10 +459,28 @@ class HomeScreen extends StatelessWidget {
         .push(KanjiQuizScreen.route(prompts, AppStrings.kanjiTitle));
   }
 
-  void _startKanjiSentence(BuildContext context, List<KanjiPhrase> readable) {
-    final picked = List<KanjiPhrase>.of(readable)..shuffle();
-    Navigator.of(context)
-        .push(KanjiSentenceScreen.route(picked, AppStrings.kanjiSentenceTitle));
+  void _startKanjiSentence(
+    BuildContext context,
+    List<KanjiPhrase> readable, {
+    bool replace = false,
+  }) {
+    final picked = ReadingSet.session(
+      items: readable,
+      learnedChars: StudySet.learned(context.read<KanaProgressRepository>())
+          .map((k) => k.character)
+          .toSet(),
+      rng: Random(),
+      now: DateTime.now(),
+      stats: context.read<WordProgressRepository>().stats,
+    );
+    if (picked.isEmpty) return;
+    final nav = Navigator.of(context);
+    final route = KanjiSentenceScreen.route(
+      picked,
+      AppStrings.kanjiSentenceTitle,
+      onMore: () => _startKanjiSentence(context, readable, replace: true),
+    );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
   List<QuizQuestion> _composeConfusable(KanaProgressRepository store) {
@@ -507,31 +530,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// One reading track's schedule standing, summarised over its READABLE items
-  /// for [Guidance] — computed from the same stats its sessions draw on.
-  TrackDue _trackDue(
-    List<ReadingItem> readable,
-    WordProgressRepository repo,
-    DateTime now,
-  ) {
-    var due = 0;
-    DateTime? oldest;
-    var unmet = 0;
-    for (final item in readable) {
-      final s = repo.statForItem(item.progressId);
-      if (!s.isSeen) {
-        unmet++;
-        continue;
-      }
-      final d = s.dueAt;
-      if (d != null && !d.isAfter(now)) {
-        due++;
-        if (oldest == null || d.isBefore(oldest)) oldest = d;
-      }
-    }
-    return TrackDue(dueCount: due, oldestDue: oldest, unmet: unmet);
-  }
-
   TrackDue _kanjiTrackDue(KanjiReadingRepository repo, DateTime now) {
     final dueIds = repo.dueReadingIds(now);
     final oldest = dueIds.isEmpty
@@ -541,10 +539,18 @@ class HomeScreen extends StatelessWidget {
       0,
       (n, k) => n + k.readings.length,
     );
+    DateTime? lastMet;
+    for (final s in repo.stats.values) {
+      final seenAt = s.lastReviewedAt;
+      if (seenAt != null && (lastMet == null || seenAt.isAfter(lastMet))) {
+        lastMet = seenAt;
+      }
+    }
     return TrackDue(
       dueCount: dueIds.length,
       oldestDue: oldest,
       unmet: totalReadings - repo.seenReadingCount,
+      lastMet: lastMet,
     );
   }
 
@@ -557,6 +563,7 @@ class HomeScreen extends StatelessWidget {
     GuidanceStep step, {
     required bool coldStart,
     required List<Phrase> readablePhrases,
+    required List<KanjiPhrase> readableKanjiPhrases,
   }) {
     final text = switch (step.target) {
       GuidanceTarget.lessons =>
@@ -569,6 +576,10 @@ class HomeScreen extends StatelessWidget {
         step.dueCount > 0
             ? AppStrings.guidanceSentencesReview(step.dueCount)
             : AppStrings.guidanceMeetSentences,
+      GuidanceTarget.kanjiSentences =>
+        step.dueCount > 0
+            ? AppStrings.guidanceKanjiSentencesReview(step.dueCount)
+            : AppStrings.guidanceMeetKanjiSentences,
       GuidanceTarget.kanji =>
         step.dueCount > 0
             ? AppStrings.guidanceKanjiReview(step.dueCount)
@@ -591,6 +602,10 @@ class HomeScreen extends StatelessWidget {
       GuidanceTarget.sentences => () => _startSentence(
         context,
         readablePhrases,
+      ),
+      GuidanceTarget.kanjiSentences => () => _startKanjiSentence(
+        context,
+        readableKanjiPhrases,
       ),
       GuidanceTarget.kanji => () => _startKanji(context),
       GuidanceTarget.lessons || GuidanceTarget.rest => () => Navigator.of(

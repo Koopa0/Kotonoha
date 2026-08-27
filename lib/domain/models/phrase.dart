@@ -37,4 +37,7 @@ class Phrase implements ReadingItem {
 
   @override
   String get progressId => 'phrase:$kana';
+
+  @override
+  List<String> get gatingText => [kana];
 }

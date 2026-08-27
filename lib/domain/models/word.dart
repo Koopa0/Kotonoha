@@ -52,6 +52,9 @@ class Word implements ReadingItem {
   @override
   String get progressId => 'word:$kana';
 
+  @override
+  List<String> get gatingText => [kana];
+
   // Words carry no season (the seasonal corpus lives in the phrases); a word is
   // always "in season", so the lift never sinks it.
   @override

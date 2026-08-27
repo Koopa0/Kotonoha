@@ -38,6 +38,75 @@ Map<String, String> _romajiMap(KanaScript script) => {
     if (k.script == script) k.character: k.romaji,
 };
 
+/// Script-agnostic shape → romaji (あ and ア are both `a`), for readings that
+/// mix scripts in one string — every sentence with a loanword does.
+final Map<String, String> _anyScriptRomaji = {
+  for (final k in kAllKana) k.character: k.romaji,
+  ...kSmallVowelComboRomaji,
+};
+
+/// Particles whose spoken reading differs from their kana-table value. A
+/// sentence reading is a bare kana string with no word boundaries, so whether
+/// a given は is the topic particle or part of a word (はな) is genuinely
+/// ambiguous here — the derivation branches and returns BOTH.
+const Map<String, String> _particleReadings = {'は': 'wa', 'へ': 'e', 'を': 'o'};
+
+/// Every romaji string that could correctly transcribe [kanaReading] (a whole
+/// sentence's kana, mixed scripts allowed), spaces omitted. Branches on each
+/// ambiguous particle and on the optional apostrophe after ん before a vowel
+/// (needed when nothing separates them: `hon'ya`, but `hon o` needs none).
+///
+/// Empty when a token has no transcription or a special mora sits in an
+/// illegal spot — that is a corpus error, and the caller reports it as one.
+Set<String> possibleReadingRomaji(String kanaReading) {
+  final tokens = KanaTokenizer.tokenize(kanaReading);
+  if (tokens.isEmpty) return {};
+  var branches = <String>{''};
+  String? plain(String t) => _anyScriptRomaji[t];
+
+  for (var i = 0; i < tokens.length; i++) {
+    final t = tokens[i];
+    final next = i + 1 < tokens.length ? plain(tokens[i + 1]) : null;
+    final grown = <String>{};
+
+    if (t == KanaTokenizer.sokuonHiragana ||
+        t == KanaTokenizer.sokuonKatakana) {
+      if (next == null || next.isEmpty) return {};
+      final doubled = next.startsWith('ch') ? 't' : next[0];
+      for (final b in branches) {
+        grown.add(b + doubled);
+      }
+    } else if (t == KanaTokenizer.choonpu) {
+      for (final b in branches) {
+        if (b.isEmpty || !_vowels.contains(b[b.length - 1])) return {};
+        grown.add(b + b[b.length - 1]);
+      }
+    } else if (t == 'ん' || t == 'ン') {
+      final needsApostrophe =
+          next != null &&
+          next.isNotEmpty &&
+          (_vowels.contains(next[0]) || next[0] == 'y');
+      for (final b in branches) {
+        grown.add('${b}n');
+        if (needsApostrophe) grown.add("${b}n'");
+      }
+    } else {
+      final table = plain(t);
+      if (table == null) return {};
+      final particle = _particleReadings[t];
+      for (final b in branches) {
+        grown.add(b + table);
+        if (particle != null) grown.add(b + particle);
+      }
+    }
+    branches = grown;
+    // A pathological sentence (a dozen ambiguous particles) would blow up the
+    // branch set; no real sentence comes close, so bail loudly instead.
+    if (branches.length > 4096) return {};
+  }
+  return branches;
+}
+
 /// The canonical romaji for [kana] under this app's transcription rules, or
 /// null if a token has no defined transcription (which the orthography
 /// validator reports separately).

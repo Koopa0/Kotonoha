@@ -7,8 +7,10 @@ import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 
+import '../helpers/kana_orthography.dart';
+
 void main() {
-  test('written / reading / plainSegments getters', () {
+  test('written / reading / gatingText getters', () {
     const p = KanjiPhrase(
       segments: [
         RubySegment(text: '山', furigana: 'やま', readingId: 'reading:山#やま'),
@@ -21,10 +23,15 @@ void main() {
     );
     expect(p.written, '山を見る');
     expect(p.reading, 'やまをみる');
-    expect(p.plainSegments, ['を', 'る']);
+    expect(p.gatingText, ['を', 'る']);
   });
 
-  test('every furigana segment resolves to a real reading id (fade works)', () {
+  test('a furigana segment either fades against a real reading, or never', () {
+    // A kanji the curriculum has not taught yet carries furigana with NO
+    // reading id and keeps it forever (honest: the app never fades a reading
+    // it never taught). What must never happen is a reading id pointing at
+    // nothing — that would silently read as level 0 and look identical to
+    // "brand new" while actually being a typo.
     final validIds = {for (final k in kKanji) ...k.readingIds};
     for (final p in kKanjiPhrases) {
       expect(p.romaji, isNotEmpty, reason: p.written);
@@ -33,12 +40,43 @@ void main() {
         if (s.isKanji) {
           expect(s.text.runes.length, 1, reason: p.written);
           expect(
-            validIds.contains(s.readingId),
+            s.furigana!.runes.every((r) => r >= 0x3040 && r <= 0x30ff),
             isTrue,
-            reason: '${p.written}: ${s.readingId} not in kKanji',
+            reason: '${p.written}: furigana "${s.furigana}" is not kana',
           );
+          if (s.readingId != null) {
+            expect(
+              validIds.contains(s.readingId),
+              isTrue,
+              reason: '${p.written}: ${s.readingId} not in kKanji',
+            );
+          }
         }
       }
+    }
+  });
+
+  test('every sentence romaji is derivable from its own furigana reading', () {
+    // The one mechanical check on furigana correctness at corpus scale: a
+    // typo in any furigana changes `reading`, which changes what the romaji
+    // can be, and the two stop agreeing. Particle readings (は/へ/を) and the
+    // optional ん-apostrophe are genuinely ambiguous without word boundaries,
+    // so the derivation offers every legal transcription and the stored
+    // romaji must be one of them.
+    for (final p in kKanjiPhrases) {
+      final candidates = possibleReadingRomaji(p.reading);
+      expect(
+        candidates,
+        isNotEmpty,
+        reason: '${p.written}: reading "${p.reading}" is not transcribable',
+      );
+      expect(
+        candidates.contains(p.romaji.replaceAll(' ', '')),
+        isTrue,
+        reason:
+            '${p.written}: romaji "${p.romaji}" does not match its reading '
+            '"${p.reading}"',
+      );
     }
   });
 
@@ -51,7 +89,7 @@ void main() {
       // learned. The corpus must always give the gate something real to hold.
       for (final p in kKanjiPhrases) {
         expect(
-          p.plainSegments,
+          p.gatingText,
           isNotEmpty,
           reason: '${p.written}: no plain kana segment — readable at zero kana',
         );
@@ -66,7 +104,7 @@ void main() {
     const firstRow = {'あ', 'い', 'う', 'え', 'お'};
     for (final p in kKanjiPhrases) {
       expect(
-        p.plainSegments.every((s) => KanaTokenizer.isReadable(s, firstRow)),
+        p.gatingText.every((s) => KanaTokenizer.isReadable(s, firstRow)),
         isFalse,
         reason: '${p.written}: readable with あ行 alone',
       );

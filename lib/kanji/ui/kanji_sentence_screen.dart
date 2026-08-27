@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/material.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -9,30 +10,45 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
-/// The furigana-fade reading bridge: read a short kanji sentence (furigana over
-/// each kanji thins out as that reading matures via the kanji practice), then
-/// reveal the full kana reading + meaning + audio and self-grade. Records a
-/// reading [Attempt]; the per-reading SRS is driven by the kanji practice, not
-/// here — this is the consumption side that the kanji work unlocks.
+/// Sentence reading in real written Japanese — the home of the grammar-pattern
+/// spine. Read the sentence (furigana over each kanji thins out as that reading
+/// matures in 漢字の声), then reveal the full kana reading + meaning + audio and
+/// self-grade.
+///
+/// TWO schedules meet here and stay separate: the per-READING kanji SRS is
+/// driven by 漢字の声 (this screen never touches it — it only consumes its
+/// maturity to fade furigana), while the per-SENTENCE schedule is this
+/// screen's own, a cold self-graded read recorded against
+/// `WordProgressRepository`. So re-reading a sentence never inflates a kanji
+/// reading's mastery, and mastering a reading never marks a sentence reviewed.
 class KanjiSentenceScreen extends StatefulWidget {
   const KanjiSentenceScreen({
     required this.phrases,
     required this.title,
+    this.onMore,
     super.key,
   });
 
   final List<KanjiPhrase> phrases;
   final String title;
 
-  static Route<void> route(List<KanjiPhrase> phrases, String title) =>
-      MaterialPageRoute<void>(
-        builder: (_) => KanjiSentenceScreen(phrases: phrases, title: title),
-      );
+  /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
+  final VoidCallback? onMore;
+
+  static Route<void> route(
+    List<KanjiPhrase> phrases,
+    String title, {
+    VoidCallback? onMore,
+  }) => MaterialPageRoute<void>(
+    builder: (_) =>
+        KanjiSentenceScreen(phrases: phrases, title: title, onMore: onMore),
+  );
 
   @override
   State<KanjiSentenceScreen> createState() => _KanjiSentenceScreenState();
@@ -65,6 +81,15 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
         meta: {'reading': _current.reading},
       ),
     );
+    // The sentence's own schedule — a cold self-graded read. (The per-reading
+    // kanji SRS belongs to 漢字の声 and is deliberately untouched here.)
+    context.read<ProgressPersistenceController>().trackWord(
+      context.read<WordProgressRepository>().recordAnswer(
+        _current.progressId,
+        correct: correct,
+        at: now,
+      ),
+    );
     if (correct) _correct++;
     if (_index + 1 >= widget.phrases.length) {
       setState(() => _done = true);
@@ -84,14 +109,16 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
     );
   }
 
-  Widget _summary() => SessionSummary(
-    headline: AppStrings.readingSummary(_correct, widget.phrases.length),
-    note: AppStrings.closing(
-      widget.phrases.last.written,
-      band: ClosingBand.forHour(DateTime.now().hour),
-    ),
-    onDone: () => Navigator.of(context).pop(),
-  );
+  Widget _summary() {
+    final band = ClosingBand.forHour(DateTime.now().hour);
+    return SessionSummary(
+      headline: AppStrings.readingSummary(_correct, widget.phrases.length),
+      note: AppStrings.closing(widget.phrases.last.written, band: band),
+      onDone: () => Navigator.of(context).pop(),
+      // Night close grants permission to stop — suppress もう一回 at render time.
+      onMore: band == ClosingBand.day ? widget.onMore : null,
+    );
+  }
 
   Widget _question() {
     final repo = context.read<KanjiReadingRepository>();

@@ -9,6 +9,14 @@ import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  Future<KanaProgressRepository> kanaGraduated() async {
+    final store = await KanaProgressRepository.load();
+    for (final lesson in Lessons.fromKana(store.allKana)) {
+      await store.markUnitLearned(lesson.id);
+    }
+    return store;
+  }
+
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -64,10 +72,7 @@ void main() {
   });
 
   test('F — every row learned and nothing due anywhere: rest', () async {
-    final store = await KanaProgressRepository.load();
-    for (final lesson in Lessons.fromKana(store.allKana)) {
-      await store.markUnitLearned(lesson.id);
-    }
+    final store = await kanaGraduated();
 
     final step = Guidance.nextStep(store, now: now);
 
@@ -103,58 +108,147 @@ void main() {
     },
   );
 
-  test('D outranks E: a due review beats meeting new material', () async {
-    final store = await KanaProgressRepository.load();
-    for (final lesson in Lessons.fromKana(store.allKana)) {
-      await store.markUnitLearned(lesson.id);
-    }
+  test('D — a full session of reviews outranks meeting new material', () async {
+    final store = await kanaGraduated();
 
     final step = Guidance.nextStep(
       store,
       now: now,
-      words: const TrackDue(unmet: 200),
+      words: TrackDue(
+        unmet: 200,
+        lastMet: now.subtract(const Duration(days: 1)),
+      ),
       sentences: TrackDue(
-        dueCount: 1,
+        dueCount: Guidance.kReviewFirstBacklog,
         oldestDue: now.subtract(const Duration(hours: 1)),
+        lastMet: now.subtract(const Duration(days: 1)),
       ),
     );
 
     expect(step.target, GuidanceTarget.sentences);
+    expect(step.dueCount, Guidance.kReviewFirstBacklog);
   });
 
-  test('E — nothing due: meet unmet material in curriculum order', () async {
-    final store = await KanaProgressRepository.load();
-    for (final lesson in Lessons.fromKana(store.allKana)) {
-      await store.markUnitLearned(lesson.id);
-    }
+  test(
+    'a backlog smaller than a session yields to the neglected track',
+    () async {
+      final store = await kanaGraduated();
 
-    expect(
-      Guidance.nextStep(
+      // Two items due is not a day's work. Spending the slack on new material
+      // costs nothing — what stays due is still due tomorrow — and it is the
+      // only thing that keeps the words track (whose meeting beat is a separate
+      // room) from going months without an introduction.
+      final step = Guidance.nextStep(
         store,
         now: now,
-        words: const TrackDue(unmet: 3),
-        sentences: const TrackDue(unmet: 9),
-        kanji: const TrackDue(unmet: 100),
-      ).target,
-      GuidanceTarget.ferry,
-    );
-    expect(
-      Guidance.nextStep(
+        words: TrackDue(
+          unmet: 200,
+          lastMet: now.subtract(const Duration(days: 9)),
+        ),
+        sentences: TrackDue(
+          dueCount: 2,
+          oldestDue: now.subtract(const Duration(hours: 1)),
+          lastMet: now.subtract(const Duration(hours: 1)),
+        ),
+      );
+
+      expect(step.target, GuidanceTarget.ferry);
+    },
+  );
+
+  test(
+    'E — cold start: with nothing ever met, declaration order breaks the tie',
+    () async {
+      final store = await kanaGraduated();
+
+      expect(
+        Guidance.nextStep(
+          store,
+          now: now,
+          words: const TrackDue(unmet: 3),
+          sentences: const TrackDue(unmet: 9),
+          kanji: const TrackDue(unmet: 100),
+        ).target,
+        GuidanceTarget.ferry,
+      );
+      expect(
+        Guidance.nextStep(
+          store,
+          now: now,
+          sentences: const TrackDue(unmet: 9),
+          kanji: const TrackDue(unmet: 100),
+        ).target,
+        GuidanceTarget.sentences,
+      );
+      expect(
+        Guidance.nextStep(
+          store,
+          now: now,
+          kanji: const TrackDue(unmet: 100),
+        ).target,
+        GuidanceTarget.kanji,
+      );
+    },
+  );
+
+  test(
+    'E — the track NEGLECTED longest gets the introduction, not the biggest',
+    () async {
+      final store = await kanaGraduated();
+
+      // The words track is huge and was touched an hour ago; the sentence track
+      // is small and has not been touched in a week. A first-match curriculum
+      // chain would point at 渡し舟 for months — the whole reason E sorts.
+      final step = Guidance.nextStep(
         store,
         now: now,
-        sentences: const TrackDue(unmet: 9),
-        kanji: const TrackDue(unmet: 100),
-      ).target,
-      GuidanceTarget.sentences,
-    );
-    expect(
-      Guidance.nextStep(
+        words: TrackDue(
+          unmet: 250,
+          lastMet: now.subtract(const Duration(hours: 1)),
+        ),
+        kanjiSentences: TrackDue(
+          unmet: 4,
+          lastMet: now.subtract(const Duration(days: 7)),
+        ),
+      );
+
+      expect(step.target, GuidanceTarget.kanjiSentences);
+    },
+  );
+
+  test(
+    'E — a track never touched at all outranks every track that has been',
+    () async {
+      final store = await kanaGraduated();
+
+      final step = Guidance.nextStep(
         store,
         now: now,
-        kanji: const TrackDue(unmet: 100),
-      ).target,
-      GuidanceTarget.kanji,
+        words: TrackDue(
+          unmet: 250,
+          lastMet: now.subtract(const Duration(days: 30)),
+        ),
+        kanji: const TrackDue(unmet: 100), // lastMet null — never met
+      );
+
+      expect(step.target, GuidanceTarget.kanji);
+    },
+  );
+
+  test('D — a due mixed-script sentence routes to 名残の仮名', () async {
+    final store = await kanaGraduated();
+
+    final step = Guidance.nextStep(
+      store,
+      now: now,
+      kanjiSentences: TrackDue(
+        dueCount: 2,
+        oldestDue: now.subtract(const Duration(days: 1)),
+      ),
     );
+
+    expect(step.target, GuidanceTarget.kanjiSentences);
+    expect(step.dueCount, 2);
   });
 
   test(

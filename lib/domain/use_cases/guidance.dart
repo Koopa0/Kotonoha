@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/scheduler.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -17,8 +19,11 @@ enum GuidanceTarget {
   /// Review due words cold (文字起こし).
   dictation,
 
-  /// Read sentences — due ones first (黙読).
+  /// Read kana sentences — due ones first (黙読).
   sentences,
+
+  /// Read mixed-script sentences, the grammar-pattern spine (名残の仮名).
+  kanjiSentences,
 
   /// Kanji readings — due reviews or new teach beats (漢字の声).
   kanji,
@@ -29,7 +34,12 @@ enum GuidanceTarget {
 /// which holds the repositories) summarises each track into one of these so
 /// this use_case never has to import the kanji module or walk stat maps.
 class TrackDue {
-  const TrackDue({this.dueCount = 0, this.oldestDue, this.unmet = 0});
+  const TrackDue({
+    this.dueCount = 0,
+    this.oldestDue,
+    this.unmet = 0,
+    this.lastMet,
+  });
 
   static const TrackDue none = TrackDue();
 
@@ -41,6 +51,48 @@ class TrackDue {
 
   /// Readable items never met yet.
   final int unmet;
+
+  /// When this track was last touched at all — the most recent review instant
+  /// across its met items, or null if nothing in it has ever been met. It is
+  /// how long a track has gone NEGLECTED, which is what decides who gets the
+  /// next introduction (never a count, never shown).
+  final DateTime? lastMet;
+
+  /// Summarises one reading track from the items the learner can actually read
+  /// and the stats its sessions schedule by. Lives here, not in the View, so
+  /// the guidance rules and the thing that feeds them are tested together.
+  static TrackDue fromItems(
+    List<ReadingItem> readable,
+    Map<String, WordStat> stats,
+    DateTime now,
+  ) {
+    var dueCount = 0;
+    var unmet = 0;
+    DateTime? oldestDue;
+    DateTime? lastMet;
+    for (final item in readable) {
+      final s = stats[item.progressId] ?? const WordStat();
+      if (!s.isSeen) {
+        unmet++;
+        continue;
+      }
+      final seenAt = s.lastReviewedAt;
+      if (seenAt != null && (lastMet == null || seenAt.isAfter(lastMet))) {
+        lastMet = seenAt;
+      }
+      final d = s.dueAt;
+      if (d != null && !d.isAfter(now)) {
+        dueCount++;
+        if (oldestDue == null || d.isBefore(oldestDue)) oldestDue = d;
+      }
+    }
+    return TrackDue(
+      dueCount: dueCount,
+      oldestDue: oldestDue,
+      unmet: unmet,
+      lastMet: lastMet,
+    );
+  }
 }
 
 /// One calm "do this next" decision, derived from learning state.
@@ -72,6 +124,12 @@ class GuidanceStep {
 /// next? One quiet step at a time — never a map or a checklist. Pure logic,
 /// deterministic under an injected [now].
 abstract final class Guidance {
+  /// One session's worth of reviews. At or above it the day is spent revising;
+  /// below it there is room for new material. The same intake valve the
+  /// session composers apply inside a room, applied one level up — between
+  /// rooms — because the words track meets and reviews in two different ones.
+  static const int kReviewFirstBacklog = 8;
+
   /// First-match-wins over three eras:
   ///
   /// **The kana era** (unchanged — the foundation always speaks first):
@@ -79,16 +137,26 @@ abstract final class Guidance {
   /// - **B** kana reviews are due → today's session (今日の稽古), with count.
   /// - **C** caught up but rows remain → keep learning (手解き).
   ///
-  /// **The reading era** (the kana are quiet — route into the corpus):
-  /// - **D** something is due in a reading track → the track whose oldest due
-  ///   item has waited longest (cross-track fairness: no track can be starved
-  ///   by another's endless novelty; ties break words → sentences → kanji).
-  ///   Words review in 文字起こし, sentences in 黙読, readings in 漢字の声.
-  /// - **E** nothing due anywhere but unmet material remains → meet it, in
-  ///   curriculum order: new words (渡し舟), then new sentences (黙読), then
-  ///   new kanji readings (漢字の声).
+  /// **The reading era** (the kana are quiet — route into the corpus). Its
+  /// branches all answer the same question, "who has waited longest?", so no
+  /// track can be starved by another's bigger pool:
+  /// - **D0** a track never opened at all → open it. Once each, ahead of
+  ///   reviews: an unopened room is not novelty competing with revision, it is
+  ///   a whole part of the app the learner cannot see exists.
+  /// - **D** something is due somewhere → the track whose oldest due item has
+  ///   waited longest. Words review in 文字起こし, kana sentences in 黙読,
+  ///   mixed-script sentences in 名残の仮名, readings in 漢字の声.
+  /// - **E** nothing due but unmet material remains → the track NEGLECTED
+  ///   longest gets the introduction (oldest [TrackDue.lastMet]; a track never
+  ///   touched at all wins outright). A fixed curriculum order here would have
+  ///   pointed at 渡し舟 for months — the word pool is the largest, so a
+  ///   first-match chain silently hides every other track until it empties.
   ///
   /// - **F** everything met and nothing due → rest; the day is theirs.
+  ///
+  /// Ties in either branch fall back to declaration order (words → kana
+  /// sentences → mixed sentences → kanji), which only matters on a cold start
+  /// where every track is equally untouched.
   ///
   /// "Due" for kana reuses [StudySet.reviewPool] + [Scheduler] so it never
   /// diverges from what 今日の稽古 itself draws on; each reading track's
@@ -99,6 +167,7 @@ abstract final class Guidance {
     required DateTime now,
     TrackDue words = TrackDue.none,
     TrackDue sentences = TrackDue.none,
+    TrackDue kanjiSentences = TrackDue.none,
     TrackDue kanji = TrackDue.none,
   }) {
     // A — a brand-new learner: send them to be taught, before anything is due.
@@ -120,23 +189,67 @@ abstract final class Guidance {
     if (hasUnlearned) {
       return const GuidanceStep(GuidanceTarget.lessons);
     }
-    // D — the reading tracks: oldest-waiting due item wins.
-    final candidates = [
-      (GuidanceTarget.dictation, words),
-      (GuidanceTarget.sentences, sentences),
-      (GuidanceTarget.kanji, kanji),
-    ].where((c) => c.$2.dueCount > 0 && c.$2.oldestDue != null).toList();
-    if (candidates.isNotEmpty) {
-      candidates.sort((a, b) => a.$2.oldestDue!.compareTo(b.$2.oldestDue!));
-      final (target, track) = candidates.first;
-      return GuidanceStep(target, dueCount: track.dueCount);
+    // The reading era. Declaration order is the tie-break for both branches.
+    final tracks = [
+      (review: GuidanceTarget.dictation, meet: GuidanceTarget.ferry, t: words),
+      (
+        review: GuidanceTarget.sentences,
+        meet: GuidanceTarget.sentences,
+        t: sentences,
+      ),
+      (
+        review: GuidanceTarget.kanjiSentences,
+        meet: GuidanceTarget.kanjiSentences,
+        t: kanjiSentences,
+      ),
+      (review: GuidanceTarget.kanji, meet: GuidanceTarget.kanji, t: kanji),
+    ];
+
+    // D0 — a track the learner has NEVER opened gets opened first, ahead of
+    // any review. Opening a room is a one-off event per track, not recurring
+    // novelty, so it cannot crowd reviews out; leaving it behind them can and
+    // did — reviews of an already-started track regenerate every day, so a
+    // review-first rule alone hid the newest track for ~86 simulated days
+    // (see guidance_fairness_simulation_test).
+    final unopened = tracks.where((c) => c.t.unmet > 0 && c.t.lastMet == null);
+    if (unopened.isNotEmpty) {
+      return GuidanceStep(unopened.first.meet);
     }
-    // E — nothing due: meet what is still unmet, in curriculum order.
-    if (words.unmet > 0) return const GuidanceStep(GuidanceTarget.ferry);
-    if (sentences.unmet > 0) {
-      return const GuidanceStep(GuidanceTarget.sentences);
+
+    final overdue =
+        tracks.where((c) => c.t.dueCount > 0 && c.t.oldestDue != null).toList()
+          ..sort((a, b) => a.t.oldestDue!.compareTo(b.t.oldestDue!));
+    final backlog = tracks.fold<int>(0, (n, c) => n + c.t.dueCount);
+
+    GuidanceStep review() =>
+        GuidanceStep(overdue.first.review, dueCount: overdue.first.t.dueCount);
+
+    // D — the review backlog already fills a whole session: revise, longest
+    // overdue first. Below that threshold the day has slack, and spending it
+    // on new material costs nothing (what stays due is picked up tomorrow).
+    if (backlog >= kReviewFirstBacklog) return review();
+
+    // E — there is slack: the track neglected longest gets new material. This
+    // has to outrank a small backlog, because for words the meeting beat and
+    // the reviewing beat are different rooms (渡し舟 / 文字起こし) — a strict
+    // review-first rule pointed at 文字起こし almost every day and the learner
+    // met three new words in half a year (guidance_fairness_simulation_test).
+    final unmet = tracks.where((c) => c.t.unmet > 0).toList();
+    if (unmet.isNotEmpty) {
+      unmet.sort((a, b) {
+        final x = a.t.lastMet;
+        final y = b.t.lastMet;
+        if (x == null && y == null) return 0;
+        if (x == null) return -1;
+        if (y == null) return 1;
+        return x.compareTo(y);
+      });
+      return GuidanceStep(unmet.first.meet);
     }
-    if (kanji.unmet > 0) return const GuidanceStep(GuidanceTarget.kanji);
+
+    // Nothing new anywhere, but a few items are still due.
+    if (overdue.isNotEmpty) return review();
+
     // F — everything met, nothing pending: the day is theirs.
     return const GuidanceStep(GuidanceTarget.rest);
   }

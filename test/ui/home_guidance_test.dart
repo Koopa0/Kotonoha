@@ -12,9 +12,14 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/data/phrase_dataset.dart';
+import 'package:kotonoha/domain/data/word_dataset.dart';
+import 'package:kotonoha/domain/use_cases/guidance.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
+import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
+import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:provider/provider.dart';
@@ -86,14 +91,48 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('a due word routes the ambient line to 文字起こし', (tester) async {
-    final repos = await kanaGraduated();
-    // Met two days ago at level 1 (due after 1 day) → overdue now.
+  /// Opens every reading track (branch D0 hands the line to any room the
+  /// learner has never entered, ahead of all reviews) and leaves the words
+  /// track holding a full session's backlog — below that the line spends the
+  /// slack on new material instead (Guidance.kReviewFirstBacklog).
+  Future<void> seedOpenedWithWordBacklog(
+    ({
+      KanaProgressRepository kana,
+      KanjiReadingRepository kanji,
+      WordProgressRepository words,
+    })
+    repos, {
+    bool openKanji = true,
+  }) async {
+    final justNow = DateTime.now().subtract(const Duration(minutes: 5));
     await repos.words.recordAnswer(
-      'word:いぬ',
+      kPhrases.first.progressId,
       correct: true,
-      at: DateTime.now().subtract(const Duration(days: 2)),
+      at: justNow,
     );
+    await repos.words.recordAnswer(
+      kKanjiPhrases.first.progressId,
+      correct: true,
+      at: justNow,
+    );
+    if (openKanji) {
+      await repos.kanji.recordAnswer(
+        kKanji.first.readingIds.first,
+        correct: true,
+        at: justNow,
+      );
+    }
+    final overdue = DateTime.now().subtract(const Duration(days: 2));
+    for (final w in kWords.take(Guidance.kReviewFirstBacklog)) {
+      await repos.words.recordAnswer(w.progressId, correct: true, at: overdue);
+    }
+  }
+
+  testWidgets('a full backlog routes the ambient line to 文字起こし', (
+    tester,
+  ) async {
+    final repos = await kanaGraduated();
+    await seedOpenedWithWordBacklog(repos);
 
     await pumpHome(tester, repos);
 
@@ -104,13 +143,9 @@ void main() {
     tester,
   ) async {
     final repos = await kanaGraduated();
-    await repos.words.recordAnswer(
-      'word:いぬ',
-      correct: true,
-      at: DateTime.now().subtract(const Duration(days: 2)),
-    );
-    // The kanji reading has waited longer — its line wins even though the
-    // words track has a due item too.
+    // The kanji track is opened by an answer from ten days ago, so it is both
+    // opened (D0 is satisfied) and the longest-overdue track there is.
+    await seedOpenedWithWordBacklog(repos, openKanji: false);
     await repos.kanji.recordAnswer(
       'reading:人#ひと',
       correct: true,

@@ -43,6 +43,9 @@ abstract final class AppStrings {
   static const String guidanceLearnMore = '複習都跟上了 —— 繼續「手解き」,學新的一行。';
   static String guidanceWordsReview(int n) => '今天先做「文字起こし」—— 有 $n 個詞等著再會。';
   static String guidanceSentencesReview(int n) => '今天先讀「黙読」—— 有 $n 句想被再讀一次。';
+  static String guidanceKanjiSentencesReview(int n) =>
+      '今天先讀「名残の仮名」—— 有 $n 句等著再讀一次。';
+  static const String guidanceMeetKanjiSentences = '到「名残の仮名」—— 讀幾句新的日語。';
   static String guidanceKanjiReview(int n) => '今天先做「漢字の声」—— 有 $n 個讀音該複習了。';
   static const String guidanceMeetWords = '假名都熟了 —— 坐「渡し舟」,去見新的詞。';
   static const String guidanceMeetSentences = '詞都見過了 —— 到「黙読」,讀新的句子。';
@@ -196,7 +199,9 @@ abstract final class AppStrings {
 
   // Kanji sentence reading (furigana fades as readings mature)
   static const String kanjiSentenceEntry = '名残の仮名';
-  static const String kanjiSentenceSubtitle = '讀有漢字的句子,讀音會慢慢淡出';
+  // Honest promise: only readings the learner has actually met in 漢字の声 can
+  // fade. A kanji the curriculum hasn't reached keeps its furigana for good.
+  static const String kanjiSentenceSubtitle = '讀日語的句子;學過的漢字,讀音會慢慢淡出';
   static const String kanjiSentenceTitle = '名残の仮名';
   static const String kanjiSentencePrompt = '在心裡讀出整句';
 
