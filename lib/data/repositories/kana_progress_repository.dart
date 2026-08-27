@@ -131,6 +131,13 @@ class KanaProgressRepository extends ChangeNotifier {
 
   int get learnedUnitCount => _learnedUnits.length;
 
+  /// Read-only view of learned unit ids for a portable snapshot export
+  /// (consistent with [stats] / [seenUnlocks]). It is the raw set — unknown or
+  /// retired ids are preserved, never re-derived from the current lesson
+  /// dataset — so a snapshot never silently drops progress on content that has
+  /// since been renamed or removed.
+  Set<String> get learnedUnits => Set.unmodifiable(_learnedUnits);
+
   /// Marks a lesson/unit as passed and persists. The returned future
   /// completes with an error if persisting failed — the in-memory state
   /// keeps the unit and the next mutation retries the write. A call whose id
