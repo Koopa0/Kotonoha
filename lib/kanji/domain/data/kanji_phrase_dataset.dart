@@ -1,6 +1,10 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:kotonoha/kanji/domain/data/phrases/minna_l01_06.dart';
+import 'package:kotonoha/kanji/domain/data/phrases/minna_l07_12.dart';
+import 'package:kotonoha/kanji/domain/data/phrases/minna_l13_19.dart';
+import 'package:kotonoha/kanji/domain/data/phrases/minna_l20_25.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 
 /// Short kanji sentences for the furigana-fade reading bridge. Every kanji uses
@@ -804,4 +808,10 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
     romaji: 'eki kara aruku',
     meaning: '從車站步行',
   ),
+  // The N5 grammar-pattern spine (《大家的日本語》 I), one file per lesson
+  // range so the corpus can grow a batch at a time.
+  ...kMinnaL01to06,
+  ...kMinnaL07to12,
+  ...kMinnaL13to19,
+  ...kMinnaL20to25,
 ];

@@ -55,12 +55,18 @@ abstract final class KanaTokenizer {
     'ヮ': 'ワ',
   };
 
-  /// [kana] split into learning-unit tokens; layout spaces removed.
+  /// Japanese punctuation: read as pauses and quote marks, never sounded, so
+  /// it is not a learning unit and never gates a sentence. It must ride along
+  /// inside a plain-kana segment (`んで、`), never sit in a segment of its own.
+  static const Set<String> _punctuation = {'、', '。', '「', '」', '・', '？', '！'};
+
+  /// [kana] split into learning-unit tokens; layout spaces and punctuation
+  /// removed.
   static List<String> tokenize(String kana) {
     final tokens = <String>[];
     for (final rune in kana.runes) {
       final ch = String.fromCharCode(rune);
-      if (ch == ' ' || ch == '　') continue;
+      if (ch == ' ' || ch == '　' || _punctuation.contains(ch)) continue;
       if (_small.contains(ch) && tokens.isNotEmpty) {
         tokens[tokens.length - 1] = tokens.last + ch;
         continue;

@@ -71,7 +71,7 @@ void main() {
         reason: '${p.written}: reading "${p.reading}" is not transcribable',
       );
       expect(
-        candidates.contains(p.romaji.replaceAll(' ', '')),
+        candidates.contains(p.romaji.replaceAll(RegExp('[ ,.、。]'), '')),
         isTrue,
         reason:
             '${p.written}: romaji "${p.romaji}" does not match its reading '

@@ -28,6 +28,15 @@ void main() {
       expect(KanaTokenizer.tokenize('パーティー'), ['パ', 'ー', 'ティ', 'ー']);
     });
 
+    test('punctuation is dropped — it is read as a pause, never sounded', () {
+      // Punctuation rides inside a plain-kana segment (んで、) so a sentence
+      // can use natural Japanese commas without the gate treating them as an
+      // unlearnable unit.
+      expect(KanaTokenizer.tokenize('んで、'), ['ん', 'で']);
+      expect(KanaTokenizer.tokenize('はい。'), ['は', 'い']);
+      expect(KanaTokenizer.isReadable('んで、', {'ん', 'で'}), isTrue);
+    });
+
     test('layout spaces are dropped', () {
       expect(KanaTokenizer.tokenize('そらが あおい'), ['そ', 'ら', 'が', 'あ', 'お', 'い']);
     });
