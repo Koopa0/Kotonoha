@@ -16,6 +16,12 @@ analyzer:
     - "build/**"
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     # Promote the lints that signal real risk from warning to error (fail CI).
     unawaited_futures: error
@@ -48,6 +54,5 @@ linter:
     - prefer_final_locals
     - throw_in_finally
     - unawaited_futures
-    - unnecessary_await_in_return
     - unnecessary_lambdas
     - use_super_parameters

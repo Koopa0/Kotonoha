@@ -87,15 +87,13 @@ class StoreWriteFailure implements Exception {
 /// the user's progress.
 class RecoverableStore<T> {
   RecoverableStore({
-    required PreferencesService prefs,
+    required this._prefs,
     required this.primaryKey,
     required this.lastGoodKey,
     required this.quarantineKey,
-    required T Function() empty,
-    required DecodeResult<T> Function(String raw) decode,
-  }) : _prefs = prefs,
-       _empty = empty,
-       _decode = decode;
+    required this._empty,
+    required this._decode,
+  });
 
   final PreferencesService _prefs;
   final String primaryKey;

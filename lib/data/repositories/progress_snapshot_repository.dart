@@ -36,12 +36,10 @@ class SnapshotExportBlocked implements Exception {
 /// here — this owns capture + encode only.
 class ProgressSnapshotRepository {
   ProgressSnapshotRepository({
-    required KanaProgressRepository kana,
-    required KanjiReadingRepository kanji,
-    ProgressSnapshotCodec codec = const ProgressSnapshotCodec(),
-  }) : _kana = kana,
-       _kanji = kanji,
-       _codec = codec;
+    required this._kana,
+    required this._kanji,
+    this._codec = const ProgressSnapshotCodec(),
+  });
 
   final KanaProgressRepository _kana;
   final KanjiReadingRepository _kanji;
