@@ -198,7 +198,7 @@ void main() {
       'a kanji stats store needing recovery blocks export, naming it',
       () async {
         final fake = FakePreferencesService();
-        fake.seed('kanji_stats_v1', 'not json');
+        fake.seed('kanji_units_v1', 'not json');
         final (kana, kanji, words) = await loadAll(fake);
         expect(kanji.statsHealth, StoreHealth.recoveryRequired);
 
@@ -213,7 +213,7 @@ void main() {
             isA<SnapshotExportBlocked>().having(
               (e) => e.stores,
               'stores',
-              contains('kanji_stats_v1'),
+              contains('kanji_units_v1'),
             ),
           ),
         );
@@ -300,7 +300,7 @@ void main() {
     final kanaGate = PlatformGate();
     final kanjiGate = PlatformGate();
     fake.writeGates['kana_stats_v1'] = kanaGate;
-    fake.writeGates['kanji_stats_v1'] = kanjiGate;
+    fake.writeGates['kanji_units_v1'] = kanjiGate;
     final (kana, kanji, words) = await loadAll(fake);
     final a = kana.allKana.first;
 
@@ -375,7 +375,7 @@ void main() {
       final fake = FakePreferencesService();
       fake.seed('kana_stats_v1', 'not json');
       fake.seed('learned_units_v1', 'not json');
-      fake.seed('kanji_stats_v1', 'not json');
+      fake.seed('kanji_units_v1', 'not json');
       final (kana, kanji, words) = await loadAll(fake);
       expect(
         () => ProgressSnapshotRepository(
@@ -390,7 +390,7 @@ void main() {
             allOf(
               contains('kana_stats_v1'),
               contains('learned_units_v1'),
-              contains('kanji_stats_v1'),
+              contains('kanji_units_v1'),
             ),
           ),
         ),

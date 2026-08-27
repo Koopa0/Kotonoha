@@ -3,9 +3,9 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
-import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 
 import '../helpers/kana_orthography.dart';
 
@@ -13,9 +13,9 @@ void main() {
   test('written / reading / gatingText getters', () {
     const p = KanjiPhrase(
       segments: [
-        RubySegment(text: '山', furigana: 'やま', readingId: 'reading:山#やま'),
+        RubySegment(text: '山', furigana: 'やま'),
         RubySegment(text: 'を'),
-        RubySegment(text: '見', furigana: 'み', readingId: 'reading:見#み'),
+        RubySegment(text: '見', furigana: 'み'),
         RubySegment(text: 'る'),
       ],
       romaji: 'yama o miru',
@@ -26,32 +26,30 @@ void main() {
     expect(p.gatingText, ['を', 'る']);
   });
 
-  test('a furigana segment either fades against a real reading, or never', () {
-    // A kanji the curriculum has not taught yet carries furigana with NO
-    // reading id and keeps it forever (honest: the app never fades a reading
-    // it never taught). What must never happen is a reading id pointing at
-    // nothing — that would silently read as level 0 and look identical to
-    // "brand new" while actually being a typo.
-    final validIds = {for (final k in kKanji) ...k.readingIds};
+  test('every furigana segment is kana, and carries a derived unit id', () {
+    // The old guard here checked that a segment's readingId existed in kKanji.
+    // It is gone because the id is no longer stored: a segment's practice unit
+    // IS (its text, its furigana), so it cannot point at something that does
+    // not exist. What can still go wrong is the furigana itself — non-kana in
+    // it, or a typo — and that is caught here and by the derivation test below.
     for (final p in kKanjiPhrases) {
       expect(p.romaji, isNotEmpty, reason: p.written);
       expect(p.meaning, isNotEmpty, reason: p.written);
       for (final s in p.segments) {
-        if (s.isKanji) {
-          expect(s.text.runes.length, 1, reason: p.written);
+        if (!s.isKanji) {
           expect(
-            s.furigana!.runes.every((r) => r >= 0x3040 && r <= 0x30ff),
-            isTrue,
-            reason: '${p.written}: furigana "${s.furigana}" is not kana',
+            s.unitId,
+            isNull,
+            reason: '${p.written}: plain kana has a unit',
           );
-          if (s.readingId != null) {
-            expect(
-              validIds.contains(s.readingId),
-              isTrue,
-              reason: '${p.written}: ${s.readingId} not in kKanji',
-            );
-          }
+          continue;
         }
+        expect(
+          s.furigana!.runes.every((r) => r >= 0x3040 && r <= 0x30ff),
+          isTrue,
+          reason: '${p.written}: furigana "${s.furigana}" is not kana',
+        );
+        expect(s.unitId, KanjiUnit.idFor(s.text, s.furigana!));
       }
     }
   });

@@ -11,9 +11,10 @@ import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
-/// Source of truth for per-reading kanji stats. Mirrors [KanaProgressRepository]
-/// but keyed by reading id ('reading:漢字#ヨミ') and persisted separately under
-/// `kanji_stats_v1` — kana and kanji progress never collide (ADR). Persists
+/// Source of truth for per-UNIT kanji stats — a unit being a written run and
+/// the sound it makes there ('unit:学校#がっこう'), because a reading belongs to
+/// the word, not the character. Mirrors [KanaProgressRepository] but persisted
+/// separately under `kanji_units_v1` — kana and kanji progress never collide (ADR). Persists
 /// through a [RecoverableStore] slot (data-loss firewall).
 class KanjiReadingRepository extends ChangeNotifier {
   KanjiReadingRepository._(
@@ -23,9 +24,9 @@ class KanjiReadingRepository extends ChangeNotifier {
   ) : _stats = stats.value,
       statsHealth = stats.health;
 
-  static const String _storageKey = 'kanji_stats_v1';
-  static const String _lastGoodKey = 'kanji_stats_last_good_v1';
-  static const String _quarantineKey = 'kanji_stats_quarantine_v1';
+  static const String _storageKey = 'kanji_units_v1';
+  static const String _lastGoodKey = 'kanji_units_last_good_v1';
+  static const String _quarantineKey = 'kanji_units_quarantine_v1';
 
   /// Kept for [PreferencesService.reload] — the only trustworthy read path
   /// after a failed platform write/remove (legacy cache divergence).
@@ -76,23 +77,22 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// Read-only view of every recorded reading stat, keyed by reading id.
   Map<String, ReadingStat> get stats => Map.unmodifiable(_stats);
 
-  /// The stat for a reading id, or an empty stat if never practised.
-  ReadingStat statForReading(String readingId) =>
-      _stats[readingId] ?? const ReadingStat();
+  /// The stat for a unit id, or an empty stat if never practised.
+  ReadingStat statForUnit(String unitId) =>
+      _stats[unitId] ?? const ReadingStat();
 
-  /// Count of readings the learner has practised at least once.
-  int get seenReadingCount => _stats.values.where((s) => s.isSeen).length;
+  /// Count of units the learner has practised at least once.
+  int get seenUnitCount => _stats.values.where((s) => s.isSeen).length;
 
   /// Records one self-graded answer for a reading and persists. The returned
   /// future completes with an error if persisting failed — the in-memory
   /// state keeps the answer and the next mutation retries the write.
   Future<void> recordAnswer(
-    String readingId, {
+    String unitId, {
     required bool correct,
     required DateTime at,
   }) {
-    _stats[readingId] = statForReading(readingId)
-        .recordAnswer(correct: correct, at: at);
+    _stats[unitId] = statForUnit(unitId).recordAnswer(correct: correct, at: at);
     _statsGen++;
     notifyListeners();
     return _serialized(_flush);
@@ -106,8 +106,8 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// itself ([_flush] moves persistedGen only on a confirmed write).
   Future<void> flushPending() => _serialized(_flush);
 
-  /// Reading ids due for review now (dueAt ≤ now), earliest first.
-  List<String> dueReadingIds(DateTime now) {
+  /// Unit ids due for review now (dueAt ≤ now), earliest first.
+  List<String> dueUnitIds(DateTime now) {
     final due =
         _stats.entries
             .where((e) => e.value.dueAt != null && !e.value.dueAt!.isAfter(now))

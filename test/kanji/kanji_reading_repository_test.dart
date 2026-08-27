@@ -11,87 +11,87 @@ import '../services/fake_preferences_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final now = DateTime(2026, 6, 1, 12);
-  const id = 'reading:人#ジン';
+  const id = 'unit:人#ジン';
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('starts empty and knows the full kanji set', () async {
     final repo = await KanjiReadingRepository.load();
-    expect(repo.seenReadingCount, 0);
+    expect(repo.seenUnitCount, 0);
     expect(repo.allKanji.length, 110);
-    expect(repo.statForReading(id).isSeen, isFalse);
+    expect(repo.statForUnit(id).isSeen, isFalse);
   });
 
   test('records an answer and persists across reloads', () async {
     final repo = await KanjiReadingRepository.load();
     await repo.recordAnswer(id, correct: true, at: now);
-    expect(repo.statForReading(id).correctCount, 1);
-    expect(repo.seenReadingCount, 1);
+    expect(repo.statForUnit(id).correctCount, 1);
+    expect(repo.seenUnitCount, 1);
 
     final reloaded = await KanjiReadingRepository.load();
-    expect(reloaded.statForReading(id).correctCount, 1);
-    expect(reloaded.statForReading(id).lastReviewedAt, now);
+    expect(reloaded.statForUnit(id).correctCount, 1);
+    expect(reloaded.statForUnit(id).lastReviewedAt, now);
   });
 
   test('wrong answer resets the level; correct advances it', () async {
     final repo = await KanjiReadingRepository.load();
     await repo.recordAnswer(id, correct: true, at: now);
-    expect(repo.statForReading(id).srsLevel, 1);
+    expect(repo.statForUnit(id).srsLevel, 1);
     await repo.recordAnswer(id, correct: false, at: now);
-    expect(repo.statForReading(id).srsLevel, 0);
+    expect(repo.statForUnit(id).srsLevel, 0);
   });
 
-  test('dueReadingIds returns due readings earliest-first', () async {
+  test('dueUnitIds returns due readings earliest-first', () async {
     final repo = await KanjiReadingRepository.load();
     await repo.recordAnswer(id, correct: true, at: now); // due ~1 day later
     // Nothing is due at recording time.
-    expect(repo.dueReadingIds(now), isEmpty);
+    expect(repo.dueUnitIds(now), isEmpty);
     // A week later it's due.
-    expect(repo.dueReadingIds(now.add(const Duration(days: 7))), [id]);
+    expect(repo.dueUnitIds(now.add(const Duration(days: 7))), [id]);
   });
 
   test('reset clears everything', () async {
     final repo = await KanjiReadingRepository.load();
     await repo.recordAnswer(id, correct: true, at: now);
     await repo.reset();
-    expect(repo.seenReadingCount, 0);
+    expect(repo.seenUnitCount, 0);
   });
 
   group('data-loss firewall', () {
-    const statsKey = 'kanji_stats_v1';
-    const lastGoodKey = 'kanji_stats_last_good_v1';
-    const quarantineKey = 'kanji_stats_quarantine_v1';
-    const otherId = 'reading:人#ひと';
+    const statsKey = 'kanji_units_v1';
+    const lastGoodKey = 'kanji_units_last_good_v1';
+    const quarantineKey = 'kanji_units_quarantine_v1';
+    const otherId = 'unit:人#ひと';
 
     // Hand-written legacy v1 payload (NOT produced by today's encoder); the
     // retired timed fields 'al'/'vl' must still be tolerated and ignored.
     const legacyStats =
-        '{"reading:人#ジン":{"s":2,"c":2,"w":0,"l":1748509200000,"sl":2,'
+        '{"unit:人#ジン":{"s":2,"c":2,"w":0,"l":1748509200000,"sl":2,'
         '"d":1748595600000,"al":700,"vl":900},'
-        '"reading:人#ひと":{"s":1,"c":0,"w":1,"l":1748509200000}}';
+        '"unit:人#ひと":{"s":1,"c":0,"w":1,"l":1748509200000}}';
 
     test('hand-written legacy v1 JSON loads completely', () async {
       SharedPreferences.setMockInitialValues({statsKey: legacyStats});
       final repo = await KanjiReadingRepository.load();
 
-      final jin = repo.statForReading(id);
+      final jin = repo.statForUnit(id);
       expect(jin.seenCount, 2);
       expect(jin.correctCount, 2);
       expect(jin.srsLevel, 2);
       expect(jin.dueAt, DateTime.fromMillisecondsSinceEpoch(1748595600000));
-      final hito = repo.statForReading(otherId);
+      final hito = repo.statForUnit(otherId);
       expect(hito.wrongCount, 1);
-      expect(repo.seenReadingCount, 2);
+      expect(repo.seenUnitCount, 2);
       expect(repo.statsHealth, StoreHealth.loaded);
     });
 
     test('one corrupt entry is dropped, the rest survive', () async {
-      const raw = '{"reading:人#ジン":{"s":2,"c":2,"w":0},"reading:日#ニチ":42}';
+      const raw = '{"unit:人#ジン":{"s":2,"c":2,"w":0},"unit:日#ニチ":42}';
       SharedPreferences.setMockInitialValues({statsKey: raw});
       final repo = await KanjiReadingRepository.load();
 
-      expect(repo.statForReading(id).seenCount, 2);
-      expect(repo.statForReading('reading:日#ニチ').isSeen, isFalse);
+      expect(repo.statForUnit(id).seenCount, 2);
+      expect(repo.statForUnit('unit:日#ニチ').isSeen, isFalse);
       expect(repo.statsHealth, StoreHealth.salvaged);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString(quarantineKey), raw);
@@ -104,7 +104,7 @@ void main() {
       });
       final repo = await KanjiReadingRepository.load();
 
-      expect(repo.statForReading(id).seenCount, 2);
+      expect(repo.statForUnit(id).seenCount, 2);
       expect(repo.statsHealth, StoreHealth.restored);
       final prefs = await SharedPreferences.getInstance();
       // Exact corrupt raw preserved; the primary is never rewritten by a load.
@@ -118,7 +118,7 @@ void main() {
       SharedPreferences.setMockInitialValues({statsKey: 'not json'});
       var repo = await KanjiReadingRepository.load();
       expect(repo.statsHealth, StoreHealth.recoveryRequired);
-      expect(repo.seenReadingCount, 0);
+      expect(repo.seenUnitCount, 0);
 
       // An invalid last-known-good is no better than a missing one.
       SharedPreferences.setMockInitialValues({
@@ -138,7 +138,7 @@ void main() {
       fake.seed(statsKey, legacyStats);
       final repo = await KanjiReadingRepository.load(fake);
 
-      await repo.recordAnswer('reading:日#ニチ', correct: true, at: now);
+      await repo.recordAnswer('unit:日#ニチ', correct: true, at: now);
       expect(fake.durable[lastGoodKey], legacyStats);
       expect(fake.writeLog, [lastGoodKey, statsKey]);
     });
@@ -179,8 +179,8 @@ void main() {
 
         expect(fake.sawOverlap, isFalse);
         final reloaded = await KanjiReadingRepository.load(fake);
-        expect(reloaded.statForReading(id).seenCount, 1);
-        expect(reloaded.statForReading(otherId).seenCount, 1);
+        expect(reloaded.statForUnit(id).seenCount, 1);
+        expect(reloaded.statForUnit(otherId).seenCount, 1);
       },
     );
 
@@ -220,7 +220,7 @@ void main() {
         await Future.wait([first, second]);
 
         final reloaded = await KanjiReadingRepository.load(fake);
-        expect(reloaded.statForReading(id).seenCount, 2);
+        expect(reloaded.statForUnit(id).seenCount, 2);
       });
 
       test('a reset remove failure reconciles memory with disk', () async {
@@ -231,10 +231,10 @@ void main() {
 
         await expectLater(repo.reset(), throwsA(isA<StoreWriteFailure>()));
         // The primary survived on disk — memory must not stay fake-empty.
-        expect(repo.statForReading(id).seenCount, 1);
+        expect(repo.statForUnit(id).seenCount, 1);
 
         final reloaded = await KanjiReadingRepository.load(fake);
-        expect(reloaded.statForReading(id).seenCount, 1);
+        expect(reloaded.statForUnit(id).seenCount, 1);
       });
 
       test('a failed reset can be retried once the fault clears', () async {
@@ -247,9 +247,9 @@ void main() {
         fake.failRemoves.clear();
         await repo.reset();
 
-        expect(repo.seenReadingCount, 0);
+        expect(repo.seenUnitCount, 0);
         final reloaded = await KanjiReadingRepository.load(fake);
-        expect(reloaded.seenReadingCount, 0);
+        expect(reloaded.seenUnitCount, 0);
         expect(fake.durable.containsKey(statsKey), isFalse);
       });
 
@@ -267,8 +267,8 @@ void main() {
         );
         // Durable truth: the primary survived the refused remove, and the
         // same process must agree with what a restart would see.
-        expect(fresh.statForReading(id).seenCount, 1);
-        expect(repo.statForReading(id).seenCount, 1);
+        expect(fresh.statForUnit(id).seenCount, 1);
+        expect(repo.statForUnit(id).seenCount, 1);
       });
 
       test('a failed reload falls back to the pre-reset snapshot and '
@@ -281,7 +281,7 @@ void main() {
 
         await expectLater(repo.reset(), throwsA(isA<StoreWriteFailure>()));
         // Unknown durable state: conservative pre-reset snapshot.
-        expect(repo.statForReading(id).seenCount, 1);
+        expect(repo.statForUnit(id).seenCount, 1);
 
         // The unverified store stayed dirty: the next mutation flushes the
         // restored snapshot back to the platform.
@@ -294,8 +294,8 @@ void main() {
         final fresh = await KanjiReadingRepository.load(
           FakePreferencesService.restarted(fake),
         );
-        expect(fresh.statForReading(id).seenCount, 1);
-        expect(fresh.statForReading(otherId).seenCount, 1);
+        expect(fresh.statForUnit(id).seenCount, 1);
+        expect(fresh.statForUnit(otherId).seenCount, 1);
       });
 
       test('a listener recordAnswer during the reset notification survives '
@@ -323,16 +323,16 @@ void main() {
         await Future.wait([wipe, later]);
 
         // Same-process: the later answer stayed, the pre-reset one cleared.
-        expect(repo.statForReading(otherId).seenCount, 1);
-        expect(repo.statForReading(id).isSeen, isFalse);
+        expect(repo.statForUnit(otherId).seenCount, 1);
+        expect(repo.statForUnit(id).isSeen, isFalse);
 
         // A fresh restart must agree: the later answer chained AFTER the
         // reset removal, so it is durable.
         final fresh = await KanjiReadingRepository.load(
           FakePreferencesService.restarted(fake),
         );
-        expect(fresh.statForReading(otherId).seenCount, 1);
-        expect(fresh.statForReading(id).isSeen, isFalse);
+        expect(fresh.statForUnit(otherId).seenCount, 1);
+        expect(fresh.statForUnit(id).isSeen, isFalse);
       });
 
       test('a flush queued before reset does not strand a listener '
@@ -347,7 +347,7 @@ void main() {
         fake.writeGates[statsKey] = gate;
         final d = repo.recordAnswer(id, correct: true, at: now);
         await gate.entered;
-        final a = repo.recordAnswer('reading:日#ニチ', correct: true, at: now);
+        final a = repo.recordAnswer('unit:日#ニチ', correct: true, at: now);
 
         late final void Function() listener;
         var fired = false;
@@ -372,9 +372,9 @@ void main() {
 
         // Same-process memory keeps the later answer, drops the pre-reset
         // ones.
-        expect(repo.statForReading(otherId).seenCount, 1);
-        expect(repo.statForReading(id).isSeen, isFalse);
-        expect(repo.statForReading('reading:日#ニチ').isSeen, isFalse);
+        expect(repo.statForUnit(otherId).seenCount, 1);
+        expect(repo.statForUnit(id).isSeen, isFalse);
+        expect(repo.statForUnit('unit:日#ニチ').isSeen, isFalse);
 
         // The successful reset removal must have invalidated A's stale
         // acknowledgement so B truly rewrote the store — durable across a
@@ -382,9 +382,9 @@ void main() {
         final fresh = await KanjiReadingRepository.load(
           FakePreferencesService.restarted(fake),
         );
-        expect(fresh.statForReading(otherId).seenCount, 1);
-        expect(fresh.statForReading(id).isSeen, isFalse);
-        expect(fresh.statForReading('reading:日#ニチ').isSeen, isFalse);
+        expect(fresh.statForUnit(otherId).seenCount, 1);
+        expect(fresh.statForUnit(id).isSeen, isFalse);
+        expect(fresh.statForUnit('unit:日#ニチ').isSeen, isFalse);
       });
 
       test('a stats primary remove that throws after taking effect still '
@@ -397,7 +397,7 @@ void main() {
         fake.writeGates[statsKey] = gate;
         final d = repo.recordAnswer(id, correct: true, at: now);
         await gate.entered;
-        final a = repo.recordAnswer('reading:日#ニチ', correct: true, at: now);
+        final a = repo.recordAnswer('unit:日#ニチ', correct: true, at: now);
 
         // The primary removal LANDS on durable storage, then the reply throws.
         fake.throwRemovesAfterEffect.add(statsKey);
@@ -421,9 +421,9 @@ void main() {
         await Future.wait([d, a, b, rDone]);
 
         // Same-process memory has B; the pre-reset answers are gone.
-        expect(repo.statForReading(otherId).seenCount, 1);
-        expect(repo.statForReading(id).isSeen, isFalse);
-        expect(repo.statForReading('reading:日#ニチ').isSeen, isFalse);
+        expect(repo.statForUnit(otherId).seenCount, 1);
+        expect(repo.statForUnit(id).isSeen, isFalse);
+        expect(repo.statForUnit('unit:日#ニチ').isSeen, isFalse);
 
         // The removal may have erased the durable primary; its outcome was
         // unknown and a later mutation owned the store, so B must have been
@@ -431,15 +431,15 @@ void main() {
         final fresh = await KanjiReadingRepository.load(
           FakePreferencesService.restarted(fake),
         );
-        expect(fresh.statForReading(otherId).seenCount, 1);
-        expect(fresh.statForReading(id).isSeen, isFalse);
-        expect(fresh.statForReading('reading:日#ニチ').isSeen, isFalse);
+        expect(fresh.statForUnit(otherId).seenCount, 1);
+        expect(fresh.statForUnit(id).isSeen, isFalse);
+        expect(fresh.statForUnit('unit:日#ニチ').isSeen, isFalse);
       });
     });
   });
 
   group('flushPending — P0-B owner retry', () {
-    const statsKey = 'kanji_stats_v1';
+    const statsKey = 'kanji_units_v1';
 
     test('re-persists a failed write exactly once, no new mutation', () async {
       final fake = FakePreferencesService();
@@ -459,7 +459,7 @@ void main() {
       final fresh = await KanjiReadingRepository.load(
         FakePreferencesService.restarted(fake),
       );
-      expect(fresh.statForReading(id).correctCount, 1); // exactly once
+      expect(fresh.statForUnit(id).correctCount, 1); // exactly once
     });
 
     test('is a safe no-op when nothing is dirty', () async {
@@ -494,7 +494,7 @@ void main() {
         final fresh = await KanjiReadingRepository.load(
           FakePreferencesService.restarted(fake),
         );
-        expect(fresh.statForReading(id).correctCount, 1);
+        expect(fresh.statForUnit(id).correctCount, 1);
       },
     );
   });

@@ -3,48 +3,34 @@
 
 import 'dart:math';
 
-import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
-/// One practice item: a single reading of a kanji (the scheduling/analytics
-/// unit). The kanji is the star; the on/kun kind is the recall cue.
-class KanjiPrompt {
-  const KanjiPrompt({required this.entry, required this.reading});
-
-  final KanjiEntry entry;
-  final Reading reading;
-
-  String get readingId => KanjiEntry.readingId(entry.char, reading.text);
-}
-
-/// Composes a kanji reading session. Light guidance: surface new readings first,
-/// then ones that are due for review, then the rest — so early sessions teach
-/// and later ones reinforce. WITHIN a tier, the weaker reading (recently missed,
-/// or slow/erratic on the timed recall beat) resurfaces first, so the latency/CV
-/// signal has somewhere to land. Deterministic under an injected [Random].
+/// Composes a 漢字の声 session over the units harvested from the corpus.
+/// Light guidance: surface never-met units first, then ones due for review,
+/// then the rest — so early sessions teach and later ones reinforce. WITHIN a
+/// tier the weaker unit (more often missed) resurfaces first. Deterministic
+/// under an injected [Random].
 abstract final class KanjiSession {
-  static List<KanjiPrompt> compose({
-    required List<KanjiEntry> entries,
+  static List<KanjiUnit> compose({
+    required List<KanjiUnit> units,
     required Map<String, ReadingStat> stats,
     required DateTime now,
     required Random rng,
     int length = 12,
   }) {
-    final all = <KanjiPrompt>[
-      for (final e in entries)
-        for (final r in e.readings) KanjiPrompt(entry: e, reading: r),
-    ]..shuffle(rng);
+    final all = List<KanjiUnit>.of(units)..shuffle(rng);
 
-    int rank(KanjiPrompt p) {
-      final s = stats[p.readingId];
+    int rank(KanjiUnit u) {
+      final s = stats[u.id];
       if (s == null || !s.isSeen) return 0; // new
       if (s.dueAt != null && !s.dueAt!.isAfter(now)) return 1; // due
       return 2; // not yet due
     }
 
-    double weakness(KanjiPrompt p) {
-      final s = stats[p.readingId];
-      return s == null ? 0 : _readingWeakness(s);
+    double weakness(KanjiUnit u) {
+      final s = stats[u.id];
+      return s == null ? 0 : _weakness(s);
     }
 
     all.sort((a, b) {
@@ -56,13 +42,12 @@ abstract final class KanjiSession {
     return all.take(length).toList();
   }
 
-  /// A reading's weakness for in-tier ordering: its wrong-rate. A reading you
-  /// miss more often comes back before a crisp one. New/unseen readings score 0
-  /// here (their priority comes from the rank tier). The kanji track is untimed —
-  /// reading mastery is a near-binary retrieval, not a reaction-time reflex, so
-  /// the timed slowness/CV terms `KanaStat` carries were retired (2026-06-03);
-  /// wrong-rate is the whole signal.
-  static double _readingWeakness(ReadingStat s) {
+  /// A unit's weakness for in-tier ordering: its wrong-rate. One you miss more
+  /// often comes back before a crisp one. New units score 0 here (their
+  /// priority comes from the rank tier). The kanji track is untimed — reading
+  /// is a near-binary retrieval, not a reaction-time reflex, so the timed
+  /// slowness/CV terms `KanaStat` carries were retired (2026-06-03).
+  static double _weakness(ReadingStat s) {
     if (s.seenCount == 0) return 0;
     return s.wrongCount / s.seenCount;
   }

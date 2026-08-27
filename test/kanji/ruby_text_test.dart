@@ -21,7 +21,7 @@ void main() {
   testWidgets('renders the kanji and its furigana', (tester) async {
     const phrase = KanjiPhrase(
       segments: [
-        RubySegment(text: '山', furigana: 'やま', readingId: 'reading:山#やま'),
+        RubySegment(text: '山', furigana: 'やま'),
         RubySegment(text: 'を'),
       ],
       romaji: 'yama o',

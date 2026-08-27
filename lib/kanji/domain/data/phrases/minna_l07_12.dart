@@ -20,7 +20,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'ペンで'),
-      RubySegment(text: '書', furigana: 'か', readingId: 'reading:書#か'),
+      RubySegment(text: '書', furigana: 'か'),
       RubySegment(text: 'く'),
     ],
     romaji: 'pen de kaku',
@@ -29,7 +29,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'はしで'),
-      RubySegment(text: '食', furigana: 'た', readingId: 'reading:食#た'),
+      RubySegment(text: '食', furigana: 'た'),
       RubySegment(text: 'べる'),
     ],
     romaji: 'hashi de taberu',
@@ -37,9 +37,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '手', furigana: 'て', readingId: 'reading:手#て'),
+      RubySegment(text: '手', furigana: 'て'),
       RubySegment(text: 'で'),
-      RubySegment(text: '作', furigana: 'つく', readingId: 'reading:作#つく'),
+      RubySegment(text: '作', furigana: 'つく'),
       RubySegment(text: 'る'),
     ],
     romaji: 'te de tsukuru',
@@ -49,9 +49,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:人にNをあげます・もらいます ──────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '友', furigana: 'とも', readingId: 'reading:友#とも'),
+      RubySegment(text: '友', furigana: 'とも'),
       RubySegment(text: 'に'),
-      RubySegment(text: '花', furigana: 'はな', readingId: 'reading:花#はな'),
+      RubySegment(text: '花', furigana: 'はな'),
       RubySegment(text: 'を'),
       RubySegment(text: 'あげる'),
     ],
@@ -60,9 +60,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '父', furigana: 'ちち', readingId: 'reading:父#ちち'),
+      RubySegment(text: '父', furigana: 'ちち'),
       RubySegment(text: 'に'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'を'),
       RubySegment(text: 'あげる'),
     ],
@@ -71,10 +71,10 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '先', furigana: 'せん', readingId: 'reading:先#セン'),
-      RubySegment(text: '生', furigana: 'せい', readingId: 'reading:生#セイ'),
+      RubySegment(text: '先', furigana: 'せん'),
+      RubySegment(text: '生', furigana: 'せい'),
       RubySegment(text: 'に'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'を'),
       RubySegment(text: 'もらう'),
     ],
@@ -83,9 +83,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '母', furigana: 'はは', readingId: 'reading:母#はは'),
+      RubySegment(text: '母', furigana: 'はは'),
       RubySegment(text: 'に'),
-      RubySegment(text: '花', furigana: 'はな', readingId: 'reading:花#はな'),
+      RubySegment(text: '花', furigana: 'はな'),
       RubySegment(text: 'を'),
       RubySegment(text: 'もらう'),
     ],
@@ -97,9 +97,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'もう'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'を'),
-      RubySegment(text: '読', furigana: 'よ', readingId: 'reading:読#よ'),
+      RubySegment(text: '読', furigana: 'よ'),
       RubySegment(text: 'みました'),
     ],
     romaji: 'mou hon o yomimashita',
@@ -108,10 +108,10 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'もう'),
-      RubySegment(text: '手', furigana: 'て', readingId: 'reading:手#て'),
+      RubySegment(text: '手', furigana: 'て'),
       RubySegment(text: '紙', furigana: 'がみ'),
       RubySegment(text: 'を'),
-      RubySegment(text: '書', furigana: 'か', readingId: 'reading:書#か'),
+      RubySegment(text: '書', furigana: 'か'),
       RubySegment(text: 'きました'),
     ],
     romaji: 'mou tegami o kakimashita',
@@ -122,7 +122,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
       RubySegment(text: 'もうご'),
       RubySegment(text: '飯', furigana: 'はん'),
       RubySegment(text: 'を'),
-      RubySegment(text: '食', furigana: 'た', readingId: 'reading:食#た'),
+      RubySegment(text: '食', furigana: 'た'),
       RubySegment(text: 'べました'),
     ],
     romaji: 'mou gohan o tabemashita',
@@ -133,7 +133,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'にぎやかな'),
-      RubySegment(text: '町', furigana: 'まち', readingId: 'reading:町#まち'),
+      RubySegment(text: '町', furigana: 'まち'),
     ],
     romaji: 'nigiyaka na machi',
     meaning: '熱鬧的城鎮',
@@ -141,9 +141,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '元', furigana: 'げん'),
-      RubySegment(text: '気', furigana: 'き', readingId: 'reading:気#キ'),
+      RubySegment(text: '気', furigana: 'き'),
       RubySegment(text: 'な'),
-      RubySegment(text: '子', furigana: 'こ', readingId: 'reading:子#こ'),
+      RubySegment(text: '子', furigana: 'こ'),
     ],
     romaji: 'genki na ko',
     meaning: '有精神的孩子',
@@ -151,9 +151,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '有', furigana: 'ゆう'),
-      RubySegment(text: '名', furigana: 'めい', readingId: 'reading:名#メイ'),
+      RubySegment(text: '名', furigana: 'めい'),
       RubySegment(text: 'な'),
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
     ],
     romaji: 'yuumei na mise',
     meaning: '有名的店',
@@ -162,9 +162,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:い形容詞 ────────────────────────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '古', furigana: 'ふる', readingId: 'reading:古#ふる'),
+      RubySegment(text: '古', furigana: 'ふる'),
       RubySegment(text: 'い'),
-      RubySegment(text: '家', furigana: 'いえ', readingId: 'reading:家#いえ'),
+      RubySegment(text: '家', furigana: 'いえ'),
       RubySegment(text: 'です'),
     ],
     romaji: 'furui ie desu',
@@ -172,9 +172,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '安', furigana: 'やす', readingId: 'reading:安#やす'),
+      RubySegment(text: '安', furigana: 'やす'),
       RubySegment(text: 'い'),
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
       RubySegment(text: 'です'),
     ],
     romaji: 'yasui mise desu',
@@ -182,9 +182,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '高', furigana: 'たか', readingId: 'reading:高#たか'),
+      RubySegment(text: '高', furigana: 'たか'),
       RubySegment(text: 'い'),
-      RubySegment(text: '木', furigana: 'き', readingId: 'reading:木#き'),
+      RubySegment(text: '木', furigana: 'き'),
       RubySegment(text: 'です'),
     ],
     romaji: 'takai ki desu',
@@ -194,7 +194,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:〜が(逆接) ─────────────────────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '安', furigana: 'やす', readingId: 'reading:安#やす'),
+      RubySegment(text: '安', furigana: 'やす'),
       RubySegment(text: 'いですが'),
       RubySegment(text: '遠', furigana: 'とお'),
       RubySegment(text: 'いです'),
@@ -204,9 +204,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '新', furigana: 'あたら', readingId: 'reading:新#あたら'),
+      RubySegment(text: '新', furigana: 'あたら'),
       RubySegment(text: 'しいですが'),
-      RubySegment(text: '高', furigana: 'たか', readingId: 'reading:高#たか'),
+      RubySegment(text: '高', furigana: 'たか'),
       RubySegment(text: 'いです'),
     ],
     romaji: 'atarashii desu ga takai desu',
@@ -214,9 +214,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '近', furigana: 'ちか', readingId: 'reading:近#ちか'),
+      RubySegment(text: '近', furigana: 'ちか'),
       RubySegment(text: 'いですが'),
-      RubySegment(text: '小', furigana: 'ちい', readingId: 'reading:小#ちい'),
+      RubySegment(text: '小', furigana: 'ちい'),
       RubySegment(text: 'さいです'),
     ],
     romaji: 'chikai desu ga chiisai desu',
@@ -227,9 +227,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'どんな'),
-      RubySegment(text: '家', furigana: 'いえ', readingId: 'reading:家#いえ'),
+      RubySegment(text: '家', furigana: 'いえ'),
       RubySegment(text: 'に'),
-      RubySegment(text: '住', furigana: 'す', readingId: 'reading:住#す'),
+      RubySegment(text: '住', furigana: 'す'),
       RubySegment(text: 'みますか'),
     ],
     romaji: 'donna ie ni sumimasu ka',
@@ -238,7 +238,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'どんな'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'が'),
       RubySegment(text: '好', furigana: 'す'),
       RubySegment(text: 'きですか'),
@@ -249,9 +249,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'どんな'),
-      RubySegment(text: '町', furigana: 'まち', readingId: 'reading:町#まち'),
+      RubySegment(text: '町', furigana: 'まち'),
       RubySegment(text: 'に'),
-      RubySegment(text: '住', furigana: 'す', readingId: 'reading:住#す'),
+      RubySegment(text: '住', furigana: 'す'),
       RubySegment(text: 'みますか'),
     ],
     romaji: 'donna machi ni sumimasu ka',
@@ -261,7 +261,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:Nが好きです・上手です・わかります ─────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '花', furigana: 'はな', readingId: 'reading:花#はな'),
+      RubySegment(text: '花', furigana: 'はな'),
       RubySegment(text: 'が'),
       RubySegment(text: '好', furigana: 'す'),
       RubySegment(text: 'きです'),
@@ -284,8 +284,8 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '日', furigana: 'に'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
-      RubySegment(text: '語', furigana: 'ご', readingId: 'reading:語#ゴ'),
+      RubySegment(text: '本', furigana: 'ほん'),
+      RubySegment(text: '語', furigana: 'ご'),
       RubySegment(text: 'が'),
       RubySegment(text: 'わかります'),
     ],
@@ -296,8 +296,8 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:Nがあります(所有) ────────────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '時', furigana: 'じ', readingId: 'reading:時#ジ'),
-      RubySegment(text: '間', furigana: 'かん', readingId: 'reading:間#カン'),
+      RubySegment(text: '時', furigana: 'じ'),
+      RubySegment(text: '間', furigana: 'かん'),
       RubySegment(text: 'が'),
       RubySegment(text: 'あります'),
     ],
@@ -307,7 +307,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'お'),
-      RubySegment(text: '金', furigana: 'かね', readingId: 'reading:金#かね'),
+      RubySegment(text: '金', furigana: 'かね'),
       RubySegment(text: 'が'),
       RubySegment(text: 'あります'),
     ],
@@ -328,9 +328,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:〜から(理由) ──────────────────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '雨', furigana: 'あめ', readingId: 'reading:雨#あめ'),
+      RubySegment(text: '雨', furigana: 'あめ'),
       RubySegment(text: 'ですから'),
-      RubySegment(text: '休', furigana: 'やす', readingId: 'reading:休#やす'),
+      RubySegment(text: '休', furigana: 'やす'),
       RubySegment(text: 'みます'),
     ],
     romaji: 'ame desu kara yasumimasu',
@@ -340,7 +340,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
     segments: [
       RubySegment(text: '忙', furigana: 'いそが'),
       RubySegment(text: 'しいですから'),
-      RubySegment(text: '帰', furigana: 'かえ', readingId: 'reading:帰#かえ'),
+      RubySegment(text: '帰', furigana: 'かえ'),
       RubySegment(text: 'ります'),
     ],
     romaji: 'isogashii desu kara kaerimasu',
@@ -348,9 +348,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '安', furigana: 'やす', readingId: 'reading:安#やす'),
+      RubySegment(text: '安', furigana: 'やす'),
       RubySegment(text: 'いですから'),
-      RubySegment(text: '買', furigana: 'か', readingId: 'reading:買#か'),
+      RubySegment(text: '買', furigana: 'か'),
       RubySegment(text: 'います'),
     ],
     romaji: 'yasui desu kara kaimasu',
@@ -361,7 +361,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'どうして'),
-      RubySegment(text: '休', furigana: 'やす', readingId: 'reading:休#やす'),
+      RubySegment(text: '休', furigana: 'やす'),
       RubySegment(text: 'みますか'),
     ],
     romaji: 'doushite yasumimasu ka',
@@ -370,9 +370,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'どうして'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'を'),
-      RubySegment(text: '買', furigana: 'か', readingId: 'reading:買#か'),
+      RubySegment(text: '買', furigana: 'か'),
       RubySegment(text: 'いますか'),
     ],
     romaji: 'doushite hon o kaimasu ka',
@@ -381,9 +381,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'どうして'),
-      RubySegment(text: '駅', furigana: 'えき', readingId: 'reading:駅#エキ'),
+      RubySegment(text: '駅', furigana: 'えき'),
       RubySegment(text: 'まで'),
-      RubySegment(text: '歩', furigana: 'ある', readingId: 'reading:歩#ある'),
+      RubySegment(text: '歩', furigana: 'ある'),
       RubySegment(text: 'きますか'),
     ],
     romaji: 'doushite eki made arukimasu ka',
@@ -393,9 +393,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:Placeに Nがあります・います ─────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '町', furigana: 'まち', readingId: 'reading:町#まち'),
+      RubySegment(text: '町', furigana: 'まち'),
       RubySegment(text: 'に'),
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
       RubySegment(text: 'が'),
       RubySegment(text: 'あります'),
     ],
@@ -404,9 +404,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '近', furigana: 'ちか', readingId: 'reading:近#ちか'),
+      RubySegment(text: '近', furigana: 'ちか'),
       RubySegment(text: 'くに'),
-      RubySegment(text: '駅', furigana: 'えき', readingId: 'reading:駅#エキ'),
+      RubySegment(text: '駅', furigana: 'えき'),
       RubySegment(text: 'が'),
       RubySegment(text: 'あります'),
     ],
@@ -415,9 +415,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
       RubySegment(text: 'に'),
-      RubySegment(text: '友', furigana: 'とも', readingId: 'reading:友#とも'),
+      RubySegment(text: '友', furigana: 'とも'),
       RubySegment(text: '達', furigana: 'だち'),
       RubySegment(text: 'が'),
       RubySegment(text: 'います'),
@@ -427,10 +427,10 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '会', furigana: 'かい', readingId: 'reading:会#カイ'),
-      RubySegment(text: '社', furigana: 'しゃ', readingId: 'reading:社#シャ'),
+      RubySegment(text: '会', furigana: 'かい'),
+      RubySegment(text: '社', furigana: 'しゃ'),
       RubySegment(text: 'に'),
-      RubySegment(text: '父', furigana: 'ちち', readingId: 'reading:父#ちち'),
+      RubySegment(text: '父', furigana: 'ちち'),
       RubySegment(text: 'が'),
       RubySegment(text: 'います'),
     ],
@@ -441,9 +441,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:Nは Placeにあります・います ─────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '駅', furigana: 'えき', readingId: 'reading:駅#エキ'),
+      RubySegment(text: '駅', furigana: 'えき'),
       RubySegment(text: 'は'),
-      RubySegment(text: '町', furigana: 'まち', readingId: 'reading:町#まち'),
+      RubySegment(text: '町', furigana: 'まち'),
       RubySegment(text: 'に'),
       RubySegment(text: 'あります'),
     ],
@@ -452,10 +452,10 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '先', furigana: 'せん', readingId: 'reading:先#セン'),
-      RubySegment(text: '生', furigana: 'せい', readingId: 'reading:生#セイ'),
+      RubySegment(text: '先', furigana: 'せん'),
+      RubySegment(text: '生', furigana: 'せい'),
       RubySegment(text: 'は'),
-      RubySegment(text: '駅', furigana: 'えき', readingId: 'reading:駅#エキ'),
+      RubySegment(text: '駅', furigana: 'えき'),
       RubySegment(text: 'に'),
       RubySegment(text: 'います'),
     ],
@@ -464,10 +464,10 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '友', furigana: 'とも', readingId: 'reading:友#とも'),
+      RubySegment(text: '友', furigana: 'とも'),
       RubySegment(text: '達', furigana: 'だち'),
       RubySegment(text: 'は'),
-      RubySegment(text: '町', furigana: 'まち', readingId: 'reading:町#まち'),
+      RubySegment(text: '町', furigana: 'まち'),
       RubySegment(text: 'に'),
       RubySegment(text: 'います'),
     ],
@@ -476,9 +476,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'は'),
-      RubySegment(text: '家', furigana: 'いえ', readingId: 'reading:家#いえ'),
+      RubySegment(text: '家', furigana: 'いえ'),
       RubySegment(text: 'に'),
       RubySegment(text: 'あります'),
     ],
@@ -490,9 +490,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'かばんの'),
-      RubySegment(text: '上', furigana: 'うえ', readingId: 'reading:上#うえ'),
+      RubySegment(text: '上', furigana: 'うえ'),
       RubySegment(text: 'に'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'があります'),
     ],
     romaji: 'kaban no ue ni hon ga arimasu',
@@ -501,9 +501,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'かばんの'),
-      RubySegment(text: '下', furigana: 'した', readingId: 'reading:下#した'),
+      RubySegment(text: '下', furigana: 'した'),
       RubySegment(text: 'に'),
-      RubySegment(text: '花', furigana: 'はな', readingId: 'reading:花#はな'),
+      RubySegment(text: '花', furigana: 'はな'),
       RubySegment(text: 'があります'),
     ],
     romaji: 'kaban no shita ni hana ga arimasu',
@@ -512,9 +512,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'かばんの'),
-      RubySegment(text: '中', furigana: 'なか', readingId: 'reading:中#なか'),
+      RubySegment(text: '中', furigana: 'なか'),
       RubySegment(text: 'に'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'があります'),
     ],
     romaji: 'kaban no naka ni hon ga arimasu',
@@ -522,11 +522,11 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '駅', furigana: 'えき', readingId: 'reading:駅#エキ'),
+      RubySegment(text: '駅', furigana: 'えき'),
       RubySegment(text: 'の'),
-      RubySegment(text: '近', furigana: 'ちか', readingId: 'reading:近#ちか'),
+      RubySegment(text: '近', furigana: 'ちか'),
       RubySegment(text: 'くに'),
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
       RubySegment(text: 'があります'),
     ],
     romaji: 'eki no chikaku ni mise ga arimasu',
@@ -536,10 +536,10 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:数量詞(〜つ・〜人・〜枚・〜回) ────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '花', furigana: 'はな', readingId: 'reading:花#はな'),
+      RubySegment(text: '花', furigana: 'はな'),
       RubySegment(text: 'を'),
       RubySegment(text: 'みっつ'),
-      RubySegment(text: '買', furigana: 'か', readingId: 'reading:買#か'),
+      RubySegment(text: '買', furigana: 'か'),
       RubySegment(text: 'います'),
     ],
     romaji: 'hana o mittsu kaimasu',
@@ -547,8 +547,8 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '先', furigana: 'せん', readingId: 'reading:先#セン'),
-      RubySegment(text: '生', furigana: 'せい', readingId: 'reading:生#セイ'),
+      RubySegment(text: '先', furigana: 'せん'),
+      RubySegment(text: '生', furigana: 'せい'),
       RubySegment(text: 'が'),
       RubySegment(text: 'ふたり'),
       RubySegment(text: 'います'),
@@ -561,7 +561,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
       RubySegment(text: 'カードを'),
       RubySegment(text: '三', furigana: 'さん'),
       RubySegment(text: 'まい'),
-      RubySegment(text: '買', furigana: 'か', readingId: 'reading:買#か'),
+      RubySegment(text: '買', furigana: 'か'),
       RubySegment(text: 'います'),
     ],
     romaji: 'kaado o sanmai kaimasu',
@@ -581,9 +581,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:〜だけ ──────────────────────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '水', furigana: 'みず', readingId: 'reading:水#みず'),
+      RubySegment(text: '水', furigana: 'みず'),
       RubySegment(text: 'だけ'),
-      RubySegment(text: '飲', furigana: 'の', readingId: 'reading:飲#の'),
+      RubySegment(text: '飲', furigana: 'の'),
       RubySegment(text: 'みます'),
     ],
     romaji: 'mizu dake nomimasu',
@@ -593,7 +593,7 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
     segments: [
       RubySegment(text: '少', furigana: 'すこ'),
       RubySegment(text: 'しだけ'),
-      RubySegment(text: '食', furigana: 'た', readingId: 'reading:食#た'),
+      RubySegment(text: '食', furigana: 'た'),
       RubySegment(text: 'べます'),
     ],
     romaji: 'sukoshi dake tabemasu',
@@ -601,9 +601,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '近', furigana: 'ちか', readingId: 'reading:近#ちか'),
+      RubySegment(text: '近', furigana: 'ちか'),
       RubySegment(text: 'くだけ'),
-      RubySegment(text: '歩', furigana: 'ある', readingId: 'reading:歩#ある'),
+      RubySegment(text: '歩', furigana: 'ある'),
       RubySegment(text: 'きます'),
     ],
     romaji: 'chikaku dake arukimasu',
@@ -614,9 +614,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '二', furigana: 'に'),
-      RubySegment(text: '時', furigana: 'じ', readingId: 'reading:時#ジ'),
-      RubySegment(text: '間', furigana: 'かん', readingId: 'reading:間#カン'),
-      RubySegment(text: '読', furigana: 'よ', readingId: 'reading:読#よ'),
+      RubySegment(text: '時', furigana: 'じ'),
+      RubySegment(text: '間', furigana: 'かん'),
+      RubySegment(text: '読', furigana: 'よ'),
       RubySegment(text: 'みます'),
     ],
     romaji: 'nijikan yomimasu',
@@ -625,8 +625,8 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '三', furigana: 'さん'),
-      RubySegment(text: '年', furigana: 'ねん', readingId: 'reading:年#ネン'),
-      RubySegment(text: '住', furigana: 'す', readingId: 'reading:住#す'),
+      RubySegment(text: '年', furigana: 'ねん'),
+      RubySegment(text: '住', furigana: 'す'),
       RubySegment(text: 'みます'),
     ],
     romaji: 'sannen sumimasu',
@@ -635,8 +635,8 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: '一', furigana: 'いち'),
-      RubySegment(text: '年', furigana: 'ねん', readingId: 'reading:年#ネン'),
-      RubySegment(text: '待', furigana: 'ま', readingId: 'reading:待#ま'),
+      RubySegment(text: '年', furigana: 'ねん'),
+      RubySegment(text: '待', furigana: 'ま'),
       RubySegment(text: 'ちます'),
     ],
     romaji: 'ichinen machimasu',
@@ -646,8 +646,8 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:過去(Nでした・い形かったです・な形でした) ──────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '先', furigana: 'せん', readingId: 'reading:先#セン'),
-      RubySegment(text: '生', furigana: 'せい', readingId: 'reading:生#セイ'),
+      RubySegment(text: '先', furigana: 'せん'),
+      RubySegment(text: '生', furigana: 'せい'),
       RubySegment(text: 'でした'),
     ],
     romaji: 'sensei deshita',
@@ -673,9 +673,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   // 文型:比較(AよりBのほうが) ────────────────────────────
   KanjiPhrase(
     segments: [
-      RubySegment(text: '山', furigana: 'やま', readingId: 'reading:山#やま'),
+      RubySegment(text: '山', furigana: 'やま'),
       RubySegment(text: 'より'),
-      RubySegment(text: '海', furigana: 'うみ', readingId: 'reading:海#うみ'),
+      RubySegment(text: '海', furigana: 'うみ'),
       RubySegment(text: 'のほうが'),
       RubySegment(text: '好', furigana: 'す'),
       RubySegment(text: 'きです'),
@@ -685,9 +685,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
       RubySegment(text: 'より'),
-      RubySegment(text: '花', furigana: 'はな', readingId: 'reading:花#はな'),
+      RubySegment(text: '花', furigana: 'はな'),
       RubySegment(text: 'のほうが'),
       RubySegment(text: '好', furigana: 'す'),
       RubySegment(text: 'きです'),
@@ -697,11 +697,11 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   ),
   KanjiPhrase(
     segments: [
-      RubySegment(text: '駅', furigana: 'えき', readingId: 'reading:駅#エキ'),
+      RubySegment(text: '駅', furigana: 'えき'),
       RubySegment(text: 'より'),
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
       RubySegment(text: 'のほうが'),
-      RubySegment(text: '近', furigana: 'ちか', readingId: 'reading:近#ちか'),
+      RubySegment(text: '近', furigana: 'ちか'),
       RubySegment(text: 'いです'),
     ],
     romaji: 'eki yori mise no hou ga chikai desu',
@@ -712,9 +712,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'いちばん'),
-      RubySegment(text: '安', furigana: 'やす', readingId: 'reading:安#やす'),
+      RubySegment(text: '安', furigana: 'やす'),
       RubySegment(text: 'い'),
-      RubySegment(text: '店', furigana: 'みせ', readingId: 'reading:店#みせ'),
+      RubySegment(text: '店', furigana: 'みせ'),
     ],
     romaji: 'ichiban yasui mise',
     meaning: '最便宜的店',
@@ -722,9 +722,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'いちばん'),
-      RubySegment(text: '新', furigana: 'あたら', readingId: 'reading:新#あたら'),
+      RubySegment(text: '新', furigana: 'あたら'),
       RubySegment(text: 'しい'),
-      RubySegment(text: '本', furigana: 'ほん', readingId: 'reading:本#ホン'),
+      RubySegment(text: '本', furigana: 'ほん'),
     ],
     romaji: 'ichiban atarashii hon',
     meaning: '最新的書',
@@ -732,9 +732,9 @@ const List<KanjiPhrase> kMinnaL07to12 = <KanjiPhrase>[
   KanjiPhrase(
     segments: [
       RubySegment(text: 'いちばん'),
-      RubySegment(text: '高', furigana: 'たか', readingId: 'reading:高#たか'),
+      RubySegment(text: '高', furigana: 'たか'),
       RubySegment(text: 'い'),
-      RubySegment(text: '山', furigana: 'やま', readingId: 'reading:山#やま'),
+      RubySegment(text: '山', furigana: 'やま'),
     ],
     romaji: 'ichiban takai yama',
     meaning: '最高的山',

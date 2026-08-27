@@ -4,29 +4,32 @@
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
 
-/// One run of a sentence: either plain kana (particles, okurigana) when
-/// [furigana] is null, or a kanji that carries furigana.
+/// One run of a sentence: either plain kana (particles, okurigana, punctuation)
+/// when [furigana] is null, or a kanji run that carries furigana.
 ///
-/// [readingId] is set only when that kanji-with-that-reading is part of the
-/// kanji curriculum (`kKanji`). A kanji the curriculum has not reached yet
-/// carries furigana with NO reading id — and keeps it at full strength
-/// forever, until the reading is actually taught. That is what lets the
-/// sentence corpus be written in natural Japanese without waiting for the
-/// kanji dataset to catch up: unknown kanji are simply always supported.
+/// A kanji run may be more than one character — 学校【がっこう】, 今日【きょう】,
+/// 一人【ひとり】 — and that is deliberate: those readings belong to the WORD and
+/// cannot be spelled character by character (がっ is no reading of 学). The run
+/// plus its furigana IS the practice unit ([unitId], see `KanjiUnit`), so what
+/// fades is exactly what was drilled.
 ///
 /// Pure data: no `package:flutter/*` imports.
 class RubySegment {
-  const RubySegment({required this.text, this.furigana, this.readingId});
+  const RubySegment({required this.text, this.furigana});
 
-  final String text; // 山 / を / 見 / る
-  final String? furigana; // やま / null / み / null
-  final String? readingId; // 'reading:山#やま' / null when not yet taught
+  final String text; // 山 / を / 学校 / る
+  final String? furigana; // やま / null / がっこう / null
 
   bool get isKanji => furigana != null;
 
-  /// Whether this kanji's furigana can ever fade (its reading is in the
-  /// curriculum). A segment without one is permanently supported.
-  bool get fades => furigana != null && readingId != null;
+  /// The practice unit this run belongs to, or null for plain kana. Derived,
+  /// never stored: a segment cannot disagree with the unit it teaches.
+  String? get unitId => furigana == null ? null : unitIdFor(text, furigana!);
+
+  /// The one place the unit-id format lives. `KanjiUnit` reads it from here so
+  /// the written form and its practice id can never drift apart.
+  static String unitIdFor(String written, String reading) =>
+      'unit:$written#$reading';
 }
 
 /// A sentence mixing kanji and kana — real written Japanese, and the home of

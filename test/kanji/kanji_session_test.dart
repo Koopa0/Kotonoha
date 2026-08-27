@@ -4,18 +4,33 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
-import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 
 void main() {
   final now = DateTime(2026, 6);
 
-  test('compose is deterministic, bounded, and draws from the dataset', () {
-    final all = {for (final k in kKanji) ...k.readingIds};
-    List<KanjiPrompt> run() => KanjiSession.compose(
-      entries: kKanji,
+  KanjiUnit unit(String written, String reading) => KanjiUnit(
+    written: written,
+    reading: reading,
+    example: KanjiPhrase(
+      segments: [
+        RubySegment(text: written, furigana: reading),
+        const RubySegment(text: 'を'),
+      ],
+      romaji: 'x',
+      meaning: 'x',
+    ),
+  );
+
+  test('compose is deterministic, bounded, and draws from the units given', () {
+    final units = kKanjiUnits;
+    final ids = {for (final u in units) u.id};
+    List<KanjiUnit> run() => KanjiSession.compose(
+      units: units,
       stats: const {},
       now: now,
       rng: Random(3),
@@ -24,90 +39,67 @@ void main() {
     final a = run();
     final b = run();
     expect(a.length, 10);
-    expect(a.map((p) => p.readingId), b.map((p) => p.readingId));
-    for (final p in a) {
-      expect(all.contains(p.readingId), isTrue);
+    expect(a.map((u) => u.id), b.map((u) => u.id));
+    for (final u in a) {
+      expect(ids.contains(u.id), isTrue);
     }
   });
 
-  test('new readings are surfaced before ones that are not yet due', () {
-    // Mark one reading as freshly answered (correct → due far in the future).
-    const seen = KanjiEntry(
-      char: '人',
-      meaningZh: '人',
-      readings: [Reading(text: 'ひと', kind: ReadingKind.kun)],
-    );
-    const fresh = KanjiEntry(
-      char: '日',
-      meaningZh: '日',
-      readings: [Reading(text: 'ニチ', kind: ReadingKind.on)],
-    );
+  test('never-met units are surfaced before ones that are not yet due', () {
+    final seen = unit('人', 'ひと');
+    final fresh = unit('日', 'ひ');
     final stats = {
-      KanjiEntry.readingId('人', 'ひと'): const ReadingStat().recordAnswer(
+      seen.id: const ReadingStat().recordAnswer(
         correct: true,
         at: now,
       ), // due in ~1 day
     };
+
     final out = KanjiSession.compose(
-      entries: const [seen, fresh],
+      units: [seen, fresh],
       stats: stats,
       now: now,
       rng: Random(1),
       length: 2,
     );
-    // The unseen 日#ニチ ranks ahead of the not-yet-due 人#ひと.
-    expect(out.first.readingId, 'reading:日#ニチ');
+
+    expect(out.first.id, fresh.id);
   });
 
-  test('within a tier, a weaker reading resurfaces before a crisp one', () {
+  test('within a tier, a weaker unit resurfaces before a crisp one', () {
     final past = DateTime(2026, 5);
     final later = DateTime(2026, 6); // a month on — both stats are due
-    const weakK = KanjiEntry(
-      char: '一',
-      meaningZh: '一',
-      readings: [Reading(text: 'イチ', kind: ReadingKind.on)],
-    );
-    const strongK = KanjiEntry(
-      char: '二',
-      meaningZh: '二',
-      readings: [Reading(text: 'ニ', kind: ReadingKind.on)],
-    );
+    final weak = unit('一', 'いち');
+    final strong = unit('二', 'に');
     final stats = {
-      // missed → high wrong-rate, due since past+10min
-      KanjiEntry.readingId('一', 'イチ'): const ReadingStat().recordAnswer(
-        correct: false,
-        at: past,
-      ),
-      // correct → low wrong-rate, due since past+1day
-      KanjiEntry.readingId('二', 'ニ'): const ReadingStat().recordAnswer(
-        correct: true,
-        at: past,
-      ),
+      // missed → high wrong-rate
+      weak.id: const ReadingStat().recordAnswer(correct: false, at: past),
+      // correct → low wrong-rate
+      strong.id: const ReadingStat().recordAnswer(correct: true, at: past),
     };
+
     final out = KanjiSession.compose(
-      entries: const [strongK, weakK],
+      units: [strong, weak],
       stats: stats,
       now: later,
       rng: Random(1),
       length: 2,
     );
-    expect(out.first.readingId, 'reading:一#イチ'); // weaker first
+
+    expect(out.first.id, weak.id);
   });
 
-  test(
-    'each readingId appears at most once per session (teach XOR recall)',
-    () {
-      // The honest screen routes new→teach / seen→recall off this one-pass
-      // uniqueness: a reading is never taught AND recalled in the same session.
-      final out = KanjiSession.compose(
-        entries: kKanji,
-        stats: const {},
-        now: now,
-        rng: Random(5),
-        length: 1000, // larger than the dataset → take everything
-      );
-      final ids = out.map((p) => p.readingId).toList();
-      expect(ids.toSet().length, ids.length);
-    },
-  );
+  test('each unit appears at most once per session (teach XOR recall)', () {
+    // The honest screen routes new→teach / met→recall off this one-pass
+    // uniqueness: a unit is never taught AND recalled in the same session.
+    final out = KanjiSession.compose(
+      units: kKanjiUnits,
+      stats: const {},
+      now: now,
+      rng: Random(5),
+      length: 1000, // larger than the corpus → take everything
+    );
+    final ids = out.map((u) => u.id).toList();
+    expect(ids.toSet().length, ids.length);
+  });
 }

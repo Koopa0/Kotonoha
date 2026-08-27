@@ -18,7 +18,7 @@ class RubyText extends StatelessWidget {
   });
 
   final KanjiPhrase phrase;
-  final int Function(String readingId) srsLevelOf;
+  final int Function(String unitId) srsLevelOf;
   final double fontSize;
 
   /// Full furigana while a reading is new, thinning as it matures, and GONE once
@@ -28,9 +28,8 @@ class RubyText extends StatelessWidget {
   /// never completed in real play (furigana froze half-faded). The SCHEDULE now
   /// climbs past the fade level (to [ReadingStat.kMaxLevel]) without moving it.
   ///
-  /// A kanji the curriculum has not taught yet has no reading id and so no
-  /// level: it stays at full support (see [_opacityFor]), which is the honest
-  /// answer — the app never fades a reading it never taught.
+  /// An unpractised unit has no stat and so level 0: full support. The app
+  /// never fades a reading it has not actually drilled.
   static double furiganaOpacity(int srsLevel) {
     if (srsLevel >= ReadingStat.kFuriganaFadeLevel) {
       return 0; // known — the support comes off (was once unreachable)
@@ -40,10 +39,9 @@ class RubyText extends StatelessWidget {
     return 0.4; // one below the cap — faint
   }
 
-  /// Full support for a kanji whose reading is not in the curriculum (no
-  /// [RubySegment.readingId]); otherwise the reading's own maturity decides.
-  double _opacityFor(RubySegment s) =>
-      s.fades ? furiganaOpacity(srsLevelOf(s.readingId!)) : 1.0;
+  /// The maturity of the practice unit this run belongs to — the word, not the
+  /// character, so 学校 fades as 学校 and knowing 先生 fades nothing in 学生.
+  double _opacityFor(RubySegment s) => furiganaOpacity(srsLevelOf(s.unitId!));
 
   @override
   Widget build(BuildContext context) {

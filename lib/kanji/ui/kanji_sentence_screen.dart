@@ -150,7 +150,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: RubyText(
                       phrase: _current,
-                      srsLevelOf: (id) => repo.statForReading(id).srsLevel,
+                      srsLevelOf: (id) => repo.statForUnit(id).srsLevel,
                     ),
                   ),
                   const SizedBox(height: 12),

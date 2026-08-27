@@ -5,125 +5,185 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
+import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 
-/// The honest "choose the reading" beat: pick the kana reading, with distractors
-/// that are real same-kind readings of OTHER kanji — so owning the meaning gives
-/// no edge and the on/kun script never gives the answer away.
+/// The honesty of the kanji track lives in these distractors. A 漢字-literate
+/// adult reading 学校 already owns the meaning; the only thing that can be
+/// tested is the SOUND, and the only wrong answer that actually tests it is
+/// the one his own instinct produces — 学【ガク】+ 校【コウ】= がくこう.
 void main() {
-  const pool = [
+  const inventory = [
     KanjiEntry(
-      char: '月',
-      meaningZh: '月',
-      readings: [
-        Reading(text: 'つき', kind: ReadingKind.kun),
-        Reading(text: 'ゲツ', kind: ReadingKind.on),
-      ],
+      char: '学',
+      meaningZh: '學',
+      readings: [Reading(text: 'ガク', kind: ReadingKind.on)],
     ),
     KanjiEntry(
-      char: '山',
-      meaningZh: '山',
-      readings: [
-        Reading(text: 'やま', kind: ReadingKind.kun),
-        Reading(text: 'サン', kind: ReadingKind.on),
-      ],
+      char: '校',
+      meaningZh: '校',
+      readings: [Reading(text: 'コウ', kind: ReadingKind.on)],
     ),
     KanjiEntry(
-      char: '川',
-      meaningZh: '川',
-      readings: [Reading(text: 'かわ', kind: ReadingKind.kun)],
-    ),
-    KanjiEntry(
-      char: '火',
-      meaningZh: '火',
+      char: '生',
+      meaningZh: '生',
       readings: [
-        Reading(text: 'ひ', kind: ReadingKind.kun),
-        Reading(text: 'カ', kind: ReadingKind.on),
+        Reading(text: 'セイ', kind: ReadingKind.on),
+        Reading(text: 'ショウ', kind: ReadingKind.on),
+        Reading(text: 'なま', kind: ReadingKind.kun),
+        Reading(text: 'う', kind: ReadingKind.kun),
       ],
     ),
   ];
-  const target = KanjiEntry(
-    char: '月',
-    meaningZh: '月',
-    readings: [
-      Reading(text: 'つき', kind: ReadingKind.kun),
-      Reading(text: 'ゲツ', kind: ReadingKind.on),
-    ],
+
+  KanjiPhrase phraseWith(String written, String reading, String tail) =>
+      KanjiPhrase(
+        segments: [
+          RubySegment(text: written, furigana: reading),
+          RubySegment(text: tail),
+        ],
+        romaji: 'x',
+        meaning: 'x',
+      );
+
+  final gakkou = KanjiUnit(
+    written: '学校',
+    reading: 'がっこう',
+    example: phraseWith('学校', 'がっこう', 'へ'),
   );
-  const kun = Reading(text: 'つき', kind: ReadingKind.kun);
-  const on = Reading(text: 'ゲツ', kind: ReadingKind.on);
+  final nama = KanjiUnit(
+    written: '生',
+    reading: 'なま',
+    example: phraseWith('生', 'なま', 'の'),
+  );
 
-  test('answer appears exactly once and correctIndex points at it', () {
-    final q = const KanjiReadingQuiz().buildQuestion(
-      target,
-      kun,
-      pool,
-      Random(1),
-    );
-    expect(q.options.where((o) => o == 'つき').length, 1);
-    expect(q.options[q.correctIndex], 'つき');
-    expect(q.answer, 'つき');
-    expect(q.options.length, 4);
-  });
+  test(
+    'the naive character-by-character reading is offered as a distractor',
+    () {
+      // 学校 is がっこう, NOT がくこう — the sound change is exactly what a reader
+      // reasoning from characters gets wrong, so it must be on the card.
+      final q = const KanjiReadingQuiz().buildQuestion(
+        gakkou,
+        [gakkou, nama],
+        inventory,
+        Random(1),
+      );
 
-  test('distractors are same-kind readings of OTHER kanji only', () {
+      expect(q.options, contains('がくこう'));
+      expect(q.answer, 'がっこう');
+      expect(q.options[q.correctIndex], 'がっこう');
+    },
+  );
+
+  test('other readings of the same kanji are offered (one reading is not the kanji)', () {
     final q = const KanjiReadingQuiz().buildQuestion(
-      target,
-      kun,
-      pool,
+      nama,
+      [gakkou, nama],
+      inventory,
       Random(2),
     );
-    final distractors = [...q.options]..remove('つき');
-    for (final d in distractors) {
-      expect(['やま', 'かわ', 'ひ'].contains(d), isTrue, reason: d);
-    }
-    expect(q.options.contains('ゲツ'), isFalse); // not 月's own on-reading
+
+    // Knowing 生 reads なま somewhere must not answer 生 anywhere: its other
+    // real readings stand next to it as options.
+    expect(q.options, contains('せい'));
+    expect(q.options.where((o) => o == 'なま'), hasLength(1));
   });
 
-  test('deterministic under a seeded Random', () {
-    final a = const KanjiReadingQuiz().buildQuestion(
-      target,
-      kun,
-      pool,
-      Random(7),
-    );
-    final b = const KanjiReadingQuiz().buildQuestion(
-      target,
-      kun,
-      pool,
-      Random(7),
-    );
-    expect(a.options, b.options);
-    expect(a.correctIndex, b.correctIndex);
-  });
-
-  test('the real dataset is thick enough to fill 4 options for every reading', () {
-    // The screen assumes a choose-the-reading; guard that the shipped kKanji
-    // always yields the full 4 same-kind options (fails loud if it ever thins).
-    for (final e in kKanji) {
-      for (final r in e.readings) {
-        final q = const KanjiReadingQuiz().buildQuestion(
-          e,
-          r,
-          kKanji,
-          Random(1),
-        );
-        expect(q.options.length, 4, reason: '${e.char}#${r.text}');
-      }
-    }
-  });
-
-  test('clamps options when same-kind distractors are scarce', () {
-    // Only サン and カ are on-readings of other kanji → answer + 2 = 3 options.
+  test('on-readings are offered in hiragana, never as a katakana tell', () {
     final q = const KanjiReadingQuiz().buildQuestion(
-      target,
-      on,
-      pool,
-      Random(1),
+      nama,
+      [gakkou, nama],
+      inventory,
+      Random(3),
     );
-    expect(q.options.length, 3);
-    expect(q.options.contains('サン'), isTrue);
-    expect(q.options.contains('カ'), isTrue);
+
+    for (final option in q.options) {
+      expect(
+        option.runes.every((r) => r < 0x30a1 || r > 0x30f6),
+        isTrue,
+        reason: 'katakana option "$option" would stand out by script alone',
+      );
+    }
+  });
+
+  test('the answer appears exactly once and options never repeat', () {
+    for (var seed = 0; seed < 40; seed++) {
+      final q = const KanjiReadingQuiz().buildQuestion(
+        gakkou,
+        [gakkou, nama],
+        inventory,
+        Random(seed),
+      );
+      expect(q.options.where((o) => o == q.answer), hasLength(1));
+      expect(q.options.toSet(), hasLength(q.options.length));
+      expect(q.options[q.correctIndex], q.answer);
+    }
+  });
+
+  test('deterministic under a seed', () {
+    List<String> run() => const KanjiReadingQuiz()
+        .buildQuestion(gakkou, [gakkou, nama], inventory, Random(7))
+        .options;
+    expect(run(), run());
+  });
+
+  test('a unit whose kanji the inventory does not know still gets options', () {
+    // The corpus may use kanji the curriculum has not reached; the question
+    // falls back to other units' readings rather than shipping a single option.
+    final unknown = KanjiUnit(
+      written: '喫茶',
+      reading: 'きっさ',
+      example: phraseWith('喫茶', 'きっさ', 'てん'),
+    );
+    final q = const KanjiReadingQuiz().buildQuestion(
+      unknown,
+      [unknown, gakkou, nama],
+      inventory,
+      Random(5),
+    );
+
+    expect(q.options.length, greaterThanOrEqualTo(2));
+    expect(q.options, contains('きっさ'));
+  });
+
+  group('against the real corpus', () {
+    final units = KanjiUnits.fromPhrases(kKanjiPhrases);
+
+    test('every harvested unit builds a question with real choices', () {
+      final rng = Random(11);
+      for (final unit in units) {
+        final q = const KanjiReadingQuiz().buildQuestion(
+          unit,
+          units,
+          kKanji,
+          rng,
+        );
+        expect(
+          q.options.length,
+          greaterThanOrEqualTo(3),
+          reason: '${unit.written}: too few options to be a real question',
+        );
+        expect(q.options.where((o) => o == q.answer), hasLength(1));
+      }
+    });
+
+    test('units are harvested from the corpus, deduped, with context', () {
+      expect(units, isNotEmpty);
+      expect(units.map((u) => u.id).toSet(), hasLength(units.length));
+      for (final unit in units) {
+        expect(unit.reading, isNotEmpty);
+        expect(
+          unit.example.segments.any(
+            (s) => s.text == unit.written && s.furigana == unit.reading,
+          ),
+          isTrue,
+          reason: '${unit.id}: its example does not contain it',
+        );
+      }
+    });
   });
 }

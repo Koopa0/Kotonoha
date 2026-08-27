@@ -8,10 +8,9 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
-import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_reading_question.dart';
+import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
-import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -21,30 +20,31 @@ import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
-/// 漢字の声 — honest kanji reading. A never-seen reading is TAUGHT ear-first
-/// (hear it, watch the kana ink in, the meaning as quiet context); a seen
-/// reading is RECALLed cold by choosing the reading from four real same-kind
-/// readings of OTHER kanji, with the meaning HIDDEN until after the choice — so
-/// the meaning a 漢字-literate reader already owns can't stand in for the reading
-/// he must produce. No score on screen, no clock (latencyMs stays null); the
-/// per-reading Leitner advances either way.
+/// 漢字の声 — honest kanji reading, drilled in WORDS. A never-met unit
+/// (学校【がっこう】) is TAUGHT ear-first: hear it, watch the kana ink in, and see
+/// the sentence it lives in. A met unit is RECALLed cold — choose its reading,
+/// where the wrong options are what reading it character by character would
+/// produce (学校 → がくこう). The meaning is never glossed at all: a
+/// 漢字-literate reader already owns it, and the only thing missing is the
+/// sound. No score on screen, no clock; the per-unit Leitner advances either
+/// way.
 class KanjiQuizScreen extends StatefulWidget {
   KanjiQuizScreen({
-    required this.prompts,
+    required this.units,
     required this.title,
     Random? rng,
     super.key,
   }) : rng = rng ?? Random();
 
-  final List<KanjiPrompt> prompts;
+  final List<KanjiUnit> units;
   final String title;
 
   /// Injected so option order is deterministic under test.
   final Random rng;
 
-  static Route<void> route(List<KanjiPrompt> prompts, String title) =>
+  static Route<void> route(List<KanjiUnit> units, String title) =>
       MaterialPageRoute<void>(
-        builder: (_) => KanjiQuizScreen(prompts: prompts, title: title),
+        builder: (_) => KanjiQuizScreen(units: units, title: title),
       );
 
   @override
@@ -56,9 +56,9 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   int _index = 0;
   bool _done = false;
 
-  // Captured once on entering a prompt: a teach beat flips isSeen, so the route
-  // must not be re-derived from the live stat mid-beat. Each readingId appears
-  // at most once per session (KanjiSession.compose is one-pass), so a reading is
+  // Captured once on entering a unit: a teach beat flips isSeen, so the route
+  // must not be re-derived from the live stat mid-beat. Each unit appears at
+  // most once per session (KanjiSession.compose is one-pass), so a unit is
   // taught XOR recalled in a session — teach-before-test holds by construction.
   bool _isTeach = true;
   KanjiReadingQuestion? _question; // recall only
@@ -67,9 +67,9 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   int _graded = 0; // recall beats answered
   int _correct = 0; // recall beats answered correctly
 
-  KanjiPrompt get _current => widget.prompts[_index];
-  String get _spoken => _current.reading.exampleWord ?? _current.reading.text;
-  bool get _isLast => _index + 1 >= widget.prompts.length;
+  KanjiUnit get _current => widget.units[_index];
+  String get _spoken => _current.reading;
+  bool get _isLast => _index + 1 >= widget.units.length;
 
   @override
   void initState() {
@@ -81,13 +81,13 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   void _route() {
     final repo = context.read<KanjiReadingRepository>();
     final p = _current;
-    _isTeach = !repo.statForReading(p.readingId).isSeen;
+    _isTeach = !repo.statForUnit(p.id).isSeen;
     _picked = null;
     _question = _isTeach
         ? null
         : const KanjiReadingQuiz().buildQuestion(
-            p.entry,
-            p.reading,
+            p,
+            widget.units,
             repo.allKanji,
             widget.rng,
           );
@@ -120,15 +120,14 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     context.read<AnalyticsLog>().record(
       Attempt(
         ts: now.millisecondsSinceEpoch,
-        itemId: p.readingId,
+        itemId: p.id,
         itemType: ItemType.kanji,
         mode: KanjiMode.kanjiReading.name,
         correct: correct,
         sessionId: _sessionId,
         meta: {
-          'kanji': p.entry.char,
-          'reading': p.reading.text,
-          'kind': p.reading.kind.name,
+          'written': p.written,
+          'reading': p.reading,
           // Separates honest encodes from graded recalls in the stream, so a
           // teach exposure is never read as a passed test.
           'beat': beat,
@@ -147,7 +146,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     final now = DateTime.now();
     context.read<ProgressPersistenceController>().trackKanji(
       context.read<KanjiReadingRepository>().recordAnswer(
-        _current.readingId,
+        _current.id,
         correct: true,
         at: now,
       ),
@@ -164,7 +163,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     final correct = i == _question!.correctIndex;
     context.read<ProgressPersistenceController>().trackKanji(
       context.read<KanjiReadingRepository>().recordAnswer(
-        _current.readingId,
+        _current.id,
         correct: correct,
         at: now,
       ),
@@ -196,7 +195,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     // hollow 0/0), just the closing fact.
     headline: _graded == 0 ? '' : AppStrings.readingSummary(_correct, _graded),
     note: AppStrings.closingNote(
-      widget.prompts.first.entry.char,
+      widget.units.first.written,
       band: ClosingBand.forHour(DateTime.now().hour),
     ),
     onDone: () => Navigator.of(context).pop(),
@@ -208,7 +207,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.prompts.length),
+          AppStrings.itemProgress(_index + 1, widget.units.length),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -262,16 +261,10 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _KindChip(
-            label: p.reading.kind == ReadingKind.on
-                ? AppStrings.kanjiOnyomi
-                : AppStrings.kanjiKunyomi,
-          ),
-          const SizedBox(height: 16),
           Text(
-            p.entry.char,
+            p.written,
             style: const TextStyle(
-              fontSize: 96,
+              fontSize: 88,
               height: 1.0,
               color: AppColors.ink,
             ),
@@ -283,19 +276,19 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     );
   }
 
-  // What the card reveals depends on the beat. TEACH shows everything (encode).
-  // RECALL while ASKING shows nothing but the prompt — the meaning he owns and
-  // the reading itself are absent, not merely dimmed. RECALL once ANSWERED
-  // reveals the reading + example + meaning as confirmation.
-  List<Widget> _cardDetail(KanjiPrompt p) {
-    final r = p.reading;
+  // What the card reveals depends on the beat. TEACH shows the reading and the
+  // sentence it lives in (a reading is never met stripped of its word). RECALL
+  // while ASKING shows the written word and nothing else — no gloss to lean on,
+  // which for a 漢字-literate reader is the whole point. RECALL once ANSWERED
+  // reveals the reading and the same context as confirmation.
+  List<Widget> _cardDetail(KanjiUnit p) {
     if (_isTeach) {
       return [
-        // The kana inks in beneath the kanji while the sound still rings.
+        // The kana inks in beneath the word while the sound still rings.
         _InkIn(
           key: ValueKey(_index),
           child: Text(
-            r.text,
+            p.reading,
             style: const TextStyle(
               fontSize: 40,
               fontWeight: FontWeight.w700,
@@ -303,19 +296,8 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
             ),
           ),
         ),
-        if (r.exampleWord != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            '${r.exampleWord}'
-            '${r.exampleMeaning != null ? '・${r.exampleMeaning}' : ''}',
-            style: const TextStyle(color: AppColors.ink, fontSize: 16),
-          ),
-        ],
-        const SizedBox(height: 6),
-        Text(
-          p.entry.meaningZh,
-          style: const TextStyle(color: AppColors.inkMuted, fontSize: 15),
-        ),
+        const SizedBox(height: 10),
+        ..._context(p),
         const SizedBox(height: 12),
         SpeakButton(text: _spoken, size: 28),
         const SizedBox(height: 12),
@@ -337,30 +319,36 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     return [
       const Divider(height: 36, indent: 48, endIndent: 48),
       Text(
-        r.text,
+        p.reading,
         style: const TextStyle(
           fontSize: 40,
           fontWeight: FontWeight.w700,
           color: AppColors.accent,
         ),
       ),
-      if (r.exampleWord != null) ...[
-        const SizedBox(height: 4),
-        Text(
-          '${r.exampleWord}'
-          '${r.exampleMeaning != null ? '・${r.exampleMeaning}' : ''}',
-          style: const TextStyle(color: AppColors.ink, fontSize: 16),
-        ),
-      ],
-      const SizedBox(height: 6),
-      Text(
-        p.entry.meaningZh,
-        style: const TextStyle(color: AppColors.inkMuted, fontSize: 15),
-      ),
+      const SizedBox(height: 10),
+      ..._context(p),
       const SizedBox(height: 4),
       SpeakButton(text: _spoken, size: 28),
     ];
   }
+
+  /// The sentence the unit was harvested from — shown plain (no furigana, which
+  /// would hand over the neighbouring readings) with its one-line gloss, so the
+  /// word is always met somewhere real.
+  List<Widget> _context(KanjiUnit p) => [
+    Text(
+      p.example.written,
+      textAlign: TextAlign.center,
+      style: const TextStyle(color: AppColors.ink, fontSize: 17),
+    ),
+    const SizedBox(height: 4),
+    Text(
+      p.example.meaning,
+      textAlign: TextAlign.center,
+      style: const TextStyle(color: AppColors.inkMuted, fontSize: 14),
+    ),
+  ];
 
   Widget _options() {
     final q = _question!;
@@ -390,31 +378,6 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     if (i == _picked) return OptionState.wrong;
     if (i == q.correctIndex) return OptionState.revealed;
     return OptionState.dimmed;
-  }
-}
-
-class _KindChip extends StatelessWidget {
-  const _KindChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.accentSoft,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.accent,
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
   }
 }
 

@@ -53,7 +53,7 @@ class ProgressSnapshotRepository {
   static const String _kanaStatsStore = 'kana_stats_v1';
   static const String _learnedUnitsStore = 'learned_units_v1';
   static const String _seenUnlocksStore = 'seen_unlocks_v1';
-  static const String _kanjiStatsStore = 'kanji_stats_v1';
+  static const String _kanjiStatsStore = 'kanji_units_v1';
   static const String _wordStatsStore = 'word_stats_v1';
 
   /// Synchronously captures the five in-memory progress bodies into an

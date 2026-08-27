@@ -811,10 +811,8 @@ const List<Word> kWords = <Word>[
     meaning: '冷氣',
     script: KanaScript.katakana,
   ),
-  // --- A. high-combinatorial verbs (dictionary form) — the 自他動詞 pairs
-  // first (each half kana-checked against the existing corpus so no pair
-  // silently duplicates a kana already seeded elsewhere), then other
-  // high-frequency verbs that let sentences actually move. ---
+  // --- A. high-combinatorial verbs (dictionary form): 自他動詞 pairs first,
+  // then other high-frequency verbs that let sentences actually move. ---
   Word(kana: 'かわる', romaji: 'kawaru', meaning: '改變、變化'),
   Word(kana: 'あく', romaji: 'aku', meaning: '開、打開'),
   Word(kana: 'あける', romaji: 'akeru', meaning: '打開'),
@@ -847,6 +845,7 @@ const List<Word> kWords = <Word>[
   Word(kana: 'みつける', romaji: 'mitsukeru', meaning: '找到'),
   Word(kana: 'はこぶ', romaji: 'hakobu', meaning: '搬運'),
   Word(kana: 'とまる', romaji: 'tomaru', meaning: '停下;過夜'),
+  Word(kana: 'とめる', romaji: 'tomeru', meaning: '停下(某物)、使停止'),
   Word(kana: 'のる', romaji: 'noru', meaning: '搭乘'),
   Word(kana: 'おりる', romaji: 'oriru', meaning: '下車、下降'),
   Word(kana: 'つかれる', romaji: 'tsukareru', meaning: '疲累'),
@@ -856,6 +855,7 @@ const List<Word> kWords = <Word>[
   Word(kana: 'しんじる', romaji: 'shinjiru', meaning: '相信'),
   Word(kana: 'かんじる', romaji: 'kanjiru', meaning: '感覺'),
   Word(kana: 'かんがえる', romaji: 'kangaeru', meaning: '思考、考慮'),
+  Word(kana: 'つづける', romaji: 'tsuzukeru', meaning: '繼續(某事)'),
   // --- B. adverbs / conjunctions — the glue that lets a sentence flow ---
   Word(kana: 'まだ', romaji: 'mada', meaning: '還、尚未'),
   Word(kana: 'もう', romaji: 'mou', meaning: '已經'),
@@ -963,10 +963,5 @@ const List<Word> kWords = <Word>[
     meaning: '換錢、匯兌',
     theme: ContentTheme.travel,
   ),
-  Word(
-    kana: 'せいさん',
-    romaji: 'seisan',
-    meaning: '補票、結算',
-    theme: ContentTheme.travel,
-  ),
+  Word(kana: 'おつり', romaji: 'otsuri', meaning: '找零', theme: ContentTheme.daily),
 ];

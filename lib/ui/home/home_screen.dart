@@ -28,6 +28,7 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_session.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -449,14 +450,15 @@ class HomeScreen extends StatelessWidget {
 
   void _startKanji(BuildContext context) {
     final repo = context.read<KanjiReadingRepository>();
-    final prompts = KanjiSession.compose(
-      entries: repo.allKanji,
+    final units = KanjiSession.compose(
+      units: kKanjiUnits,
       stats: repo.stats,
       now: DateTime.now(),
       rng: Random(),
     );
+    if (units.isEmpty) return;
     Navigator.of(context)
-        .push(KanjiQuizScreen.route(prompts, AppStrings.kanjiTitle));
+        .push(KanjiQuizScreen.route(units, AppStrings.kanjiTitle));
   }
 
   void _startKanjiSentence(
@@ -531,14 +533,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   TrackDue _kanjiTrackDue(KanjiReadingRepository repo, DateTime now) {
-    final dueIds = repo.dueReadingIds(now);
-    final oldest = dueIds.isEmpty
-        ? null
-        : repo.statForReading(dueIds.first).dueAt;
-    final totalReadings = repo.allKanji.fold<int>(
-      0,
-      (n, k) => n + k.readings.length,
-    );
+    final dueIds = repo.dueUnitIds(now);
+    final oldest = dueIds.isEmpty ? null : repo.statForUnit(dueIds.first).dueAt;
+    final totalUnits = kKanjiUnits.length;
     DateTime? lastMet;
     for (final s in repo.stats.values) {
       final seenAt = s.lastReviewedAt;
@@ -549,7 +546,7 @@ class HomeScreen extends StatelessWidget {
     return TrackDue(
       dueCount: dueIds.length,
       oldestDue: oldest,
-      unmet: totalReadings - repo.seenReadingCount,
+      unmet: totalUnits - repo.seenUnitCount,
       lastMet: lastMet,
     );
   }
