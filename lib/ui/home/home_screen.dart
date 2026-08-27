@@ -421,10 +421,15 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  /// [maxNew] lets the ambient line say what the day is FOR: a revision day
+  /// passes 0, so a room that both introduces and reviews does not quietly
+  /// introduce anyway (which would put intake beyond the guidance weights).
+  /// Tapping the room from the home has no such instruction and introduces.
   void _startSentence(
     BuildContext context,
     List<Phrase> readable, {
     bool replace = false,
+    int maxNew = 3,
   }) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
@@ -438,12 +443,14 @@ class HomeScreen extends StatelessWidget {
       now: now,
       stats: context.read<WordProgressRepository>().stats,
       season: Season.forMonth(now.month),
+      maxNew: maxNew,
     );
     final nav = Navigator.of(context);
     final route = ReadingScreen.route(
       picked,
       AppStrings.sentenceTitle,
-      onMore: () => _startSentence(context, readable, replace: true),
+      onMore: () =>
+          _startSentence(context, readable, replace: true, maxNew: maxNew),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -465,6 +472,7 @@ class HomeScreen extends StatelessWidget {
     BuildContext context,
     List<KanjiPhrase> readable, {
     bool replace = false,
+    int maxNew = 3,
   }) {
     final picked = ReadingSet.session(
       items: readable,
@@ -474,13 +482,15 @@ class HomeScreen extends StatelessWidget {
       rng: Random(),
       now: DateTime.now(),
       stats: context.read<WordProgressRepository>().stats,
+      maxNew: maxNew,
     );
     if (picked.isEmpty) return;
     final nav = Navigator.of(context);
     final route = KanjiSentenceScreen.route(
       picked,
       AppStrings.kanjiSentenceTitle,
-      onMore: () => _startKanjiSentence(context, readable, replace: true),
+      onMore: () =>
+          _startKanjiSentence(context, readable, replace: true, maxNew: maxNew),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
@@ -599,10 +609,12 @@ class HomeScreen extends StatelessWidget {
       GuidanceTarget.sentences => () => _startSentence(
         context,
         readablePhrases,
+        maxNew: step.isMeet ? 3 : 0,
       ),
       GuidanceTarget.kanjiSentences => () => _startKanjiSentence(
         context,
         readableKanjiPhrases,
+        maxNew: step.isMeet ? 3 : 0,
       ),
       GuidanceTarget.kanji => () => _startKanji(context),
       GuidanceTarget.lessons || GuidanceTarget.rest => () => Navigator.of(

@@ -85,10 +85,12 @@ void main() {
           run(words, 'words', now, 3);
         case GuidanceTarget.dictation:
           run(words, 'words', now, 0);
+        // A room that both introduces and reviews is told which the day is
+        // for, exactly as the home tells it.
         case GuidanceTarget.sentences:
-          run(phrases, 'phrases', now, 3);
+          run(phrases, 'phrases', now, step.isMeet ? 3 : 0);
         case GuidanceTarget.kanjiSentences:
-          run(sentences, 'sentences', now, 3);
+          run(sentences, 'sentences', now, step.isMeet ? 3 : 0);
         case GuidanceTarget.lessons:
         case GuidanceTarget.daily:
         case GuidanceTarget.kanji:
@@ -123,12 +125,32 @@ void main() {
         reason: '${entry.key} waited ${entry.value} days for a first meeting',
       );
     }
-    // No track is left far behind the others once they are all running.
-    final counts = [met(words), met(phrases), met(sentences)];
+    // The SHAPE the weights ask for, not exact numbers: mixed-script reading
+    // is the main course, words support it, and the all-kana track is
+    // maintenance — small, but never silenced. Half a year of following the
+    // line has to add up to that, or the weights are decorative.
+    final shape =
+        'words ${met(words)}, kana sentences ${met(phrases)}, '
+        'mixed sentences ${met(sentences)}';
     expect(
-      counts.every((c) => c >= 10),
-      isTrue,
-      reason: 'a track stalled after starting: $counts',
+      met(sentences),
+      greaterThanOrEqualTo(50),
+      reason: 'the grammar spine is not the main course: $shape',
+    );
+    expect(
+      met(sentences),
+      greaterThan(met(words)),
+      reason: 'words outpaced the spine: $shape',
+    );
+    expect(
+      met(words),
+      greaterThan(met(phrases)),
+      reason: 'the maintenance track outpaced words: $shape',
+    );
+    expect(
+      met(phrases),
+      greaterThan(0),
+      reason: 'a low weight silenced a track instead of slowing it: $shape',
     );
   });
 }

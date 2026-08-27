@@ -102,9 +102,18 @@ class TrackDue {
 /// 繁中 copy itself lives in `AppStrings` (the UI layer), so this stays
 /// Flutter-free.
 class GuidanceStep {
-  const GuidanceStep(this.target, {this.dueCount = 0});
+  const GuidanceStep(this.target, {this.dueCount = 0}) : isMeet = false;
+
+  /// A step that sends the learner to MEET new material rather than revise.
+  const GuidanceStep.meet(this.target) : dueCount = 0, isMeet = true;
 
   final GuidanceTarget target;
+
+  /// Whether this step is an introduction. Some rooms both introduce and
+  /// review (黙読, 名残の仮名), so the target alone cannot say which the day is
+  /// for — and a review day that quietly also introduced would put the intake
+  /// beyond the reach of the weights in [kMeetWeightMixedSentences] & co.
+  final bool isMeet;
 
   /// Items due for review; only meaningful for the review targets ([daily] /
   /// [dictation] / [sentences] / [kanji]-review — 0 otherwise).
@@ -114,16 +123,35 @@ class GuidanceStep {
   bool operator ==(Object other) =>
       other is GuidanceStep &&
       other.target == target &&
-      other.dueCount == dueCount;
+      other.dueCount == dueCount &&
+      other.isMeet == isMeet;
 
   @override
-  int get hashCode => Object.hash(target, dueCount);
+  int get hashCode => Object.hash(target, dueCount, isMeet);
 }
 
 /// Reads learning state and answers one question: what should the learner do
 /// next? One quiet step at a time — never a map or a checklist. Pure logic,
 /// deterministic under an injected [now].
 abstract final class Guidance {
+  /// How much of the learner's NEW material each track should get — a
+  /// statement about where the bottleneck is right now, not a permanent truth.
+  ///
+  /// For a 漢字-literate adult whose kana are fluent, the gap is reading real
+  /// written Japanese: he already owns the meaning of 学校 and cannot yet say
+  /// がっこう. So mixed-script sentences dominate, kanji readings feed them,
+  /// words support both, and the all-kana sentences are maintenance only —
+  /// they train a decoding skill he has finished acquiring.
+  ///
+  /// These bias RATE, never access: branch E scores a track by neglect × weight
+  /// and every score grows without bound, so a low weight slows a track down
+  /// but can never silence it. Revisit when the bottleneck moves (when
+  /// unfamiliar VOCABULARY, not unfamiliar sound, is what stops a sentence).
+  static const double kMeetWeightMixedSentences = 0.55;
+  static const double kMeetWeightKanji = 0.25;
+  static const double kMeetWeightWords = 0.15;
+  static const double kMeetWeightKanaSentences = 0.05;
+
   /// One session's worth of reviews. At or above it the day is spent revising;
   /// below it there is room for new material. The same intake valve the
   /// session composers apply inside a room, applied one level up — between
@@ -189,20 +217,35 @@ abstract final class Guidance {
     if (hasUnlearned) {
       return const GuidanceStep(GuidanceTarget.lessons);
     }
-    // The reading era. Declaration order is the tie-break for both branches.
+    // The reading era. Declaration order is the tie-break for every branch.
+    // The weights say where the learner's bottleneck is, and they only bias
+    // INTRODUCTION (branch E) — reviews stay schedule-driven, and the review
+    // volume follows whatever was introduced. See [kMeetWeight].
     final tracks = [
-      (review: GuidanceTarget.dictation, meet: GuidanceTarget.ferry, t: words),
+      (
+        review: GuidanceTarget.dictation,
+        meet: GuidanceTarget.ferry,
+        t: words,
+        weight: kMeetWeightWords,
+      ),
       (
         review: GuidanceTarget.sentences,
         meet: GuidanceTarget.sentences,
         t: sentences,
+        weight: kMeetWeightKanaSentences,
       ),
       (
         review: GuidanceTarget.kanjiSentences,
         meet: GuidanceTarget.kanjiSentences,
         t: kanjiSentences,
+        weight: kMeetWeightMixedSentences,
       ),
-      (review: GuidanceTarget.kanji, meet: GuidanceTarget.kanji, t: kanji),
+      (
+        review: GuidanceTarget.kanji,
+        meet: GuidanceTarget.kanji,
+        t: kanji,
+        weight: kMeetWeightKanji,
+      ),
     ];
 
     // D0 — a track the learner has NEVER opened gets opened first, ahead of
@@ -213,7 +256,7 @@ abstract final class Guidance {
     // (see guidance_fairness_simulation_test).
     final unopened = tracks.where((c) => c.t.unmet > 0 && c.t.lastMet == null);
     if (unopened.isNotEmpty) {
-      return GuidanceStep(unopened.first.meet);
+      return GuidanceStep.meet(unopened.first.meet);
     }
 
     final overdue =
@@ -229,22 +272,26 @@ abstract final class Guidance {
     // on new material costs nothing (what stays due is picked up tomorrow).
     if (backlog >= kReviewFirstBacklog) return review();
 
-    // E — there is slack: the track neglected longest gets new material. This
-    // has to outrank a small backlog, because for words the meeting beat and
-    // the reviewing beat are different rooms (渡し舟 / 文字起こし) — a strict
-    // review-first rule pointed at 文字起こし almost every day and the learner
-    // met three new words in half a year (guidance_fairness_simulation_test).
+    // E — there is slack: new material goes to the track that is most starved,
+    // where starvation is how long it has been neglected TIMES how much of the
+    // learner's attention it should be getting. Weighting only shifts the rate;
+    // every track's score still grows without bound, so none can be locked out
+    // (guidance_fairness_simulation_test asserts both the reach and the share).
+    //
+    // This branch has to outrank a small backlog, because for words the meeting
+    // beat and the reviewing beat are different rooms (渡し舟 / 文字起こし) — a
+    // strict review-first rule pointed at 文字起こし almost every day and the
+    // learner met three new words in half a year.
     final unmet = tracks.where((c) => c.t.unmet > 0).toList();
     if (unmet.isNotEmpty) {
-      unmet.sort((a, b) {
-        final x = a.t.lastMet;
-        final y = b.t.lastMet;
-        if (x == null && y == null) return 0;
-        if (x == null) return -1;
-        if (y == null) return 1;
-        return x.compareTo(y);
-      });
-      return GuidanceStep(unmet.first.meet);
+      // D0 already claimed every never-opened track, so lastMet is set here.
+      double starvation(TrackDue t, double weight) =>
+          now.difference(t.lastMet ?? now).inSeconds * weight;
+      unmet.sort(
+        (a, b) =>
+            starvation(b.t, b.weight).compareTo(starvation(a.t, a.weight)),
+      );
+      return GuidanceStep.meet(unmet.first.meet);
     }
 
     // Nothing new anywhere, but a few items are still due.
