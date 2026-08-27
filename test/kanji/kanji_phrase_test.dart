@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
@@ -38,6 +39,37 @@ void main() {
           );
         }
       }
+    }
+  });
+
+  test(
+    'every phrase has at least one plain kana segment (the gate is real)',
+    () {
+      // The readability gate asks whether the NON-kanji kana is known. A phrase
+      // with no plain segment (書道-style, all kanji + furigana) passes that gate
+      // vacuously — readable, and unlocking the track, before a single kana is
+      // learned. The corpus must always give the gate something real to hold.
+      for (final p in kKanjiPhrases) {
+        expect(
+          p.plainSegments,
+          isNotEmpty,
+          reason: '${p.written}: no plain kana segment — readable at zero kana',
+        );
+      }
+    },
+  );
+  test('no phrase is readable on the first kana row alone (unlock order)', () {
+    // The home's unlock choreography is 詞 → 句 → 漢字句. A kanji phrase whose
+    // plain kana happens to fit inside あ行 (近い店-style: plain = い) would
+    // open the kanji-sentence track the moment the very first row is learned,
+    // shoving its unlock line in front of the guidance step. Pin the order.
+    const firstRow = {'あ', 'い', 'う', 'え', 'お'};
+    for (final p in kKanjiPhrases) {
+      expect(
+        p.plainSegments.every((s) => KanaTokenizer.isReadable(s, firstRow)),
+        isFalse,
+        reason: '${p.written}: readable with あ行 alone',
+      );
     }
   });
 }

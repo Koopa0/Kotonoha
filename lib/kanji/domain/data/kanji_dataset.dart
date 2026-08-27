@@ -3,7 +3,7 @@
 
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
 
-/// The kanji set — 82 kanji in rough frequency order (seeded from JLPT N5
+/// The kanji set — 110 kanji in rough frequency order (seeded from JLPT N5
 /// outward), 1–2 readings
 /// each (capped to avoid retrieval interference). On-yomi in katakana, kun-yomi
 /// in hiragana; one example word (in kana) + a Traditional-Chinese gloss per
@@ -1338,6 +1338,468 @@ const List<KanjiEntry> kKanji = <KanjiEntry>[
         kind: ReadingKind.on,
         exampleWord: 'しゃちょう',
         exampleMeaning: '社長',
+      ),
+    ],
+  ),
+  // ── Second N5/N4 expansion: time words, daily-life verbs, places,
+  // adjectives — the learner's practical vocabulary gap. Same discipline as
+  // above (on'yomi katakana / kun'yomi hiragana, 1–2 readings, every example
+  // word double-checked against a real dictionary reading — no rendaku- or
+  // gemination-shifted surface form smuggled in as if it were a kanji's own
+  // reading). ──
+  KanjiEntry(
+    char: '週',
+    meaningZh: '星期、週',
+    readings: [
+      Reading(
+        text: 'シュウ',
+        kind: ReadingKind.on,
+        exampleWord: 'しゅうまつ',
+        exampleMeaning: '週末',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '毎',
+    meaningZh: '每',
+    readings: [
+      Reading(
+        text: 'マイ',
+        kind: ReadingKind.on,
+        exampleWord: 'まいにち',
+        exampleMeaning: '每天',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '昼',
+    meaningZh: '白天、中午',
+    readings: [
+      Reading(
+        text: 'ひる',
+        kind: ReadingKind.kun,
+        exampleWord: 'ひる',
+        exampleMeaning: '白天、中午',
+      ),
+      Reading(
+        text: 'チュウ',
+        kind: ReadingKind.on,
+        exampleWord: 'ちゅうしょく',
+        exampleMeaning: '午餐',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '駅',
+    meaningZh: '車站',
+    readings: [
+      Reading(
+        text: 'エキ',
+        kind: ReadingKind.on,
+        exampleWord: 'えき',
+        exampleMeaning: '車站',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '道',
+    meaningZh: '道路、道理',
+    readings: [
+      Reading(
+        text: 'みち',
+        kind: ReadingKind.kun,
+        exampleWord: 'みち',
+        exampleMeaning: '道路、路',
+      ),
+      Reading(
+        text: 'ドウ',
+        kind: ReadingKind.on,
+        exampleWord: 'しょどう',
+        exampleMeaning: '書法',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '店',
+    meaningZh: '店、商店',
+    readings: [
+      Reading(
+        text: 'みせ',
+        kind: ReadingKind.kun,
+        exampleWord: 'みせ',
+        exampleMeaning: '商店、店',
+      ),
+      Reading(
+        text: 'テン',
+        kind: ReadingKind.on,
+        exampleWord: 'しょてん',
+        exampleMeaning: '書店',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '社',
+    meaningZh: '公司、神社',
+    readings: [
+      Reading(
+        text: 'シャ',
+        kind: ReadingKind.on,
+        exampleWord: 'かいしゃ',
+        exampleMeaning: '公司',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '町',
+    meaningZh: '城鎮、街',
+    readings: [
+      Reading(
+        text: 'まち',
+        kind: ReadingKind.kun,
+        exampleWord: 'まち',
+        exampleMeaning: '城鎮、街',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '買',
+    meaningZh: '買',
+    readings: [
+      Reading(
+        text: 'か',
+        kind: ReadingKind.kun,
+        exampleWord: 'かう',
+        exampleMeaning: '買、購買',
+      ),
+      Reading(
+        text: 'バイ',
+        kind: ReadingKind.on,
+        exampleWord: 'ばいばい',
+        exampleMeaning: '買賣',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '売',
+    meaningZh: '賣',
+    readings: [
+      Reading(
+        text: 'う',
+        kind: ReadingKind.kun,
+        exampleWord: 'うる',
+        exampleMeaning: '賣、賣出',
+      ),
+      Reading(
+        text: 'バイ',
+        kind: ReadingKind.on,
+        exampleWord: 'ばいてん',
+        exampleMeaning: '小賣店',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '帰',
+    meaningZh: '回去、歸',
+    readings: [
+      Reading(
+        text: 'かえ',
+        kind: ReadingKind.kun,
+        exampleWord: 'かえる',
+        exampleMeaning: '回去、回家',
+      ),
+      Reading(
+        text: 'キ',
+        kind: ReadingKind.on,
+        exampleWord: 'きこく',
+        exampleMeaning: '歸國',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '待',
+    meaningZh: '等待',
+    readings: [
+      Reading(
+        text: 'ま',
+        kind: ReadingKind.kun,
+        exampleWord: 'まつ',
+        exampleMeaning: '等待',
+      ),
+      Reading(
+        text: 'タイ',
+        kind: ReadingKind.on,
+        exampleWord: 'きたい',
+        exampleMeaning: '期待',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '持',
+    meaningZh: '拿、持有',
+    readings: [
+      Reading(
+        text: 'も',
+        kind: ReadingKind.kun,
+        exampleWord: 'もつ',
+        exampleMeaning: '拿、持有',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '使',
+    meaningZh: '使用',
+    readings: [
+      Reading(
+        text: 'つか',
+        kind: ReadingKind.kun,
+        exampleWord: 'つかう',
+        exampleMeaning: '使用、用',
+      ),
+      Reading(
+        text: 'シ',
+        kind: ReadingKind.on,
+        exampleWord: 'しよう',
+        exampleMeaning: '使用',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '作',
+    meaningZh: '製作、做',
+    readings: [
+      Reading(
+        text: 'つく',
+        kind: ReadingKind.kun,
+        exampleWord: 'つくる',
+        exampleMeaning: '製作、做',
+      ),
+      Reading(
+        text: 'サク',
+        kind: ReadingKind.on,
+        exampleWord: 'さくぶん',
+        exampleMeaning: '作文',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '住',
+    meaningZh: '居住',
+    readings: [
+      Reading(
+        text: 'す',
+        kind: ReadingKind.kun,
+        exampleWord: 'すむ',
+        exampleMeaning: '居住',
+      ),
+      Reading(
+        text: 'ジュウ',
+        kind: ReadingKind.on,
+        exampleWord: 'じゅうしょ',
+        exampleMeaning: '地址',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '起',
+    meaningZh: '起、起床',
+    readings: [
+      Reading(
+        text: 'お',
+        kind: ReadingKind.kun,
+        exampleWord: 'おきる',
+        exampleMeaning: '起床、發生',
+      ),
+      Reading(
+        text: 'キ',
+        kind: ReadingKind.on,
+        exampleWord: 'きりつ',
+        exampleMeaning: '起立',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '寝',
+    meaningZh: '睡覺',
+    readings: [
+      Reading(
+        text: 'ね',
+        kind: ReadingKind.kun,
+        exampleWord: 'ねる',
+        exampleMeaning: '睡覺',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '会',
+    meaningZh: '見面、會',
+    readings: [
+      Reading(
+        text: 'あ',
+        kind: ReadingKind.kun,
+        exampleWord: 'あう',
+        exampleMeaning: '見面、相遇',
+      ),
+      Reading(
+        text: 'カイ',
+        kind: ReadingKind.on,
+        exampleWord: 'かいしゃ',
+        exampleMeaning: '公司',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '歩',
+    meaningZh: '走路、步',
+    readings: [
+      Reading(
+        text: 'ある',
+        kind: ReadingKind.kun,
+        exampleWord: 'あるく',
+        exampleMeaning: '走路、步行',
+      ),
+      Reading(
+        text: 'ホ',
+        kind: ReadingKind.on,
+        exampleWord: 'ほどう',
+        exampleMeaning: '人行道',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '早',
+    meaningZh: '早、快',
+    readings: [
+      Reading(
+        text: 'はや',
+        kind: ReadingKind.kun,
+        exampleWord: 'はやい',
+        exampleMeaning: '早的、快的',
+      ),
+      Reading(
+        text: 'ソウ',
+        kind: ReadingKind.on,
+        exampleWord: 'そうちょう',
+        exampleMeaning: '一大早、清晨',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '明',
+    meaningZh: '明亮',
+    readings: [
+      Reading(
+        text: 'あか',
+        kind: ReadingKind.kun,
+        exampleWord: 'あかるい',
+        exampleMeaning: '明亮的',
+      ),
+      Reading(
+        text: 'メイ',
+        kind: ReadingKind.on,
+        exampleWord: 'せつめい',
+        exampleMeaning: '說明',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '国',
+    meaningZh: '國家',
+    readings: [
+      Reading(
+        text: 'くに',
+        kind: ReadingKind.kun,
+        exampleWord: 'くに',
+        exampleMeaning: '國家',
+      ),
+      Reading(
+        text: 'コク',
+        kind: ReadingKind.on,
+        exampleWord: 'がいこく',
+        exampleMeaning: '外國',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '外',
+    meaningZh: '外面',
+    readings: [
+      Reading(
+        text: 'そと',
+        kind: ReadingKind.kun,
+        exampleWord: 'そと',
+        exampleMeaning: '外面',
+      ),
+      Reading(
+        text: 'ガイ',
+        kind: ReadingKind.on,
+        exampleWord: 'がいしゅつ',
+        exampleMeaning: '外出',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '近',
+    meaningZh: '近',
+    readings: [
+      Reading(
+        text: 'ちか',
+        kind: ReadingKind.kun,
+        exampleWord: 'ちかい',
+        exampleMeaning: '近的',
+      ),
+      Reading(
+        text: 'キン',
+        kind: ReadingKind.on,
+        exampleWord: 'さいきん',
+        exampleMeaning: '最近',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '声',
+    meaningZh: '聲音',
+    readings: [
+      Reading(
+        text: 'こえ',
+        kind: ReadingKind.kun,
+        exampleWord: 'こえ',
+        exampleMeaning: '聲音',
+      ),
+      Reading(
+        text: 'セイ',
+        kind: ReadingKind.on,
+        exampleWord: 'おんせい',
+        exampleMeaning: '聲音、語音',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '語',
+    meaningZh: '語言、詞語',
+    readings: [
+      Reading(
+        text: 'ゴ',
+        kind: ReadingKind.on,
+        exampleWord: 'にほんご',
+        exampleMeaning: '日語',
+      ),
+      Reading(
+        text: 'かた',
+        kind: ReadingKind.kun,
+        exampleWord: 'かたる',
+        exampleMeaning: '講述、敘說',
+      ),
+    ],
+  ),
+  KanjiEntry(
+    char: '曜',
+    meaningZh: '星期',
+    readings: [
+      Reading(
+        text: 'ヨウ',
+        kind: ReadingKind.on,
+        exampleWord: 'ようび',
+        exampleMeaning: '星期（幾）',
       ),
     ],
   ),

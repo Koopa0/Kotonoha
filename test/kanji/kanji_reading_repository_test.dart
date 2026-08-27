@@ -18,7 +18,7 @@ void main() {
   test('starts empty and knows the full kanji set', () async {
     final repo = await KanjiReadingRepository.load();
     expect(repo.seenReadingCount, 0);
-    expect(repo.allKanji.length, 82);
+    expect(repo.allKanji.length, 110);
     expect(repo.statForReading(id).isSeen, isFalse);
   });
 
