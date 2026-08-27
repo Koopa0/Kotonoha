@@ -332,7 +332,7 @@ const List<Word> kWords = <Word>[
     falseFriend: FalseFriend(
       kanji: '切符',
       jaMeaning: '車票、入場券',
-      zhNote: '中文少用這個詞,日文是撕角驗票的那張票。',
+      zhNote: '中文幾乎不用這個詞;日文泛指車票、入場券這類票券。',
     ),
   ),
   Word(
@@ -533,7 +533,7 @@ const List<Word> kWords = <Word>[
     falseFriend: FalseFriend(
       kanji: '上手',
       jaMeaning: '擅長、拿手',
-      zhNote: '中文的「上手」是開始熟練;日文是本來就很會。',
+      zhNote: '中文的「上手」常指開始掌握;日文是擅長、做得好。',
     ),
   ),
   Word(kana: 'へた', romaji: 'heta', meaning: '不擅長'),
@@ -544,7 +544,7 @@ const List<Word> kWords = <Word>[
     falseFriend: FalseFriend(
       kanji: '大丈夫',
       jaMeaning: '沒事、不要緊',
-      zhNote: '中文的「大丈夫」是男子漢;日文是一句安心的話。',
+      zhNote: '中文的「大丈夫」是男子漢;日文是「沒事、不要緊」,回應提議時也可以是婉拒。',
     ),
   ),
   // --- the inner life ---
@@ -717,7 +717,7 @@ const List<Word> kWords = <Word>[
   Word(
     kana: 'メール',
     romaji: 'meeru',
-    meaning: '郵件、訊息',
+    meaning: '電子郵件',
     script: KanaScript.katakana,
     theme: ContentTheme.daily,
   ),
@@ -752,7 +752,7 @@ const List<Word> kWords = <Word>[
   Word(
     kana: 'ドラマ',
     romaji: 'dorama',
-    meaning: '日劇',
+    meaning: '電視劇',
     script: KanaScript.katakana,
   ),
   Word(

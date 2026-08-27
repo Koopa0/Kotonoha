@@ -201,12 +201,12 @@ const List<Phrase> kPhrases = <Phrase>[
   Phrase(kana: 'ゆめを みた', romaji: 'yume o mita', meaning: '做了一個夢'),
   Phrase(
     kana: 'きれいな はなを みつけた',
-    romaji: 'kireina hana o mitsuketa',
+    romaji: 'kirei na hana o mitsuketa',
     meaning: '發現了漂亮的花',
   ),
   // 否定 — 〜ない
   Phrase(kana: 'きょうは いかない', romaji: 'kyou wa ikanai', meaning: '今天不去'),
-  Phrase(kana: 'まだ ねない', romaji: 'mada nenai', meaning: '還不想睡'),
+  Phrase(kana: 'まだ ねない', romaji: 'mada nenai', meaning: '還不睡'),
   Phrase(kana: 'なにも いらない', romaji: 'nani mo iranai', meaning: '什麼都不需要'),
   // こそあど — 指著問
   Phrase(kana: 'これは なに', romaji: 'kore wa nani', meaning: '這是什麼'),
