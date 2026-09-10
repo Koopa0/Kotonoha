@@ -15,16 +15,27 @@ abstract final class KanjiPrompt {
   /// The full written sentence the unit was harvested from.
   static String stemOf(KanjiUnit unit) => unit.example.written;
 
-  /// True when [stemOf] uniquely selects [target]'s reading among [corpus]
-  /// units that share the same written run. A collision means two taught
-  /// readings would present the same visible sentence — that item must not
-  /// be graded as a cold recall.
+  /// Index of the target run inside [unit.example.segments], or -1.
+  /// 手話で話す has two 話; the mark is which one is being asked.
+  static int markedIndex(KanjiUnit unit) {
+    for (var i = 0; i < unit.example.segments.length; i++) {
+      final s = unit.example.segments[i];
+      if (s.text == unit.written && s.furigana == unit.reading) return i;
+    }
+    return -1;
+  }
+
+  /// True when the visible stem plus the marked run uniquely selects
+  /// [target]'s reading among [corpus] units that share the same written
+  /// run. Same sentence + same mark for two readings cannot be graded.
   static bool uniquelySelects(KanjiUnit target, Iterable<KanjiUnit> corpus) {
     final stem = stemOf(target);
+    final mark = markedIndex(target);
     for (final other in corpus) {
       if (other.id == target.id) continue;
       if (other.written != target.written) continue;
-      if (stemOf(other) == stem) return false;
+      if (stemOf(other) != stem) continue;
+      if (markedIndex(other) == mark) return false;
     }
     return true;
   }

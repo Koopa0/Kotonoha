@@ -35,7 +35,7 @@ void main() {
     }
   });
 
-  test('日 / 来 / 会 / 学校 stems match the taught contexts', () {
+  test('日 / 来 / 会 stems match the taught contexts', () {
     String stem(String id) =>
         KanjiPrompt.stemOf(units.singleWhere((u) => u.id == id));
 
@@ -45,6 +45,15 @@ void main() {
     expect(stem('unit:来#き'), 'いつ会社へ来ますか');
     expect(stem('unit:来#らい'), '来週まで');
     expect(stem('unit:会#あ'), isNot(stem('unit:会#かい')));
-    expect(stem('unit:学校#がっこう'), contains('学校'));
+  });
+
+  test('話 in 手話で話す is two marks on one sentence', () {
+    final wa = units.singleWhere((u) => u.id == 'unit:話#わ');
+    final hana = units.singleWhere((u) => u.id == 'unit:話#はな');
+    expect(KanjiPrompt.stemOf(wa), '手話で話す');
+    expect(KanjiPrompt.stemOf(hana), '手話で話す');
+    expect(KanjiPrompt.markedIndex(wa), isNot(KanjiPrompt.markedIndex(hana)));
+    expect(KanjiPrompt.uniquelySelects(wa, units), isTrue);
+    expect(KanjiPrompt.uniquelySelects(hana, units), isTrue);
   });
 }

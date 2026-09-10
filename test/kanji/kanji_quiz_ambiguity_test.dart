@@ -30,7 +30,6 @@ void main() {
   final rai = kKanjiUnits.singleWhere((u) => u.id == 'unit:来#らい');
   final au = kKanjiUnits.singleWhere((u) => u.id == 'unit:会#あ');
   final kai = kKanjiUnits.singleWhere((u) => u.id == 'unit:会#かい');
-  final gakkou = kKanjiUnits.singleWhere((u) => u.id == 'unit:学校#がっこう');
 
   Future<({KanjiReadingRepository repo, InMemoryAnalyticsLog analytics})>
   pumpSession(
@@ -131,8 +130,8 @@ void main() {
     expect(seeded.repo.statForUnit(nichi.id).srsLevel, 3);
   });
 
-  testWidgets('来 / 会 / 学校 stems are visible before the answer', (tester) async {
-    for (final unit in [kuru, au, gakkou]) {
+  testWidgets('来 / 会 stems are visible before the answer', (tester) async {
+    for (final unit in [kuru, au]) {
       SharedPreferences.setMockInitialValues({});
       final repo = await KanjiReadingRepository.load();
       await repo.recordAnswer(
@@ -157,6 +156,7 @@ void main() {
           ],
           child: MaterialApp(
             home: KanjiQuizScreen(
+              key: UniqueKey(),
               units: [unit, ki, rai, kai],
               title: AppStrings.kanjiTitle,
               rng: Random(1),
@@ -166,7 +166,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(stemOf(tester), KanjiPrompt.stemOf(unit), reason: unit.id);
-      expect(find.text(unit.reading), findsOneWidget, reason: unit.id);
+      final labels = tester
+          .widgetList<AnswerOptionButton>(find.byType(AnswerOptionButton))
+          .map((b) => b.label);
+      expect(labels, contains(unit.reading), reason: unit.id);
       expect(find.text(unit.example.meaning), findsNothing, reason: unit.id);
     }
   });

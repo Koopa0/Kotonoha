@@ -126,7 +126,6 @@ void main() {
         stats: repo.stats,
         now: now,
         rng: Random(1),
-        maxNew: KanjiSession.kDefaultMaxNew,
       );
       final meetNew = meet.where((u) => !repo.statForUnit(u.id).isSeen).length;
       expect(meet.where((u) => due.any((d) => d.id == u.id)).length, 5);

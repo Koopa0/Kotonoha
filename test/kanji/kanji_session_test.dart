@@ -146,7 +146,6 @@ void main() {
       stats: stats,
       now: now,
       rng: Random(4),
-      length: 12,
       maxNew: 0,
     );
 
