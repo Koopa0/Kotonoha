@@ -7,39 +7,68 @@ import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
 /// Composes a 漢字の声 session over the units harvested from the corpus.
-/// Light guidance: surface never-met units first, then ones due for review,
-/// then the rest — so early sessions teach and later ones reinforce. WITHIN a
-/// tier the weaker unit (more often missed) resurfaces first. Deterministic
-/// under an injected [Random].
+///
+/// Three tiers, the same intake valve the sentence rooms use:
+///
+/// 1. **Due** — seen and due now; weaker (higher wrong-rate) first. The
+///    review backlog always outranks novelty.
+/// 2. **New** — up to [maxNew] never-seen units. Skipped entirely while due
+///    reviews alone fill the session, so a Home "review" day cannot be
+///    quietly replaced by a first meeting.
+/// 3. **Fill** — seen, not-yet-due; weaker first.
+///
+/// [maxNew] is how the home says what the day is *for*: a meet step passes
+/// [kDefaultMaxNew], a review step passes 0. The feature tile uses the
+/// default and still honours the backlog gate. Teach vs cold-recall is
+/// decided later by `ReadingStat.isSeen`, not by this composer.
+///
+/// Deterministic under an injected [Random].
 abstract final class KanjiSession {
+  /// One session's paced trickle of first meetings — matches 黙読 / 名残の仮名.
+  static const int kDefaultMaxNew = 3;
+
+  static const int kDefaultLength = 12;
+
   static List<KanjiUnit> compose({
     required List<KanjiUnit> units,
     required Map<String, ReadingStat> stats,
     required DateTime now,
     required Random rng,
-    int length = 12,
+    int length = kDefaultLength,
+    int maxNew = kDefaultMaxNew,
   }) {
-    final all = List<KanjiUnit>.of(units)..shuffle(rng);
+    ReadingStat statOf(KanjiUnit u) => stats[u.id] ?? const ReadingStat();
 
-    int rank(KanjiUnit u) {
+    final due = <KanjiUnit>[];
+    final fresh = <KanjiUnit>[];
+    final rest = <KanjiUnit>[];
+    for (final u in units) {
       final s = stats[u.id];
-      if (s == null || !s.isSeen) return 0; // new
-      if (s.dueAt != null && !s.dueAt!.isAfter(now)) return 1; // due
-      return 2; // not yet due
+      if (s == null || !s.isSeen) {
+        fresh.add(u);
+      } else if (s.dueAt != null && !s.dueAt!.isAfter(now)) {
+        due.add(u);
+      } else {
+        rest.add(u);
+      }
     }
 
-    double weakness(KanjiUnit u) {
-      final s = stats[u.id];
-      return s == null ? 0 : _weakness(s);
-    }
+    due.shuffle(rng);
+    fresh.shuffle(rng);
+    rest.shuffle(rng);
+    due.sort((a, b) => _weakness(statOf(b)).compareTo(_weakness(statOf(a))));
+    rest.sort((a, b) => _weakness(statOf(b)).compareTo(_weakness(statOf(a))));
 
-    all.sort((a, b) {
-      final byRank = rank(a).compareTo(rank(b));
-      if (byRank != 0) return byRank;
-      // Within a tier, weaker first; the shuffle breaks any remaining tie.
-      return weakness(b).compareTo(weakness(a));
-    });
-    return all.take(length).toList();
+    final taken = <KanjiUnit>[...due.take(length)];
+    // Backlog gate: introduce nothing while due reviews alone fill the session.
+    final newAllowance = taken.length >= length
+        ? 0
+        : min(maxNew, length - taken.length);
+    taken.addAll(fresh.take(newAllowance));
+    if (taken.length < length) {
+      taken.addAll(rest.take(length - taken.length));
+    }
+    return taken;
   }
 
   /// A unit's weakness for in-tier ordering: its wrong-rate. One you miss more
