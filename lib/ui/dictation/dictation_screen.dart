@@ -62,6 +62,7 @@ class DictationScreen extends StatefulWidget {
 class _DictationScreenState extends State<DictationScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final Random _rng = Random();
+  final ScrollController _scrollController = ScrollController();
 
   /// Picked once, at the close — an occasional classical 余韻 (often null).
   KotenLine? _share;
@@ -88,6 +89,19 @@ class _DictationScreenState extends State<DictationScreen> {
     super.initState();
     _setup();
     WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// A new listening item must open on its prompt. Same-word assemble / clear
+  /// / reveal keep the user's place — only the target change jumps back.
+  void _scrollToPrompt() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(0);
   }
 
   void _setup() {
@@ -182,6 +196,7 @@ class _DictationScreenState extends State<DictationScreen> {
         _index++;
         _setup();
       });
+      _scrollToPrompt();
       WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
     }
   }
@@ -218,6 +233,7 @@ class _DictationScreenState extends State<DictationScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
+          controller: _scrollController,
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: IntrinsicHeight(
