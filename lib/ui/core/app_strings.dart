@@ -178,6 +178,24 @@ abstract final class AppStrings {
   static const String dictationClear = '清除';
   static const String dictationNext = '下一個';
 
+  // 聞き取り — listen first, recall, reveal, rehear. #10 may rename the card;
+  // this slice only adds an entry, it does not relabel neighbouring rooms.
+  static const String listeningEntry = '聞き取り';
+  static const String listeningSubtitle = '先聽對方在問什麼,再揭曉';
+  static const String listeningTitle = '聞き取り';
+  static const String listeningPrompt = '先聽聽看,對方在問什麼';
+  static const String listeningRecall = '在心裡回想剛才聽到的';
+  static const String listeningReveal = '揭曉';
+  static const String listeningRehear = '再聽一次,對照看';
+  static const String listeningHeard = '聽懂了';
+  static const String listeningMissed = '沒聽懂';
+  static const String listeningSkip = '這一題先跳過';
+  static const String listeningUnavailable = '現在播不出聲音,這一題不算作答。';
+  static const String listeningFailed = '剛才沒播出來,這一題不算作答。';
+  static const String listeningInterrupted = '播放中斷了,這一題還不能算聽過。';
+  static String listeningSummary(int correct, int total) =>
+      '聽懂 $correct / $total';
+
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
   static const String ferrySubtitle = '先聽,再讓文字浮現,然後自己讀';

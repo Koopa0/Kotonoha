@@ -17,7 +17,8 @@ import 'package:kotonoha/domain/models/word_stat.dart';
 ///
 /// Mode authority: 渡し舟 INTRODUCES an item ([introduce] — first meeting only,
 /// a no-op once seen), while the colder retrieval modes (文字起こし's objective
-/// assembly, 黙読's cold self-graded read) own the schedule via [recordAnswer].
+/// assembly, 黙読's cold self-graded read, 聞き取り after confirmed playback)
+/// own the schedule via [recordAnswer].
 class WordProgressRepository extends ChangeNotifier {
   WordProgressRepository._(
     this._prefs,

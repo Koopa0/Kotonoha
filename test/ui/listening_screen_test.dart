@@ -1,0 +1,321 @@
+// Copyright (c) 2026 Koopa
+// SPDX-License-Identifier: MIT
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/phrase.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/listening/listening_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/fake_tts_client.dart';
+
+const _station = Phrase(
+  kana: 'えきは どこ',
+  romaji: 'eki wa doko',
+  meaning: '車站在哪裡',
+);
+const _repeat = Phrase(
+  kana: 'もういちど いってください',
+  romaji: 'mou ichido itte kudasai',
+  meaning: '請再說一次',
+);
+const _ticket = Word(kana: 'きっぷ', romaji: 'kippu', meaning: '車票');
+
+Future<void> pumpListening(
+  WidgetTester tester, {
+  required SpeechService speech,
+  required List<ReadingItem> items,
+  InMemoryAnalyticsLog? analytics,
+  WordProgressRepository? wordRepo,
+  DateTime Function()? clock,
+}) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(360, 800);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+
+  final store = await KanaProgressRepository.load();
+  final resolvedWords = wordRepo ?? await WordProgressRepository.load();
+  final resolvedAnalytics = analytics ?? InMemoryAnalyticsLog();
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+        ChangeNotifierProvider<WordProgressRepository>.value(
+          value: resolvedWords,
+        ),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: ProgressPersistenceController(
+            kanaFlush: store.flushPending,
+            kanjiFlush: () async {},
+            wordFlush: resolvedWords.flushPending,
+          ),
+        ),
+        Provider<AnalyticsLog>.value(value: resolvedAnalytics),
+        Provider<SpeechService>.value(value: speech),
+      ],
+      child: MaterialApp(
+        home: ListeningScreen(
+          items: items,
+          title: AppStrings.listeningTitle,
+          clock: clock,
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump();
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('answers stay hidden until reveal', (tester) async {
+    final speech = ScriptedSpeechService(const [SpeechPlaybackResult.played]);
+    await pumpListening(tester, speech: speech, items: const [_station]);
+
+    expect(find.text('えきは どこ'), findsNothing);
+    expect(find.text('eki wa doko'), findsNothing);
+    expect(find.text('車站在哪裡'), findsNothing);
+    expect(find.text(AppStrings.listeningPrompt), findsOneWidget);
+    expect(find.text(AppStrings.listeningRecall), findsOneWidget);
+    expect(speech.spoken, ['えきはどこ']);
+  });
+
+  testWidgets(
+    'played → reveal → heard writes listening attempt and word stat',
+    (tester) async {
+      final speech = ScriptedSpeechService(const [SpeechPlaybackResult.played]);
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      var now = DateTime(2026, 9, 10, 12);
+      await pumpListening(
+        tester,
+        speech: speech,
+        items: const [_station, _repeat],
+        analytics: analytics,
+        wordRepo: words,
+        clock: () => now,
+      );
+
+      await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+      await tester.pump();
+      expect(find.text('えきは どこ'), findsOneWidget);
+      expect(find.text('eki wa doko'), findsOneWidget);
+      expect(find.text('車站在哪裡'), findsOneWidget);
+      expect(find.text(AppStrings.listeningRehear), findsOneWidget);
+
+      now = now.add(const Duration(seconds: 4));
+      await tester.tap(find.text(AppStrings.listeningHeard));
+      await tester.pump();
+      await tester.pump();
+
+      final logged = await analytics.all();
+      expect(logged, hasLength(1));
+      expect(logged.single.mode, PracticeMode.listening.name);
+      expect(logged.single.itemId, 'えきは どこ');
+      expect(logged.single.correct, isTrue);
+      expect(logged.single.rtMs, 4000);
+      expect(logged.single.meta[AttemptMeta.heard], isTrue);
+      expect(
+        logged.single.meta[AttemptMeta.playback],
+        SpeechPlaybackResult.played.name,
+      );
+      expect(words.statForItem('phrase:えきは どこ').isSeen, isTrue);
+      expect(words.statForItem('phrase:えきは どこ').correctCount, 1);
+      expect(find.text('もういちど いってください'), findsNothing);
+    },
+  );
+
+  testWidgets('failed play cannot grade or raise mastery', (tester) async {
+    final client = FakeTtsClient(speakResult: 0);
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_ticket],
+      analytics: analytics,
+      wordRepo: words,
+    );
+
+    expect(client.spoken, ['きっぷ']);
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(find.text(AppStrings.listeningFailed), findsOneWidget);
+    expect(find.text(AppStrings.listeningHeard), findsNothing);
+    expect(find.text(AppStrings.listeningMissed), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-skip')));
+    await tester.pumpAndSettle();
+
+    expect(await analytics.all(), isEmpty);
+    expect(words.statForItem('word:きっぷ').isSeen, isFalse);
+    expect(find.text(AppStrings.listeningSummary(0, 1)), findsOneWidget);
+  });
+
+  testWidgets('unavailable engine cannot be scored as a miss', (tester) async {
+    final speech = FlutterTtsSpeechService(
+      client: FakeTtsClient(),
+      ready: false,
+    );
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_station],
+      analytics: analytics,
+      wordRepo: words,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(find.text(AppStrings.listeningUnavailable), findsOneWidget);
+    await tester.tap(find.text(AppStrings.listeningSkip));
+    await tester.pumpAndSettle();
+    expect(await analytics.all(), isEmpty);
+    expect(words.statForItem('phrase:えきは どこ').wrongCount, 0);
+  });
+
+  testWidgets('failed then replayed play unlocks a real grade', (tester) async {
+    final speech = ScriptedSpeechService(const [
+      SpeechPlaybackResult.failed,
+      SpeechPlaybackResult.played,
+    ]);
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_station],
+      analytics: analytics,
+      wordRepo: words,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(find.text(AppStrings.listeningHeard), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-replay')));
+    await tester.pump();
+    expect(find.text(AppStrings.listeningHeard), findsOneWidget);
+    await tester.tap(find.text(AppStrings.listeningMissed));
+    await tester.pumpAndSettle();
+
+    final logged = await analytics.all();
+    expect(logged, hasLength(1));
+    expect(logged.single.correct, isFalse);
+    expect(words.statForItem('phrase:えきは どこ').wrongCount, 1);
+    expect(words.statForItem('phrase:えきは どこ').srsLevel, 0);
+  });
+
+  testWidgets('rapid replay stays on one speakable and does not leak text', (
+    tester,
+  ) async {
+    final speech = ScriptedSpeechService(const [
+      SpeechPlaybackResult.played,
+      SpeechPlaybackResult.interrupted,
+      SpeechPlaybackResult.played,
+    ]);
+    await pumpListening(tester, speech: speech, items: const [_station]);
+    expect(find.text('えきは どこ'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-replay')));
+    await tester.tap(find.byKey(const ValueKey<String>('listening-replay')));
+    await tester.pump();
+    expect(find.text('えきは どこ'), findsNothing);
+    expect(speech.spoken.every((s) => s == 'えきはどこ'), isTrue);
+    expect(speech.spoken.length, greaterThanOrEqualTo(2));
+  });
+
+  testWidgets('background interrupt is not a scored miss', (tester) async {
+    addTearDown(() {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    final speech = HangingSpeechService();
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_station],
+      analytics: analytics,
+      wordRepo: words,
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(speech.stopCount, greaterThanOrEqualTo(1));
+    expect(speech.isCompleted, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(find.text(AppStrings.listeningInterrupted), findsOneWidget);
+    expect(find.text(AppStrings.listeningHeard), findsNothing);
+    await tester.tap(find.text(AppStrings.listeningSkip));
+    await tester.pumpAndSettle();
+    expect(await analytics.all(), isEmpty);
+    expect(words.statForItem('phrase:えきは どこ').isSeen, isFalse);
+  });
+
+  testWidgets('leaving the route stops leftover playback', (tester) async {
+    final speech = HangingSpeechService();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(
+            value: await KanaProgressRepository.load(),
+          ),
+          ChangeNotifierProvider<WordProgressRepository>.value(
+            value: await WordProgressRepository.load(),
+          ),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: () async {},
+              kanjiFlush: () async {},
+              wordFlush: () async {},
+            ),
+          ),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<SpeechService>.value(value: speech),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    ListeningScreen.route(const [
+                      _station,
+                    ], AppStrings.listeningTitle),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump();
+    expect(speech.spoken, ['えきはどこ']);
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pump();
+    expect(speech.stopCount, greaterThanOrEqualTo(1));
+  });
+}
