@@ -22,6 +22,7 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
 /// 文字を起こす — dictation. Hear a word, then ASSEMBLE it from kana tiles (its
@@ -326,17 +327,12 @@ class _DictationScreenState extends State<DictationScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  IconButton.filled(
+                  SpeakButton(
                     key: const ValueKey<String>('dictation-replay'),
-                    onPressed: () => unawaited(_play()),
-                    iconSize: 40,
-                    tooltip: AppStrings.playSound,
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.accentSoft,
-                      foregroundColor: AppColors.accent,
-                      padding: const EdgeInsets.all(16),
-                    ),
-                    icon: const Icon(Icons.volume_up_rounded),
+                    text: _current.kana,
+                    prominent: true,
+                    size: 40,
+                    onPlay: () => unawaited(_play()),
                   ),
                   const SizedBox(height: 8),
                   const Text(

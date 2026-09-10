@@ -507,7 +507,7 @@ void main() {
       (tester) async {
         const channel = MethodChannel('flutter_tts');
         Completer<int>? pendingFirst;
-        Object? subsequent = 0;
+        const subsequent = 0;
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           channel,
           (call) async {
