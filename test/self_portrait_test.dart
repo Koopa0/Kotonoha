@@ -49,4 +49,41 @@ void main() {
     ]);
     expect(obs, isEmpty);
   });
+
+  test('unscored unheard sound taps are not confusion ability', () {
+    Attempt silent(String item, String distractor) => Attempt(
+      ts: 1,
+      itemId: item,
+      mode: 'daily',
+      correct: false,
+      sessionId: 's',
+      meta: {
+        AttemptMeta.distractor: distractor,
+        AttemptMeta.direction: 'soundToKana',
+        AttemptMeta.heard: false,
+        AttemptMeta.scored: false,
+        AttemptMeta.playback: 'failed',
+      },
+    );
+    expect(
+      SelfPortrait.observe([
+        silent('き', 'い'),
+        silent('き', 'い'),
+        silent('き', 'い'),
+      ]),
+      isEmpty,
+    );
+  });
+
+  test('historical glyph mix-ups without heard keys still count', () {
+    final obs = SelfPortrait.observe([
+      wrong('ね', 'れ'),
+      wrong('ね', 'れ'),
+      wrong('ね', 'れ'),
+    ]);
+    expect(obs, hasLength(1));
+    final c = obs.single as ConfusionObservation;
+    expect(c.target, 'ね');
+    expect(c.mistakenFor, 'れ');
+  });
 }

@@ -164,7 +164,9 @@ class _QuizScreenState extends State<QuizScreen> {
   void _onUnanswerable() {
     _answerable = false;
     _vm.noteUnanswerable();
-    if (!_isListening || _vm.isAnswered) return;
+    if (!_isListening) return;
+    // Stop in-flight play even after the item is graded — a reveal
+    // replay must not keep speaking in the background.
     _abandonPlayback();
     if (mounted) {
       setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
@@ -191,6 +193,10 @@ class _QuizScreenState extends State<QuizScreen> {
     final itemId = _vm.current.target.id;
     final questionIndex = _vm.index;
     final alreadyAnswered = _vm.isAnswered;
+    final startedAnswerable = _answerable;
+    // Background must not start a new unanswered play. Graded rehear is
+    // started only from an explicit tap while the route is still up.
+    if (!alreadyAnswered && !startedAnswerable) return;
     final gen = ++_playGen;
     final result = await _speech.play(_vm.current.target.character);
     if (!mounted ||
@@ -204,8 +210,10 @@ class _QuizScreenState extends State<QuizScreen> {
       _lastPlay = result;
       if (result != SpeechPlaybackResult.played) return;
       if (alreadyAnswered || _vm.isAnswered) return;
+      if (!startedAnswerable || !_answerable) return;
       _blindHeard = true;
       _heardItemId = itemId;
+      _vm.noteListeningHeard();
     });
   }
 
@@ -240,8 +248,9 @@ class _QuizScreenState extends State<QuizScreen> {
       _goToResults();
       return;
     }
-    // Auto-play each new sound in listening mode (before it's answered).
-    if (_isListening && !_vm.isAnswered) {
+    // Auto-play each new sound only while the item is answerable.
+    // A background auto-advance must not start or credit a new hear.
+    if (_isListening && !_vm.isAnswered && _answerable) {
       unawaited(_playCurrent());
     }
     // Calm auto-advance: linger a touch longer on a wrong answer.

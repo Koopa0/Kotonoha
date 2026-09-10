@@ -49,6 +49,7 @@ class QuizViewModel extends ChangeNotifier {
   bool _timingValid = true;
   bool _recallCommitCaptured = false;
   int? _committedRecallLatencyMs;
+  bool _listeningHeardArmed = false;
 
   final List<AnsweredQuestion> _answers = [];
   int _index = 0;
@@ -104,10 +105,29 @@ class QuizViewModel extends ChangeNotifier {
   /// are untimed — correctness may still be stored, fluency may not.
   int? _latencyMs(DateTime now) {
     if (!_timingValid) return null;
+    // soundToKana waits on the engine; show-time is not a recognition start.
+    // Only a confirmed foreground hear arms fluency. No hear → no speed.
+    if (current.direction == QuizDirection.soundToKana &&
+        !_listeningHeardArmed) {
+      return null;
+    }
     final mono = _nowMonoMs() - _shownMonoMs;
     final wall = now.millisecondsSinceEpoch - _shownWallMs;
     if (mono <= 0 || wall < 0) return null;
     return mono;
+  }
+
+  /// First completed foreground play on a [QuizDirection.soundToKana] item.
+  /// Re-arms the fluency clock from this hear. An already-invalid clock
+  /// stays null — never a fabricated RT. Later replays do not move the start.
+  void noteListeningHeard() {
+    if (isAnswered || _finished) return;
+    if (current.direction != QuizDirection.soundToKana) return;
+    if (_listeningHeardArmed) return;
+    if (!_timingValid) return;
+    _listeningHeardArmed = true;
+    _shownMonoMs = _nowMonoMs();
+    _shownWallMs = _clock().millisecondsSinceEpoch;
   }
 
   /// Freeze foreground RT when the learner commits to an unprompted reading
@@ -238,6 +258,7 @@ class QuizViewModel extends ChangeNotifier {
       _selected = null;
       _recallCommitCaptured = false;
       _committedRecallLatencyMs = null;
+      _listeningHeardArmed = false;
       _armTiming();
     }
     notifyListeners();

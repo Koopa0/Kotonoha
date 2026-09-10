@@ -117,7 +117,9 @@ class _DictationScreenState extends State<DictationScreen> {
   }
 
   void _onUnanswerable() {
-    if (_done || _checked) return;
+    if (_done) return;
+    // Stopping audio is independent of whether the item is already
+    // assembled — a reveal replay must cancel in the background too.
     _abandonPlayback();
     if (mounted) {
       setState(() => _lastPlay = SpeechPlaybackResult.interrupted);

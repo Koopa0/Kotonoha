@@ -14,6 +14,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
+import 'package:kotonoha/domain/use_cases/self_portrait.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
@@ -93,12 +94,26 @@ Future<_IosLikeTtsChannel> _installProductionTts(WidgetTester tester) async {
   return tts;
 }
 
+void pauseApp(WidgetTester tester) {
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+}
+
+void resumeApp(WidgetTester tester) {
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+}
+
 Future<void> pumpSoundQuiz(
   WidgetTester tester, {
   required SpeechService speech,
   required List<SessionItem> items,
   required KanaProgressRepository repo,
   required InMemoryAnalyticsLog log,
+  DateTime Function()? clock,
+  int Function()? monotonicMs,
 }) async {
   await tester.binding.setSurfaceSize(const Size(420, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -117,7 +132,12 @@ Future<void> pumpSoundQuiz(
         Provider<AnalyticsLog>.value(value: log),
       ],
       child: MaterialApp(
-        home: QuizScreen(items: items, title: AppStrings.dailySession),
+        home: QuizScreen(
+          items: items,
+          title: AppStrings.dailySession,
+          clock: clock,
+          monotonicMs: monotonicMs,
+        ),
       ),
     ),
   );
@@ -403,4 +423,169 @@ void main() {
       await expectKanaHasNoSoundEvidence(repo: repo, analytics: log, kana: _a);
     },
   );
+
+  testWidgets(
+    'background auto-advance play is not a scored hear after resume',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final tts = await _installProductionTts(tester);
+      tts.subsequentSpeakResult = 1;
+      final speech = await FlutterTtsSpeechService.create();
+      expect(speech.ready, isTrue);
+      final repo = await KanaProgressRepository.load();
+      final log = InMemoryAnalyticsLog();
+      await pumpSoundQuiz(
+        tester,
+        speech: speech,
+        items: [soundItem(_ki), soundItem(_a)],
+        repo: repo,
+        log: log,
+      );
+      tts.completeFirstSpeak(1);
+      await tester.pump();
+      await tapCorrect(tester, _ki);
+      expect(repo.statFor(_ki).srsLevel, 1);
+
+      pauseApp(tester);
+      await tester.pump(const Duration(milliseconds: 800));
+      resumeApp(tester);
+      await tester.pump();
+
+      await tapCorrect(tester, _a);
+      await expectKanaHasNoSoundEvidence(repo: repo, analytics: log, kana: _a);
+      expect((await log.all()).last.rtMs, 0);
+    },
+  );
+
+  testWidgets('resume replay after background advance can restore a hear', (
+    tester,
+  ) async {
+    addTearDown(() => resumeApp(tester));
+    final tts = await _installProductionTts(tester);
+    tts.subsequentSpeakResult = 1;
+    final speech = await FlutterTtsSpeechService.create();
+    final repo = await KanaProgressRepository.load();
+    final log = InMemoryAnalyticsLog();
+    await pumpSoundQuiz(
+      tester,
+      speech: speech,
+      items: [soundItem(_ki), soundItem(_a)],
+      repo: repo,
+      log: log,
+    );
+    tts.completeFirstSpeak(1);
+    await tester.pump();
+    await tapCorrect(tester, _ki);
+
+    pauseApp(tester);
+    await tester.pump(const Duration(milliseconds: 800));
+    resumeApp(tester);
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey<String>('quiz-replay')));
+    await tester.pump();
+    await tapCorrect(tester, _a);
+    await repo.flushPending();
+    expect((await KanaProgressRepository.load()).statFor(_a).srsLevel, 1);
+    expect((await log.all()).last.meta[AttemptMeta.heard], isTrue);
+  });
+
+  testWidgets('answered rehear still stops when the app backgrounds', (
+    tester,
+  ) async {
+    addTearDown(() => resumeApp(tester));
+    final client = FakeTtsClient();
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
+    final repo = await KanaProgressRepository.load();
+    final log = InMemoryAnalyticsLog();
+    await pumpSoundQuiz(
+      tester,
+      speech: speech,
+      items: [soundItem(_ki)],
+      repo: repo,
+      log: log,
+    );
+    await tapCorrect(tester, _ki);
+    client.holdSpeak = Completer<Object?>();
+    await tester.tap(find.byKey(const ValueKey<String>('quiz-replay')));
+    await tester.pump();
+    final stopsBefore = client.stopCount;
+    pauseApp(tester);
+    await tester.pump();
+    expect(client.stopCount, greaterThan(stopsBefore));
+  });
+
+  testWidgets('engine wait is not kana RT — hear at 10s, tap 500ms later', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    final repo = await KanaProgressRepository.load();
+    final now0 = DateTime(2026, 9, 10, 12);
+    var now = now0;
+    var elapsed = 0;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(_ki, correct: true, at: now0, latencyMs: 500);
+    }
+    expect(repo.statFor(_ki).avgLatencyMs, 500);
+    final log = InMemoryAnalyticsLog();
+    await pumpSoundQuiz(
+      tester,
+      speech: speech,
+      items: [soundItem(_ki)],
+      repo: repo,
+      log: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    elapsed = 10000;
+    now = now0.add(const Duration(milliseconds: 10000));
+    tts.completeFirstSpeak(1);
+    await tester.pump();
+    elapsed = 10500;
+    now = now0.add(const Duration(milliseconds: 10500));
+    await tapCorrect(tester, _ki);
+    await repo.flushPending();
+    expect((await log.all()).single.rtMs, 500);
+    expect(
+      (await KanaProgressRepository.load()).statFor(_ki).avgLatencyMs,
+      500,
+    );
+  });
+
+  testWidgets('three silent き→い taps stay out of SelfPortrait observations', (
+    tester,
+  ) async {
+    final client = FakeTtsClient(speakResult: 0);
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
+    final repo = await KanaProgressRepository.load();
+    final log = InMemoryAnalyticsLog();
+    await pumpSoundQuiz(
+      tester,
+      speech: speech,
+      items: [soundItem(_ki), soundItem(_ki), soundItem(_ki)],
+      repo: repo,
+      log: log,
+    );
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.widgetWithText(AnswerOptionButton, 'い'));
+      await tester.pump();
+      if (i < 2) await tapContinue(tester);
+      await tester.pump();
+    }
+    final logged = await log.all();
+    expect(logged, hasLength(3));
+    expect(
+      logged.every(
+        (a) =>
+            a.itemId == 'き' &&
+            a.distractor == 'い' &&
+            a.meta[AttemptMeta.heard] == false &&
+            a.meta[AttemptMeta.scored] == false,
+      ),
+      isTrue,
+    );
+    expect(repo.statFor(_ki).seenCount, 0);
+    expect(SelfPortrait.observe(logged), isEmpty);
+  });
 }

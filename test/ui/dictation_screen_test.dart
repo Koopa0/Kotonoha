@@ -582,5 +582,64 @@ void main() {
         );
       },
     );
+
+    testWidgets('reveal replay sends stop when the app backgrounds', (
+      tester,
+    ) async {
+      addTearDown(() {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      });
+      const channel = MethodChannel('flutter_tts');
+      var stopCount = 0;
+      var speakCount = 0;
+      Completer<int>? pendingReplay;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        switch (call.method) {
+          case 'speak':
+            speakCount++;
+            if (speakCount == 1) return 0;
+            pendingReplay ??= Completer<int>();
+            return pendingReplay!.future;
+          case 'stop':
+            stopCount++;
+            return 1;
+          case 'getEngines':
+            return <String>['com.google.android.tts'];
+          case 'setLanguage':
+          case 'setEngine':
+            return 1;
+          default:
+            return 1;
+        }
+      });
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        );
+      });
+
+      final speech = await FlutterTtsSpeechService.create();
+      expect(speech.ready, isTrue);
+      await pumpDictation(
+        tester,
+        words: const [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')],
+        speech: speech,
+      );
+      expect(speakCount, 1);
+      await assembleKimi(tester);
+      expect(pendingReplay, isNotNull);
+      final stopsBeforeBackground = stopCount;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(stopCount, greaterThan(stopsBeforeBackground));
+    });
   });
 }
