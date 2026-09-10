@@ -95,7 +95,7 @@ class _ListeningScreenState extends State<ListeningScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_speech.stop());
+    _abandonPlayback();
     super.dispose();
   }
 
