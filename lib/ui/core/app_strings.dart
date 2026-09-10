@@ -204,6 +204,30 @@ abstract final class AppStrings {
   static const String listeningPrompted = '這是看過答案後才聽到的,不算無提示聽力。';
   static const String listeningClose = '這一回,先聽到這裡。';
 
+  // 旅の場面 — scene-scoped travel選材. Isolated from 渡し舟 / 黙読 / #48 精讀.
+  static const String travelSceneAction = '選旅遊場景';
+  static const String travelSceneEntry = '旅の場面';
+  static const String travelSceneSubtitle = '依現在要去的地方，先見面再回想或聽';
+  static const String travelSceneTitle = '旅の場面';
+  static const String travelSceneTransport = '交通';
+  static const String travelSceneClothing = '購衣';
+  static const String travelSceneShrine = '神社古城';
+  static const String travelSceneParkQueue = '一般入園／排隊';
+  static const String travelSceneLater = '這一幕後續再接，這一回先走交通與購衣。';
+  static const String travelScenePurposeTransport = '這一回只練車站、電車、轉乘與行李。';
+  static const String travelScenePurposeClothing = '這一回只練衣服尺寸、價錢與購買。';
+  static const String travelSceneMeetAction = '先見面';
+  static const String travelSceneRecallAction = '回想';
+  static const String travelSceneListenAction = '先聽再揭曉';
+  static const String travelSceneLearnAction = '先學假名';
+  static const String travelSceneNeedKana = '這幕還有詞句讀不動。先到「手解き」補假名，選場景不會當成已學會。';
+  static const String travelSceneMeetHint = '還沒見過的，先見面；見過的才回想或聽。';
+  static const String travelSceneReadyHint = '見過的可以回想或聽。還沒見過的仍先見面。';
+  static String travelSceneMissingKana(String units) => '還需要先認得：$units';
+  static String travelSceneMeetTitle(String scene) => '$scene・見面';
+  static String travelSceneRecallTitle(String scene) => '$scene・回想';
+  static String travelSceneListenTitle(String scene) => '$scene・聞き取り';
+
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
   static const String ferrySubtitle = '先聽,再讓文字浮現,然後自己讀';
