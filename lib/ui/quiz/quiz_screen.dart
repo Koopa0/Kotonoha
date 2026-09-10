@@ -32,6 +32,8 @@ class QuizScreen extends StatefulWidget {
     this.lesson,
     this.onAgain,
     this.transferItems,
+    this.quiet = false,
+    this.alreadyTransferredIds = const {},
     this.clock,
     this.monotonicMs,
   });
@@ -42,6 +44,13 @@ class QuizScreen extends StatefulWidget {
   /// Word / sentence transfer after the kana run (今日の稽古 only).
   /// Empty keeps the existing result screen. Not a new home entry.
   final List<ReadingItem>? transferItems;
+
+  /// Silent 今日の稽古: no listening prompts, and transfer must not speak.
+  final bool quiet;
+
+  /// Progress ids already shown in this 「もう一回」 grind. Transfer may wrap
+  /// over them after coverage, but must not renew their schedule.
+  final Set<String> alreadyTransferredIds;
 
   /// Set when this is a lesson test — drives pass/learned handling on results.
   final Lesson? lesson;
@@ -63,6 +72,8 @@ class QuizScreen extends StatefulWidget {
     Lesson? lesson,
     VoidCallback? onAgain,
     List<ReadingItem>? transferItems,
+    bool quiet = false,
+    Set<String> alreadyTransferredIds = const {},
   }) {
     return routeItems(
       items: [for (final q in questions) SessionItem(question: q, mode: mode)],
@@ -70,6 +81,8 @@ class QuizScreen extends StatefulWidget {
       lesson: lesson,
       onAgain: onAgain,
       transferItems: transferItems,
+      quiet: quiet,
+      alreadyTransferredIds: alreadyTransferredIds,
     );
   }
 
@@ -80,6 +93,8 @@ class QuizScreen extends StatefulWidget {
     Lesson? lesson,
     VoidCallback? onAgain,
     List<ReadingItem>? transferItems,
+    bool quiet = false,
+    Set<String> alreadyTransferredIds = const {},
   }) {
     return MaterialPageRoute<void>(
       builder: (_) => QuizScreen(
@@ -88,6 +103,8 @@ class QuizScreen extends StatefulWidget {
         lesson: lesson,
         onAgain: onAgain,
         transferItems: transferItems,
+        quiet: quiet,
+        alreadyTransferredIds: alreadyTransferredIds,
       ),
     );
   }
@@ -104,6 +121,7 @@ class _QuizScreenState extends State<QuizScreen> {
   int _spokenIndex = -1;
   bool _answerable = true;
   bool _recallRevealed = false;
+  bool _recallUnpromptedCommit = false;
 
   /// True when the CURRENT question is listening (sound → kana). Per-item, so an
   /// adaptive session can have listening questions mixed in.
@@ -160,6 +178,7 @@ class _QuizScreenState extends State<QuizScreen> {
     }
     if (!_vm.isAnswered) {
       _recallRevealed = false;
+      _recallUnpromptedCommit = false;
     }
     if (_vm.isFinished) {
       _goToResults();
@@ -188,6 +207,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Widget _recallActions() {
     if (_recallRevealed) {
+      final unprompted = _recallUnpromptedCommit;
       return Row(
         children: [
           Expanded(
@@ -201,7 +221,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 ),
               ),
               onPressed: () =>
-                  _vm.gradeRecall(correct: false, unprompted: false),
+                  _vm.gradeRecall(correct: false, unprompted: unprompted),
               child: const Text(AppStrings.iCouldnt),
             ),
           ),
@@ -213,8 +233,10 @@ class _QuizScreenState extends State<QuizScreen> {
                 minimumSize: const Size.fromHeight(54),
               ),
               onPressed: () =>
-                  _vm.gradeRecall(correct: true, unprompted: false),
-              child: const Text(AppStrings.iReadAfterHint),
+                  _vm.gradeRecall(correct: true, unprompted: unprompted),
+              child: Text(
+                unprompted ? AppStrings.iReadIt : AppStrings.iReadAfterHint,
+              ),
             ),
           ),
         ],
@@ -230,7 +252,10 @@ class _QuizScreenState extends State<QuizScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: () => setState(() => _recallRevealed = true),
+            onPressed: () => setState(() {
+              _recallUnpromptedCommit = false;
+              _recallRevealed = true;
+            }),
             child: const Text(AppStrings.recallHint),
           ),
         ),
@@ -240,7 +265,10 @@ class _QuizScreenState extends State<QuizScreen> {
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: () => _vm.gradeRecall(correct: true, unprompted: true),
+            onPressed: () => setState(() {
+              _recallUnpromptedCommit = true;
+              _recallRevealed = true;
+            }),
             child: const Text(AppStrings.iReadUnprompted),
           ),
         ),
@@ -254,7 +282,13 @@ class _QuizScreenState extends State<QuizScreen> {
     final transfer = widget.transferItems;
     if (transfer != null && transfer.isNotEmpty) {
       Navigator.of(context).pushReplacement(
-        ReadingScreen.route(transfer, widget.title, onMore: widget.onAgain),
+        ReadingScreen.route(
+          transfer,
+          widget.title,
+          onMore: widget.onAgain,
+          quiet: widget.quiet,
+          alreadyTransferredIds: widget.alreadyTransferredIds,
+        ),
       );
       return;
     }
@@ -350,11 +384,13 @@ class _QuizScreenState extends State<QuizScreen> {
                             big: isKanaPrompt,
                             // Sound is the hidden reading on recall — never
                             // play it before the learner grades unprompted.
-                            speakText: isKanaPrompt && !isRecall
-                                ? q.target.character
-                                : (isRecall && _recallRevealed
+                            speakText: widget.quiet
+                                ? null
+                                : (isKanaPrompt && !isRecall
                                       ? q.target.character
-                                      : null),
+                                      : (isRecall && _recallRevealed
+                                            ? q.target.character
+                                            : null)),
                           ),
                         if (isRecall && _recallRevealed) ...[
                           const SizedBox(height: 16),

@@ -200,4 +200,26 @@ void main() {
       },
     );
   });
+
+  test('recordPromptedPractice keeps correctCount, due, and lastMistake', () {
+    final due = now.subtract(const Duration(days: 10));
+    final missed = now.subtract(const Duration(days: 20));
+    final s = KanaStat(
+      seenCount: 10,
+      correctCount: 10,
+      srsLevel: 6,
+      dueAt: due,
+      lastReviewedAt: due,
+      lastMistakeAt: missed,
+      avgLatencyMs: 400,
+    );
+    final next = s.recordPromptedPractice(at: now);
+    expect(next.correctCount, 10);
+    expect(next.srsLevel, 6);
+    expect(next.dueAt, due);
+    expect(next.lastMistakeAt, missed);
+    expect(next.lastReviewedAt, due);
+    expect(next.seenCount, 11);
+    expect(next.avgLatencyMs, 400);
+  });
 }

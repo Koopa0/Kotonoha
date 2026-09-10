@@ -369,12 +369,17 @@ class HomeScreen extends StatelessWidget {
       Navigator.of(context).push(LessonsScreen.route());
       return;
     }
-    final nextExclude = {for (final t in practice.transfer) t.progressId};
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: practice.transfer,
+    );
     Navigator.of(context).push(
       QuizScreen.routeItems(
         items: practice.kana,
         title: AppStrings.dailySession,
         transferItems: practice.transfer,
+        quiet: quiet,
+        alreadyTransferredIds: excludeProgressIds,
         onAgain: () =>
             _againDaily(context, quiet: quiet, excludeProgressIds: nextExclude),
       ),
@@ -384,7 +389,8 @@ class HomeScreen extends StatelessWidget {
   /// "再来一回" for 今日の稽古: a fresh session in place of the result screen. If
   /// the pool has drained mid-grind, return home rather than an empty quiz.
   /// [quiet] carries the silent-run choice across rounds. [excludeProgressIds]
-  /// is the just-read transfer batch so a second round cannot restamp it.
+  /// is the accumulated transfer history for this grind so later rounds cover
+  /// remaining eligible items first.
   void _againDaily(
     BuildContext context, {
     bool quiet = false,
@@ -399,12 +405,17 @@ class HomeScreen extends StatelessWidget {
       Navigator.of(context).popUntil((r) => r.isFirst);
       return;
     }
-    final nextExclude = {for (final t in practice.transfer) t.progressId};
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: practice.transfer,
+    );
     Navigator.of(context).pushReplacement(
       QuizScreen.routeItems(
         items: practice.kana,
         title: AppStrings.dailySession,
         transferItems: practice.transfer,
+        quiet: quiet,
+        alreadyTransferredIds: excludeProgressIds,
         onAgain: () =>
             _againDaily(context, quiet: quiet, excludeProgressIds: nextExclude),
       ),

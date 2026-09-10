@@ -196,6 +196,23 @@ class KanaStat {
     );
   }
 
+  /// Hinted / prompted practice: the learner saw the reading before grading.
+  /// Counts as exposure so a persisted attempt exists, but must not increment
+  /// successful-recall [correctCount] or renew [dueAt] / [srsLevel].
+  KanaStat recordPromptedPractice({required DateTime at}) {
+    return KanaStat(
+      seenCount: seenCount + 1,
+      correctCount: correctCount,
+      wrongCount: wrongCount,
+      lastReviewedAt: lastReviewedAt,
+      lastMistakeAt: lastMistakeAt,
+      srsLevel: srsLevel,
+      dueAt: dueAt,
+      avgLatencyMs: avgLatencyMs,
+      varLatencyMs2: varLatencyMs2,
+    );
+  }
+
   /// Display classification used for the status dot in the UI.
   KanaStatus get status {
     if (seenCount == 0) return KanaStatus.unseen;

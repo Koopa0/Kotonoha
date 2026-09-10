@@ -82,11 +82,17 @@ void main() {
     expect(find.text(AppStrings.chooseKana), findsNothing);
   });
 
-  testWidgets('unprompted 讀得出來 never leaks the romaji first', (tester) async {
+  testWidgets('unprompted 讀得出來 reveals for confirm and does not write yet', (
+    tester,
+  ) async {
     await pumpRecall(tester);
     await tester.tap(find.text(AppStrings.iReadUnprompted));
     await tester.pump();
-    expect(find.text(kana.romaji), findsNothing);
+    expect(find.text(kana.romaji), findsOneWidget);
+    expect(find.text(AppStrings.iReadIt), findsOneWidget);
+    expect(find.text(AppStrings.seeResults), findsNothing);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pump();
     expect(find.text(AppStrings.seeResults), findsOneWidget);
   });
 
@@ -110,6 +116,8 @@ void main() {
       transfer: const [Word(kana: 'ホテル', romaji: 'hoteru', meaning: '飯店')],
     );
     await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.iReadIt));
     await tester.pump(); // grade
     await tester.pump(const Duration(milliseconds: 800)); // auto-advance
     await tester.pumpAndSettle();

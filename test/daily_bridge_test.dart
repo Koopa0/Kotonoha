@@ -180,6 +180,45 @@ void main() {
     );
   });
 
+  test(
+    'when every eligible id is excluded, compose wraps instead of emptying',
+    () {
+      const hotel = Word(
+        kana: 'ホテル',
+        romaji: 'hoteru',
+        meaning: '飯店',
+        script: KanaScript.katakana,
+      );
+      const towel = Word(
+        kana: 'タオル',
+        romaji: 'taoru',
+        meaning: '毛巾',
+        script: KanaScript.katakana,
+      );
+      final learned = {...charsFor('ホテル'), ...charsFor('タオル')};
+      final stats = {'word:ホテル': seen(), 'word:タオル': seen()};
+      final wrapped = DailyBridge.compose(
+        sessionKana: [kana('ホ'), kana('タ')],
+        words: const [hotel, towel],
+        phrases: const [],
+        learnedChars: learned,
+        wordStats: stats,
+        now: now,
+        rng: Random(8),
+        excludeProgressIds: {'word:ホテル', 'word:タオル'},
+      );
+      expect(wrapped, isNotEmpty);
+      expect(wrapped.first.progressId, anyOf('word:ホテル', 'word:タオル'));
+      expect(
+        DailyBridge.shouldRenew(wrapped.first.progressId, {
+          'word:ホテル',
+          'word:タオル',
+        }),
+        isFalse,
+      );
+    },
+  );
+
   test('containsUnit sees a kana inside a loanword', () {
     expect(DailyBridge.containsUnit('ホテル', 'ホ'), isTrue);
     expect(DailyBridge.containsUnit('ホテル', 'テ'), isTrue);

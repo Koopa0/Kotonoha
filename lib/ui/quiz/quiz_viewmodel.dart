@@ -107,9 +107,11 @@ class QuizViewModel extends ChangeNotifier {
     return mono;
   }
 
-  /// Self-grades a [QuizDirection.kanaRecall] item. [unprompted] is true only
-  /// when the reading was still hidden — a hinted recall is stored untimed so
-  /// it cannot graduate recognition fluency.
+  /// Self-grades a [QuizDirection.kanaRecall] item after the reading has been
+  /// revealed for confirmation. [unprompted] is true only when the learner
+  /// committed to a reading *before* seeing it. A hinted correct is persisted
+  /// as practice evidence and must not increment successful recalls or renew
+  /// the schedule.
   void gradeRecall({required bool correct, required bool unprompted}) {
     if (isAnswered || _finished) return;
     if (current.direction != QuizDirection.kanaRecall) return;
@@ -117,6 +119,7 @@ class QuizViewModel extends ChangeNotifier {
       selectedIndex: correct ? 0 : 1,
       correct: correct,
       forceUntimed: !unprompted || !correct,
+      creditRecall: unprompted,
       extraMeta: {AttemptMeta.prompted: !unprompted},
     );
   }
@@ -135,6 +138,7 @@ class QuizViewModel extends ChangeNotifier {
     required int selectedIndex,
     required bool correct,
     bool forceUntimed = false,
+    bool creditRecall = true,
     Map<String, Object?> extraMeta = const {},
   }) {
     final item = currentItem;
@@ -148,14 +152,22 @@ class QuizViewModel extends ChangeNotifier {
     // Answering never waits on disk (the in-memory effect + notify below are
     // synchronous); the app-scoped owner observes the write so a failure is
     // surfaced instead of dropped.
-    persistence.trackKana(
-      repository.recordAnswer(
-        question.target,
-        correct: correct,
-        at: now,
-        latencyMs: latencyMs,
-      ),
-    );
+    final persist = !correct
+        ? repository.recordAnswer(
+            question.target,
+            correct: false,
+            at: now,
+            latencyMs: latencyMs,
+          )
+        : creditRecall
+        ? repository.recordAnswer(
+            question.target,
+            correct: true,
+            at: now,
+            latencyMs: latencyMs,
+          )
+        : repository.recordPromptedPractice(question.target, at: now);
+    persistence.trackKana(persist);
     analytics?.recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,

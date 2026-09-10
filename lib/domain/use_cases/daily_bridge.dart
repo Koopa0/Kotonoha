@@ -25,8 +25,10 @@ import 'package:kotonoha/domain/use_cases/weakness.dart';
 ///    cold-produced here;
 ///  - a brand-new sentence may board as the "new short sentence" once its
 ///    kana are readable and a seen word is already in the chain;
-///  - [excludeProgressIds] keeps 「もう一回」 from mechanically replaying the
-///    same word/sentence batch.
+///  - [excludeProgressIds] is the accumulated 「もう一回」 history for this
+///    grind: remaining eligible items are covered first. When that pool is
+///    empty the composer wraps so practice can continue, and the caller
+///    must not renew SRS for ids already in the history.
 ///
 /// Pure logic, deterministic under an injected [Random].
 abstract final class DailyBridge {
@@ -60,20 +62,27 @@ abstract final class DailyBridge {
   }) {
     if (sessionKana.isEmpty) return const [];
 
-    final readableWords = ReadingSet.readable(
-      words,
-      learnedChars,
-    ).where((w) => !excludeProgressIds.contains(w.progressId)).toList();
-    final readablePhrases = ReadingSet.readable(
-      phrases,
-      learnedChars,
-    ).where((p) => !excludeProgressIds.contains(p.progressId)).toList();
-
     WordStat statOf(ReadingItem item) =>
         wordStats[item.progressId] ?? const WordStat();
 
-    final seenWords = readableWords.where((w) => statOf(w).isSeen).toList();
+    final allReadableWords = ReadingSet.readable(words, learnedChars);
+    final remainingWords = allReadableWords
+        .where(
+          (w) => statOf(w).isSeen && !excludeProgressIds.contains(w.progressId),
+        )
+        .toList();
+    final seenWords = remainingWords.isNotEmpty
+        ? remainingWords
+        : allReadableWords.where((w) => statOf(w).isSeen).toList();
     if (seenWords.isEmpty) return const [];
+
+    final allReadablePhrases = ReadingSet.readable(phrases, learnedChars);
+    final remainingPhrases = allReadablePhrases
+        .where((p) => !excludeProgressIds.contains(p.progressId))
+        .toList();
+    final readablePhrases = remainingPhrases.isNotEmpty
+        ? remainingPhrases
+        : allReadablePhrases;
 
     final orderedKana = _orderBridgeKana(sessionKana, kanaStats, now, rng);
     Word? word;
@@ -166,6 +175,18 @@ abstract final class DailyBridge {
     }
     return phrases[rng.nextInt(phrases.length)];
   }
+
+  /// Accumulated 「もう一回」 history: previous rounds plus the batch just shown.
+  static Set<String> nextExclude({
+    required Set<String> previous,
+    required Iterable<ReadingItem> transfer,
+  }) => {...previous, for (final t in transfer) t.progressId};
+
+  /// Ids already covered in this grind must not climb the word schedule again.
+  static bool shouldRenew(
+    String progressId,
+    Set<String> alreadyTransferredIds,
+  ) => !alreadyTransferredIds.contains(progressId);
 
   static Set<String> _contentTokens(String kana) => {
     for (final t in KanaTokenizer.tokenize(kana))

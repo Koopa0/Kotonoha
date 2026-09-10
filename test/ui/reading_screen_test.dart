@@ -87,8 +87,10 @@ void main() {
     expect(logged.first.itemId, 'いぬ');
     expect(logged.first.meta[AttemptMeta.prompted], isTrue);
     expect(logged.last.meta[AttemptMeta.prompted], isTrue);
-    // Prompted "現在讀對了" must not climb the word schedule.
-    expect(wordRepo.statForItem('word:いぬ').isSeen, isFalse);
+    // Prompted "現在讀對了" keeps intake but must not climb recall.
+    expect(wordRepo.statForItem('word:いぬ').isSeen, isTrue);
+    expect(wordRepo.statForItem('word:いぬ').correctCount, 0);
+    expect(wordRepo.statForItem('word:いぬ').srsLevel, 0);
     expect(wordRepo.statForItem('word:やま').srsLevel, 0);
     expect(wordRepo.statForItem('word:やま').wrongCount, 1);
   });
@@ -125,6 +127,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('inu'), findsNothing);
     await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    expect(find.text('inu'), findsOneWidget);
+    expect(wordRepo.statForItem('word:いぬ').correctCount, 0);
+    await tester.tap(find.text(AppStrings.iReadIt));
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.readingSummary(1, 1)), findsOneWidget);
     expect(wordRepo.statForItem('word:いぬ').correctCount, 1);

@@ -117,6 +117,15 @@ void main() {
       expect(s.wrongCount, 0);
     });
 
+    test('markIntroduced is seen without a successful-recall climb', () {
+      final s = const WordStat().markIntroduced(at: at);
+      expect(s.isSeen, isTrue);
+      expect(s.correctCount, 0);
+      expect(s.srsLevel, 0);
+      expect(s.dueAt, at.add(const Duration(minutes: 10)));
+      expect(s.markIntroduced(at: at.add(const Duration(days: 1))), s);
+    });
+
     test('a clamped stat still schedules without crashing', () {
       final s = WordStat.fromJson(const {'s': 4, 'c': 4, 'w': 0, 'sl': 999});
       final next = s.recordAnswer(correct: true, at: at);

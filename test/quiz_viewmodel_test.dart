@@ -333,8 +333,12 @@ void main() {
         clock: () => now,
         monotonicMs: () => 400,
       );
+      final dueBefore = repo2.statFor(kana).dueAt;
+      final correctBefore = repo2.statFor(kana).correctCount;
       vm2.gradeRecall(correct: true, unprompted: false);
       expect(repo2.statFor(kana).avgLatencyMs, before);
+      expect(repo2.statFor(kana).correctCount, correctBefore);
+      expect(repo2.statFor(kana).dueAt, dueBefore);
       expect((await log2.all()).single.meta[AttemptMeta.prompted], isTrue);
       expect((await log2.all()).single.rtMs, 0);
       vm2.dispose();

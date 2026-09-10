@@ -231,6 +231,15 @@ class KanaProgressRepository extends ChangeNotifier {
     return _serialized(_flushAll);
   }
 
+  /// Persists hinted-recall exposure without treating it as a successful
+  /// recall or renewing the schedule. See [KanaStat.recordPromptedPractice].
+  Future<void> recordPromptedPractice(Kana kana, {required DateTime at}) {
+    _stats[kana.id] = statFor(kana).recordPromptedPractice(at: at);
+    _statsGen++;
+    notifyListeners();
+    return _serialized(_flushAll);
+  }
+
   /// Flushes any store still holding unpersisted mutations to disk WITHOUT
   /// applying a new domain mutation — the app-scoped persistence owner calls
   /// this to retry a write that failed after the screen that caused it moved

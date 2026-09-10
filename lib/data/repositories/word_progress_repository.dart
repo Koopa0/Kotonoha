@@ -87,6 +87,18 @@ class WordProgressRepository extends ChangeNotifier {
     return recordAnswer(progressId, correct: true, at: at);
   }
 
+  /// 黙読 / transfer intake: the learner met the item (often after a hint)
+  /// but this is not an unprompted recall. First meeting only; seen items
+  /// are an honest no-op that still flushes a pending write.
+  Future<void> markIntroduced(String progressId, {required DateTime at}) {
+    final current = statForItem(progressId);
+    if (current.isSeen) return flushPending();
+    _stats[progressId] = current.markIntroduced(at: at);
+    _statsGen++;
+    notifyListeners();
+    return _serialized(_flush);
+  }
+
   /// Records one graded answer for an item and persists. The returned future
   /// completes with an error if persisting failed — the in-memory state keeps
   /// the answer and the next mutation retries the write.
