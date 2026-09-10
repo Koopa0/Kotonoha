@@ -16,12 +16,8 @@ void main() {
   final aKa = {'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ'};
   final now = DateTime(2026, 9, 10, 12);
 
-  WordStat seenAt([int? dueMs]) => WordStat.fromJson({
-    's': 1,
-    'c': 0,
-    'w': 0,
-    'd': ?dueMs,
-  });
+  WordStat seenAt([int? dueMs]) =>
+      WordStat.fromJson({'s': 1, 'c': 0, 'w': 0, 'd': ?dueMs});
 
   test('every declared id exists once in the shipped corpus', () {
     final corpus = [...kWords, ...kPhrases];
