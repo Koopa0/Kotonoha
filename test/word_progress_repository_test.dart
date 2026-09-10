@@ -298,6 +298,8 @@ void main() {
   });
 
   group('introduce', () {
+    const statsKey = 'word_stats_v1';
+
     test('an unseen item becomes seen at level 1 and persists', () async {
       final fake = FakePreferencesService();
       final repo = await WordProgressRepository.load(fake);
@@ -334,6 +336,41 @@ void main() {
         expect(identical(repo.statForItem(id), before), isTrue);
         expect(notifications, 0);
         expect(fake.writeLog, isEmpty);
+      },
+    );
+
+    test(
+      'a seen item with a pending failed write flushes without a new mutation',
+      () async {
+        final fake = FakePreferencesService();
+        fake.failWrites.add(statsKey);
+        final repo = await WordProgressRepository.load(fake);
+
+        await expectLater(
+          repo.introduce(id, at: now),
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        final before = repo.statForItem(id);
+        expect(before.seenCount, 1);
+        expect(before.srsLevel, 1);
+
+        await expectLater(
+          repo.introduce(id, at: now.add(const Duration(minutes: 5))),
+          throwsA(isA<StoreWriteFailure>()),
+        );
+        expect(identical(repo.statForItem(id), before), isTrue);
+        expect(fake.durable, isEmpty);
+
+        fake.failWrites.clear();
+        await repo.introduce(id, at: now.add(const Duration(minutes: 10)));
+        expect(identical(repo.statForItem(id), before), isTrue);
+
+        final fresh = await WordProgressRepository.load(
+          FakePreferencesService.restarted(fake),
+        );
+        expect(fresh.statForItem(id).seenCount, 1);
+        expect(fresh.statForItem(id).correctCount, 1);
+        expect(fresh.statForItem(id).srsLevel, 1);
       },
     );
   });

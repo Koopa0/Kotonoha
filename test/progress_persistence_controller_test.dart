@@ -16,6 +16,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -434,6 +435,132 @@ void main() {
       expect(fake.sawOverlap, isFalse);
     },
   );
+
+  group('word introduce — seen no-op vs persistence contract', () {
+    const inu = 'word:いぬ';
+    const neko = 'word:ねこ';
+    final firstAt = DateTime(2026, 9, 10);
+    final laterAt = DateTime(2026, 9, 10, 0, 5);
+    final recoveredAt = DateTime(2026, 9, 10, 0, 10);
+
+    test(
+      'repeating a seen introduce does not clear a still-unpersisted failure',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final fake = FakePreferencesService();
+        fake.failWrites.add('word_stats_v1');
+        final repo = await WordProgressRepository.load(fake);
+        final controller = ProgressPersistenceController(
+          kanaFlush: () async {},
+          kanjiFlush: () async {},
+          wordFlush: repo.flushPending,
+        );
+
+        final first = repo.introduce(inu, at: firstAt);
+        controller.trackWord(first);
+        await expectLater(first, throwsA(isA<StoreWriteFailure>()));
+        expect(controller.hasWriteFailure, isTrue);
+        expect(controller.status, PersistenceStatus.failedNeedsRetry);
+        expect(fake.durable, isEmpty);
+        expect(repo.seenItemCount, 1);
+
+        final before = repo.statForItem(inu);
+        final repeated = repo.introduce(inu, at: laterAt);
+        controller.trackWord(repeated);
+        await expectLater(repeated, throwsA(isA<StoreWriteFailure>()));
+
+        expect(identical(repo.statForItem(inu), before), isTrue);
+        expect(controller.hasWriteFailure, isTrue);
+        expect(controller.status, PersistenceStatus.failedNeedsRetry);
+        expect(fake.durable, isEmpty);
+        expect(repo.seenItemCount, 1);
+
+        final fresh = await WordProgressRepository.load(
+          FakePreferencesService.restarted(fake),
+        );
+        expect(fresh.seenItemCount, 0);
+      },
+    );
+
+    test('a recovered write on a later seen introduce persists exactly one '
+        'introduction', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fake = FakePreferencesService();
+      fake.failWrites.add('word_stats_v1');
+      final repo = await WordProgressRepository.load(fake);
+      final controller = ProgressPersistenceController(
+        kanaFlush: () async {},
+        kanjiFlush: () async {},
+        wordFlush: repo.flushPending,
+      );
+
+      final first = repo.introduce(inu, at: firstAt);
+      controller.trackWord(first);
+      await expectLater(first, throwsA(isA<StoreWriteFailure>()));
+
+      final stillFailing = repo.introduce(inu, at: laterAt);
+      controller.trackWord(stillFailing);
+      await expectLater(stillFailing, throwsA(isA<StoreWriteFailure>()));
+      expect(controller.hasWriteFailure, isTrue);
+
+      fake.failWrites.clear();
+      final recovered = repo.introduce(inu, at: recoveredAt);
+      controller.trackWord(recovered);
+      await recovered;
+
+      expect(controller.hasWriteFailure, isFalse);
+      expect(controller.status, PersistenceStatus.idle);
+      expect(repo.statForItem(inu).seenCount, 1);
+      expect(repo.statForItem(inu).correctCount, 1);
+      expect(repo.statForItem(inu).srsLevel, 1);
+
+      final fresh = await WordProgressRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(fresh.seenItemCount, 1);
+      expect(fresh.statForItem(inu).seenCount, 1);
+      expect(fresh.statForItem(inu).correctCount, 1);
+      expect(fresh.statForItem(inu).srsLevel, 1);
+    });
+
+    test('re-ferrying a different seen item cannot clear another word\'s '
+        'unpersisted failure', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fake = FakePreferencesService();
+      final repo = await WordProgressRepository.load(fake);
+      await repo.introduce(neko, at: firstAt);
+      expect(repo.statForItem(neko).seenCount, 1);
+
+      fake.failWrites.add('word_stats_v1');
+      final controller = ProgressPersistenceController(
+        kanaFlush: () async {},
+        kanjiFlush: () async {},
+        wordFlush: repo.flushPending,
+      );
+
+      final first = repo.introduce(inu, at: laterAt);
+      controller.trackWord(first);
+      await expectLater(first, throwsA(isA<StoreWriteFailure>()));
+      expect(controller.hasWriteFailure, isTrue);
+
+      final nekoBefore = repo.statForItem(neko);
+      final other = repo.introduce(neko, at: recoveredAt);
+      controller.trackWord(other);
+      await expectLater(other, throwsA(isA<StoreWriteFailure>()));
+
+      expect(identical(repo.statForItem(neko), nekoBefore), isTrue);
+      expect(controller.hasWriteFailure, isTrue);
+      expect(controller.status, PersistenceStatus.failedNeedsRetry);
+      expect(repo.statForItem(inu).seenCount, 1);
+      expect(repo.statForItem(neko).seenCount, 1);
+
+      final fresh = await WordProgressRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(fresh.statForItem(neko).seenCount, 1);
+      expect(fresh.statForItem(inu).isSeen, isFalse);
+    });
+  });
 
   group('recovery notice coalesces most-severe-wins', () {
     test('empty/loaded → none', () {
