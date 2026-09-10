@@ -130,6 +130,32 @@ void main() {
     expect(seeded.repo.statForUnit(nichi.id).srsLevel, 3);
   });
 
+  testWidgets('毎年の秋: ねん is legal and does not drop the Leitner', (
+    tester,
+  ) async {
+    final toshi = kKanjiUnits.singleWhere((u) => u.id == 'unit:年#とし');
+    final nen = kKanjiUnits.singleWhere((u) => u.id == 'unit:年#ねん');
+    final seeded = await pumpSession(
+      tester,
+      units: [toshi, nen],
+      rng: Random(0),
+    );
+    final before = seeded.repo.statForUnit(toshi.id);
+
+    expect(stemOf(tester), '毎年の秋');
+    expect(find.widgetWithText(AnswerOptionButton, 'ねん'), findsOneWidget);
+    expect(find.widgetWithText(AnswerOptionButton, 'とし'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(AnswerOptionButton, 'ねん'));
+    await tester.pumpAndSettle();
+
+    final after = seeded.repo.statForUnit(toshi.id);
+    final attempts = await seeded.analytics.all();
+    expect(attempts.single.correct, isTrue);
+    expect(after.wrongCount, before.wrongCount);
+    expect(after.srsLevel, greaterThan(before.srsLevel));
+  });
+
   testWidgets('来 / 会 stems are visible before the answer', (tester) async {
     for (final unit in [kuru, au]) {
       SharedPreferences.setMockInitialValues({});

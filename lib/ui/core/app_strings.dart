@@ -195,6 +195,20 @@ abstract final class AppStrings {
   static const String kanjiKunyomi = '訓読み';
   static const String kanjiTeachHint = '先聽它的音,記下來';
   static const String kanjiChooseReading = '這個字,怎麼讀?';
+
+  /// Accessible stem: the sentence plus which local word holds the target
+  /// run — never the reading itself. 手話 vs 話す tells two 話 apart.
+  static String kanjiAccessibleStem({
+    required String sentence,
+    required String localWord,
+    required String written,
+  }) {
+    if (localWord == written) {
+      return '$sentence。問的是「$written」。';
+    }
+    return '$sentence。問的是「$localWord」裡的「$written」。';
+  }
+
   static const String kanjiNext = '次へ';
 
   // Kanji sentence reading (furigana fades as readings mature)

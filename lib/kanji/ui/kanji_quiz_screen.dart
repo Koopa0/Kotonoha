@@ -12,7 +12,6 @@ import 'package:kotonoha/kanji/domain/models/kanji_reading_question.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_prompt.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
-import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -67,7 +66,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   // most once per session (KanjiSession.compose is one-pass), so a unit is
   // taught XOR recalled in a session — teach-before-test holds by construction.
   bool _isTeach = true;
-  bool _isGraded = true; // false when the stem cannot pick one reading
+  Set<String> _validReadings = const {};
   KanjiReadingQuestion? _question; // recall only
   int? _picked; // recall: chosen option index, null until committed
 
@@ -90,7 +89,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     final p = _current;
     _isTeach = !repo.statForUnit(p.id).isSeen;
     _picked = null;
-    _isGraded = _isTeach || KanjiPrompt.uniquelySelects(p, kKanjiUnits);
+    _validReadings = KanjiPrompt.validReadings(p);
     _question = _isTeach
         ? null
         : const KanjiReadingQuiz().buildQuestion(
@@ -168,30 +167,22 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   void _answer(int i) {
     if (_picked != null) return;
     final now = DateTime.now();
-    final correct = i == _question!.correctIndex;
-    // A stem that cannot pick one reading is shown, not scored — another
-    // taught reading of the same run would otherwise drop the Leitner.
-    if (_isGraded) {
-      context.read<ProgressPersistenceController>().trackKanji(
-        context.read<KanjiReadingRepository>().recordAnswer(
-          _current.id,
-          correct: correct,
-          at: now,
-        ),
-      );
-      _logAttempt(
+    final chosen = _question!.options[i];
+    // Legal in this word (毎年 → とし or ねん) is accepted. A taught
+    // reading that the word does not take (帰国の日 → にち) is still a miss.
+    final correct = _validReadings.contains(chosen);
+    context.read<ProgressPersistenceController>().trackKanji(
+      context.read<KanjiReadingRepository>().recordAnswer(
+        _current.id,
         correct: correct,
-        beat: 'recall',
-        now: now,
-        chosen: _question!.options[i],
-      );
-    }
+        at: now,
+      ),
+    );
+    _logAttempt(correct: correct, beat: 'recall', now: now, chosen: chosen);
     context.read<SpeechService>().speak(_spoken);
     setState(() {
-      if (_isGraded) {
-        _graded++;
-        if (correct) _correct++;
-      }
+      _graded++;
+      if (correct) _correct++;
       _picked = i;
     });
   }
@@ -391,9 +382,10 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   OptionState _optionState(int i) {
     if (_picked == null) return OptionState.idle;
     final q = _question!;
-    if (i == _picked && i == q.correctIndex) return OptionState.correct;
+    final accepted = _validReadings.contains(q.options[i]);
+    if (i == _picked && accepted) return OptionState.correct;
     if (i == _picked) return OptionState.wrong;
-    if (i == q.correctIndex) return OptionState.revealed;
+    if (accepted) return OptionState.revealed;
     return OptionState.dimmed;
   }
 }
@@ -427,6 +419,11 @@ class _PromptStem extends StatelessWidget {
       key: KanjiQuizScreen.promptStemKey,
       textAlign: TextAlign.center,
       style: const TextStyle(fontSize: 17, height: 1.5, color: AppColors.ink),
+      semanticsLabel: AppStrings.kanjiAccessibleStem(
+        sentence: KanjiPrompt.stemOf(unit),
+        localWord: KanjiPrompt.localWord(unit),
+        written: unit.written,
+      ),
     );
   }
 }
