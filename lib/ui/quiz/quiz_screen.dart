@@ -121,6 +121,8 @@ class _QuizScreenState extends State<QuizScreen> {
   Timer? _advanceTimer;
   bool _navigated = false;
   bool _answerable = true;
+  AppLifecycleState _lifecycleState =
+      WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
   bool _recallRevealed = false;
   bool _recallUnpromptedCommit = false;
   int _playGen = 0;
@@ -148,34 +150,60 @@ class _QuizScreenState extends State<QuizScreen> {
       monotonicMs: widget.monotonicMs,
     )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
-    _lifecycle = AppLifecycleListener(
-      onInactive: _onUnanswerable,
-      onHide: _onUnanswerable,
-      onPause: _onUnanswerable,
-      onDetach: _onUnanswerable,
-      onResume: _onResumed,
-    );
-    if (_isListening) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    _lifecycle = AppLifecycleListener(onStateChange: _onLifecycleState);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _reportPresentation();
+      if (_isListening) {
         unawaited(_playCurrent());
-      });
+      }
+    });
+  }
+
+  bool get _isVisible =>
+      _lifecycleState == AppLifecycleState.resumed ||
+      _lifecycleState == AppLifecycleState.inactive;
+
+  void _onLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
+    _answerable = state == AppLifecycleState.resumed;
+    if (!_answerable) {
+      // Invalidate an already-shown clock now. Whether this question
+      // is newly exposed is decided by a later painted frame, not by
+      // which state we came from — inactive after hidden can stay
+      // visible and draw.
+      _vm.noteUnanswerable();
+      _schedulePresentationReport();
+      if (!_isListening) return;
+      // Stop in-flight play even after the item is graded — a reveal
+      // replay must not keep speaking in the background.
+      _abandonPlayback();
+      if (mounted) {
+        setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
+      }
+      return;
+    }
+    _schedulePresentationReport();
+  }
+
+  /// A painted frame while `resumed` can start RT. The same frame while
+  /// still `inactive` is exposure and must not restart later. A frame
+  /// that only lands after we are already `resumed` is a pure restore
+  /// transition, not a lingering visible inactive.
+  void _reportPresentation() {
+    if (!mounted || _vm.isAnswered || _vm.isFinished) return;
+    if (!_isVisible) return;
+    if (_answerable) {
+      _vm.noteAnswerablePresentation();
+    } else {
+      _vm.noteUnanswerable(stillVisible: true);
     }
   }
 
-  void _onUnanswerable() {
-    _answerable = false;
-    _vm.noteUnanswerable();
-    if (!_isListening) return;
-    // Stop in-flight play even after the item is graded — a reveal
-    // replay must not keep speaking in the background.
-    _abandonPlayback();
-    if (mounted) {
-      setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
-    }
-  }
-
-  void _onResumed() {
-    _answerable = true;
+  void _schedulePresentationReport() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reportPresentation();
+    });
   }
 
   void _abandonPlayback() {
@@ -236,10 +264,12 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _onChanged() {
-    // Advance while still backgrounded must not arm a fresh fluency clock.
+    // Birth while hidden/paused stays unpresented until a visible
+    // frame. A painted inactive frame is exposure.
     if (!_answerable) {
       _vm.noteUnanswerable();
     }
+    _schedulePresentationReport();
     if (!_vm.isAnswered) {
       _recallRevealed = false;
       _recallUnpromptedCommit = false;

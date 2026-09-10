@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -60,6 +61,10 @@ class KanjiQuizScreen extends StatefulWidget {
 
 class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   bool _done = false;
 
@@ -82,8 +87,42 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   @override
   void initState() {
     super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
+    );
+    _playable = _foreground;
     _route();
     WidgetsBinding.instance.addPostFrameCallback((_) => _speakIfTeach());
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
+    super.dispose();
+  }
+
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
+  void _abandonOwnedPlayback() {
+    _playable = false;
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
   }
 
   void _route() {
@@ -105,7 +144,14 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   // Ear-first: the reading is heard on a teach beat. Recall stays silent until
   // the learner has chosen (cold), so the sound can't give the answer away.
   void _speakIfTeach() {
-    if (_isTeach && mounted) context.read<SpeechService>().speak(_spoken);
+    if (!_isTeach || !mounted) return;
+    _speak(_spoken);
+  }
+
+  void _speak(String text) {
+    if (!mounted || !_playable || !_foreground) return;
+    unawaited(_speech.speak(text));
+    _ownedPlay = _speech.generation;
   }
 
   void _advance() {
@@ -231,7 +277,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       scheduledId: scheduledId,
       scored: scoreId != null,
     );
-    context.read<SpeechService>().speak(legal ? chosen : target.reading);
+    _speak(legal ? chosen : target.reading);
     setState(() {
       _graded++;
       if (legal) _correct++;
@@ -357,7 +403,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
         const SizedBox(height: 10),
         ..._context(p),
         const SizedBox(height: 12),
-        SpeakButton(text: _spoken, size: 28),
+        SpeakButton(text: _spoken, size: 28, onPlay: () => _speak(_spoken)),
         const SizedBox(height: 12),
         const Text(
           AppStrings.kanjiTeachHint,
@@ -389,7 +435,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       const SizedBox(height: 10),
       ..._context(p),
       const SizedBox(height: 4),
-      SpeakButton(text: _spoken, size: 28),
+      SpeakButton(text: _spoken, size: 28, onPlay: () => _speak(_spoken)),
     ];
   }
 

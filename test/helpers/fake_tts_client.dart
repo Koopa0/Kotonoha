@@ -43,6 +43,7 @@ class ScriptedSpeechService implements SpeechService {
   final List<String> spoken = <String>[];
   int stopCount = 0;
   int _index = 0;
+  int _generation = 0;
 
   @override
   Future<void> speak(String text) async {
@@ -52,6 +53,7 @@ class ScriptedSpeechService implements SpeechService {
   @override
   Future<SpeechPlaybackResult> play(String text) async {
     spoken.add(text);
+    _generation++;
     if (_results.isEmpty) return SpeechPlaybackResult.unavailable;
     final i = _index < _results.length ? _index : _results.length - 1;
     _index++;
@@ -59,7 +61,12 @@ class ScriptedSpeechService implements SpeechService {
   }
 
   @override
-  Future<void> stop() async {
+  int get generation => _generation;
+
+  @override
+  Future<void> stop({int? generation}) async {
+    if (generation != null && generation != _generation) return;
+    _generation++;
     stopCount++;
   }
 }
@@ -70,6 +77,7 @@ class HangingSpeechService implements SpeechService {
       Completer<SpeechPlaybackResult>();
   final List<String> spoken = <String>[];
   int stopCount = 0;
+  int _generation = 0;
 
   bool get isCompleted => _completer.isCompleted;
 
@@ -87,11 +95,17 @@ class HangingSpeechService implements SpeechService {
   @override
   Future<SpeechPlaybackResult> play(String text) {
     spoken.add(text);
+    _generation++;
     return _completer.future;
   }
 
   @override
-  Future<void> stop() async {
+  int get generation => _generation;
+
+  @override
+  Future<void> stop({int? generation}) async {
+    if (generation != null && generation != _generation) return;
+    _generation++;
     stopCount++;
     complete(SpeechPlaybackResult.interrupted);
   }
