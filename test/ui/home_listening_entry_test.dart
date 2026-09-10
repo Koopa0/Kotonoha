@@ -74,6 +74,8 @@ void main() {
       await words.introduce('word:えき', at: DateTime(2026, 9, 10, 12));
       await pumpHome(tester, kana: kana, words: words);
 
+      expect(find.text(AppStrings.reviewKanaAction), findsOneWidget);
+      expect(find.text(AppStrings.quietPracticeAction), findsOneWidget);
       expect(find.text(AppStrings.listenFirstAction), findsOneWidget);
       expect(find.text(AppStrings.listeningEntry), findsOneWidget);
       expect(find.text(AppStrings.listeningSubtitle), findsOneWidget);
