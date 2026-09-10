@@ -255,11 +255,7 @@ Future<void> _pumpQuiz(
           ),
           child: RepaintBoundary(
             key: _captureKey,
-            child: QuizScreen(
-              key: UniqueKey(),
-              items: items,
-              title: 'probe',
-            ),
+            child: QuizScreen(key: UniqueKey(), items: items, title: 'probe'),
           ),
         ),
       ),
