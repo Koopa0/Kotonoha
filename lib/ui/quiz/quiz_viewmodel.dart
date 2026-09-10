@@ -107,17 +107,43 @@ class QuizViewModel extends ChangeNotifier {
     return mono;
   }
 
+  /// Self-grades a [QuizDirection.kanaRecall] item. [unprompted] is true only
+  /// when the reading was still hidden — a hinted recall is stored untimed so
+  /// it cannot graduate recognition fluency.
+  void gradeRecall({required bool correct, required bool unprompted}) {
+    if (isAnswered || _finished) return;
+    if (current.direction != QuizDirection.kanaRecall) return;
+    _record(
+      selectedIndex: correct ? 0 : 1,
+      correct: correct,
+      forceUntimed: !unprompted || !correct,
+      extraMeta: {AttemptMeta.prompted: !unprompted},
+    );
+  }
+
   /// Records the user's choice for the current question and persists it.
   void selectAnswer(int optionIndex) {
     if (isAnswered || _finished) return;
+    if (current.direction == QuizDirection.kanaRecall) return;
+    _record(
+      selectedIndex: optionIndex,
+      correct: current.isCorrect(optionIndex),
+    );
+  }
+
+  void _record({
+    required int selectedIndex,
+    required bool correct,
+    bool forceUntimed = false,
+    Map<String, Object?> extraMeta = const {},
+  }) {
     final item = currentItem;
     final question = item.question;
-    final correct = question.isCorrect(optionIndex);
     final now = _clock();
-    final latencyMs = _latencyMs(now);
-    _selected = optionIndex;
+    final latencyMs = forceUntimed ? null : _latencyMs(now);
+    _selected = selectedIndex;
     _answers.add(
-      AnsweredQuestion(question: question, selectedIndex: optionIndex),
+      AnsweredQuestion(question: question, selectedIndex: selectedIndex),
     );
     // Answering never waits on disk (the in-memory effect + notify below are
     // synchronous); the app-scoped owner observes the write so a failure is
@@ -141,7 +167,11 @@ class QuizViewModel extends ChangeNotifier {
         sessionId: sessionId,
         meta: {
           AttemptMeta.direction: question.direction.name,
-          if (!correct) AttemptMeta.distractor: question.options[optionIndex],
+          if (!correct &&
+              selectedIndex >= 0 &&
+              selectedIndex < question.options.length)
+            AttemptMeta.distractor: question.options[selectedIndex],
+          ...extraMeta,
         },
       ),
     );

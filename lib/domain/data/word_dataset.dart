@@ -781,6 +781,20 @@ const List<Word> kWords = <Word>[
     script: KanaScript.katakana,
   ),
   Word(
+    kana: 'マスク',
+    romaji: 'masuku',
+    meaning: '口罩',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
+    kana: 'ナイフ',
+    romaji: 'naifu',
+    meaning: '刀子',
+    script: KanaScript.katakana,
+    theme: ContentTheme.daily,
+  ),
+  Word(
     kana: 'シャワー',
     romaji: 'shawaa',
     meaning: '淋浴',

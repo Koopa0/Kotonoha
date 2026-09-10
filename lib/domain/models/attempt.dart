@@ -26,6 +26,8 @@ abstract final class ItemType {
 abstract final class AttemptMeta {
   static const String direction = 'direction'; // QuizDirection.name / write…
   static const String distractor = 'distractor'; // wrong MC option chosen
+  /// Whether the learner saw the reading before grading (bool).
+  static const String prompted = 'prompted';
 }
 
 /// One answered item — the fine-grained event stream behind learning analytics.

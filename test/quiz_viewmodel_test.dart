@@ -284,6 +284,63 @@ void main() {
     vm.dispose();
   });
 
+  test(
+    'gradeRecall unprompted correct is timed; hinted correct is not',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await KanaProgressRepository.load();
+      final now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      final kana = all.first;
+      for (var i = 0; i < 3; i++) {
+        await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      QuizQuestion recall() => QuizQuestion(
+        target: kana,
+        direction: QuizDirection.kanaRecall,
+        options: const [],
+        correctIndex: 0,
+      );
+      final log = InMemoryAnalyticsLog();
+      final vm = QuizViewModel(
+        items: [SessionItem(question: recall(), mode: PracticeMode.daily)],
+        repository: repo,
+        persistence: owner(),
+        analytics: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      elapsed = 600;
+      vm.gradeRecall(correct: true, unprompted: true);
+      expect(vm.lastWasCorrect, isTrue);
+      expect((await log.all()).single.meta[AttemptMeta.prompted], isFalse);
+      expect((await log.all()).single.rtMs, 600);
+      expect(repo.statFor(kana).avgLatencyMs, isNot(0));
+      vm.dispose();
+
+      SharedPreferences.setMockInitialValues({});
+      final repo2 = await KanaProgressRepository.load();
+      for (var i = 0; i < 3; i++) {
+        await repo2.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      final before = repo2.statFor(kana).avgLatencyMs;
+      final log2 = InMemoryAnalyticsLog();
+      final vm2 = QuizViewModel(
+        items: [SessionItem(question: recall(), mode: PracticeMode.daily)],
+        repository: repo2,
+        persistence: owner(),
+        analytics: log2,
+        clock: () => now,
+        monotonicMs: () => 400,
+      );
+      vm2.gradeRecall(correct: true, unprompted: false);
+      expect(repo2.statFor(kana).avgLatencyMs, before);
+      expect((await log2.all()).single.meta[AttemptMeta.prompted], isTrue);
+      expect((await log2.all()).single.rtMs, 0);
+      vm2.dispose();
+    },
+  );
+
   test('emits one Attempt to the analytics log per answer', () async {
     final log = InMemoryAnalyticsLog();
     final vm = await makeVm(['さ', 'し'], analytics: log);

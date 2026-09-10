@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/weakness.dart';
 
@@ -209,7 +210,11 @@ void main() {
     final poolIds = pool208.map((k) => k.id).toSet();
     for (final i in items) {
       expect(poolIds.contains(i.question.target.id), isTrue);
-      expect(i.question.options.length, 4);
+      if (i.question.direction == QuizDirection.kanaRecall) {
+        expect(i.question.options, isEmpty);
+      } else {
+        expect(i.question.options.length, 4);
+      }
     }
   });
 

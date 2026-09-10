@@ -82,10 +82,12 @@ abstract final class DailySession {
         SessionItem(
           question: engine.buildQuestion(
             t,
-            _directionFor(
+            directionFor(
               t,
+              stat: stats[t.id] ?? const KanaStat(),
               isNew: newIds.contains(t.id),
               quiet: quiet,
+              now: now,
               rng: rng,
             ),
             _distractors(t, pool, engine.optionCount, rng),
@@ -157,19 +159,38 @@ abstract final class DailySession {
     ...kKatakanaConfusableSets,
   ];
 
-  /// New items are shown form→sound (gentlest); reviews alternate recall and
-  /// listening — except a [quiet] run, where reviews stay visual recall so no
-  /// listening prompt (auto-played sound) is ever generated.
-  static QuizDirection _directionFor(
-    Kana t, {
+  /// New items stay form→sound (gentlest). Weak / still-learning reviews keep
+  /// multiple-choice recognition. A strong, fast, recovered review leaves the
+  /// option list and becomes unprompted [QuizDirection.kanaRecall] — even on a
+  /// [quiet] run, which only forbids listening, not silent recall.
+  static QuizDirection directionFor(
+    Kana _, {
+    required KanaStat stat,
     required bool isNew,
     required bool quiet,
+    required DateTime now,
     required Random rng,
   }) {
     if (isNew) return QuizDirection.kanaToRomaji;
+    if (readyForRecall(stat, now: now)) return QuizDirection.kanaRecall;
     if (quiet) return QuizDirection.romajiToKana;
     return rng.nextBool()
         ? QuizDirection.romajiToKana
         : QuizDirection.soundToKana;
+  }
+
+  /// Whether this kana has enough *recognition* evidence to leave easy MCQ.
+  ///
+  /// Display-[KanaStatus.strong] alone is not enough: a recent miss, a slow
+  /// average, or an untimed-only climb must keep the option list. Timed-fast
+  /// and past the untimed cap are required so "was introduced" cannot pass.
+  static bool readyForRecall(KanaStat stat, {required DateTime now}) {
+    if (!stat.isSeen) return false;
+    if (Weakness.isActionable(stat, now: now)) return false;
+    if (stat.status != KanaStatus.strong) return false;
+    if (stat.avgLatencyMs <= 0) return false;
+    if (stat.avgLatencyMs >= KanaStat.kFastThresholdMs) return false;
+    if (stat.srsLevel < KanaStat.kUntimedCapLevel) return false;
+    return true;
   }
 }

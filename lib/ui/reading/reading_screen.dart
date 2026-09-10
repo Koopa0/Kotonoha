@@ -76,7 +76,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
     setState(() => _revealed = true);
   }
 
-  void _grade(bool correct) {
+  void _grade({required bool correct, required bool unprompted}) {
     final now = DateTime.now();
     context.read<AnalyticsLog>().recordObserved(
       Attempt(
@@ -86,18 +86,28 @@ class _ReadingScreenState extends State<ReadingScreen> {
         mode: PracticeMode.reading.name,
         correct: correct,
         sessionId: _sessionId,
-        meta: {'romaji': _current.romaji},
+        meta: {'romaji': _current.romaji, AttemptMeta.prompted: !unprompted},
       ),
     );
-    // 黙読 is a schedule authority for its items: the cold self-graded read
-    // advances (or resets) the item's Leitner box.
-    context.read<ProgressPersistenceController>().trackWord(
-      context.read<WordProgressRepository>().recordAnswer(
-        _current.progressId,
-        correct: correct,
-        at: now,
-      ),
-    );
+    // Unprompted correct is the only climb. A reveal-then-「現在讀對了」is
+    // logged but does not master the item. A miss always resets.
+    if (unprompted && correct) {
+      context.read<ProgressPersistenceController>().trackWord(
+        context.read<WordProgressRepository>().recordAnswer(
+          _current.progressId,
+          correct: true,
+          at: now,
+        ),
+      );
+    } else if (!correct) {
+      context.read<ProgressPersistenceController>().trackWord(
+        context.read<WordProgressRepository>().recordAnswer(
+          _current.progressId,
+          correct: false,
+          at: now,
+        ),
+      );
+    }
     if (correct) _correct++;
     if (_index + 1 >= widget.items.length) {
       final store = context.read<KanaProgressRepository>();
@@ -256,7 +266,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        onPressed: () => _grade(false),
+                        onPressed: () =>
+                            _grade(correct: false, unprompted: false),
                         child: const Text(AppStrings.iCouldnt),
                       ),
                     ),
@@ -267,18 +278,39 @@ class _ReadingScreenState extends State<ReadingScreen> {
                           backgroundColor: AppColors.success,
                           minimumSize: const Size.fromHeight(54),
                         ),
-                        onPressed: () => _grade(true),
-                        child: const Text(AppStrings.iReadIt),
+                        onPressed: () =>
+                            _grade(correct: true, unprompted: false),
+                        child: const Text(AppStrings.iReadAfterHint),
                       ),
                     ),
                   ],
                 )
-              : SizedBox(
-                  height: 54,
-                  child: FilledButton(
-                    onPressed: _reveal,
-                    child: const Text(AppStrings.revealAnswer),
-                  ),
+              : Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(54),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: _reveal,
+                        child: const Text(AppStrings.recallHint),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(54),
+                        ),
+                        onPressed: () =>
+                            _grade(correct: true, unprompted: true),
+                        child: const Text(AppStrings.iReadUnprompted),
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ],

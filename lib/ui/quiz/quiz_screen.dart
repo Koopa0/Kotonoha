@@ -11,12 +11,14 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/quiz/quiz_viewmodel.dart';
+import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -29,12 +31,17 @@ class QuizScreen extends StatefulWidget {
     super.key,
     this.lesson,
     this.onAgain,
+    this.transferItems,
     this.clock,
     this.monotonicMs,
   });
 
   final List<SessionItem> items;
   final String title;
+
+  /// Word / sentence transfer after the kana run (今日の稽古 only).
+  /// Empty keeps the existing result screen. Not a new home entry.
+  final List<ReadingItem>? transferItems;
 
   /// Set when this is a lesson test — drives pass/learned handling on results.
   final Lesson? lesson;
@@ -55,12 +62,14 @@ class QuizScreen extends StatefulWidget {
     required PracticeMode mode,
     Lesson? lesson,
     VoidCallback? onAgain,
+    List<ReadingItem>? transferItems,
   }) {
     return routeItems(
       items: [for (final q in questions) SessionItem(question: q, mode: mode)],
       title: title,
       lesson: lesson,
       onAgain: onAgain,
+      transferItems: transferItems,
     );
   }
 
@@ -70,6 +79,7 @@ class QuizScreen extends StatefulWidget {
     required String title,
     Lesson? lesson,
     VoidCallback? onAgain,
+    List<ReadingItem>? transferItems,
   }) {
     return MaterialPageRoute<void>(
       builder: (_) => QuizScreen(
@@ -77,6 +87,7 @@ class QuizScreen extends StatefulWidget {
         title: title,
         lesson: lesson,
         onAgain: onAgain,
+        transferItems: transferItems,
       ),
     );
   }
@@ -92,6 +103,7 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _navigated = false;
   int _spokenIndex = -1;
   bool _answerable = true;
+  bool _recallRevealed = false;
 
   /// True when the CURRENT question is listening (sound → kana). Per-item, so an
   /// adaptive session can have listening questions mixed in.
@@ -146,6 +158,9 @@ class _QuizScreenState extends State<QuizScreen> {
     if (!_answerable) {
       _vm.noteUnanswerable();
     }
+    if (!_vm.isAnswered) {
+      _recallRevealed = false;
+    }
     if (_vm.isFinished) {
       _goToResults();
       return;
@@ -171,9 +186,78 @@ class _QuizScreenState extends State<QuizScreen> {
     _vm.advance();
   }
 
+  Widget _recallActions() {
+    if (_recallRevealed) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                side: const BorderSide(color: AppColors.error),
+                foregroundColor: AppColors.error,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onPressed: () =>
+                  _vm.gradeRecall(correct: false, unprompted: false),
+              child: const Text(AppStrings.iCouldnt),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.success,
+                minimumSize: const Size.fromHeight(54),
+              ),
+              onPressed: () =>
+                  _vm.gradeRecall(correct: true, unprompted: false),
+              child: const Text(AppStrings.iReadAfterHint),
+            ),
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            onPressed: () => setState(() => _recallRevealed = true),
+            child: const Text(AppStrings.recallHint),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+            ),
+            onPressed: () => _vm.gradeRecall(correct: true, unprompted: true),
+            child: const Text(AppStrings.iReadUnprompted),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _goToResults() {
     if (_navigated) return;
     _navigated = true;
+    final transfer = widget.transferItems;
+    if (transfer != null && transfer.isNotEmpty) {
+      Navigator.of(context).pushReplacement(
+        ReadingScreen.route(transfer, widget.title, onMore: widget.onAgain),
+      );
+      return;
+    }
     Navigator.of(context).pushReplacement(
       QuizResultScreen.route(
         _vm.result,
@@ -205,7 +289,8 @@ class _QuizScreenState extends State<QuizScreen> {
             }
             final q = _vm.current;
             final dir = q.direction;
-            final isKanaPrompt = dir == QuizDirection.kanaToRomaji;
+            final isRecall = dir == QuizDirection.kanaRecall;
+            final isKanaPrompt = dir == QuizDirection.kanaToRomaji || isRecall;
             final isListening = dir == QuizDirection.soundToKana;
             // Options are big kana except when the answer is romaji.
             final optionFontSize = isKanaPrompt ? 22.0 : 34.0;
@@ -213,6 +298,7 @@ class _QuizScreenState extends State<QuizScreen> {
               QuizDirection.kanaToRomaji => AppStrings.chooseRomaji,
               QuizDirection.romajiToKana => AppStrings.chooseKana,
               QuizDirection.soundToKana => AppStrings.chooseBySound,
+              QuizDirection.kanaRecall => AppStrings.readPrompt,
             };
 
             return Column(
@@ -262,47 +348,68 @@ class _QuizScreenState extends State<QuizScreen> {
                           _PromptCard(
                             text: q.prompt,
                             big: isKanaPrompt,
-                            speakText: isKanaPrompt ? q.target.character : null,
+                            // Sound is the hidden reading on recall — never
+                            // play it before the learner grades unprompted.
+                            speakText: isKanaPrompt && !isRecall
+                                ? q.target.character
+                                : (isRecall && _recallRevealed
+                                      ? q.target.character
+                                      : null),
                           ),
-                        const SizedBox(height: 28),
-                        GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 2.6,
-                          children: [
-                            for (int i = 0; i < q.options.length; i++)
-                              AnswerOptionButton(
-                                label: q.options[i],
-                                state: _vm.optionState(i),
-                                fontSize: optionFontSize,
-                                onTap: _vm.isAnswered
-                                    ? null
-                                    : () => _vm.selectAnswer(i),
-                              ),
-                          ],
-                        ),
+                        if (isRecall && _recallRevealed) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            q.correctAnswer,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ],
+                        if (!isRecall) ...[
+                          const SizedBox(height: 28),
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 2.6,
+                            children: [
+                              for (int i = 0; i < q.options.length; i++)
+                                AnswerOptionButton(
+                                  label: q.options[i],
+                                  state: _vm.optionState(i),
+                                  fontSize: optionFontSize,
+                                  onTap: _vm.isAnswered
+                                      ? null
+                                      : () => _vm.selectAnswer(i),
+                                ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                  child: SizedBox(
-                    height: 52,
-                    child: _vm.isAnswered
-                        ? FilledButton(
-                            onPressed: _advanceNow,
-                            child: Text(
-                              _vm.isLastQuestion
-                                  ? AppStrings.seeResults
-                                  : AppStrings.continueLabel,
-                            ),
-                          )
-                        : null,
-                  ),
+                  child: isRecall && !_vm.isAnswered
+                      ? _recallActions()
+                      : SizedBox(
+                          height: 52,
+                          child: _vm.isAnswered
+                              ? FilledButton(
+                                  onPressed: _advanceNow,
+                                  child: Text(
+                                    _vm.isLastQuestion
+                                        ? AppStrings.seeResults
+                                        : AppStrings.continueLabel,
+                                  ),
+                                )
+                              : null,
+                        ),
                 ),
               ],
             );
