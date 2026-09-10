@@ -83,6 +83,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  licenses:
+    - assets/fonts/OFL.txt
+
   # Klee One (SIL OFL) — a calm textbook-handwriting Japanese typeface. It gives
   # the kana a soft, written-in-a-notebook character that matches 言の葉.
   fonts:
