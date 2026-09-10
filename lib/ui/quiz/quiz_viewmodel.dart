@@ -18,8 +18,9 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 ///
 /// Timing starts when the question becomes current (construct / [advance]).
 /// Quiz `soundToKana` is kana-glyph ID, not listen-first sentence evidence —
-/// that path lives on [ListeningScreen] / #9 and does not go through this
-/// type. This type does not rework audio.
+/// that path lives on [ListeningScreen]. This type does not interpret
+/// playback; the screen passes [persistProgress] so a failed, cancelled,
+/// or stale play cannot become SRS.
 class QuizViewModel extends ChangeNotifier {
   QuizViewModel({
     required this.items,
@@ -139,12 +140,23 @@ class QuizViewModel extends ChangeNotifier {
   }
 
   /// Records the user's choice for the current question and persists it.
-  void selectAnswer(int optionIndex) {
+  ///
+  /// [persistProgress] is the screen's audio-evidence gate for
+  /// [QuizDirection.soundToKana]. False skips repository writes so a
+  /// failed / cancelled / stale play cannot become SRS. Forced-correct
+  /// MCQ still writes nothing. [gradeRecall] is unchanged.
+  void selectAnswer(
+    int optionIndex, {
+    bool persistProgress = true,
+    Map<String, Object?> extraMeta = const {},
+  }) {
     if (isAnswered || _finished) return;
     if (current.direction == QuizDirection.kanaRecall) return;
     _record(
       selectedIndex: optionIndex,
       correct: current.isCorrect(optionIndex),
+      persistProgress: persistProgress,
+      extraMeta: extraMeta,
     );
   }
 
@@ -153,6 +165,7 @@ class QuizViewModel extends ChangeNotifier {
     required bool correct,
     bool forceUntimed = false,
     bool creditRecall = true,
+    bool persistProgress = true,
     Map<String, Object?> extraMeta = const {},
   }) {
     final item = currentItem;
@@ -174,22 +187,24 @@ class QuizViewModel extends ChangeNotifier {
       // Answering never waits on disk (the in-memory effect + notify below
       // are synchronous); the app-scoped owner observes the write so a
       // failure is surfaced instead of dropped.
-      final persist = !correct
-          ? repository.recordAnswer(
-              question.target,
-              correct: false,
-              at: now,
-              latencyMs: latencyMs,
-            )
-          : creditRecall
-          ? repository.recordAnswer(
-              question.target,
-              correct: true,
-              at: now,
-              latencyMs: latencyMs,
-            )
-          : repository.recordPromptedPractice(question.target, at: now);
-      persistence.trackKana(persist);
+      if (persistProgress) {
+        final persist = !correct
+            ? repository.recordAnswer(
+                question.target,
+                correct: false,
+                at: now,
+                latencyMs: latencyMs,
+              )
+            : creditRecall
+            ? repository.recordAnswer(
+                question.target,
+                correct: true,
+                at: now,
+                latencyMs: latencyMs,
+              )
+            : repository.recordPromptedPractice(question.target, at: now);
+        persistence.trackKana(persist);
+      }
       analytics?.recordObserved(
         Attempt(
           ts: now.millisecondsSinceEpoch,

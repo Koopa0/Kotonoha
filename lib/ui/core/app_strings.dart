@@ -138,6 +138,9 @@ abstract final class AppStrings {
   static const String chooseKana = '選擇假名';
   static const String chooseBySound = '聽發音,選假名';
   static const String replaySound = '再播一次';
+  static const String quizSoundUnavailable = '現在播不出聲音,答對也不算聽力掌握。';
+  static const String quizSoundFailed = '剛才沒播出來,答對也不算聽力掌握。';
+  static const String quizSoundInterrupted = '播放中斷了,這一題還不能算聽過。';
   static const String continueLabel = '繼續';
   static const String seeResults = '查看結果';
 
@@ -178,6 +181,9 @@ abstract final class AppStrings {
   static const String dictationPrompt = '聽聽看,拼出這個詞';
   static const String dictationClear = '清除';
   static const String dictationNext = '下一個';
+  static const String dictationUnavailable = '現在播不出聲音,拼對也不算聽寫掌握。';
+  static const String dictationFailed = '剛才沒播出來,拼對也不算聽寫掌握。';
+  static const String dictationInterrupted = '播放中斷了,這一題還不能算聽過。';
 
   // 聞き取り — listen first, recall, reveal, rehear. #10 may rename the card;
   // this slice only adds an entry, it does not relabel neighbouring rooms.

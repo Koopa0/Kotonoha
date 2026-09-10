@@ -501,4 +501,46 @@ void main() {
     expect(attempts.last.correct, isTrue);
     expect(attempts.last.distractor, isNull);
   });
+
+  test('persistProgress false skips SRS but still logs the attempt', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final log = InMemoryAnalyticsLog();
+    final kana = all.firstWhere((k) => k.character == 'き');
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(
+          question: QuizQuestion(
+            target: kana,
+            direction: QuizDirection.soundToKana,
+            options: [kana.character, 'い', 'う', 'え'],
+            correctIndex: 0,
+          ),
+          mode: PracticeMode.daily,
+        ),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => fixedNow,
+    );
+    vm.selectAnswer(
+      0,
+      persistProgress: false,
+      extraMeta: {
+        AttemptMeta.heard: false,
+        AttemptMeta.scored: false,
+        AttemptMeta.playback: 'failed',
+      },
+    );
+    expect(repo.statFor(kana).srsLevel, 0);
+    expect(repo.statFor(kana).isSeen, isFalse);
+    expect(repo.statFor(kana).correctCount, 0);
+    final logged = await log.all();
+    expect(logged.single.correct, isTrue);
+    expect(logged.single.meta[AttemptMeta.heard], isFalse);
+    expect(logged.single.meta[AttemptMeta.scored], isFalse);
+    expect(logged.single.meta[AttemptMeta.direction], 'soundToKana');
+    vm.dispose();
+  });
 }
