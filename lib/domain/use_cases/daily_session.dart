@@ -39,8 +39,8 @@ abstract final class DailySession {
     if (pool.isEmpty && newCandidates.isEmpty) return const [];
 
     // Explicit priority — due / real-weak / new / long-uncovered.
-    // Equally-strong not-due kana (score 0) never take the weak quota just
-    // because [Weakness.rankByWeakness] breaks ties in gojūon order.
+    // [Weakness.isActionable] (not raw score > 0) so a recovered 1/N
+    // historical miss cannot lock the weak quota by gojūon order.
     //
     // Due-vs-not-due leftover fill is coverage-ordered, not a hard
     // "never pick not-due while due remains" rule. Remaining due often

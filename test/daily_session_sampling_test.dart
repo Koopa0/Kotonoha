@@ -8,6 +8,7 @@ import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
+import 'package:kotonoha/domain/use_cases/weakness.dart';
 
 /// Inversion of the #12 sampling probe: equally-strong not-due kana must
 /// not lock あいうえ into every session, and true weaks must still repeat.
@@ -211,6 +212,99 @@ void main() {
       expect(i.question.options.length, 4);
     }
   });
+
+  test('legacy 1/1000 miss on あいうえ does not lock 20 recovered sessions', () {
+    final oldMistakes = pool46.take(4).map((k) => k.id).toSet();
+    final stats = {
+      for (final k in pool46)
+        k.id: KanaStat(
+          seenCount: 1000,
+          correctCount: oldMistakes.contains(k.id) ? 999 : 1000,
+          wrongCount: oldMistakes.contains(k.id) ? 1 : 0,
+          srsLevel: 6,
+          avgLatencyMs: 500,
+          lastReviewedAt: start.subtract(const Duration(days: 1)),
+          dueAt: start.add(const Duration(days: 30)),
+        ),
+    };
+    final counts = runSessions(pool: pool46, stats: stats, rounds: 20);
+    for (final id in oldMistakes) {
+      expect(
+        Weakness.isActionable(stats[id]!, now: start),
+        isFalse,
+        reason: '$id stayed actionable after recovered fast reviews',
+      );
+      expect(
+        counts[id] ?? 0,
+        lessThan(20),
+        reason: '$id still occupied every weak slot',
+      );
+    }
+    expect(oldMistakes.every((id) => (counts[id] ?? 0) == 20), isFalse);
+    final remaining = counts.entries
+        .where((e) => !oldMistakes.contains(e.key))
+        .map((e) => e.value);
+    expect(remaining, isNotEmpty);
+    expect(remaining.reduce(min), greaterThanOrEqualTo(3));
+  });
+
+  test(
+    'a 3-hour-old miss on otherwise recovered あいうえ still takes weak slots',
+    () {
+      final recent = pool46.take(4).map((k) => k.id).toSet();
+      final stats = {
+        for (final k in pool46)
+          k.id: KanaStat(
+            seenCount: 1000,
+            correctCount: recent.contains(k.id) ? 999 : 1000,
+            wrongCount: recent.contains(k.id) ? 1 : 0,
+            srsLevel: 6,
+            avgLatencyMs: 500,
+            lastReviewedAt: start.subtract(const Duration(days: 1)),
+            lastMistakeAt: recent.contains(k.id)
+                ? start.subtract(const Duration(hours: 3))
+                : null,
+            dueAt: start.add(const Duration(days: 30)),
+          ),
+      };
+      final counts = runSessions(pool: pool46, stats: stats, rounds: 10);
+      for (final id in recent) {
+        expect(Weakness.isActionable(stats[id]!, now: start), isTrue);
+        expect(
+          counts[id] ?? 0,
+          greaterThanOrEqualTo(8),
+          reason: 'recent miss $id was dropped from the weak quota',
+        );
+      }
+    },
+  );
+
+  test(
+    'year-old lastMistakeAt on recovered あいうえ does not lock 20 sessions',
+    () {
+      final oldMistakes = pool46.take(4).map((k) => k.id).toSet();
+      final stats = {
+        for (final k in pool46)
+          k.id: KanaStat(
+            seenCount: 1000,
+            correctCount: oldMistakes.contains(k.id) ? 999 : 1000,
+            wrongCount: oldMistakes.contains(k.id) ? 1 : 0,
+            srsLevel: 6,
+            avgLatencyMs: 500,
+            lastReviewedAt: start.subtract(const Duration(days: 1)),
+            lastMistakeAt: oldMistakes.contains(k.id)
+                ? start.subtract(const Duration(days: 365))
+                : null,
+            dueAt: start.add(const Duration(days: 30)),
+          ),
+      };
+      final counts = runSessions(pool: pool46, stats: stats, rounds: 20);
+      for (final id in oldMistakes) {
+        expect(Weakness.isActionable(stats[id]!, now: start), isFalse);
+        expect(counts[id] ?? 0, lessThan(20));
+      }
+    },
+  );
 
   test('shuffle is not the fix: equal-score weaks are empty, fill covers', () {
     final stats = strongNotDue(pool46);

@@ -161,4 +161,79 @@ void main() {
       expect(top.first.character, 'か');
     });
   });
+
+  group('Weakness.isActionable', () {
+    test(
+      'legacy 1/1000 miss is scored above 0 but is not a weak-slot claim',
+      () {
+        final recovered = KanaStat(
+          seenCount: 1000,
+          correctCount: 999,
+          wrongCount: 1,
+          lastReviewedAt: now.subtract(const Duration(days: 1)),
+          avgLatencyMs: 500,
+          srsLevel: 6,
+          dueAt: now.add(const Duration(days: 30)),
+        );
+        expect(Weakness.score(recovered, now: now), greaterThan(0));
+        expect(Weakness.isActionable(recovered, now: now), isFalse);
+      },
+    );
+
+    test('a year-old dated miss does not stay actionable after recovery', () {
+      final old = KanaStat(
+        seenCount: 1000,
+        correctCount: 999,
+        wrongCount: 1,
+        lastReviewedAt: now.subtract(const Duration(days: 1)),
+        lastMistakeAt: now.subtract(const Duration(days: 365)),
+        avgLatencyMs: 500,
+        srsLevel: 6,
+        dueAt: now.add(const Duration(days: 30)),
+      );
+      expect(Weakness.score(old, now: now), greaterThan(0));
+      expect(Weakness.isActionable(old, now: now), isFalse);
+    });
+
+    test('a dated miss within recentMistakeDays still claims a weak slot', () {
+      final recent = KanaStat(
+        seenCount: 1000,
+        correctCount: 999,
+        wrongCount: 1,
+        lastReviewedAt: now,
+        lastMistakeAt: now.subtract(const Duration(hours: 3)),
+        avgLatencyMs: 500,
+        srsLevel: 6,
+        dueAt: now.add(const Duration(days: 30)),
+      );
+      expect(Weakness.isActionable(recent, now: now), isTrue);
+    });
+
+    test('slow reading stays actionable even with a tiny historical miss', () {
+      final slow = KanaStat(
+        seenCount: 1000,
+        correctCount: 999,
+        wrongCount: 1,
+        lastReviewedAt: now.subtract(const Duration(days: 1)),
+        avgLatencyMs: 1400,
+        srsLevel: 6,
+        dueAt: now.add(const Duration(days: 30)),
+      );
+      expect(Weakness.isActionable(slow, now: now), isTrue);
+    });
+
+    test(
+      'a still-learning error rate stays actionable without lastMistakeAt',
+      () {
+        final learning = KanaStat(
+          seenCount: 10,
+          correctCount: 6,
+          wrongCount: 4,
+          lastReviewedAt: now,
+          avgLatencyMs: 500,
+        );
+        expect(Weakness.isActionable(learning, now: now), isTrue);
+      },
+    );
+  });
 }
