@@ -20,8 +20,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// 漢字の声 honest flow, now drilled in WORDS: a never-met unit is TAUGHT
 /// (ear-first, the reading and the sentence it lives in shown), a met unit is
-/// RECALLed cold (choose the reading; nothing but the written word on screen).
-/// No score anywhere; no clock.
+/// RECALLed cold (choose the reading; the sentence is visible, the reading
+/// is not). No score anywhere; no clock.
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -101,7 +101,7 @@ void main() {
     expect(logged.single.rtMs, 0); // clock off — the kanji track is untimed
   });
 
-  testWidgets('a MET unit is recalled cold — the word alone, then options', (
+  testWidgets('a MET unit is recalled in its sentence, reading withheld', (
     tester,
   ) async {
     final repo = await KanjiReadingRepository.load();
@@ -111,18 +111,20 @@ void main() {
 
     expect(find.text('学校'), findsOneWidget);
     expect(find.text(AppStrings.kanjiChooseReading), findsOneWidget);
-    // While ASKING, the context is ABSENT — not merely dimmed. The reading
-    // appears exactly once, as one option among four, never also as a label.
-    expect(find.text('学校へ行く'), findsNothing);
+    // While ASKING the sentence is visible and the target is marked; the
+    // reading appears exactly once, as one option among four, never as a
+    // label, and the Chinese gloss stays off until after the choice.
+    expect(_stemPlain(tester), '学校へ行く');
     expect(find.text('去學校'), findsNothing);
     expect(find.text('がっこう'), findsOneWidget);
     expect(find.byType(AnswerOptionButton), findsNWidgets(4));
     expect(find.textContaining('%'), findsNothing);
 
-    // Pick the reading. The context returns afterwards as confirmation.
+    // Pick the reading. The gloss returns afterwards as confirmation.
     await tester.tap(find.widgetWithText(AnswerOptionButton, 'がっこう'));
     await tester.pumpAndSettle();
     expect(find.text('学校へ行く'), findsOneWidget);
+    expect(find.text('去學校'), findsOneWidget);
     final logged = await analytics.all();
     expect(logged.single.meta['beat'], 'recall');
     expect(logged.single.correct, isTrue);
@@ -134,4 +136,9 @@ void main() {
     expect(find.text(AppStrings.readingSummary(1, 1)), findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
   });
+}
+
+String _stemPlain(WidgetTester tester) {
+  final text = tester.widget<Text>(find.byKey(KanjiQuizScreen.promptStemKey));
+  return text.textSpan!.toPlainText();
 }

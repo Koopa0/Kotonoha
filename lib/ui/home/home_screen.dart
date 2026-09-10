@@ -458,13 +458,17 @@ class HomeScreen extends StatelessWidget {
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  void _startKanji(BuildContext context) {
+  void _startKanji(
+    BuildContext context, {
+    int maxNew = KanjiSession.kDefaultMaxNew,
+  }) {
     final repo = context.read<KanjiReadingRepository>();
     final units = KanjiSession.compose(
       units: kKanjiUnits,
       stats: repo.stats,
       now: DateTime.now(),
       rng: Random(),
+      maxNew: maxNew,
     );
     if (units.isEmpty) return;
     Navigator.of(context)
@@ -622,7 +626,10 @@ class HomeScreen extends StatelessWidget {
         readableKanjiPhrases,
         maxNew: step.isMeet ? 3 : 0,
       ),
-      GuidanceTarget.kanji => () => _startKanji(context),
+      GuidanceTarget.kanji => () => _startKanji(
+        context,
+        maxNew: step.isMeet ? KanjiSession.kDefaultMaxNew : 0,
+      ),
       GuidanceTarget.lessons || GuidanceTarget.rest => () => Navigator.of(
         context,
       ).push(LessonsScreen.route()),
