@@ -335,7 +335,6 @@ void main() {
     final repo = await KanaProgressRepository.load();
     final now = DateTime(2026, 9, 10, 12);
     var elapsed = 0;
-    final kana = all.first;
     final log = InMemoryAnalyticsLog();
     final vm = QuizViewModel(
       items: [
