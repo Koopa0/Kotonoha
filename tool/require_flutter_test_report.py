@@ -47,7 +47,7 @@ def _summarize(events: Iterable[dict]) -> dict[str, object]:
     skipped: list[str] = []
     failed: list[str] = []
     hidden = 0
-    success = None
+    done_successes: list[object] = []
     for event in events:
         kind = event.get("type")
         if kind == "testStart":
@@ -72,7 +72,7 @@ def _summarize(events: Iterable[dict]) -> dict[str, object]:
             else:
                 failed.append(name)
         elif kind == "done":
-            success = event.get("success")
+            done_successes.append(event.get("success"))
     executable = passed + skipped + failed
     return {
         "passed": passed,
@@ -80,7 +80,7 @@ def _summarize(events: Iterable[dict]) -> dict[str, object]:
         "failed": failed,
         "hidden": hidden,
         "executable": executable,
-        "success": success,
+        "done_successes": done_successes,
     }
 
 
@@ -107,11 +107,12 @@ def main(argv: list[str]) -> int:
     skipped: list[str] = summary["skipped"]  # type: ignore[assignment]
     failed: list[str] = summary["failed"]  # type: ignore[assignment]
     executable: list[str] = summary["executable"]  # type: ignore[assignment]
+    done_successes: list[object] = summary["done_successes"]  # type: ignore[assignment]
     print(
         f"report={report} executable={len(executable)} "
         f"passed={len(passed)} skipped={len(skipped)} "
         f"failed={len(failed)} hidden={summary['hidden']} "
-        f"done.success={summary['success']}"
+        f"done.count={len(done_successes)} done.successes={done_successes}"
     )
     if passed:
         print("passed names:")
@@ -137,8 +138,16 @@ def main(argv: list[str]) -> int:
         problems.append("skipped tests are forbidden in this isolated gate")
     if failed:
         problems.append("one or more tests failed")
-    if summary["success"] is False:
-        problems.append("reporter marked the run unsuccessful")
+    if len(done_successes) == 0:
+        problems.append("truncated report: missing a unique done event")
+    elif len(done_successes) != 1:
+        problems.append(
+            f"need exactly one done event, got {len(done_successes)}"
+        )
+    elif done_successes[0] is not True:
+        problems.append(
+            "reporter did not mark the unique done event successful"
+        )
     missing = [name for name in args.require_name if name not in passed]
     if missing:
         problems.append("required passed names missing: " + ", ".join(missing))

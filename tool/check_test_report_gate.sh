@@ -67,4 +67,25 @@ expect_red renamed_required_name \
   --forbid-skip \
   --require-name 'wrong name'
 
+# A passing test without a unique successful done is a truncated report,
+# not complete evidence. These would have been green before the floor
+# required exactly one done.success===true.
+expect_red truncated_no_done \
+  --report "$data/truncated_no_done.jsonl" \
+  --min-passed 1 \
+  --forbid-skip \
+  --require-name 'actual test'
+
+expect_red done_without_success \
+  --report "$data/done_without_success.jsonl" \
+  --min-passed 1 \
+  --forbid-skip \
+  --require-name 'actual test'
+
+expect_red duplicate_done \
+  --report "$data/duplicate_done.jsonl" \
+  --min-passed 1 \
+  --forbid-skip \
+  --require-name 'actual test'
+
 echo "test-report gate self-check: healthy green, fault fixtures red"
