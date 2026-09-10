@@ -457,6 +457,113 @@ void main() {
     },
   );
 
+  testWidgets(
+    'unshown soundToKana replay after background advance times from the hear',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final tts = await _installProductionTts(tester);
+      tts.subsequentSpeakResult = 1;
+      final speech = await FlutterTtsSpeechService.create();
+      final repo = await KanaProgressRepository.load();
+      var now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      for (var i = 0; i < 3; i++) {
+        await repo.recordAnswer(_a, correct: true, at: now, latencyMs: 500);
+      }
+      final log = InMemoryAnalyticsLog();
+      await pumpSoundQuiz(
+        tester,
+        speech: speech,
+        items: [soundItem(_ki), soundItem(_a)],
+        repo: repo,
+        log: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      tts.completeFirstSpeak(1);
+      await tester.pump();
+      elapsed = 500;
+      now = now.add(const Duration(milliseconds: 500));
+      await tapCorrect(tester, _ki);
+
+      pauseApp(tester);
+      await tester.pump(const Duration(milliseconds: 800));
+      resumeApp(tester);
+      await tester.pump();
+
+      elapsed = 1000;
+      now = now.add(const Duration(milliseconds: 500));
+      await tester.tap(find.byKey(const ValueKey<String>('quiz-replay')));
+      await tester.pump();
+      elapsed = 1500;
+      now = now.add(const Duration(milliseconds: 500));
+      await tapCorrect(tester, _a);
+      await repo.flushPending();
+      expect((await log.all()).last.rtMs, 500);
+      expect((await log.all()).last.meta[AttemptMeta.heard], isTrue);
+      expect((await KanaProgressRepository.load()).statFor(_a).srsLevel, 4);
+      expect(
+        (await KanaProgressRepository.load()).statFor(_a).avgLatencyMs,
+        500,
+      );
+    },
+  );
+
+  testWidgets(
+    'soundToKana painted during lingering inactive keeps hear but not speed',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final tts = await _installProductionTts(tester);
+      tts.subsequentSpeakResult = 1;
+      final speech = await FlutterTtsSpeechService.create();
+      final repo = await KanaProgressRepository.load();
+      var now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      for (var i = 0; i < 3; i++) {
+        await repo.recordAnswer(_a, correct: true, at: now, latencyMs: 500);
+      }
+      final log = InMemoryAnalyticsLog();
+      await pumpSoundQuiz(
+        tester,
+        speech: speech,
+        items: [soundItem(_ki), soundItem(_a)],
+        repo: repo,
+        log: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      tts.completeFirstSpeak(1);
+      await tester.pump();
+      elapsed = 500;
+      now = now.add(const Duration(milliseconds: 500));
+      await tapCorrect(tester, _ki);
+
+      pauseApp(tester);
+      await tester.pump(const Duration(milliseconds: 800));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      elapsed = 10500;
+      now = now.add(const Duration(seconds: 10));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey<String>('quiz-replay')));
+      await tester.pump();
+      elapsed = 11000;
+      now = now.add(const Duration(milliseconds: 500));
+      await tapCorrect(tester, _a);
+      await repo.flushPending();
+      expect((await log.all()).last.meta[AttemptMeta.heard], isTrue);
+      expect((await log.all()).last.rtMs, 0);
+      expect((await KanaProgressRepository.load()).statFor(_a).srsLevel, 3);
+      expect(
+        (await KanaProgressRepository.load()).statFor(_a).avgLatencyMs,
+        500,
+      );
+    },
+  );
+
   testWidgets('resume replay after background advance can restore a hear', (
     tester,
   ) async {
