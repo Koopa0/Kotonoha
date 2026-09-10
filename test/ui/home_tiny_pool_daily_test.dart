@@ -67,18 +67,20 @@ void main() {
     _expectDailyTargetsLearned(tester, repos.kana);
   });
 
-  testWidgets('ワ行 / ヤ行 katakana counterparts match the hiragana doors', (
-    tester,
-  ) async {
-    final wa = await _pumpApp(tester);
+  testWidgets('ワ行 pass opens Daily as a 2-option review', (tester) async {
+    final repos = await _pumpApp(tester);
     await _passRow(tester, title: 'ワ行', encodeCards: 2);
-    expect(wa.kana.isUnitLearned('kata_row_9'), isTrue);
+    expect(repos.kana.isUnitLearned('kata_row_9'), isTrue);
     await _openDailyAndExpectOptions(tester, optionCount: 2);
+    _expectDailyTargetsLearned(tester, repos.kana);
+  });
 
-    final ya = await _pumpApp(tester);
+  testWidgets('ヤ行 pass opens Daily as a 3-option review', (tester) async {
+    final repos = await _pumpApp(tester);
     await _passRow(tester, title: 'ヤ行', encodeCards: 3);
-    expect(ya.kana.isUnitLearned('kata_row_7'), isTrue);
+    expect(repos.kana.isUnitLearned('kata_row_7'), isTrue);
     await _openDailyAndExpectOptions(tester, optionCount: 3);
+    _expectDailyTargetsLearned(tester, repos.kana);
   });
 
   testWidgets('あ行 pass still opens a 4-option Daily', (tester) async {
@@ -143,14 +145,23 @@ Future<void> _passRow(
   await tester.pumpAndSettle();
   expect(find.byType(LessonsScreen), findsOneWidget);
 
-  final tile = find.widgetWithText(ListTile, title);
+  // Match the lesson title only. widgetWithText(ListTile, 'ん') hits the
+  // avatar + title + subtitle and then ensureVisible throws "too many
+  // elements".
+  final tile = find.byWidgetPredicate((widget) {
+    if (widget is! ListTile) return false;
+    final label = widget.title;
+    return label is Text && label.data == title;
+  }, description: 'ListTile titled $title');
   await tester.scrollUntilVisible(
     tile,
     400,
-    scrollable: find.descendant(
-      of: find.byType(LessonsScreen),
-      matching: find.byType(Scrollable),
-    ),
+    scrollable: find
+        .descendant(
+          of: find.byType(LessonsScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first,
   );
   await tester.tap(tile);
   await tester.pumpAndSettle();
