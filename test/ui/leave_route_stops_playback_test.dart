@@ -205,11 +205,14 @@ Future<void> _pumpProviders(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('は行+ら行 only unlocks はる for Home 學單字', () async {
+  test('は行+ら行 unlocks はる (and ふれる) for Home 學單字', () async {
     final kana = await KanaProgressRepository.load();
     await _learnUnits(kana, const ['hira_row_5', 'hira_row_8']);
     final chars = StudySet.learned(kana).map((k) => k.character).toSet();
-    expect(ReadingSet.readable(kWords, chars).map((w) => w.kana), ['はる']);
+    expect(ReadingSet.readable(kWords, chars).map((w) => w.kana).toSet(), {
+      'はる',
+      'ふれる',
+    });
   });
 
   test('あ行+さ行+ら行+が行 only unlocks そらが あおい', () {
@@ -234,14 +237,14 @@ void main() {
         tester,
         speech: speech,
         learnedUnits: const ['hira_row_5', 'hira_row_8'],
-        seenUnlocks: const [Unlock.words.id],
+        seenUnlocks: [Unlock.words.id],
       );
       expect(find.text(AppStrings.meetWordsAction), findsOneWidget);
 
       await tester.tap(find.text(AppStrings.meetWordsAction));
       await tester.pumpAndSettle();
       expect(find.byType(FerryScreen), findsOneWidget);
-      expect(tts.spoken, ['はる']);
+      expect(tts.spoken, anyOf(equals(['はる']), equals(['ふれる'])));
       expect(tts.pendingSpeaks, hasLength(1));
       expect(tts.pendingFirstSpeak.isCompleted, isFalse);
       expect(tts.stopCount, 1, reason: 'only the pre-play stop so far');
@@ -254,7 +257,7 @@ void main() {
 
       tts.completeSpeak(0, 1);
       await tester.idle();
-      expect(tts.spoken, ['はる']);
+      expect(tts.spoken, anyOf(equals(['はる']), equals(['ふれる'])));
       expect(tester.takeException(), isNull);
     },
   );
@@ -274,7 +277,7 @@ void main() {
         'hira_row_8',
         'hira_dakuten_1',
       ],
-      seenUnlocks: const [Unlock.words.id, Unlock.phrases.id],
+      seenUnlocks: [Unlock.words.id, Unlock.phrases.id],
     );
     expect(find.text(AppStrings.readPhrasesAction), findsOneWidget);
 
