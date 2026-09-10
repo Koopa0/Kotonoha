@@ -4,6 +4,7 @@
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
+import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/scheduler.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -186,10 +187,12 @@ abstract final class Guidance {
   /// sentences → mixed sentences → kanji), which only matters on a cold start
   /// where every track is equally untouched.
   ///
-  /// "Due" for kana reuses [StudySet.reviewPool] + [Scheduler] so it never
-  /// diverges from what 今日の稽古 itself draws on; each reading track's
-  /// standing arrives as a [TrackDue] summary computed by the caller from the
-  /// same repositories its sessions draw on.
+  /// "Due" for kana is the learned set filtered by
+  /// [DailySession.canComposeItem] — the same gate compose uses — so a due ん
+  /// with no same-script foil cannot pin Guidance on 今日の稽古 while the
+  /// session only serves an undued ワ. Each reading track's standing arrives
+  /// as a [TrackDue] summary computed by the caller from the same
+  /// repositories its sessions draw on.
   static GuidanceStep nextStep(
     KanaProgressRepository store, {
     required DateTime now,
@@ -202,12 +205,21 @@ abstract final class Guidance {
     if (store.learnedUnitCount == 0) {
       return const GuidanceStep(GuidanceTarget.lessons);
     }
-    // B — kana reviews take priority over everything else.
-    final due = Scheduler.dueCount(
-      StudySet.reviewPool(store),
-      store.stats,
-      now: now,
-    );
+    // B — kana reviews take priority, but only for targets compose can
+    // actually serve: a discriminating MCQ, or a strong-fast kanaRecall.
+    // A due singleton ん next to an undued ワ must not pin this branch
+    // (the session would skip ん and never clear the due count).
+    final learned = StudySet.learned(store);
+    final due = Scheduler.due(learned, store.stats, now: now)
+        .where(
+          (k) => DailySession.canComposeItem(
+            k,
+            learned,
+            stats: store.stats,
+            now: now,
+          ),
+        )
+        .length;
     if (due > 0) {
       return GuidanceStep(GuidanceTarget.daily, dueCount: due);
     }

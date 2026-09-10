@@ -59,6 +59,7 @@ abstract final class DailySession {
     final targets = <Kana>[];
     void addAll(Iterable<Kana> ks) {
       for (final k in ks) {
+        if (!canComposeItem(k, pool, stats: stats, now: now)) continue;
         if (seen.add(k.id)) targets.add(k);
       }
     }
@@ -77,26 +78,66 @@ abstract final class DailySession {
     targets.shuffle(rng);
 
     final newIds = neu.map((k) => k.id).toSet();
-    return [
-      for (final t in targets.take(length))
-        SessionItem(
-          question: engine.buildQuestion(
-            t,
-            directionFor(
-              t,
-              stat: stats[t.id] ?? const KanaStat(),
-              isNew: newIds.contains(t.id),
-              quiet: quiet,
-              now: now,
-              rng: rng,
-            ),
-            _distractors(t, pool, engine.optionCount, rng),
-            rng,
-          ),
-          mode: PracticeMode.daily,
+    final items = <SessionItem>[];
+    for (final t in targets.take(length)) {
+      final question = engine.buildQuestion(
+        t,
+        directionFor(
+          t,
+          stat: stats[t.id] ?? const KanaStat(),
+          isNew: newIds.contains(t.id),
+          quiet: quiet,
+          now: now,
+          rng: rng,
         ),
-    ];
+        _distractors(t, pool, engine.optionCount, rng),
+        rng,
+      );
+      // Belt: a lone-option MCQ is not a review. kanaRecall keeps empty
+      // options on purpose and is never [QuizQuestion.isForcedCorrect].
+      if (question.isForcedCorrect) continue;
+      items.add(SessionItem(question: question, mode: PracticeMode.daily));
+    }
+    return items;
   }
+
+  /// A review item can score recall only when [pool] holds a same-script
+  /// peer that is not the target and does not share its romaji.
+  static bool canDiscriminate(Kana target, List<Kana> pool) => pool.any(
+    (k) =>
+        k.id != target.id &&
+        k.romaji != target.romaji &&
+        k.script == target.script,
+  );
+
+  /// Whether [target] can appear as a Daily item in [pool].
+  ///
+  /// Two different paths: a strong-fast review may be unprompted
+  /// [QuizDirection.kanaRecall] even as a singleton; otherwise the item
+  /// needs a discriminating MCQ foil. A due ん next to an undued ワ is
+  /// not composable as MCQ and must not count as a review.
+  static bool canComposeItem(
+    Kana target,
+    List<Kana> pool, {
+    Map<String, KanaStat> stats = const {},
+    DateTime? now,
+  }) {
+    if (now != null &&
+        readyForRecall(stats[target.id] ?? const KanaStat(), now: now)) {
+      return true;
+    }
+    return canDiscriminate(target, pool);
+  }
+
+  /// True when today's session can actually compose an item from [pool]:
+  /// either a discriminating MCQ, or an unprompted [QuizDirection.kanaRecall]
+  /// for a strong-fast review. Home and Guidance use the *learned* set —
+  /// never the cold-start [StudySet.reviewPool] fallback.
+  static bool isReady(
+    List<Kana> pool, {
+    Map<String, KanaStat> stats = const {},
+    DateTime? now,
+  }) => pool.any((t) => canComposeItem(t, pool, stats: stats, now: now));
 
   /// Remaining slots prefer long-uncovered kana (oldest lastReviewedAt;
   /// never-reviewed first). Equal timestamps are shuffled so gojūon order

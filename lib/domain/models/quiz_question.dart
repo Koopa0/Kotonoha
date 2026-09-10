@@ -56,6 +56,15 @@ class QuizQuestion {
   String get correctAnswer =>
       options.isEmpty ? target.romaji : options[correctIndex];
 
+  /// MCQ with fewer than two distinct options — a forced tap, not evidence.
+  /// [QuizDirection.kanaRecall] keeps an empty list on purpose (unprompted
+  /// self-grade) and is never treated as forced-correct.
+  bool get isForcedCorrect =>
+      direction != QuizDirection.kanaRecall && options.toSet().length < 2;
+
+  /// True when the item can score recall: a real MCQ choice, or kanaRecall.
+  bool get hasDiscrimination => !isForcedCorrect;
+
   /// For [QuizDirection.kanaRecall], `0` means recalled and any other index
   /// means missed — there is no option list to tap.
   bool isCorrect(int selectedIndex) {

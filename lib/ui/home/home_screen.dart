@@ -87,6 +87,14 @@ class HomeScreen extends StatelessWidget {
               learnedChars,
             );
             final now = DateTime.now();
+            // learnedUnitCount > 0 is not enough: a lone ん is learned but
+            // cannot make an MCQ. A strong-fast singleton can still open
+            // Daily as kanaRecall — match what compose will actually build.
+            final dailyReady = DailySession.isReady(
+              learnedKana,
+              stats: store.stats,
+              now: now,
+            );
             final step = Guidance.nextStep(
               store,
               now: now,
@@ -189,7 +197,7 @@ class HomeScreen extends StatelessWidget {
                     readableKanjiPhrases: readableKanjiPhrases,
                   ),
                 const SizedBox(height: 20),
-                if (store.learnedUnitCount > 0) ...[
+                if (dailyReady) ...[
                   _HeroAction(
                     action: AppStrings.reviewKanaAction,
                     productName: AppStrings.dailySession,
@@ -379,7 +387,7 @@ class HomeScreen extends StatelessWidget {
       excludeProgressIds: excludeProgressIds,
     );
     if (practice.kana.isEmpty) {
-      // Nothing learned/due yet — go learn instead (feature honesty).
+      // Nothing that can discriminate or recall — go learn instead.
       Navigator.of(context).push(LessonsScreen.route());
       return;
     }

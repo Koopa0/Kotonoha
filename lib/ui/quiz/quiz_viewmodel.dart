@@ -167,44 +167,49 @@ class QuizViewModel extends ChangeNotifier {
     _answers.add(
       AnsweredQuestion(question: question, selectedIndex: selectedIndex),
     );
-    // Answering never waits on disk (the in-memory effect + notify below are
-    // synchronous); the app-scoped owner observes the write so a failure is
-    // surfaced instead of dropped.
-    final persist = !correct
-        ? repository.recordAnswer(
-            question.target,
-            correct: false,
-            at: now,
-            latencyMs: latencyMs,
-          )
-        : creditRecall
-        ? repository.recordAnswer(
-            question.target,
-            correct: true,
-            at: now,
-            latencyMs: latencyMs,
-          )
-        : repository.recordPromptedPractice(question.target, at: now);
-    persistence.trackKana(persist);
-    analytics?.recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: question.target.id,
-        mode: item.mode.name,
-        correct: correct,
-        // 0 = untimed (see [Attempt.rtMs]), not a claimed 0ms reflex.
-        rtMs: latencyMs ?? 0,
-        sessionId: sessionId,
-        meta: {
-          AttemptMeta.direction: question.direction.name,
-          if (!correct &&
-              selectedIndex >= 0 &&
-              selectedIndex < question.options.length)
-            AttemptMeta.distractor: question.options[selectedIndex],
-          ...extraMeta,
-        },
-      ),
-    );
+    // Forced-correct MCQ can close the item in the session UI, but it is
+    // not recall evidence. kanaRecall (empty options) is a different path
+    // and still writes through gradeRecall / prompted practice below.
+    if (!question.isForcedCorrect) {
+      // Answering never waits on disk (the in-memory effect + notify below
+      // are synchronous); the app-scoped owner observes the write so a
+      // failure is surfaced instead of dropped.
+      final persist = !correct
+          ? repository.recordAnswer(
+              question.target,
+              correct: false,
+              at: now,
+              latencyMs: latencyMs,
+            )
+          : creditRecall
+          ? repository.recordAnswer(
+              question.target,
+              correct: true,
+              at: now,
+              latencyMs: latencyMs,
+            )
+          : repository.recordPromptedPractice(question.target, at: now);
+      persistence.trackKana(persist);
+      analytics?.recordObserved(
+        Attempt(
+          ts: now.millisecondsSinceEpoch,
+          itemId: question.target.id,
+          mode: item.mode.name,
+          correct: correct,
+          // 0 = untimed (see [Attempt.rtMs]), not a claimed 0ms reflex.
+          rtMs: latencyMs ?? 0,
+          sessionId: sessionId,
+          meta: {
+            AttemptMeta.direction: question.direction.name,
+            if (!correct &&
+                selectedIndex >= 0 &&
+                selectedIndex < question.options.length)
+              AttemptMeta.distractor: question.options[selectedIndex],
+            ...extraMeta,
+          },
+        ),
+      );
+    }
     notifyListeners();
   }
 

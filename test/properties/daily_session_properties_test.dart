@@ -102,6 +102,7 @@ void main() {
           q.options.length,
           reason: 'dup option: $why',
         );
+        expect(q.isForcedCorrect, isFalse, reason: 'forced-correct MCQ: $why');
         expect(
           q.correctIndex,
           inInclusiveRange(0, q.options.length - 1),
