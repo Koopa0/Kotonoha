@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -40,6 +41,9 @@ enum _Phase { encode, recap }
 
 class _StudyScreenState extends State<StudyScreen> {
   final PageController _controller = PageController();
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
   int _index = 0;
   _Phase _phase = _Phase.encode;
   // Recap-only: whether the current card's romaji is revealed. Held in the State
@@ -53,12 +57,29 @@ class _StudyScreenState extends State<StudyScreen> {
   @override
   void initState() {
     super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+    );
     // Auto-play the first card once the first frame is up (auditory learner).
     WidgetsBinding.instance.addPostFrameCallback((_) => _speakCurrent());
   }
 
+  void _abandonOwnedPlayback() {
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
+  }
+
   void _speakCurrent() {
-    context.read<SpeechService>().speak(_kana[_index].character);
+    if (!mounted) return;
+    unawaited(_speech.speak(_kana[_index].character));
+    _ownedPlay = _speech.generation;
   }
 
   void _onPageChanged(int i) {
@@ -175,6 +196,8 @@ class _StudyScreenState extends State<StudyScreen> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
     _controller.dispose();
     super.dispose();
   }
@@ -204,6 +227,7 @@ class _StudyScreenState extends State<StudyScreen> {
                   recall: _phase == _Phase.recap,
                   revealed: i == _index && _revealed,
                   onReveal: _reveal,
+                  onSpeak: _speakCurrent,
                 ),
               ),
             ),
@@ -224,6 +248,7 @@ class _StudyCard extends StatelessWidget {
     this.recall = false,
     this.revealed = false,
     this.onReveal,
+    this.onSpeak,
   }) : assert(
          !recall || onReveal != null,
          'a recall card needs an onReveal callback',
@@ -236,6 +261,7 @@ class _StudyCard extends StatelessWidget {
   final bool recall;
   final bool revealed;
   final VoidCallback? onReveal;
+  final VoidCallback? onSpeak;
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +318,7 @@ class _StudyCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        SpeakButton(text: kana.character, size: 34),
+        SpeakButton(text: kana.character, size: 34, onPlay: onSpeak),
       ];
     }
     return [

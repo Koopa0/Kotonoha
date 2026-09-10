@@ -44,7 +44,10 @@ class _SpySpeechService implements SpeechService {
   }
 
   @override
-  Future<void> stop() async {}
+  int get generation => 0;
+
+  @override
+  Future<void> stop({int? generation}) async {}
 }
 
 void main() {

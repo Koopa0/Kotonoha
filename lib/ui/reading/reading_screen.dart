@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -76,6 +77,9 @@ class ReadingScreen extends StatefulWidget {
 class _ReadingScreenState extends State<ReadingScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final Random _rng = Random();
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
   int _index = 0;
   bool _revealed = false;
   bool _unpromptedCommit = false;
@@ -90,10 +94,41 @@ class _ReadingScreenState extends State<ReadingScreen> {
   /// Speakable form — layout spaces removed.
   String get _say => _current.displayText.replaceAll(' ', '');
 
-  void _reveal({required bool unpromptedCommit}) {
-    if (!widget.quiet) {
-      context.read<SpeechService>().speak(_say);
+  @override
+  void initState() {
+    super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
+    super.dispose();
+  }
+
+  void _abandonOwnedPlayback() {
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
     }
+  }
+
+  void _speak() {
+    if (!mounted || widget.quiet) return;
+    unawaited(_speech.speak(_say));
+    _ownedPlay = _speech.generation;
+  }
+
+  void _reveal({required bool unpromptedCommit}) {
+    _speak();
     setState(() {
       _revealed = true;
       _unpromptedCommit = unpromptedCommit;
@@ -245,7 +280,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
                         color: AppColors.ink,
                       ),
                     ),
-                    if (!widget.quiet) SpeakButton(text: _say, size: 30),
+                    if (!widget.quiet)
+                      SpeakButton(text: _say, size: 30, onPlay: _speak),
                     // A quiet 助詞 gloss for each particle in the phrase — pull,
                     // never pushed; role + reading quirk only, never a lesson.
                     for (final p in Particles.particlesIn(_current.displayText))
