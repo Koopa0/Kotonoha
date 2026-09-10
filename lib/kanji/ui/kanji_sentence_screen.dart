@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
@@ -56,6 +58,10 @@ class KanjiSentenceScreen extends StatefulWidget {
 
 class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   bool _revealed = false;
   int _correct = 0;
@@ -63,8 +69,53 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
 
   KanjiPhrase get _current => widget.phrases[_index];
 
+  @override
+  void initState() {
+    super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
+    );
+    _playable = _foreground;
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
+    super.dispose();
+  }
+
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
+  void _abandonOwnedPlayback() {
+    _playable = false;
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
+  }
+
+  void _speak() {
+    if (!mounted || !_playable || !_foreground) return;
+    unawaited(_speech.speak(_current.reading));
+    _ownedPlay = _speech.generation;
+  }
+
   void _reveal() {
-    context.read<SpeechService>().speak(_current.reading);
+    _speak();
     setState(() => _revealed = true);
   }
 
@@ -184,7 +235,11 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
                         color: AppColors.ink,
                       ),
                     ),
-                    SpeakButton(text: _current.reading, size: 28),
+                    SpeakButton(
+                      text: _current.reading,
+                      size: 28,
+                      onPlay: _speak,
+                    ),
                   ],
                   const Spacer(),
                 ],

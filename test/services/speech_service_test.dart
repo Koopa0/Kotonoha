@@ -135,4 +135,34 @@ void main() {
     await speech.speak('えき');
     expect(client.spoken, ['えき']);
   });
+
+  test('stale generation stop does not cancel a newer play', () async {
+    final firstHold = Completer<Object?>();
+    final client = FakeTtsClient(holdSpeak: firstHold);
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
+
+    final first = speech.play('はる');
+    await Future<void>.delayed(Duration.zero);
+    final stale = speech.generation;
+    expect(stale, isNonZero);
+
+    final secondHold = Completer<Object?>();
+    client.holdSpeak = secondHold;
+    final second = speech.play('そらがあおい');
+    await Future<void>.delayed(Duration.zero);
+    final stopsBeforeStale = client.stopCount;
+
+    await speech.stop(generation: stale);
+    expect(client.stopCount, stopsBeforeStale);
+    expect(secondHold.isCompleted, isFalse);
+    expect(firstHold.isCompleted, isFalse);
+
+    firstHold.complete(1);
+    await Future<void>.delayed(Duration.zero);
+    expect(await first, SpeechPlaybackResult.interrupted);
+
+    secondHold.complete(1);
+    expect(await second, SpeechPlaybackResult.played);
+    expect(client.spoken, ['はる', 'そらがあおい']);
+  });
 }

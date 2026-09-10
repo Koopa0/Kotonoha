@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -63,6 +64,10 @@ enum _Beat { hear, see, readback }
 class _FerryScreenState extends State<FerryScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final Random _rng = Random();
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   _Beat _beat = _Beat.hear;
   int _readbackAtMs = 0;
@@ -79,12 +84,47 @@ class _FerryScreenState extends State<FerryScreen> {
   @override
   void initState() {
     super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
+    );
+    _playable = _foreground;
     WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
   }
 
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
+    super.dispose();
+  }
+
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
+  void _abandonOwnedPlayback() {
+    _playable = false;
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
+  }
+
   void _speak() {
-    if (!mounted) return;
-    context.read<SpeechService>().speak(_current.kana);
+    if (!mounted || !_playable || !_foreground) return;
+    unawaited(_speech.speak(_current.kana));
+    _ownedPlay = _speech.generation;
   }
 
   void _showText() {
@@ -195,6 +235,7 @@ class _FerryScreenState extends State<FerryScreen> {
                     text: _current.kana,
                     prominent: true,
                     size: showKana ? 34 : 56,
+                    onPlay: _speak,
                   ),
                   if (showKana) ...[
                     const SizedBox(height: 24),

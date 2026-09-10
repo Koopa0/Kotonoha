@@ -34,10 +34,17 @@ abstract class SpeechService {
   /// success — inspect the returned [SpeechPlaybackResult].
   Future<SpeechPlaybackResult> play(String text);
 
+  /// Generation of the most recently started [play]. Used to scope [stop]
+  /// so a leaving route cannot cancel a newer page's utterance.
+  int get generation;
+
   /// Stops any in-flight utterance. In-flight [play] calls resolve
   /// [SpeechPlaybackResult.interrupted] without waiting for the engine's
   /// speak future (iOS/macOS may never settle that future after cancel).
-  Future<void> stop();
+  ///
+  /// If [generation] is provided, only that play is cancelled. A stale
+  /// cleanup from an old route is ignored once a newer play has started.
+  Future<void> stop({int? generation});
 }
 
 /// Platform TTS operations the production service interprets. Tests inject
@@ -140,7 +147,11 @@ class FlutterTtsSpeechService implements SpeechService {
   }
 
   @override
-  Future<void> stop() async {
+  int get generation => _token;
+
+  @override
+  Future<void> stop({int? generation}) async {
+    if (generation != null && generation != _token) return;
     _token++;
     _settlePending(SpeechPlaybackResult.interrupted);
     try {
@@ -214,5 +225,8 @@ class SilentSpeechService implements SpeechService {
       SpeechPlaybackResult.unavailable;
 
   @override
-  Future<void> stop() async {}
+  int get generation => 0;
+
+  @override
+  Future<void> stop({int? generation}) async {}
 }
