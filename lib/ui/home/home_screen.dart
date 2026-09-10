@@ -21,6 +21,7 @@ import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/guidance.dart';
+import 'package:kotonoha/domain/use_cases/listening_session.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -41,6 +42,7 @@ import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
+import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
@@ -271,6 +273,18 @@ class HomeScreen extends StatelessWidget {
                       subtitle: AppStrings.dictationSubtitle,
                       onTap: () => _startDictation(context),
                     ),
+                  // 聞き取り reviews already-met T01 station items only.
+                  if (ListeningSession.hasReadyItems(
+                    learnedChars: learnedChars,
+                    stats: wordProgress.stats,
+                  ))
+                    _NavCard(
+                      icon: Icons.hearing_rounded,
+                      label: AppStrings.listenFirstAction,
+                      productName: AppStrings.listeningEntry,
+                      subtitle: AppStrings.listeningSubtitle,
+                      onTap: () => _startListening(context),
+                    ),
                   if (readablePhrases.isNotEmpty)
                     _NavCard(
                       icon: Icons.subject_rounded,
@@ -466,6 +480,27 @@ class HomeScreen extends StatelessWidget {
       words,
       AppStrings.dictationTitle,
       onMore: () => _startDictation(context, replace: true),
+    );
+    unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
+  }
+
+  void _startListening(BuildContext context, {bool replace = false}) {
+    final store = context.read<KanaProgressRepository>();
+    final learnedChars = StudySet.learned(store)
+        .map((k) => k.character)
+        .toSet();
+    final items = ListeningSession.compose(
+      learnedChars: learnedChars,
+      rng: Random(),
+      now: DateTime.now(),
+      stats: context.read<WordProgressRepository>().stats,
+    );
+    if (items.isEmpty) return;
+    final nav = Navigator.of(context);
+    final route = ListeningScreen.route(
+      items,
+      AppStrings.listeningTitle,
+      onMore: () => _startListening(context, replace: true),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }

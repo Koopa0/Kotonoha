@@ -12,6 +12,7 @@ enum PracticeMode {
   reading, // contextual word reading (glyph string → sound, self-graded)
   ferry, // hear → watch the kana ink in → read it back (sound↔glyph binding)
   dictation, // hear → assemble the kana (production / encoding)
+  listening, // hear → recall → reveal → rehear (comprehension; not kana ID)
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji
@@ -28,6 +29,9 @@ abstract final class AttemptMeta {
   static const String distractor = 'distractor'; // wrong MC option chosen
   /// Whether the learner saw the reading before grading (bool).
   static const String prompted = 'prompted';
+  static const String playback = 'playback'; // SpeechPlaybackResult.name
+  static const String heard = 'heard'; // true only after a completed play
+  static const String scored = 'scored'; // false = exposure, not a grade
 }
 
 /// One answered item — the fine-grained event stream behind learning analytics.

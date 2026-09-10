@@ -17,9 +17,9 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 /// session can mix MC / listening). Pure of timers and navigation.
 ///
 /// Timing starts when the question becomes current (construct / [advance]).
-/// For listening items that is still *before* [QuizScreen]'s first-frame TTS
-/// callback — "prompt available" vs engine delay is coordinated with
-/// listening/#9. This type does not rework audio.
+/// Quiz `soundToKana` is kana-glyph ID, not listen-first sentence evidence —
+/// that path lives on [ListeningScreen] / #9 and does not go through this
+/// type. This type does not rework audio.
 class QuizViewModel extends ChangeNotifier {
   QuizViewModel({
     required this.items,

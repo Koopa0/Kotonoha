@@ -36,6 +36,15 @@ class _SpySpeechService implements SpeechService {
 
   @override
   Future<void> speak(String text) async => spoken.add(text);
+
+  @override
+  Future<SpeechPlaybackResult> play(String text) async {
+    spoken.add(text);
+    return SpeechPlaybackResult.played;
+  }
+
+  @override
+  Future<void> stop() async {}
 }
 
 void main() {

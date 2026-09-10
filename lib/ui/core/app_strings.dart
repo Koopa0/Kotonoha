@@ -42,6 +42,7 @@ abstract final class AppStrings {
   static const String quietPracticeAction = '安靜練習';
   static const String meetWordsAction = '學單字';
   static const String dictationAction = '聽寫單字';
+  static const String listenFirstAction = '先聽再揭曉';
   static const String readPhrasesAction = '讀短句';
   static const String readKanjiSentencesAction = '漢字句閱讀';
 
@@ -177,6 +178,25 @@ abstract final class AppStrings {
   static const String dictationPrompt = '聽聽看,拼出這個詞';
   static const String dictationClear = '清除';
   static const String dictationNext = '下一個';
+
+  // 聞き取り — listen first, recall, reveal, rehear. #10 may rename the card;
+  // this slice only adds an entry, it does not relabel neighbouring rooms.
+  static const String listeningEntry = '聞き取り';
+  static const String listeningSubtitle = '先聽對方在問什麼,再揭曉';
+  static const String listeningTitle = '聞き取り';
+  static const String listeningPrompt = '先聽聽看,對方在問什麼';
+  static const String listeningRecall = '在心裡回想剛才聽到的';
+  static const String listeningReveal = '揭曉';
+  static const String listeningRehear = '再聽一次,對照看';
+  static const String listeningHeard = '聽懂了';
+  static const String listeningMissed = '沒聽懂';
+  static const String listeningSkip = '這一題先跳過';
+  static const String listeningNext = '下一題';
+  static const String listeningUnavailable = '現在播不出聲音,這一題不算作答。';
+  static const String listeningFailed = '剛才沒播出來,這一題不算作答。';
+  static const String listeningInterrupted = '播放中斷了,這一題還不能算聽過。';
+  static const String listeningPrompted = '這是看過答案後才聽到的,不算無提示聽力。';
+  static const String listeningClose = '這一回,先聽到這裡。';
 
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
