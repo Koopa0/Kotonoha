@@ -64,9 +64,13 @@ class AnswerOptionButton extends StatelessWidget {
       ),
     };
 
+    // Do not set [Semantics.label]: the [Text] child already contributes the
+    // kana. An explicit label merges with that child and screen readers hear
+    // it twice (e.g. あ / あ). Material buttons do the same — role + enabled
+    // here, visual label from the child.
     return Semantics(
-      button: state == OptionState.idle,
-      label: label,
+      button: true,
+      enabled: onTap != null,
       child: AnimatedOpacity(
         opacity: state == OptionState.dimmed ? 0.5 : 1,
         duration: const Duration(milliseconds: 180),
