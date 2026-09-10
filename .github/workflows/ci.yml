@@ -239,9 +239,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # API 34 google_apis userdata asked for 7372 MB; the ubuntu runner had
-      # 5789 MB free and the emulator died before adb ever saw a device.
-      # API 29 AOSP + a 2G disk is enough for bootstrap/nav and fits the runner.
+      # Emulator 37 still reserves ~7372 MB userdata even when disk-size=2048M.
+      # First Actions run went red here (5789 MB free). Clear unused toolchains
+      # so the reservation fits; fail closed if the runner is still too small.
+      - name: Free runner disk for emulator userdata
+        run: bash tool/free_github_runner_disk.sh
+
+      # API 29 AOSP is enough for real bootstrap / navigation.
       - name: Android emulator integration tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
