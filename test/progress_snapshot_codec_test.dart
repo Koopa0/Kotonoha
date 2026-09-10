@@ -74,6 +74,7 @@ ProgressSnapshot _populated() => ProgressSnapshot(
       correctCount: 4,
       wrongCount: 1,
       lastReviewedAt: DateTime.fromMillisecondsSinceEpoch(1748509200000),
+      lastMistakeAt: DateTime.fromMillisecondsSinceEpoch(1748422800000),
       srsLevel: 2,
       dueAt: DateTime.fromMillisecondsSinceEpoch(1748595600000),
       avgLatencyMs: 620,
@@ -198,6 +199,7 @@ void main() {
         correctCount: 5,
         wrongCount: 4,
         lastReviewedAt: DateTime.fromMillisecondsSinceEpoch(1748509200000),
+        lastMistakeAt: DateTime.fromMillisecondsSinceEpoch(1748422800000),
         srsLevel: 6,
         dueAt: DateTime.fromMillisecondsSinceEpoch(1748595600000),
         avgLatencyMs: 650,
@@ -221,6 +223,10 @@ void main() {
       expect(
         back.lastReviewedAt,
         DateTime.fromMillisecondsSinceEpoch(1748509200000),
+      );
+      expect(
+        back.lastMistakeAt,
+        DateTime.fromMillisecondsSinceEpoch(1748422800000),
       );
       expect(back.srsLevel, 6);
       expect(back.dueAt, DateTime.fromMillisecondsSinceEpoch(1748595600000));

@@ -139,6 +139,151 @@ void main() {
     expect(stat.lastReviewedAt, fixedNow);
   });
 
+  test('normal 500ms monotonic elapsed is recorded as timed RT', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    elapsed = 500;
+    vm.selectAnswer(0);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    expect(repo.statFor(kana).srsLevel, 4);
+    expect((await log.all()).single.rtMs, 500);
+    vm.dispose();
+  });
+
+  test('10-minute background invalidates RT but keeps correctness', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    var now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    vm.noteUnanswerable();
+    now = now.add(const Duration(minutes: 10, milliseconds: 500));
+    elapsed = 600500;
+    vm.selectAnswer(0);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    expect(repo.statFor(kana).srsLevel, 3); // untimed holds at the cap
+    expect(repo.statFor(kana).correctCount, 4);
+    expect((await log.all()).single.rtMs, 0);
+    vm.dispose();
+  });
+
+  test('wall-clock jump does not inject huge or negative RT', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    var now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    now = now.add(const Duration(minutes: 10, milliseconds: 500));
+    elapsed = 500;
+    vm.selectAnswer(0);
+    expect((await log.all()).single.rtMs, 500);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+
+    now = DateTime(2026, 9, 10, 11); // wall clock jumped backward
+    elapsed = 800;
+    // already answered — a second select must not record
+    vm.selectAnswer(0);
+    expect((await log.all()).length, 1);
+    vm.dispose();
+  });
+
+  test('resume-then-answer after interrupt is untimed, not 0ms-fast', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    vm.noteUnanswerable();
+    elapsed = 1; // near-zero after resume must not count as super-fast
+    vm.selectAnswer(0);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    expect(repo.statFor(kana).srsLevel, 3);
+    vm.dispose();
+  });
+
+  test('interrupt after answer does not double-record or auto-wrong', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    const elapsed = 500;
+    final kana = all.first;
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+        SessionItem(question: question('い'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    vm.selectAnswer(0);
+    expect(repo.statFor(kana).seenCount, 1);
+    expect(repo.statFor(kana).correctCount, 1);
+    vm.noteUnanswerable();
+    vm.selectAnswer(1); // ignored
+    expect(repo.statFor(kana).seenCount, 1);
+    expect(vm.lastWasCorrect, isTrue);
+    vm.dispose();
+  });
+
   test('emits one Attempt to the analytics log per answer', () async {
     final log = InMemoryAnalyticsLog();
     final vm = await makeVm(['さ', 'し'], analytics: log);

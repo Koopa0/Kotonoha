@@ -15,6 +15,11 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 /// Owns the state and logic of one session: the cursor, the selected answer,
 /// scoring, persistence, and analytics. Mode is per-item (so an adaptive
 /// session can mix MC / listening). Pure of timers and navigation.
+///
+/// Timing starts when the question becomes current (construct / [advance]).
+/// For listening items that is still *before* [QuizScreen]'s first-frame TTS
+/// callback — "prompt available" vs engine delay is coordinated with
+/// listening/#9. This type does not rework audio.
 class QuizViewModel extends ChangeNotifier {
   QuizViewModel({
     required this.items,
@@ -23,8 +28,10 @@ class QuizViewModel extends ChangeNotifier {
     this.analytics,
     this.sessionId = '',
     DateTime Function()? clock,
+    this._monotonicMs,
   }) : _clock = clock ?? DateTime.now {
-    _shownAtMs = _clock().millisecondsSinceEpoch;
+    _stopwatch = Stopwatch()..start();
+    _armTiming();
   }
 
   final List<SessionItem> items;
@@ -33,12 +40,17 @@ class QuizViewModel extends ChangeNotifier {
   final AnalyticsLog? analytics;
   final String sessionId;
   final DateTime Function() _clock;
+  final int Function()? _monotonicMs;
+
+  late final Stopwatch _stopwatch;
+  late int _shownMonoMs;
+  late int _shownWallMs;
+  bool _timingValid = true;
 
   final List<AnsweredQuestion> _answers = [];
   int _index = 0;
   int? _selected;
   bool _finished = false;
-  late int _shownAtMs; // when the current question was shown (latency)
 
   int get index => _index;
   int get total => items.length;
@@ -68,6 +80,33 @@ class QuizViewModel extends ChangeNotifier {
     return OptionState.dimmed;
   }
 
+  int _nowMonoMs() => _monotonicMs?.call() ?? _stopwatch.elapsedMilliseconds;
+
+  void _armTiming() {
+    _timingValid = true;
+    _shownMonoMs = _nowMonoMs();
+    _shownWallMs = _clock().millisecondsSinceEpoch;
+  }
+
+  /// View reports the learner left an answerable state (pause / hide /
+  /// inactive). Invalidates the current question's RT only; never records
+  /// an answer and never auto-wrongs.
+  void noteUnanswerable() {
+    if (_finished || isAnswered) return;
+    _timingValid = false;
+  }
+
+  /// Valid RT is monotonic foreground elapsed while the question stayed
+  /// answerable. Interrupted, non-positive, or backward wall-clock deltas
+  /// are untimed — correctness may still be stored, fluency may not.
+  int? _latencyMs(DateTime now) {
+    if (!_timingValid) return null;
+    final mono = _nowMonoMs() - _shownMonoMs;
+    final wall = now.millisecondsSinceEpoch - _shownWallMs;
+    if (mono <= 0 || wall < 0) return null;
+    return mono;
+  }
+
   /// Records the user's choice for the current question and persists it.
   void selectAnswer(int optionIndex) {
     if (isAnswered || _finished) return;
@@ -75,6 +114,7 @@ class QuizViewModel extends ChangeNotifier {
     final question = item.question;
     final correct = question.isCorrect(optionIndex);
     final now = _clock();
+    final latencyMs = _latencyMs(now);
     _selected = optionIndex;
     _answers.add(
       AnsweredQuestion(question: question, selectedIndex: optionIndex),
@@ -87,7 +127,7 @@ class QuizViewModel extends ChangeNotifier {
         question.target,
         correct: correct,
         at: now,
-        latencyMs: now.millisecondsSinceEpoch - _shownAtMs,
+        latencyMs: latencyMs,
       ),
     );
     analytics?.record(
@@ -96,7 +136,8 @@ class QuizViewModel extends ChangeNotifier {
         itemId: question.target.id,
         mode: item.mode.name,
         correct: correct,
-        rtMs: now.millisecondsSinceEpoch - _shownAtMs,
+        // 0 = untimed (see [Attempt.rtMs]), not a claimed 0ms reflex.
+        rtMs: latencyMs ?? 0,
         sessionId: sessionId,
         meta: {
           AttemptMeta.direction: question.direction.name,
@@ -115,7 +156,7 @@ class QuizViewModel extends ChangeNotifier {
     } else {
       _index += 1;
       _selected = null;
-      _shownAtMs = _clock().millisecondsSinceEpoch;
+      _armTiming();
     }
     notifyListeners();
   }

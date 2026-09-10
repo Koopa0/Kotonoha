@@ -33,11 +33,14 @@ class Weakness {
 
     final double wrongRate = stat.wrongCount / stat.seenCount;
 
-    // Recency only amplifies weakness when there are actual mistakes.
+    // Recency only amplifies weakness when a real mistake timestamp exists.
+    // lastReviewedAt also moves on a correct answer, so it must not stand in
+    // for "when did they last get this wrong". Legacy saves with wrongCount
+    // but no lastMistakeAt keep recency at 0 — we do not invent that history.
     double recency = 0;
-    if (stat.wrongCount > 0 && stat.lastReviewedAt != null) {
+    if (stat.wrongCount > 0 && stat.lastMistakeAt != null) {
       final int days = now
-          .difference(stat.lastReviewedAt!)
+          .difference(stat.lastMistakeAt!)
           .inDays
           .clamp(0, 1000);
       recency = 1 / (1 + days); // 1.0 today, 0.5 yesterday, → 0 over time.
@@ -55,6 +58,12 @@ class Weakness {
 
     return 0.7 * wrongRate + 0.3 * recency + 0.2 * slowness;
   }
+
+  /// Seen kana whose score is actually above "equally strong / not slow".
+  /// Score 0 (all-correct, fast, no usable mistake recency) must not occupy
+  /// weak review slots by the static gojūon tie-break in [rankByWeakness].
+  static bool isActionable(KanaStat stat, {required DateTime now}) =>
+      stat.isSeen && score(stat, now: now) > 0;
 
   /// Ranks [kana] from weakest to strongest. Ties break by wrong count, then
   /// by the original (gojūon) order, so the result is deterministic.

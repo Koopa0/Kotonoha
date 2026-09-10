@@ -7,7 +7,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
-import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -68,9 +67,13 @@ class HomeScreen extends StatelessWidget {
             final gojuonSeen = store.seenInSet(gojuon);
             // Words readable with the learner's unlocked kana (feature honesty:
             // the reading entry only appears when something is actually readable).
-            final learnedChars = StudySet.learned(store)
-                .map((k) => k.character)
-                .toSet();
+            final learnedKana = StudySet.learned(store);
+            final learnedChars = learnedKana.map((k) => k.character).toSet();
+            final confusableScope = Confusable.scope(learnedKana);
+            final confusableReady = Confusable.isReady(
+              confusableScope.pool,
+              confusableScope.sets,
+            );
             final readableWords = ReadingSet.readable(kWords, learnedChars);
             final readablePhrases = ReadingSet.readable(kPhrases, learnedChars);
             // Mixed-script sentences gate on their NON-kanji kana only — the
@@ -226,7 +229,7 @@ class HomeScreen extends StatelessWidget {
                 // governed by the next-step line — not folded under a header.
                 ..._section(AppStrings.sectionKana, [
                   // 目利き — the look-alike drill the daily session can't replace.
-                  if (store.learnedUnitCount > 0)
+                  if (store.learnedUnitCount > 0 && confusableReady)
                     _NavCard(
                       icon: Icons.compare_arrows_rounded,
                       label: AppStrings.confusableEntry,
@@ -496,31 +499,29 @@ class HomeScreen extends StatelessWidget {
   }
 
   List<QuizQuestion> _composeConfusable(KanaProgressRepository store) {
-    // Once the learner has met ANY katakana, 目利き quietly folds in the katakana
-    // look-alikes too (each question stays single-script — never a mixed pair, no
-    // new card, no toggle). Until then it is hiragana-only.
-    final katakanaStarted =
-        store.seenInSet(store.gojuonForScript(KanaScript.katakana)) > 0;
-    final sets = katakanaStarted
-        ? [...kConfusableSets, ...kKatakanaConfusableSets]
-        : kConfusableSets;
-    final pool = katakanaStarted
-        ? store.gojuonKana
-        : store.gojuonForScript(KanaScript.hiragana);
+    // Pool is learned gojūon only. Katakana groups enter by learned units,
+    // never "any katakana glyph has been seen".
+    final scoped = Confusable.scope(StudySet.learned(store));
     return Confusable.session(
-      allKana: pool,
+      allKana: scoped.pool,
       length: 12,
       engine: const QuizEngine(),
       rng: Random(),
-      sets: sets,
+      sets: scoped.sets,
     );
   }
 
   void _startConfusable(BuildContext context) {
     final store = context.read<KanaProgressRepository>();
+    final questions = _composeConfusable(store);
+    if (questions.isEmpty) {
+      // Not enough learned look-alikes for a real drill — go learn more.
+      Navigator.of(context).push(LessonsScreen.route());
+      return;
+    }
     Navigator.of(context).push(
       QuizScreen.route(
-        questions: _composeConfusable(store),
+        questions: questions,
         title: AppStrings.quizTitleConfusable,
         mode: PracticeMode.confusable,
         onAgain: () => _againConfusable(context),
@@ -528,13 +529,18 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// "再来一回" for 目利き: the confusable pool is always composable, so this
-  /// simply re-runs a fresh drill in place of the result screen.
+  /// "再来一回" for 目利き. If the learned pool can no longer compose a
+  /// meaningful drill, return home rather than an empty or padded quiz.
   void _againConfusable(BuildContext context) {
     final store = context.read<KanaProgressRepository>();
+    final questions = _composeConfusable(store);
+    if (questions.isEmpty) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      return;
+    }
     Navigator.of(context).pushReplacement(
       QuizScreen.route(
-        questions: _composeConfusable(store),
+        questions: questions,
         title: AppStrings.quizTitleConfusable,
         mode: PracticeMode.confusable,
         onAgain: () => _againConfusable(context),

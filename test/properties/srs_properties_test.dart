@@ -32,6 +32,7 @@ void main() {
               : (roll == 1 ? 0 : rng.nextInt(3000));
           final scale = rng.nextBool() ? 0.5 : 1.0;
           final prevLevel = stat.srsLevel;
+          final prevMistake = stat.lastMistakeAt;
           final at = base.add(Duration(minutes: i));
 
           stat = stat.recordAnswer(
@@ -54,6 +55,15 @@ void main() {
             reason: 'sum: $why',
           );
           expect(stat.lastReviewedAt, at, reason: 'lastAt: $why');
+          if (!correct) {
+            expect(stat.lastMistakeAt, at, reason: 'mistakeAt: $why');
+          } else {
+            expect(
+              stat.lastMistakeAt,
+              prevMistake,
+              reason: 'correct keeps lastMistakeAt: $why',
+            );
+          }
 
           // Level bounds + transition rules.
           expect(
