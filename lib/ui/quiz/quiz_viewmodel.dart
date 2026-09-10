@@ -16,11 +16,19 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 /// scoring, persistence, and analytics. Mode is per-item (so an adaptive
 /// session can mix MC / listening). Pure of timers and navigation.
 ///
-/// Timing starts when the question becomes current (construct / [advance]).
+/// Visual timing starts on the first answerable presentation
+/// ([noteAnswerablePresentation]), not merely construct / [advance]. A
+/// question born while hidden stays unarmed until that frame. Once
+/// presented, [noteUnanswerable] freezes the clock — resume must not
+/// restart it. Flutter `inactive` can still be visible, so the view
+/// reports [noteUnanswerable] with [stillVisible] rather than treating
+/// that state as "never shown".
+///
 /// Quiz `soundToKana` is kana-glyph ID, not listen-first sentence evidence —
 /// that path lives on [ListeningScreen]. This type does not interpret
 /// playback; the screen passes [persistProgress] so a failed, cancelled,
-/// or stale play cannot become SRS.
+/// or stale play cannot become SRS. Presentation alone is not a hear;
+/// fluency still waits on [noteListeningHeard].
 class QuizViewModel extends ChangeNotifier {
   QuizViewModel({
     required this.items,
@@ -47,6 +55,7 @@ class QuizViewModel extends ChangeNotifier {
   late int _shownMonoMs;
   late int _shownWallMs;
   bool _timingValid = true;
+  bool _presented = false;
   bool _recallCommitCaptured = false;
   int? _committedRecallLatencyMs;
   bool _listeningHeardArmed = false;
@@ -88,6 +97,21 @@ class QuizViewModel extends ChangeNotifier {
 
   void _armTiming() {
     _timingValid = true;
+    _presented = false;
+    _shownMonoMs = _nowMonoMs();
+    _shownWallMs = _clock().millisecondsSinceEpoch;
+  }
+
+  /// First visible, answerable frame of a question that has never been
+  /// presented. Starts monotonic RT from this instant. A later resume of
+  /// an already-shown question is a no-op — thinking time cannot be
+  /// washed (#19). `resumed` itself is not this call; the view must
+  /// report a painted answerable frame.
+  void noteAnswerablePresentation() {
+    if (_finished || isAnswered) return;
+    if (_presented) return;
+    _presented = true;
+    _timingValid = true;
     _shownMonoMs = _nowMonoMs();
     _shownWallMs = _clock().millisecondsSinceEpoch;
   }
@@ -95,8 +119,16 @@ class QuizViewModel extends ChangeNotifier {
   /// View reports the learner left an answerable state (pause / hide /
   /// inactive). Invalidates the current question's RT only; never records
   /// an answer and never auto-wrongs.
-  void noteUnanswerable() {
+  ///
+  /// [stillVisible] is Flutter `inactive` that is not a hidden→inactive
+  /// resume transition: the prompt may still be on screen, so this
+  /// question is presented. A hidden / paused birth stays unpresented
+  /// so the first later answerable frame can start the clock.
+  void noteUnanswerable({bool stillVisible = false}) {
     if (_finished || isAnswered) return;
+    if (stillVisible) {
+      _presented = true;
+    }
     _timingValid = false;
   }
 

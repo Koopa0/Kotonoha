@@ -195,4 +195,193 @@ void main() {
     expect(env.repo.statFor(kana).srsLevel, 4);
     expect((await env.log.all()).single.rtMs, 500);
   });
+
+  testWidgets(
+    'unshown background visual Q2 starts RT on first answerable frame',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final env = await seedRepo();
+      await pumpQuiz(
+        tester,
+        repo: env.repo,
+        log: env.log,
+        clock: env.clock,
+        elapsed: env.elapsed,
+        items: [item(), item(), item()],
+      );
+
+      env.setElapsed(500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      expect((await env.log.all()).single.rtMs, 500);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+      expect(env.repo.statFor(kana).correctCount, 4);
+
+      pauseApp(tester);
+      await tester.pump(const Duration(milliseconds: 800));
+      expect((await env.log.all()).length, 1);
+      expect(env.repo.statFor(kana).wrongCount, 0);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+
+      resumeApp(tester);
+      await tester.pump();
+      env.setElapsed(1000);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      await env.repo.flushPending();
+      expect((await env.log.all()).map((a) => a.rtMs), [500, 500]);
+      expect(env.repo.statFor(kana).srsLevel, 5);
+      expect(env.repo.statFor(kana).correctCount, 5);
+      expect(env.repo.statFor(kana).avgLatencyMs, 500);
+
+      await tester.pump(const Duration(milliseconds: 800));
+      env.setElapsed(1500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      await env.repo.flushPending();
+
+      final attempts = await env.log.all();
+      expect(attempts.map((a) => a.rtMs), [500, 500, 500]);
+      expect(attempts.every((a) => a.correct), isTrue);
+      expect(attempts, hasLength(3));
+      final after = (await KanaProgressRepository.load()).statFor(kana);
+      expect(after.srsLevel, 6);
+      expect(after.avgLatencyMs, 500);
+      expect(after.correctCount, 6);
+      expect(after.wrongCount, 0);
+      expect(after.seenCount, 6);
+    },
+  );
+
+  testWidgets(
+    'shown visual item stays untimed after resume and later questions time',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final env = await seedRepo();
+      await pumpQuiz(
+        tester,
+        repo: env.repo,
+        log: env.log,
+        clock: env.clock,
+        elapsed: env.elapsed,
+        items: [item(), item()],
+      );
+
+      pauseApp(tester);
+      await tester.pump();
+      resumeApp(tester);
+      await tester.pump();
+      pauseApp(tester);
+      await tester.pump();
+      resumeApp(tester);
+      await tester.pump();
+      env.setElapsed(500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      expect((await env.log.all()).single.rtMs, 0);
+      expect(env.repo.statFor(kana).srsLevel, 3);
+      expect(env.repo.statFor(kana).correctCount, 4);
+
+      await tester.pump(const Duration(milliseconds: 800));
+      env.setElapsed(1000);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      await env.repo.flushPending();
+      expect((await env.log.all()).map((a) => a.rtMs), [0, 500]);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+      expect((await env.log.all()).every((a) => a.correct), isTrue);
+    },
+  );
+
+  testWidgets(
+    'unshown Q2 that is later interrupted stays untimed',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final env = await seedRepo();
+      await pumpQuiz(
+        tester,
+        repo: env.repo,
+        log: env.log,
+        clock: env.clock,
+        elapsed: env.elapsed,
+        items: [item(), item()],
+      );
+
+      env.setElapsed(500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      pauseApp(tester);
+      await tester.pump(const Duration(milliseconds: 800));
+      resumeApp(tester);
+      await tester.pump();
+      pauseApp(tester);
+      await tester.pump();
+      resumeApp(tester);
+      await tester.pump();
+      env.setElapsed(1000);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      await env.repo.flushPending();
+      expect((await env.log.all()).map((a) => a.rtMs), [500, 0]);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+      expect(env.repo.statFor(kana).correctCount, 5);
+    },
+  );
+
+  testWidgets('inactive without hide is presented and stays untimed', (
+    tester,
+  ) async {
+    addTearDown(() => resumeApp(tester));
+    final env = await seedRepo();
+    await pumpQuiz(
+      tester,
+      repo: env.repo,
+      log: env.log,
+      clock: env.clock,
+      elapsed: env.elapsed,
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    env.setElapsed(500);
+    resumeApp(tester);
+    await tester.pump();
+    await tester.tap(find.text(kana.romaji));
+    await tester.pump();
+    await env.repo.flushPending();
+    expect((await env.log.all()).single.rtMs, 0);
+    expect(env.repo.statFor(kana).srsLevel, 3);
+    expect(env.repo.statFor(kana).correctCount, 4);
+  });
+
+  testWidgets(
+    'Q2 born under stable inactive is presented and stays untimed',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final env = await seedRepo();
+      await pumpQuiz(
+        tester,
+        repo: env.repo,
+        log: env.log,
+        clock: env.clock,
+        elapsed: env.elapsed,
+        items: [item(), item()],
+      );
+
+      env.setElapsed(500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump(const Duration(milliseconds: 800));
+      resumeApp(tester);
+      await tester.pump();
+      env.setElapsed(1000);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      await env.repo.flushPending();
+      expect((await env.log.all()).map((a) => a.rtMs), [500, 0]);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+      expect(env.repo.statFor(kana).correctCount, 5);
+    },
+  );
 }

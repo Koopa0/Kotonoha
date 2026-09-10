@@ -258,6 +258,206 @@ void main() {
     vm.dispose();
   });
 
+  test('unshown visual item starts RT on first answerable presentation', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+        SessionItem(question: question('い'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    elapsed = 500;
+    vm.selectAnswer(0);
+    vm.noteUnanswerable();
+    vm.advance();
+    vm.noteUnanswerable();
+    elapsed = 800;
+    vm.noteAnswerablePresentation();
+    elapsed = 1300;
+    vm.selectAnswer(0);
+    expect((await log.all()).map((a) => a.rtMs), [500, 500]);
+    expect(repo.statFor(all.firstWhere((k) => k.character == 'い')).srsLevel, 1);
+    vm.dispose();
+  });
+
+  test('resume after a presented interrupt does not restart RT', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    vm.noteAnswerablePresentation();
+    vm.noteUnanswerable();
+    elapsed = 500;
+    vm.noteAnswerablePresentation();
+    elapsed = 1000;
+    vm.selectAnswer(0);
+    expect((await log.all()).single.rtMs, 0);
+    expect(repo.statFor(kana).srsLevel, 3);
+    vm.dispose();
+  });
+
+  test('inactive-still-visible counts as presented', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    vm.noteUnanswerable(stillVisible: true);
+    elapsed = 500;
+    vm.noteAnswerablePresentation();
+    elapsed = 1000;
+    vm.selectAnswer(0);
+    expect((await log.all()).single.rtMs, 0);
+    vm.dispose();
+  });
+
+  test(
+    'soundToKana unshown presentation still needs a hear for speed',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await KanaProgressRepository.load();
+      final now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      final kana = all.firstWhere((k) => k.character == 'き');
+      for (var i = 0; i < 3; i++) {
+        await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      QuizQuestion listen() => QuizQuestion(
+        target: kana,
+        direction: QuizDirection.soundToKana,
+        options: [kana.character, 'い', 'う', 'え'],
+        correctIndex: 0,
+      );
+      final log = InMemoryAnalyticsLog();
+      final vm = QuizViewModel(
+        items: [SessionItem(question: listen(), mode: PracticeMode.daily)],
+        repository: repo,
+        persistence: owner(),
+        analytics: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      vm.noteUnanswerable();
+      elapsed = 800;
+      vm.noteAnswerablePresentation();
+      elapsed = 1300;
+      vm.selectAnswer(0);
+      expect((await log.all()).single.rtMs, 0);
+      expect(repo.statFor(kana).avgLatencyMs, 500);
+      vm.dispose();
+
+      SharedPreferences.setMockInitialValues({});
+      final repo2 = await KanaProgressRepository.load();
+      for (var i = 0; i < 3; i++) {
+        await repo2.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      final log2 = InMemoryAnalyticsLog();
+      var elapsed2 = 0;
+      final vm2 = QuizViewModel(
+        items: [SessionItem(question: listen(), mode: PracticeMode.daily)],
+        repository: repo2,
+        persistence: owner(),
+        analytics: log2,
+        clock: () => now,
+        monotonicMs: () => elapsed2,
+      );
+      vm2.noteUnanswerable();
+      elapsed2 = 800;
+      vm2.noteAnswerablePresentation();
+      elapsed2 = 1000;
+      vm2.noteListeningHeard();
+      elapsed2 = 1500;
+      vm2.selectAnswer(0);
+      expect((await log2.all()).single.rtMs, 500);
+      expect(repo2.statFor(kana).avgLatencyMs, 500);
+      vm2.dispose();
+    },
+  );
+
+  test(
+    'soundToKana interrupt after hear stays untimed even after presentation',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await KanaProgressRepository.load();
+      final now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      final kana = all.firstWhere((k) => k.character == 'き');
+      for (var i = 0; i < 3; i++) {
+        await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      final log = InMemoryAnalyticsLog();
+      final vm = QuizViewModel(
+        items: [
+          SessionItem(
+            question: QuizQuestion(
+              target: kana,
+              direction: QuizDirection.soundToKana,
+              options: [kana.character, 'い', 'う', 'え'],
+              correctIndex: 0,
+            ),
+            mode: PracticeMode.daily,
+          ),
+        ],
+        repository: repo,
+        persistence: owner(),
+        analytics: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      vm.noteAnswerablePresentation();
+      elapsed = 200;
+      vm.noteListeningHeard();
+      vm.noteUnanswerable();
+      elapsed = 800;
+      vm.noteAnswerablePresentation();
+      vm.noteListeningHeard();
+      elapsed = 1300;
+      vm.selectAnswer(0);
+      expect((await log.all()).single.rtMs, 0);
+      expect(repo.statFor(kana).srsLevel, 3);
+      vm.dispose();
+    },
+  );
+
   test('interrupt after answer does not double-record or auto-wrong', () async {
     SharedPreferences.setMockInitialValues({});
     final repo = await KanaProgressRepository.load();

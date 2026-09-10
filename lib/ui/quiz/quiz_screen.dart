@@ -121,6 +121,9 @@ class _QuizScreenState extends State<QuizScreen> {
   Timer? _advanceTimer;
   bool _navigated = false;
   bool _answerable = true;
+  AppLifecycleState _lifecycleState =
+      WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
+  bool _visibleUnanswerable = false;
   bool _recallRevealed = false;
   bool _recallUnpromptedCommit = false;
   int _playGen = 0;
@@ -148,34 +151,53 @@ class _QuizScreenState extends State<QuizScreen> {
       monotonicMs: widget.monotonicMs,
     )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
-    _lifecycle = AppLifecycleListener(
-      onInactive: _onUnanswerable,
-      onHide: _onUnanswerable,
-      onPause: _onUnanswerable,
-      onDetach: _onUnanswerable,
-      onResume: _onResumed,
-    );
-    if (_isListening) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    _lifecycle = AppLifecycleListener(onStateChange: _onLifecycleState);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _presentIfAnswerable();
+      if (_isListening) {
         unawaited(_playCurrent());
-      });
-    }
+      }
+    });
   }
 
-  void _onUnanswerable() {
-    _answerable = false;
-    _vm.noteUnanswerable();
-    if (!_isListening) return;
-    // Stop in-flight play even after the item is graded — a reveal
-    // replay must not keep speaking in the background.
-    _abandonPlayback();
-    if (mounted) {
-      setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
-    }
+  /// `inactive` can still show the prompt. `hidden` / `paused` cannot.
+  /// hidden→inactive is the resume transition, not a first sighting.
+  bool _isVisiblyUnanswerable(AppLifecycleState previous) {
+    if (_lifecycleState != AppLifecycleState.inactive) return false;
+    return previous != AppLifecycleState.hidden &&
+        previous != AppLifecycleState.paused &&
+        previous != AppLifecycleState.detached;
   }
 
-  void _onResumed() {
-    _answerable = true;
+  void _onLifecycleState(AppLifecycleState state) {
+    final previous = _lifecycleState;
+    _lifecycleState = state;
+    _answerable = state == AppLifecycleState.resumed;
+    _visibleUnanswerable = _isVisiblyUnanswerable(previous);
+    if (!_answerable) {
+      _vm.noteUnanswerable(stillVisible: _visibleUnanswerable);
+      if (!_isListening) return;
+      // Stop in-flight play even after the item is graded — a reveal
+      // replay must not keep speaking in the background.
+      _abandonPlayback();
+      if (mounted) {
+        setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
+      }
+      return;
+    }
+    _schedulePresentIfAnswerable();
+  }
+
+  void _presentIfAnswerable() {
+    if (!mounted || !_answerable || _vm.isAnswered || _vm.isFinished) return;
+    _vm.noteAnswerablePresentation();
+  }
+
+  void _schedulePresentIfAnswerable() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _presentIfAnswerable();
+    });
   }
 
   void _abandonPlayback() {
@@ -236,9 +258,12 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _onChanged() {
-    // Advance while still backgrounded must not arm a fresh fluency clock.
+    // A question born while hidden stays unpresented. The same birth
+    // under a still-visible inactive (Control Center) is presented.
     if (!_answerable) {
-      _vm.noteUnanswerable();
+      _vm.noteUnanswerable(stillVisible: _visibleUnanswerable);
+    } else {
+      _schedulePresentIfAnswerable();
     }
     if (!_vm.isAnswered) {
       _recallRevealed = false;
