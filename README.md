@@ -15,7 +15,9 @@ Short sessions, a quiet interface, and no scores, streaks, or rewards to chase.
 - **手解き — Learn kana.** Meet 208 hiragana and katakana learning units, including
   voiced sounds, semi-voiced sounds, and contracted sounds, one row at a time.
 - **今日の稽古 — Review kana.** Practise kana already introduced, with questions
-  selected from your learning history. Learn new kana in 手解き.
+  selected from your learning history. Familiar kana leave multiple-choice
+  and ask for an unprompted reading, then a word and a short sentence you
+  can already decode. Learn new kana in 手解き.
 - **目利き — Distinguish similar kana.** Practise look-alikes such as シ／ツ and
   ね／れ／わ.
 - **手習い — Recall on paper.** Write the prompted kana in your notebook, reveal

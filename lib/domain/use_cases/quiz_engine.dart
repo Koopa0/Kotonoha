@@ -25,6 +25,15 @@ class QuizEngine {
     List<Kana> pool,
     Random rng,
   ) {
+    if (direction == QuizDirection.kanaRecall) {
+      return QuizQuestion(
+        target: target,
+        direction: direction,
+        options: const [],
+        correctIndex: 0,
+      );
+    }
+
     final bool toRomaji = direction == QuizDirection.kanaToRomaji;
     String optionOf(Kana k) => toRomaji ? k.romaji : k.character;
 

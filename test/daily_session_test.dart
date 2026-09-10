@@ -65,8 +65,92 @@ void main() {
     expect(items.length, 12);
     for (final i in items) {
       expect(i.mode, PracticeMode.daily);
+      expect(i.question.direction, isNot(QuizDirection.kanaRecall));
       expect(i.question.options.length, 4);
       expect(i.question.options.toSet().length, 4);
+    }
+  });
+
+  test('strong fast recovered reviews leave MCQ for unprompted recall', () {
+    final stats = <String, KanaStat>{
+      for (final k in all)
+        k.id: KanaStat(
+          seenCount: 20,
+          correctCount: 20,
+          srsLevel: 6,
+          avgLatencyMs: 500,
+          lastReviewedAt: now.subtract(const Duration(days: 1)),
+          dueAt: now.add(const Duration(days: 30)),
+        ),
+    };
+    final items = DailySession.compose(
+      pool: all,
+      stats: stats,
+      newCandidates: const [],
+      now: now,
+      rng: Random(4),
+    );
+    expect(items, isNotEmpty);
+    for (final i in items) {
+      expect(i.question.direction, QuizDirection.kanaRecall);
+      expect(i.question.options, isEmpty);
+    }
+  });
+
+  test('recent miss keeps multiple-choice even when accuracy is high', () {
+    final stats = <String, KanaStat>{
+      for (final k in all)
+        k.id: KanaStat(
+          seenCount: 20,
+          correctCount: 19,
+          wrongCount: 1,
+          srsLevel: 6,
+          avgLatencyMs: 500,
+          lastReviewedAt: now.subtract(const Duration(hours: 1)),
+          lastMistakeAt: now.subtract(const Duration(hours: 3)),
+          dueAt: now.add(const Duration(days: 30)),
+        ),
+    };
+    final items = DailySession.compose(
+      pool: all.take(10).toList(),
+      stats: stats,
+      newCandidates: const [],
+      now: now,
+      rng: Random(5),
+    );
+    expect(items, isNotEmpty);
+    for (final i in items) {
+      expect(i.question.direction, isNot(QuizDirection.kanaRecall));
+      expect(i.question.options.length, 4);
+    }
+  });
+
+  test('new items stay kanaToRomaji even when the rest are recall-ready', () {
+    final stats = <String, KanaStat>{
+      for (final k in all)
+        k.id: KanaStat(
+          seenCount: 20,
+          correctCount: 20,
+          srsLevel: 6,
+          avgLatencyMs: 500,
+          lastReviewedAt: now.subtract(const Duration(days: 1)),
+          dueAt: now.add(const Duration(days: 30)),
+        ),
+    };
+    final neu = all.take(3).toList();
+    final items = DailySession.compose(
+      pool: all,
+      stats: stats,
+      newCandidates: neu,
+      now: now,
+      rng: Random(6),
+    );
+    final newIds = neu.map((k) => k.id).toSet();
+    final newItems = items.where((i) => newIds.contains(i.question.target.id));
+    expect(newItems, isNotEmpty);
+    for (final i in newItems) {
+      expect(i.question.direction, QuizDirection.kanaToRomaji);
+      expect(i.question.options.length, 4);
     }
   });
 

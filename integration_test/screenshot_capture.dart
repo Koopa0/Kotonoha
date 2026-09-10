@@ -148,7 +148,7 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.sentenceEntry));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.revealAnswer));
+    await tester.tap(find.text(AppStrings.recallHint));
     await shot('06-sentence');
     await back();
 

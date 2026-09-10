@@ -67,6 +67,21 @@ void main() {
       expect(q.options.contains('じ'), isFalse); // じ also reads 'ji'
     });
 
+    test('kanaRecall: no options, prompt is the glyph, answer is romaji', () {
+      final target = all.firstWhere((k) => k.character == 'し');
+      final q = engine.buildQuestion(
+        target,
+        QuizDirection.kanaRecall,
+        all,
+        Random(1),
+      );
+      expect(q.options, isEmpty);
+      expect(q.prompt, 'し');
+      expect(q.correctAnswer, 'shi');
+      expect(q.isCorrect(0), isTrue);
+      expect(q.isCorrect(1), isFalse);
+    });
+
     test('soundToKana: options are kana, answer is the target kana', () {
       final target = all.firstWhere((k) => k.character == 'す');
       final q = engine.buildQuestion(

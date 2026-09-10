@@ -93,6 +93,10 @@ void main() {
       for (final item in a) {
         expect(item.mode, PracticeMode.daily, reason: 'mode: $why');
         final q = item.question;
+        if (q.direction == QuizDirection.kanaRecall) {
+          expect(q.options, isEmpty, reason: 'recall options: $why');
+          continue;
+        }
         expect(
           q.options.toSet().length,
           q.options.length,

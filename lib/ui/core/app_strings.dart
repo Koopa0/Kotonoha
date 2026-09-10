@@ -160,9 +160,15 @@ abstract final class AppStrings {
   // word-reading entry was folded into 渡し舟 — the ear-first word reader.
   static const String readPrompt = '心裡讀讀看';
   static const String iReadIt = '讀對了';
+  static const String iReadUnprompted = '讀得出來';
+  static const String iReadAfterHint = '現在讀對了';
   static const String iCouldnt = '讀不出';
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
+
+  // Unprompted kana recall inside 今日の稽古 — same quiet self-grade as 黙読,
+  // never a second score table. 看答案 is shared with 手習い.
+  static const String recallHint = '看讀音';
 
   // 文字を起こす Dictation (hear → assemble the kana)
   static const String dictationEntry = '文字起こし';

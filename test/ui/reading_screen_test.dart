@@ -61,17 +61,18 @@ void main() {
     expect(find.text('いぬ'), findsOneWidget);
     expect(find.text(AppStrings.readPrompt), findsOneWidget);
     expect(find.text('inu'), findsNothing);
+    expect(find.text(AppStrings.iReadUnprompted), findsOneWidget);
 
-    await tester.tap(find.text(AppStrings.revealAnswer));
+    await tester.tap(find.text(AppStrings.recallHint));
     await tester.pumpAndSettle();
     expect(find.text('inu'), findsOneWidget);
     expect(find.text('狗'), findsOneWidget);
-    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.tap(find.text(AppStrings.iReadAfterHint));
     await tester.pumpAndSettle();
 
     // Q2.
     expect(find.text('やま'), findsOneWidget);
-    await tester.tap(find.text(AppStrings.revealAnswer));
+    await tester.tap(find.text(AppStrings.recallHint));
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.iCouldnt));
     await tester.pumpAndSettle();
@@ -84,5 +85,57 @@ void main() {
     expect(logged.every((a) => a.mode == PracticeMode.reading.name), isTrue);
     expect(logged.every((a) => a.itemType == ItemType.word), isTrue);
     expect(logged.first.itemId, 'いぬ');
+    expect(logged.first.meta[AttemptMeta.prompted], isTrue);
+    expect(logged.last.meta[AttemptMeta.prompted], isTrue);
+    // Prompted "現在讀對了" keeps intake but must not climb recall.
+    expect(wordRepo.statForItem('word:いぬ').isSeen, isTrue);
+    expect(wordRepo.statForItem('word:いぬ').correctCount, 0);
+    expect(wordRepo.statForItem('word:いぬ').srsLevel, 0);
+    expect(wordRepo.statForItem('word:やま').srsLevel, 0);
+    expect(wordRepo.statForItem('word:やま').wrongCount, 1);
+  });
+
+  testWidgets('unprompted 讀得出來 climbs the schedule without showing romaji', (
+    tester,
+  ) async {
+    final store = await KanaProgressRepository.load();
+    final wordRepo = await WordProgressRepository.load();
+    final persistence = ProgressPersistenceController(
+      kanaFlush: store.flushPending,
+      kanjiFlush: () async {},
+      wordFlush: wordRepo.flushPending,
+    );
+    final analytics = InMemoryAnalyticsLog();
+    const words = [Word(kana: 'いぬ', romaji: 'inu', meaning: '狗')];
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: persistence,
+          ),
+          Provider<AnalyticsLog>.value(value: analytics),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: const MaterialApp(
+          home: ReadingScreen(items: words, title: AppStrings.sentenceTitle),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('inu'), findsNothing);
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    expect(find.text('inu'), findsOneWidget);
+    expect(wordRepo.statForItem('word:いぬ').correctCount, 0);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.readingSummary(1, 1)), findsOneWidget);
+    expect(wordRepo.statForItem('word:いぬ').correctCount, 1);
+    expect(wordRepo.statForItem('word:いぬ').srsLevel, 1);
+    final logged = await analytics.all();
+    expect(logged.single.meta[AttemptMeta.prompted], isFalse);
   });
 }

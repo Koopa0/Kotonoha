@@ -46,6 +46,8 @@ class QuizViewModel extends ChangeNotifier {
   late int _shownMonoMs;
   late int _shownWallMs;
   bool _timingValid = true;
+  bool _recallCommitCaptured = false;
+  int? _committedRecallLatencyMs;
 
   final List<AnsweredQuestion> _answers = [];
   int _index = 0;
@@ -107,29 +109,83 @@ class QuizViewModel extends ChangeNotifier {
     return mono;
   }
 
+  /// Freeze foreground RT when the learner commits to an unprompted reading
+  /// *before* the answer is revealed. Confirmation time after this must not
+  /// enter fluency evidence. An already-invalid clock stays null — never a
+  /// fabricated RT.
+  void captureUnpromptedRecall() {
+    if (isAnswered || _finished) return;
+    if (current.direction != QuizDirection.kanaRecall) return;
+    if (_recallCommitCaptured) return;
+    _committedRecallLatencyMs = _latencyMs(_clock());
+    _recallCommitCaptured = true;
+  }
+
+  /// Self-grades a [QuizDirection.kanaRecall] item after the reading has been
+  /// revealed for confirmation. [unprompted] is true only when the learner
+  /// committed to a reading *before* seeing it. A hinted correct is persisted
+  /// as practice evidence and must not increment successful recalls or renew
+  /// the schedule.
+  void gradeRecall({required bool correct, required bool unprompted}) {
+    if (isAnswered || _finished) return;
+    if (current.direction != QuizDirection.kanaRecall) return;
+    _record(
+      selectedIndex: correct ? 0 : 1,
+      correct: correct,
+      forceUntimed: !unprompted || !correct,
+      creditRecall: unprompted,
+      extraMeta: {AttemptMeta.prompted: !unprompted},
+    );
+  }
+
   /// Records the user's choice for the current question and persists it.
   void selectAnswer(int optionIndex) {
     if (isAnswered || _finished) return;
+    if (current.direction == QuizDirection.kanaRecall) return;
+    _record(
+      selectedIndex: optionIndex,
+      correct: current.isCorrect(optionIndex),
+    );
+  }
+
+  void _record({
+    required int selectedIndex,
+    required bool correct,
+    bool forceUntimed = false,
+    bool creditRecall = true,
+    Map<String, Object?> extraMeta = const {},
+  }) {
     final item = currentItem;
     final question = item.question;
-    final correct = question.isCorrect(optionIndex);
     final now = _clock();
-    final latencyMs = _latencyMs(now);
-    _selected = optionIndex;
+    final latencyMs = forceUntimed
+        ? null
+        : _recallCommitCaptured
+        ? _committedRecallLatencyMs
+        : _latencyMs(now);
+    _selected = selectedIndex;
     _answers.add(
-      AnsweredQuestion(question: question, selectedIndex: optionIndex),
+      AnsweredQuestion(question: question, selectedIndex: selectedIndex),
     );
     // Answering never waits on disk (the in-memory effect + notify below are
     // synchronous); the app-scoped owner observes the write so a failure is
     // surfaced instead of dropped.
-    persistence.trackKana(
-      repository.recordAnswer(
-        question.target,
-        correct: correct,
-        at: now,
-        latencyMs: latencyMs,
-      ),
-    );
+    final persist = !correct
+        ? repository.recordAnswer(
+            question.target,
+            correct: false,
+            at: now,
+            latencyMs: latencyMs,
+          )
+        : creditRecall
+        ? repository.recordAnswer(
+            question.target,
+            correct: true,
+            at: now,
+            latencyMs: latencyMs,
+          )
+        : repository.recordPromptedPractice(question.target, at: now);
+    persistence.trackKana(persist);
     analytics?.recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -141,7 +197,11 @@ class QuizViewModel extends ChangeNotifier {
         sessionId: sessionId,
         meta: {
           AttemptMeta.direction: question.direction.name,
-          if (!correct) AttemptMeta.distractor: question.options[optionIndex],
+          if (!correct &&
+              selectedIndex >= 0 &&
+              selectedIndex < question.options.length)
+            AttemptMeta.distractor: question.options[selectedIndex],
+          ...extraMeta,
         },
       ),
     );
@@ -156,6 +216,8 @@ class QuizViewModel extends ChangeNotifier {
     } else {
       _index += 1;
       _selected = null;
+      _recallCommitCaptured = false;
+      _committedRecallLatencyMs = null;
       _armTiming();
     }
     notifyListeners();

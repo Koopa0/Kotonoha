@@ -74,6 +74,20 @@ class WordStat {
   /// means a permanent weekly loop.
   static const int kMaxLevel = 6;
 
+  /// First contact without a successful unprompted recall. Marks the item
+  /// seen so intake cannot replay the same new card, and parks it on the
+  /// level-0 interval. Does not increment [correctCount] or climb [srsLevel].
+  WordStat markIntroduced({required DateTime at}) {
+    if (isSeen) return this;
+    return WordStat(
+      seenCount: seenCount + 1,
+      correctCount: correctCount,
+      wrongCount: wrongCount,
+      lastReviewedAt: at,
+      dueAt: at.add(Duration(minutes: _intervalsMinutes[0])),
+    );
+  }
+
   WordStat recordAnswer({required bool correct, required DateTime at}) {
     final int nextLevel = !correct
         ? 0

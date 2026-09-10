@@ -13,9 +13,11 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
+import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/guidance.dart';
@@ -316,53 +318,106 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  List<SessionItem> _composeDaily(
-    KanaProgressRepository store, {
+  ({List<SessionItem> kana, List<ReadingItem> transfer}) _composeDaily(
+    BuildContext context, {
     bool quiet = false,
-  }) => DailySession.compose(
-    pool: StudySet.reviewPool(store),
-    stats: store.stats,
-    // 今日の稽古 REVIEWS only kana the learner has already met — it never
-    // introduces new ones (so it can never cold-test you). New kana are
-    // learned in 手解き; the next-step line points there when it's time.
-    newCandidates: const <Kana>[],
-    now: DateTime.now(),
-    rng: Random(),
-    quiet: quiet,
-  );
-
-  void _startDaily(BuildContext context, {bool quiet = false}) {
+    Set<String> excludeProgressIds = const {},
+  }) {
     final store = context.read<KanaProgressRepository>();
-    final items = _composeDaily(store, quiet: quiet);
-    if (items.isEmpty) {
+    final wordProgress = context.read<WordProgressRepository>();
+    final now = DateTime.now();
+    final kana = DailySession.compose(
+      pool: StudySet.reviewPool(store),
+      stats: store.stats,
+      // 今日の稽古 REVIEWS only kana the learner has already met — it never
+      // introduces new ones (so it can never cold-test you). New kana are
+      // learned in 手解き; the next-step line points there when it's time.
+      newCandidates: const <Kana>[],
+      now: now,
+      rng: Random(),
+      quiet: quiet,
+    );
+    final learnedChars = StudySet.learned(store)
+        .map((k) => k.character)
+        .toSet();
+    final transfer = DailyBridge.compose(
+      sessionKana: [for (final i in kana) i.question.target],
+      words: kWords,
+      phrases: kPhrases,
+      learnedChars: learnedChars,
+      wordStats: wordProgress.stats,
+      kanaStats: store.stats,
+      now: now,
+      rng: Random(),
+      excludeProgressIds: excludeProgressIds,
+    );
+    return (kana: kana, transfer: transfer);
+  }
+
+  void _startDaily(
+    BuildContext context, {
+    bool quiet = false,
+    Set<String> excludeProgressIds = const {},
+  }) {
+    final practice = _composeDaily(
+      context,
+      quiet: quiet,
+      excludeProgressIds: excludeProgressIds,
+    );
+    if (practice.kana.isEmpty) {
       // Nothing learned/due yet — go learn instead (feature honesty).
       Navigator.of(context).push(LessonsScreen.route());
       return;
     }
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: practice.transfer,
+    );
     Navigator.of(context).push(
       QuizScreen.routeItems(
-        items: items,
+        items: practice.kana,
         title: AppStrings.dailySession,
-        onAgain: () => _againDaily(context, quiet: quiet),
+        transferItems: practice.transfer,
+        quiet: quiet,
+        alreadyTransferredIds: excludeProgressIds,
+        onAgain: () =>
+            _againDaily(context, quiet: quiet, excludeProgressIds: nextExclude),
       ),
     );
   }
 
   /// "再来一回" for 今日の稽古: a fresh session in place of the result screen. If
   /// the pool has drained mid-grind, return home rather than an empty quiz.
-  /// [quiet] carries the silent-run choice across rounds.
-  void _againDaily(BuildContext context, {bool quiet = false}) {
-    final store = context.read<KanaProgressRepository>();
-    final items = _composeDaily(store, quiet: quiet);
-    if (items.isEmpty) {
+  /// [quiet] carries the silent-run choice across rounds. [excludeProgressIds]
+  /// is the accumulated transfer history for this grind so later rounds cover
+  /// remaining eligible items first.
+  void _againDaily(
+    BuildContext context, {
+    bool quiet = false,
+    Set<String> excludeProgressIds = const {},
+  }) {
+    final practice = _composeDaily(
+      context,
+      quiet: quiet,
+      excludeProgressIds: excludeProgressIds,
+    );
+    if (practice.kana.isEmpty) {
       Navigator.of(context).popUntil((r) => r.isFirst);
       return;
     }
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: practice.transfer,
+    );
     Navigator.of(context).pushReplacement(
       QuizScreen.routeItems(
-        items: items,
+        items: practice.kana,
         title: AppStrings.dailySession,
-        onAgain: () => _againDaily(context, quiet: quiet),
+        transferItems: practice.transfer,
+        quiet: quiet,
+        alreadyTransferredIds: excludeProgressIds,
+        onAgain: () =>
+            _againDaily(context, quiet: quiet, excludeProgressIds: nextExclude),
       ),
     );
   }

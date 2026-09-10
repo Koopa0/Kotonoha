@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
+import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -33,6 +34,8 @@ class ReadingScreen extends StatefulWidget {
     required this.items,
     required this.title,
     this.onMore,
+    this.quiet = false,
+    this.alreadyTransferredIds = const {},
     super.key,
   });
 
@@ -43,12 +46,27 @@ class ReadingScreen extends StatefulWidget {
   /// night-suppressed). Null = hidden.
   final VoidCallback? onMore;
 
+  /// Silent run: reveal must not speak, and the speaker stays hidden.
+  final bool quiet;
+
+  /// Progress ids already covered in this 「もう一回」 grind. A wrap-around
+  /// item may be shown again but must not renew SRS.
+  final Set<String> alreadyTransferredIds;
+
   static Route<void> route(
     List<ReadingItem> items,
     String title, {
     VoidCallback? onMore,
+    bool quiet = false,
+    Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
-    builder: (_) => ReadingScreen(items: items, title: title, onMore: onMore),
+    builder: (_) => ReadingScreen(
+      items: items,
+      title: title,
+      onMore: onMore,
+      quiet: quiet,
+      alreadyTransferredIds: alreadyTransferredIds,
+    ),
   );
 
   @override
@@ -60,6 +78,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
   final Random _rng = Random();
   int _index = 0;
   bool _revealed = false;
+  bool _unpromptedCommit = false;
   int _correct = 0;
   bool _done = false;
 
@@ -71,12 +90,17 @@ class _ReadingScreenState extends State<ReadingScreen> {
   /// Speakable form — layout spaces removed.
   String get _say => _current.displayText.replaceAll(' ', '');
 
-  void _reveal() {
-    context.read<SpeechService>().speak(_say);
-    setState(() => _revealed = true);
+  void _reveal({required bool unpromptedCommit}) {
+    if (!widget.quiet) {
+      context.read<SpeechService>().speak(_say);
+    }
+    setState(() {
+      _revealed = true;
+      _unpromptedCommit = unpromptedCommit;
+    });
   }
 
-  void _grade(bool correct) {
+  void _grade({required bool correct, required bool unprompted}) {
     final now = DateTime.now();
     context.read<AnalyticsLog>().recordObserved(
       Attempt(
@@ -86,18 +110,23 @@ class _ReadingScreenState extends State<ReadingScreen> {
         mode: PracticeMode.reading.name,
         correct: correct,
         sessionId: _sessionId,
-        meta: {'romaji': _current.romaji},
+        meta: {'romaji': _current.romaji, AttemptMeta.prompted: !unprompted},
       ),
     );
-    // 黙読 is a schedule authority for its items: the cold self-graded read
-    // advances (or resets) the item's Leitner box.
-    context.read<ProgressPersistenceController>().trackWord(
-      context.read<WordProgressRepository>().recordAnswer(
-        _current.progressId,
-        correct: correct,
-        at: now,
-      ),
-    );
+    final words = context.read<WordProgressRepository>();
+    final persist = context.read<ProgressPersistenceController>();
+    final id = _current.progressId;
+    final canRenew = DailyBridge.shouldRenew(id, widget.alreadyTransferredIds);
+    // Unprompted confirmed-correct is the only climb, and only the first
+    // time this grind covers the id. Prompted correct on a new item keeps
+    // intake (seen) without mastering. A miss always resets.
+    if (!correct) {
+      persist.trackWord(words.recordAnswer(id, correct: false, at: now));
+    } else if (unprompted && canRenew) {
+      persist.trackWord(words.recordAnswer(id, correct: true, at: now));
+    } else if (!unprompted && !words.statForItem(id).isSeen) {
+      persist.trackWord(words.markIntroduced(id, at: now));
+    }
     if (correct) _correct++;
     if (_index + 1 >= widget.items.length) {
       final store = context.read<KanaProgressRepository>();
@@ -112,6 +141,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
       setState(() {
         _index++;
         _revealed = false;
+        _unpromptedCommit = false;
       });
     }
   }
@@ -215,7 +245,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                         color: AppColors.ink,
                       ),
                     ),
-                    SpeakButton(text: _say, size: 30),
+                    if (!widget.quiet) SpeakButton(text: _say, size: 30),
                     // A quiet 助詞 gloss for each particle in the phrase — pull,
                     // never pushed; role + reading quirk only, never a lesson.
                     for (final p in Particles.particlesIn(_current.displayText))
@@ -256,7 +286,10 @@ class _ReadingScreenState extends State<ReadingScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        onPressed: () => _grade(false),
+                        onPressed: () => _grade(
+                          correct: false,
+                          unprompted: _unpromptedCommit,
+                        ),
                         child: const Text(AppStrings.iCouldnt),
                       ),
                     ),
@@ -267,18 +300,44 @@ class _ReadingScreenState extends State<ReadingScreen> {
                           backgroundColor: AppColors.success,
                           minimumSize: const Size.fromHeight(54),
                         ),
-                        onPressed: () => _grade(true),
-                        child: const Text(AppStrings.iReadIt),
+                        onPressed: () => _grade(
+                          correct: true,
+                          unprompted: _unpromptedCommit,
+                        ),
+                        child: Text(
+                          _unpromptedCommit
+                              ? AppStrings.iReadIt
+                              : AppStrings.iReadAfterHint,
+                        ),
                       ),
                     ),
                   ],
                 )
-              : SizedBox(
-                  height: 54,
-                  child: FilledButton(
-                    onPressed: _reveal,
-                    child: const Text(AppStrings.revealAnswer),
-                  ),
+              : Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(54),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () => _reveal(unpromptedCommit: false),
+                        child: const Text(AppStrings.recallHint),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(54),
+                        ),
+                        onPressed: () => _reveal(unpromptedCommit: true),
+                        child: const Text(AppStrings.iReadUnprompted),
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ],
