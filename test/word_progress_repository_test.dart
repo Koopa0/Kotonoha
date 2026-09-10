@@ -359,7 +359,9 @@ void main() {
           throwsA(isA<StoreWriteFailure>()),
         );
         expect(identical(repo.statForItem(id), before), isTrue);
-        expect(fake.durable, isEmpty);
+        // The primary never got a platform ack. last-good may hold the
+        // cache-diverged snapshot RecoverableStore preserved before retrying.
+        expect(fake.durable.containsKey(statsKey), isFalse);
 
         fake.failWrites.clear();
         await repo.introduce(id, at: now.add(const Duration(minutes: 10)));

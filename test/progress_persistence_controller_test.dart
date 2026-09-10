@@ -472,7 +472,8 @@ void main() {
         expect(identical(repo.statForItem(inu), before), isTrue);
         expect(controller.hasWriteFailure, isTrue);
         expect(controller.status, PersistenceStatus.failedNeedsRetry);
-        expect(fake.durable, isEmpty);
+        // Flush retried and failed again — the primary is still not durable.
+        expect(fake.durable.containsKey('word_stats_v1'), isFalse);
         expect(repo.seenItemCount, 1);
 
         final fresh = await WordProgressRepository.load(
