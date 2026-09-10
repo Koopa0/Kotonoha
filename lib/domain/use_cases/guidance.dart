@@ -4,6 +4,7 @@
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
+import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/scheduler.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -202,13 +203,21 @@ abstract final class Guidance {
     if (store.learnedUnitCount == 0) {
       return const GuidanceStep(GuidanceTarget.lessons);
     }
-    // B — kana reviews take priority over everything else.
+    // B — kana reviews take priority over everything else, but only when
+    // the learned pool can actually discriminate (a lone ん is due after
+    // its row test; sending that learner to 今日の稽古 would be a
+    // forced-correct tap, not a review).
     final due = Scheduler.dueCount(
       StudySet.reviewPool(store),
       store.stats,
       now: now,
     );
-    if (due > 0) {
+    if (due > 0 &&
+        DailySession.isReady(
+          StudySet.learned(store),
+          stats: store.stats,
+          now: now,
+        )) {
       return GuidanceStep(GuidanceTarget.daily, dueCount: due);
     }
     // C — caught up, but there is still a row left to learn.

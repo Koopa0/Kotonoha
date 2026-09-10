@@ -77,25 +77,52 @@ abstract final class DailySession {
     targets.shuffle(rng);
 
     final newIds = neu.map((k) => k.id).toSet();
-    return [
-      for (final t in targets.take(length))
-        SessionItem(
-          question: engine.buildQuestion(
-            t,
-            directionFor(
-              t,
-              stat: stats[t.id] ?? const KanaStat(),
-              isNew: newIds.contains(t.id),
-              quiet: quiet,
-              now: now,
-              rng: rng,
-            ),
-            _distractors(t, pool, engine.optionCount, rng),
-            rng,
-          ),
-          mode: PracticeMode.daily,
+    final items = <SessionItem>[];
+    for (final t in targets.take(length)) {
+      final question = engine.buildQuestion(
+        t,
+        directionFor(
+          t,
+          stat: stats[t.id] ?? const KanaStat(),
+          isNew: newIds.contains(t.id),
+          quiet: quiet,
+          now: now,
+          rng: rng,
         ),
-    ];
+        _distractors(t, pool, engine.optionCount, rng),
+        rng,
+      );
+      // Forced-correct MCQ (lone valid option) is not a review. kanaRecall
+      // has empty options on purpose and must still board.
+      if (question.isForcedCorrect) continue;
+      items.add(SessionItem(question: question, mode: PracticeMode.daily));
+    }
+    return items;
+  }
+
+  /// A review item can score recall only when [pool] holds a same-script
+  /// peer that is not the target and does not share its romaji.
+  static bool canDiscriminate(Kana target, List<Kana> pool) => pool.any(
+    (k) =>
+        k.id != target.id &&
+        k.romaji != target.romaji &&
+        k.script == target.script,
+  );
+
+  /// True when today's session can actually compose an item from [pool]:
+  /// either a discriminating MCQ, or an unprompted [QuizDirection.kanaRecall]
+  /// for a strong-fast review. Home and Guidance use the *learned* set —
+  /// never the cold-start [StudySet.reviewPool] fallback.
+  static bool isReady(
+    List<Kana> pool, {
+    Map<String, KanaStat> stats = const {},
+    DateTime? now,
+  }) {
+    if (pool.any((t) => canDiscriminate(t, pool))) return true;
+    if (now == null) return false;
+    return pool.any(
+      (t) => readyForRecall(stats[t.id] ?? const KanaStat(), now: now),
+    );
   }
 
   /// Remaining slots prefer long-uncovered kana (oldest lastReviewedAt;
