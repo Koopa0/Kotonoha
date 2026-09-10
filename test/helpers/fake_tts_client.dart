@@ -17,26 +17,25 @@ class FakeTtsClient implements TtsClient {
 
   final List<String> spoken = <String>[];
   int stopCount = 0;
-  bool _speaking = false;
+  Completer<Object?>? _inFlight;
 
   @override
   Future<Object?> speak(String text) async {
     spoken.add(text);
-    _speaking = true;
+    _inFlight = holdSpeak;
     try {
-      if (holdSpeak != null) return await holdSpeak!.future;
+      if (_inFlight != null) return await _inFlight!.future;
       if (speakError != null) throw speakError!;
       return speakResult;
     } finally {
-      _speaking = false;
+      _inFlight = null;
     }
   }
 
   @override
   Future<void> stop() async {
     stopCount++;
-    if (!_speaking) return;
-    final held = holdSpeak;
+    final held = _inFlight;
     if (held != null && !held.isCompleted) {
       held.completeError(StateError('stopped'));
     }

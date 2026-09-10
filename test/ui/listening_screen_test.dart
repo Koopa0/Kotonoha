@@ -255,15 +255,23 @@ void main() {
       wordRepo: words,
     );
 
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
     expect(speech.stopCount, greaterThanOrEqualTo(1));
     expect(speech.isCompleted, isTrue);
 
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
     await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
     await tester.pump();
-    expect(find.text(AppStrings.listeningInterrupted), findsOneWidget);
     expect(find.text(AppStrings.listeningHeard), findsNothing);
+    expect(find.text(AppStrings.listeningSkip), findsOneWidget);
+    expect(find.text(AppStrings.listeningInterrupted), findsOneWidget);
     await tester.tap(find.text(AppStrings.listeningSkip));
     await tester.pumpAndSettle();
     expect(await analytics.all(), isEmpty);

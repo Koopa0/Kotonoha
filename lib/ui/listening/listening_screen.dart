@@ -57,12 +57,12 @@ class ListeningScreen extends StatefulWidget {
   State<ListeningScreen> createState() => _ListeningScreenState();
 }
 
-class _ListeningScreenState extends State<ListeningScreen> {
+class _ListeningScreenState extends State<ListeningScreen>
+    with WidgetsBindingObserver {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final Random _rng = Random();
 
   late final SpeechService _speech;
-  late final AppLifecycleListener _lifecycle;
 
   int _index = 0;
   bool _revealed = false;
@@ -86,12 +86,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
   void initState() {
     super.initState();
     _speech = context.read<SpeechService>();
-    _lifecycle = AppLifecycleListener(
-      onInactive: _onLeaveForeground,
-      onHide: _onLeaveForeground,
-      onPause: _onLeaveForeground,
-      onDetach: _onLeaveForeground,
-    );
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_play());
     });
@@ -99,12 +94,16 @@ class _ListeningScreenState extends State<ListeningScreen> {
 
   @override
   void dispose() {
-    _lifecycle.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_speech.stop());
     super.dispose();
   }
 
-  void _onLeaveForeground() => unawaited(_interrupt());
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) return;
+    unawaited(_interrupt());
+  }
 
   Future<void> _interrupt() async {
     _playGen++;
@@ -344,12 +343,13 @@ class _ListeningScreenState extends State<ListeningScreen> {
   }
 
   String? get _blockMessage {
-    if (_heard || _lastPlay == null) return null;
-    return switch (_lastPlay!) {
+    if (_heard) return null;
+    return switch (_lastPlay) {
       SpeechPlaybackResult.unavailable => AppStrings.listeningUnavailable,
       SpeechPlaybackResult.failed => AppStrings.listeningFailed,
       SpeechPlaybackResult.interrupted => AppStrings.listeningInterrupted,
       SpeechPlaybackResult.played => null,
+      null => _revealed ? AppStrings.listeningInterrupted : null,
     };
   }
 
