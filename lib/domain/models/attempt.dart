@@ -13,6 +13,7 @@ enum PracticeMode {
   ferry, // hear → watch the kana ink in → read it back (sound↔glyph binding)
   dictation, // hear → assemble the kana (production / encoding)
   listening, // hear → recall → reveal → rehear (comprehension; not kana ID)
+  placementCheck, // explicit prior-range check: answer first, then reveal
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji
