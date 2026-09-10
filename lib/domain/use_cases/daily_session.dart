@@ -89,6 +89,7 @@ abstract final class DailySession {
           quiet: quiet,
           now: now,
           rng: rng,
+          canDiscriminate: canDiscriminate(t, pool),
         ),
         _distractors(t, pool, engine.optionCount, rng),
         rng,
@@ -202,8 +203,12 @@ abstract final class DailySession {
 
   /// New items stay form→sound (gentlest). Weak / still-learning reviews keep
   /// multiple-choice recognition. A strong, fast, recovered review leaves the
-  /// option list and becomes unprompted [QuizDirection.kanaRecall] — even on a
-  /// [quiet] run, which only forbids listening, not silent recall.
+  /// option list and becomes unprompted [QuizDirection.kanaRecall] only when
+  /// listening is already evidenced — visual fluency must not hide an
+  /// unknown sound direction. [quiet] still forbids listening, not silent
+  /// recall, and never restuffs an easy MCQ. A singleton that cannot host a
+  /// fair sound MCQ stays [QuizDirection.kanaRecall] rather than a
+  /// forced-correct listen.
   static QuizDirection directionFor(
     Kana _, {
     required KanaStat stat,
@@ -211,10 +216,24 @@ abstract final class DailySession {
     required bool quiet,
     required DateTime now,
     required Random rng,
+    bool canDiscriminate = true,
   }) {
     if (isNew) return QuizDirection.kanaToRomaji;
-    if (readyForRecall(stat, now: now)) return QuizDirection.kanaRecall;
-    if (quiet) return QuizDirection.romajiToKana;
+    final visualReady = readyForRecall(stat, now: now);
+    if (quiet) {
+      return visualReady
+          ? QuizDirection.kanaRecall
+          : QuizDirection.romajiToKana;
+    }
+    if (visualReady) {
+      if (stat.needsListeningProbe(now: now) && canDiscriminate) {
+        return QuizDirection.soundToKana;
+      }
+      return QuizDirection.kanaRecall;
+    }
+    if (stat.hasRecentListeningMiss(now: now)) {
+      return QuizDirection.soundToKana;
+    }
     return rng.nextBool()
         ? QuizDirection.romajiToKana
         : QuizDirection.soundToKana;

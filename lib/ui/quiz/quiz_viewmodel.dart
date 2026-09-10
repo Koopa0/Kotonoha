@@ -240,12 +240,20 @@ class QuizViewModel extends ChangeNotifier {
       // are synchronous); the app-scoped owner observes the write so a
       // failure is surfaced instead of dropped.
       if (persistProgress) {
+        // A sound item without a completed hear must not mint listening
+        // evidence. persistProgress already blocks failed/cancelled play
+        // from writing anything; this extra gate covers a scored glyph
+        // pick that never actually heard the prompt.
+        final listening =
+            question.direction == QuizDirection.soundToKana &&
+            _listeningHeardArmed;
         final persist = !correct
             ? repository.recordAnswer(
                 question.target,
                 correct: false,
                 at: now,
                 latencyMs: latencyMs,
+                listening: listening,
               )
             : creditRecall
             ? repository.recordAnswer(
@@ -253,6 +261,7 @@ class QuizViewModel extends ChangeNotifier {
                 correct: true,
                 at: now,
                 latencyMs: latencyMs,
+                listening: listening,
               )
             : repository.recordPromptedPractice(question.target, at: now);
         persistence.trackKana(persist);

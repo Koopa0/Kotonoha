@@ -741,6 +741,8 @@ void main() {
     expect(repo.statFor(kana).srsLevel, 0);
     expect(repo.statFor(kana).isSeen, isFalse);
     expect(repo.statFor(kana).correctCount, 0);
+    expect(repo.statFor(kana).listeningUnknown, isTrue);
+    expect(repo.statFor(kana).listenSeenCount, 0);
     final logged = await log.all();
     expect(logged.single.correct, isTrue);
     expect(logged.single.meta[AttemptMeta.heard], isFalse);
@@ -780,6 +782,8 @@ void main() {
     elapsed = 10500;
     vm.selectAnswer(0);
     expect(repo.statFor(kana).avgLatencyMs, 500);
+    expect(repo.statFor(kana).listeningUnknown, isTrue);
+    expect(repo.statFor(kana).listenSeenCount, 0);
     expect((await log.all()).single.rtMs, 0);
     vm.dispose();
   });
@@ -819,6 +823,9 @@ void main() {
     expect((await log.all()).single.rtMs, 500);
     expect(repo.statFor(kana).avgLatencyMs, 500);
     expect(repo.statFor(kana).srsLevel, 4);
+    expect(repo.statFor(kana).listenSeenCount, 1);
+    expect(repo.statFor(kana).listenCorrectCount, 1);
+    expect(repo.statFor(kana).listeningUnknown, isFalse);
     vm.dispose();
   });
 }
