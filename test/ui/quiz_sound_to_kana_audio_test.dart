@@ -502,7 +502,10 @@ void main() {
       expect((await log.all()).last.rtMs, 500);
       expect((await log.all()).last.meta[AttemptMeta.heard], isTrue);
       expect((await KanaProgressRepository.load()).statFor(_a).srsLevel, 4);
-      expect((await KanaProgressRepository.load()).statFor(_a).avgLatencyMs, 500);
+      expect(
+        (await KanaProgressRepository.load()).statFor(_a).avgLatencyMs,
+        500,
+      );
     },
   );
 

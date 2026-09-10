@@ -258,40 +258,46 @@ void main() {
     vm.dispose();
   });
 
-  test('unshown visual item starts RT on first answerable presentation', () async {
-    SharedPreferences.setMockInitialValues({});
-    final repo = await KanaProgressRepository.load();
-    final now = DateTime(2026, 9, 10, 12);
-    var elapsed = 0;
-    final kana = all.first;
-    for (var i = 0; i < 3; i++) {
-      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
-    }
-    final log = InMemoryAnalyticsLog();
-    final vm = QuizViewModel(
-      items: [
-        SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
-        SessionItem(question: question('い'), mode: PracticeMode.quickReview),
-      ],
-      repository: repo,
-      persistence: owner(),
-      analytics: log,
-      clock: () => now,
-      monotonicMs: () => elapsed,
-    );
-    elapsed = 500;
-    vm.selectAnswer(0);
-    vm.noteUnanswerable();
-    vm.advance();
-    vm.noteUnanswerable();
-    elapsed = 800;
-    vm.noteAnswerablePresentation();
-    elapsed = 1300;
-    vm.selectAnswer(0);
-    expect((await log.all()).map((a) => a.rtMs), [500, 500]);
-    expect(repo.statFor(all.firstWhere((k) => k.character == 'い')).srsLevel, 1);
-    vm.dispose();
-  });
+  test(
+    'unshown visual item starts RT on first answerable presentation',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await KanaProgressRepository.load();
+      final now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      final kana = all.first;
+      for (var i = 0; i < 3; i++) {
+        await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      final log = InMemoryAnalyticsLog();
+      final vm = QuizViewModel(
+        items: [
+          SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+          SessionItem(question: question('い'), mode: PracticeMode.quickReview),
+        ],
+        repository: repo,
+        persistence: owner(),
+        analytics: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      elapsed = 500;
+      vm.selectAnswer(0);
+      vm.noteUnanswerable();
+      vm.advance();
+      vm.noteUnanswerable();
+      elapsed = 800;
+      vm.noteAnswerablePresentation();
+      elapsed = 1300;
+      vm.selectAnswer(0);
+      expect((await log.all()).map((a) => a.rtMs), [500, 500]);
+      expect(
+        repo.statFor(all.firstWhere((k) => k.character == 'い')).srsLevel,
+        1,
+      );
+      vm.dispose();
+    },
+  );
 
   test('resume after a presented interrupt does not restart RT', () async {
     SharedPreferences.setMockInitialValues({});
