@@ -291,11 +291,16 @@ abstract final class TravelScene {
     int sessionLength = length,
   }) {
     final pool = items(scene, words: words, phrases: phrases);
-    final remaining = [
+    final seenPool = [
       for (final item in pool)
+        if (stats[item.progressId]?.isSeen ?? false) item,
+    ];
+    final remaining = [
+      for (final item in seenPool)
         if (!excludeProgressIds.contains(item.progressId)) item,
     ];
-    final source = remaining.isNotEmpty ? remaining : pool;
+    final source = remaining.isNotEmpty ? remaining : seenPool;
+    if (source.isEmpty) return const [];
     return ReadingSet.session(
       items: source,
       learnedChars: learnedChars,
