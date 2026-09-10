@@ -132,6 +132,24 @@ abstract final class KanjiPrompt {
     return validReadings(target).length == 1;
   }
 
+  /// The harvested unit whose reading is [chosen] on the same written run.
+  ///
+  /// Exact match returns [target]. A sibling (年#ねん when the stem asked
+  /// 年#とし) is the unit that actually produced the sound. Null when the
+  /// corpus has no such unit — accept the choice, score nobody.
+  static KanjiUnit? creditedUnit(
+    KanjiUnit target,
+    String chosen, {
+    Iterable<KanjiUnit>? corpus,
+  }) {
+    if (chosen == target.reading) return target;
+    final pool = corpus ?? const <KanjiUnit>[];
+    for (final u in pool) {
+      if (u.written == target.written && u.reading == chosen) return u;
+    }
+    return null;
+  }
+
   /// Readings of [target.written] whose inventory example-word is a
   /// possible spelling of [localWord] when that reading is used there.
   static Iterable<String> _inventoryAttested(

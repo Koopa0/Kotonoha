@@ -130,7 +130,7 @@ void main() {
     expect(seeded.repo.statForUnit(nichi.id).srsLevel, 3);
   });
 
-  testWidgets('毎年の秋: ねん is legal and does not drop the Leitner', (
+  testWidgets('毎年の秋: ねん is legal and does not raise the untested とし', (
     tester,
   ) async {
     final toshi = kKanjiUnits.singleWhere((u) => u.id == 'unit:年#とし');
@@ -140,7 +140,8 @@ void main() {
       units: [toshi, nen],
       rng: Random(0),
     );
-    final before = seeded.repo.statForUnit(toshi.id);
+    final beforeToshi = seeded.repo.statForUnit(toshi.id);
+    final beforeNen = seeded.repo.statForUnit(nen.id);
 
     expect(stemOf(tester), '毎年の秋');
     expect(find.widgetWithText(AnswerOptionButton, 'ねん'), findsOneWidget);
@@ -149,11 +150,20 @@ void main() {
     await tester.tap(find.widgetWithText(AnswerOptionButton, 'ねん'));
     await tester.pumpAndSettle();
 
-    final after = seeded.repo.statForUnit(toshi.id);
+    final afterToshi = seeded.repo.statForUnit(toshi.id);
+    final afterNen = seeded.repo.statForUnit(nen.id);
     final attempts = await seeded.analytics.all();
     expect(attempts.single.correct, isTrue);
-    expect(after.wrongCount, before.wrongCount);
-    expect(after.srsLevel, greaterThan(before.srsLevel));
+    expect(attempts.single.itemId, nen.id);
+    expect(attempts.single.meta['reading'], 'ねん');
+    expect(attempts.single.meta['chosen'], 'ねん');
+    expect(attempts.single.meta['scheduled'], toshi.id);
+    expect(afterToshi.srsLevel, beforeToshi.srsLevel);
+    expect(afterToshi.correctCount, beforeToshi.correctCount);
+    expect(afterToshi.wrongCount, beforeToshi.wrongCount);
+    expect(afterToshi.dueAt, beforeToshi.dueAt);
+    expect(afterNen.srsLevel, greaterThan(beforeNen.srsLevel));
+    expect(afterNen.correctCount, beforeNen.correctCount + 1);
   });
 
   testWidgets('来 / 会 stems are visible before the answer', (tester) async {

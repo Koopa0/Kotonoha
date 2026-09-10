@@ -12,6 +12,7 @@ import 'package:kotonoha/kanji/domain/models/kanji_reading_question.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_prompt.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -122,8 +123,11 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     required String beat,
     required DateTime now,
     String? chosen,
+    KanjiUnit? item,
+    String? scheduledId,
+    bool scored = true,
   }) {
-    final p = _current;
+    final p = item ?? _current;
     context.read<AnalyticsLog>().record(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -139,6 +143,9 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
           // teach exposure is never read as a passed test.
           'beat': beat,
           'chosen': ?chosen,
+          if (scheduledId != null && scheduledId != p.id)
+            'scheduled': scheduledId,
+          if (!scored) 'scored': false,
         },
       ),
     );
@@ -164,25 +171,69 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
 
   // RECALL pick: graded but untimed (latencyMs null — no clock; see _teachNext),
   // then the sound confirms AFTER the choice.
+  //
+  // A legal alternate (毎年 → ねん while the stem asked とし) is not a miss,
+  // but it is also not retrieval of the scheduled reading. Credit the
+  // harvested sibling when that reading is already seen; otherwise accept
+  // without moving anyone's Leitner. A real miss still lands on [_current].
   void _answer(int i) {
     if (_picked != null) return;
     final now = DateTime.now();
     final chosen = _question!.options[i];
-    // Legal in this word (毎年 → とし or ねん) is accepted. A taught
-    // reading that the word does not take (帰国の日 → にち) is still a miss.
-    final correct = _validReadings.contains(chosen);
-    context.read<ProgressPersistenceController>().trackKanji(
-      context.read<KanjiReadingRepository>().recordAnswer(
-        _current.id,
-        correct: correct,
-        at: now,
-      ),
+    final target = _current;
+    final legal = _validReadings.contains(chosen);
+    final repo = context.read<KanjiReadingRepository>();
+
+    final KanjiUnit eventUnit;
+    final String? scoreId;
+    final bool scoreCorrect;
+    String? scheduledId;
+
+    if (!legal) {
+      eventUnit = target;
+      scoreId = target.id;
+      scoreCorrect = false;
+    } else if (chosen == target.reading) {
+      eventUnit = target;
+      scoreId = target.id;
+      scoreCorrect = true;
+    } else {
+      final sibling = KanjiPrompt.creditedUnit(
+        target,
+        chosen,
+        corpus: kKanjiUnits,
+      );
+      scheduledId = target.id;
+      eventUnit =
+          sibling ??
+          KanjiUnit(
+            written: target.written,
+            reading: chosen,
+            example: target.example,
+          );
+      final canCredit = sibling != null && repo.statForUnit(sibling.id).isSeen;
+      scoreId = canCredit ? sibling.id : null;
+      scoreCorrect = true;
+    }
+
+    if (scoreId != null) {
+      context.read<ProgressPersistenceController>().trackKanji(
+        repo.recordAnswer(scoreId, correct: scoreCorrect, at: now),
+      );
+    }
+    _logAttempt(
+      item: eventUnit,
+      correct: legal,
+      beat: 'recall',
+      now: now,
+      chosen: chosen,
+      scheduledId: scheduledId,
+      scored: scoreId != null,
     );
-    _logAttempt(correct: correct, beat: 'recall', now: now, chosen: chosen);
-    context.read<SpeechService>().speak(_spoken);
+    context.read<SpeechService>().speak(legal ? chosen : target.reading);
     setState(() {
       _graded++;
-      if (correct) _correct++;
+      if (legal) _correct++;
       _picked = i;
     });
   }
