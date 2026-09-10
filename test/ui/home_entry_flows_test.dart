@@ -164,10 +164,13 @@ void main() {
     expect(find.text(AppStrings.dictationAction), findsOneWidget);
 
     final handle = tester.ensureSemantics();
-    addTearDown(handle.dispose);
-    expect(find.bySemanticsLabel(RegExp('學新假名')), findsWidgets);
-    expect(find.bySemanticsLabel(RegExp('假名複習')), findsWidgets);
-    expect(find.bySemanticsLabel(RegExp('聽寫單字')), findsWidgets);
+    try {
+      expect(find.bySemanticsLabel(RegExp('學新假名')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('假名複習')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('聽寫單字')), findsWidgets);
+    } finally {
+      handle.dispose();
+    }
   });
 }
 

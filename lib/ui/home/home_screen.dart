@@ -872,14 +872,19 @@ class _HeroAction extends StatelessWidget {
         onPressed: onPressed,
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: const Size(double.infinity, 56),
+          maximumSize: Size.infinite,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: label,
       ),
       _HeroKind.outlined => OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(double.infinity, 52),
+          maximumSize: Size.infinite,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           side: const BorderSide(color: AppColors.hairline),
           foregroundColor: AppColors.ink,
           shape: RoundedRectangleBorder(
@@ -914,54 +919,58 @@ class _NavCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Title stays the scannable action (Chinese when we pass one). The
-    // Japanese room name is its own line so find.text(product) still works
-    // and a screen reader hears action, then the room, then the hint.
-    final title = productName == null
-        ? Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: AppColors.ink,
-            ),
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.ink,
-                ),
-              ),
-              Text(
-                productName!,
-                style: const TextStyle(
-                  color: AppColors.inkMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          );
+    // ListTile's three-line height clips when the system text scale grows, so
+    // the card sizes to its copy instead. InkWell + CircleAvatar keep the
+    // Material focus / ripple / 48px icon target.
     return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: AppColors.accentSoft,
-          foregroundColor: AppColors.accent,
-          child: Icon(icon),
+      clipBehavior: Clip.antiAlias,
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppColors.accentSoft,
+                  foregroundColor: AppColors.accent,
+                  child: Icon(icon),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      if (productName != null)
+                        Text(
+                          productName!,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(color: AppColors.inkMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+              ],
+            ),
+          ),
         ),
-        title: title,
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(color: AppColors.inkMuted),
-        ),
-        isThreeLine: productName != null,
-        trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        onTap: onTap,
       ),
     );
   }
