@@ -40,10 +40,11 @@ is tuned to.
 
 ## How a day looks
 
-Open the app and tap **今日の稽古** ("today's practice") — one adaptive run that
-automatically mixes what's due for review, what you've been weak on, and a little
-that's new. There's nothing to configure; you just begin. A couple of minutes
-later, the session settles into 凪 (_nagi_) — a still, wordless close.
+Open the app and tap **今日の稽古** ("today's practice") — one adaptive review of
+kana you already know: what's due, and what you've been weak on. New kana are
+met in **手解き**, a row at a time; today's practice never mixes those in.
+There's nothing to configure; you just begin. A couple of minutes later, the
+session settles into 凪 (_nagi_) — a still, wordless close.
 
 ## What's inside
 
@@ -52,8 +53,8 @@ one does.
 
 - **手解き — Learn the kana.** All 208 hiragana and katakana, including dakuten,
   handakuten, and yōon, taught a row at a time.
-- **今日の稽古 — Today's practice.** A single adaptive session composed from your
-  own data, so you never have to choose a mode.
+- **今日の稽古 — Today's practice.** A single adaptive review of kana you have
+  already met, composed from your own data, so you never have to choose a mode.
 - **渡し舟 — The Ferry.** For an ear that runs ahead of the eye: hear a word, watch
   its kana ink in over the still-ringing audio, then read it back. Sound is
   ferried across to its written shape.
@@ -66,8 +67,9 @@ one does.
 - **手習い — Paper handwriting.** Pairs with a physical practice book: see a
   prompt, write it on paper, reveal, and self-grade. (No on-screen recognition —
   paper only.)
-- **漢字の声 — Kanji readings.** Give a kanji its Japanese voice: recall the
-  on'yomi / kun'yomi reading from a cue.
+- **漢字の声 — Kanji readings.** The voice belongs to the word, not the bare
+  character: you recall how a written run sounds there — 学校 as がっこう —
+  rather than a lone kanji's on'yomi or kun'yomi.
 - **名残の仮名 — Kanji sentences.** Read real sentences written with kanji and
   furigana — and the furigana quietly fades as each reading matures.
 - **五十音図 — The chart.** Browse the whole syllabary; tap any kana for detail.
