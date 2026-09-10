@@ -130,7 +130,7 @@ class QuizViewModel extends ChangeNotifier {
         latencyMs: latencyMs,
       ),
     );
-    analytics?.record(
+    analytics?.recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: question.target.id,

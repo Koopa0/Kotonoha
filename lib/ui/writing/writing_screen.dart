@@ -49,7 +49,7 @@ class _WritingScreenState extends State<WritingScreen> {
         at: now,
       ),
     );
-    context.read<AnalyticsLog>().record(
+    context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.id,

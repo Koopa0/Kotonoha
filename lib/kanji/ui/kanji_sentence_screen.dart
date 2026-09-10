@@ -70,7 +70,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
 
   void _grade(bool correct) {
     final now = DateTime.now();
-    context.read<AnalyticsLog>().record(
+    context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.written,

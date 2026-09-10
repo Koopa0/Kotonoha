@@ -128,7 +128,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     bool scored = true,
   }) {
     final p = item ?? _current;
-    context.read<AnalyticsLog>().record(
+    context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: p.id,
