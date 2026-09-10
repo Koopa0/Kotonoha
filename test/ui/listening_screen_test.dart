@@ -1,7 +1,10 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
@@ -30,6 +33,88 @@ const _repeat = Phrase(
   meaning: '請再說一次',
 );
 const _ticket = Word(kana: 'きっぷ', romaji: 'kippu', meaning: '車票');
+const _kimi = Word(kana: 'きみ', romaji: 'kimi', meaning: '你');
+const _ame = Word(kana: 'あめ', romaji: 'ame', meaning: '雨');
+
+/// iOS-like flutter_tts MethodChannel: stop returns 1 and does not
+/// settle a pending speak. First speak stays open until [completeFirstSpeak].
+class _IosLikeTtsChannel {
+  Completer<int>? pendingFirstSpeak;
+  final List<String> spoken = <String>[];
+  Object? subsequentSpeakResult = 0;
+
+  Future<Object?> handle(MethodCall call) async {
+    switch (call.method) {
+      case 'speak':
+        final Object? args = call.arguments;
+        if (args is! String) {
+          throw StateError('expected speak text, got ${args.runtimeType}');
+        }
+        spoken.add(args);
+        if (pendingFirstSpeak == null) {
+          pendingFirstSpeak = Completer<int>();
+          return pendingFirstSpeak!.future;
+        }
+        return subsequentSpeakResult;
+      case 'stop':
+        return 1;
+      case 'getEngines':
+        return <String>['com.google.android.tts'];
+      case 'setLanguage':
+      case 'setEngine':
+        return 1;
+      default:
+        return 1;
+    }
+  }
+
+  void completeFirstSpeak(int result) {
+    final pending = pendingFirstSpeak;
+    if (pending == null || pending.isCompleted) {
+      throw StateError('first speak is not pending');
+    }
+    pending.complete(result);
+  }
+}
+
+Future<_IosLikeTtsChannel> _installProductionTts(WidgetTester tester) async {
+  final tts = _IosLikeTtsChannel();
+  const channel = MethodChannel('flutter_tts');
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    channel,
+    tts.handle,
+  );
+  addTearDown(() {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      null,
+    );
+  });
+  return tts;
+}
+
+Future<void> _expectAmeHasNoListeningEvidence({
+  required WordProgressRepository words,
+  required InMemoryAnalyticsLog analytics,
+}) async {
+  await words.flushPending();
+  final reloaded = await WordProgressRepository.load();
+  expect(reloaded.statForItem('word:あめ').srsLevel, 0);
+  expect(reloaded.statForItem('word:あめ').isSeen, isFalse);
+  expect(words.statForItem('word:あめ').srsLevel, 0);
+  final logged = await analytics.all();
+  expect(
+    logged.where(
+      (a) =>
+          a.itemId.contains('あめ') &&
+          a.meta[AttemptMeta.heard] == true &&
+          a.meta[AttemptMeta.prompted] == false &&
+          a.meta[AttemptMeta.scored] == true,
+    ),
+    isEmpty,
+  );
+  expect(find.text(AppStrings.listeningHeard), findsNothing);
+}
 
 Future<void> pumpListening(
   WidgetTester tester, {
@@ -422,4 +507,111 @@ void main() {
     expect(find.text(AppStrings.listeningClose), findsOneWidget);
     expect(find.textContaining('聽懂'), findsNothing);
   });
+
+  testWidgets('old speak complete before advance cannot credit the next item', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    expect(speech.ready, isTrue);
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_kimi, _ame],
+      analytics: analytics,
+      wordRepo: words,
+    );
+    expect(tts.spoken, ['きみ']);
+    expect(tts.pendingFirstSpeak, isNotNull);
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    tts.completeFirstSpeak(1);
+    await tester.idle();
+    await tester.pump();
+    expect(find.text(AppStrings.listeningHeard), findsNothing);
+    await tester.tap(find.byKey(const ValueKey<String>('listening-next')));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(find.text('あめ'), findsOneWidget);
+    expect(find.text(AppStrings.listeningFailed), findsOneWidget);
+    await _expectAmeHasNoListeningEvidence(words: words, analytics: analytics);
+  });
+
+  testWidgets(
+    'old speak complete after advance before next frame cannot credit あめ',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      expect(speech.ready, isTrue);
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      await pumpListening(
+        tester,
+        speech: speech,
+        items: const [_kimi, _ame],
+        analytics: analytics,
+        wordRepo: words,
+      );
+
+      await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('listening-skip')));
+      tts.completeFirstSpeak(1);
+      await tester.idle();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+      await tester.pump();
+      expect(find.text('あめ'), findsOneWidget);
+      expect(find.text(AppStrings.listeningHeard), findsNothing);
+      expect(find.text(AppStrings.listeningFailed), findsOneWidget);
+      await _expectAmeHasNoListeningEvidence(
+        words: words,
+        analytics: analytics,
+      );
+    },
+  );
+
+  testWidgets(
+    'old speak complete after next item failed play cannot credit あめ',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      expect(speech.ready, isTrue);
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      await pumpListening(
+        tester,
+        speech: speech,
+        items: const [_kimi, _ame],
+        analytics: analytics,
+        wordRepo: words,
+      );
+
+      await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('listening-skip')));
+      await tester.pump();
+      expect(tts.spoken, ['きみ', 'あめ']);
+      tts.completeFirstSpeak(1);
+      await tester.idle();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+      await tester.pump();
+      expect(find.text('あめ'), findsOneWidget);
+      expect(find.text(AppStrings.listeningHeard), findsNothing);
+      expect(find.text(AppStrings.listeningFailed), findsOneWidget);
+      await _expectAmeHasNoListeningEvidence(
+        words: words,
+        analytics: analytics,
+      );
+    },
+  );
 }

@@ -71,6 +71,7 @@ class _ListeningScreenState extends State<ListeningScreen>
   bool _done = false;
   int _heardAtMs = 0;
   int _playGen = 0;
+  String? _heardItemId;
   SpeechPlaybackResult? _lastPlay;
   KotenLine? _share;
 
@@ -104,9 +105,18 @@ class _ListeningScreenState extends State<ListeningScreen>
     unawaited(_interrupt());
   }
 
-  Future<void> _interrupt() async {
+  /// Cancels in-flight playback and drops its generation immediately.
+  ///
+  /// Item switches must not wait for the next frame's [_play]: a late
+  /// completion in that gap would still match [_playGen] and read the
+  /// next item's `_revealed == false`.
+  void _abandonPlayback() {
     _playGen++;
-    await _speech.stop();
+    unawaited(_speech.stop());
+  }
+
+  Future<void> _interrupt() async {
+    _abandonPlayback();
     if (!mounted) return;
     setState(() {
       _playing = false;
@@ -115,18 +125,22 @@ class _ListeningScreenState extends State<ListeningScreen>
   }
 
   Future<void> _play() async {
-    if (!mounted) return;
+    if (!mounted || _done) return;
+    final itemId = _current.progressId;
     final startedBlind = !_revealed;
     final gen = ++_playGen;
     setState(() => _playing = true);
     final result = await _speech.play(_say);
-    if (!mounted || gen != _playGen) return;
+    if (!mounted || _done || gen != _playGen || _current.progressId != itemId) {
+      return;
+    }
     setState(() {
       _playing = false;
       _lastPlay = result;
       if (result != SpeechPlaybackResult.played) return;
       if (startedBlind && !_revealed) {
         _blindHeard = true;
+        _heardItemId = itemId;
         if (_heardAtMs == 0) {
           _heardAtMs = _clock().millisecondsSinceEpoch;
         }
@@ -141,7 +155,7 @@ class _ListeningScreenState extends State<ListeningScreen>
   }
 
   void _gradeBlind(bool correct) {
-    if (!_blindHeard) return;
+    if (!_blindHeard || _heardItemId != _current.progressId) return;
     _advance(recordMastery: true, correct: correct);
   }
 
@@ -200,10 +214,11 @@ class _ListeningScreenState extends State<ListeningScreen>
         rng: _rng,
         season: Season.forMonth(now.month),
       );
+      _abandonPlayback();
       setState(() => _done = true);
-      unawaited(_speech.stop());
       return;
     }
+    _abandonPlayback();
     setState(() {
       _index++;
       _revealed = false;
@@ -211,9 +226,11 @@ class _ListeningScreenState extends State<ListeningScreen>
       _promptedHeard = false;
       _playing = false;
       _heardAtMs = 0;
+      _heardItemId = null;
       _lastPlay = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _done) return;
       unawaited(_play());
     });
   }
