@@ -83,6 +83,7 @@ class AnswerOptionButton extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
                 color: bg,
                 borderRadius: BorderRadius.circular(18),
@@ -90,6 +91,7 @@ class AnswerOptionButton extends StatelessWidget {
               ),
               child: Text(
                 label,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: fontSize,
                   fontWeight: FontWeight.w600,

@@ -18,6 +18,7 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
+import 'package:kotonoha/ui/core/widgets/answer_option_grid.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
@@ -411,13 +412,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
 
   Widget _options() {
     final q = _question!;
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 2.6,
+    return AnswerOptionGrid(
       children: [
         for (var i = 0; i < q.options.length; i++)
           AnswerOptionButton(
