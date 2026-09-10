@@ -246,12 +246,15 @@ jobs:
         run: bash tool/free_github_runner_disk.sh
 
       # API 29 AOSP is enough for real bootstrap / navigation.
+      # Default AVD skins squeeze gojūon cells to ~49px and overflow KanaCard
+      # by <1px; Pixel 6 is a phone-sized surface the grid already targets.
       - name: Android emulator integration tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 29
           arch: x86_64
           target: default
+          profile: pixel_6
           force-avd-creation: true
           disable-animations: true
           ram-size: 2048
