@@ -25,12 +25,18 @@ report=build/ci/os_partial.jsonl
 rm -f "$report"
 
 # One dedicated flutter test process — no other writers in this suite.
+set +e
 flutter test "$probe" \
   --reporter expanded \
   --file-reporter "json:$report"
-
+flutter_status=$?
 python3 tool/require_flutter_test_report.py \
   --report "$report" \
   --min-passed 1 \
   --forbid-skip \
   --require-name 'actual OS partial append followed by retry preserves attempt'
+report_status=$?
+set -e
+if ((flutter_status != 0 || report_status != 0)); then
+  exit 1
+fi

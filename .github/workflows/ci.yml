@@ -239,15 +239,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # API 34 google_apis userdata asked for 7372 MB; the ubuntu runner had
+      # 5789 MB free and the emulator died before adb ever saw a device.
+      # API 29 AOSP + a 2G disk is enough for bootstrap/nav and fits the runner.
       - name: Android emulator integration tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 34
+          api-level: 29
           arch: x86_64
-          target: google_apis
+          target: default
           force-avd-creation: true
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          ram-size: 2048
+          disk-size: 2048M
+          sdcard-path-or-size: 64M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-metrics
           script: bash tool/run_android_integration.sh
 
       - name: Retain Android integration report

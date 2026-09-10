@@ -45,11 +45,12 @@ dump_logcat() {
 }
 trap dump_logcat EXIT
 
+set +e
 flutter test "$suite" \
   --device-id "$serial" \
   --reporter expanded \
   --file-reporter "json:$report"
-
+flutter_status=$?
 python3 tool/require_flutter_test_report.py \
   --report "$report" \
   --min-passed 3 \
@@ -57,3 +58,8 @@ python3 tool/require_flutter_test_report.py \
   --require-name 'app launches and the home screen renders without crashing' \
   --require-name 'real navigation: home → lessons → study a row → reach its test' \
   --require-name 'real navigation: the 五十音図 grid renders the full row span'
+report_status=$?
+set -e
+if ((flutter_status != 0 || report_status != 0)); then
+  exit 1
+fi
