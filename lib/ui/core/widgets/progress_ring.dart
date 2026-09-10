@@ -37,26 +37,32 @@ class ProgressRing extends StatelessWidget {
           child: CustomPaint(
             painter: _RingPainter(value: v, color: color),
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    centerLabel,
-                    style: TextStyle(
-                      fontSize: size * 0.26,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                  if (caption != null)
-                    Text(
-                      caption!,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.inkMuted,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        centerLabel,
+                        style: TextStyle(
+                          fontSize: size * 0.26,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
                       ),
-                    ),
-                ],
+                      if (caption != null)
+                        Text(
+                          caption!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

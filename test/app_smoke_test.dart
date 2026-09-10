@@ -73,6 +73,7 @@ void main() {
     await pumpApp(tester);
     expect(find.text(AppStrings.appTitle), findsOneWidget);
     // Cold start: primary CTA is "start learning"; review entries are gated.
+    expect(find.text(AppStrings.learnNewKanaAction), findsOneWidget);
     expect(find.text(AppStrings.continueLearning), findsOneWidget);
     expect(find.text(AppStrings.learnHiragana), findsOneWidget);
     expect(find.text(AppStrings.progress), findsOneWidget);
@@ -87,6 +88,8 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, seedLearned: true);
+    expect(find.text(AppStrings.reviewKanaAction), findsOneWidget);
+    expect(find.text(AppStrings.quietPracticeAction), findsOneWidget);
 
     await tester.tap(find.text(AppStrings.confusableEntry));
     await tester.pumpAndSettle();
