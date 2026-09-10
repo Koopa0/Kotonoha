@@ -90,6 +90,26 @@ void main() {
     await _openDailyAndExpectOptions(tester, optionCount: 4);
     _expectDailyTargetsLearned(tester, repos.kana);
   });
+
+  testWidgets('due ん plus undued ワ does not pin Home on daily', (tester) async {
+    final repos = await _pumpApp(tester);
+    await _passRow(tester, title: 'ん', encodeCards: 1);
+    await _passRow(tester, title: 'ワ行', encodeCards: 2);
+    final n = repos.kana.allKana.firstWhere((k) => k.character == 'ん');
+    await repos.kana.recordAnswer(
+      n,
+      correct: false,
+      at: DateTime.now().subtract(const Duration(hours: 1)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.guidanceLearnMore), findsOneWidget);
+    expect(find.text(AppStrings.guidanceReview(1)), findsNothing);
+    expect(find.text(AppStrings.learnNewKanaAction), findsOneWidget);
+    // ワ／ヲ can still open a real MCQ; the next-step line must not claim
+    // an uncleared ん review.
+    expect(find.text(AppStrings.reviewKanaAction), findsOneWidget);
+  });
 }
 
 Future<

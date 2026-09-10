@@ -59,6 +59,7 @@ abstract final class DailySession {
     final targets = <Kana>[];
     void addAll(Iterable<Kana> ks) {
       for (final k in ks) {
+        if (!canComposeItem(k, pool, stats: stats, now: now)) continue;
         if (seen.add(k.id)) targets.add(k);
       }
     }
@@ -92,8 +93,8 @@ abstract final class DailySession {
         _distractors(t, pool, engine.optionCount, rng),
         rng,
       );
-      // Forced-correct MCQ (lone valid option) is not a review. kanaRecall
-      // has empty options on purpose and must still board.
+      // Belt: a lone-option MCQ is not a review. kanaRecall keeps empty
+      // options on purpose and is never [QuizQuestion.isForcedCorrect].
       if (question.isForcedCorrect) continue;
       items.add(SessionItem(question: question, mode: PracticeMode.daily));
     }
@@ -109,6 +110,25 @@ abstract final class DailySession {
         k.script == target.script,
   );
 
+  /// Whether [target] can appear as a Daily item in [pool].
+  ///
+  /// Two different paths: a strong-fast review may be unprompted
+  /// [QuizDirection.kanaRecall] even as a singleton; otherwise the item
+  /// needs a discriminating MCQ foil. A due ん next to an undued ワ is
+  /// not composable as MCQ and must not count as a review.
+  static bool canComposeItem(
+    Kana target,
+    List<Kana> pool, {
+    Map<String, KanaStat> stats = const {},
+    DateTime? now,
+  }) {
+    if (now != null &&
+        readyForRecall(stats[target.id] ?? const KanaStat(), now: now)) {
+      return true;
+    }
+    return canDiscriminate(target, pool);
+  }
+
   /// True when today's session can actually compose an item from [pool]:
   /// either a discriminating MCQ, or an unprompted [QuizDirection.kanaRecall]
   /// for a strong-fast review. Home and Guidance use the *learned* set —
@@ -117,13 +137,7 @@ abstract final class DailySession {
     List<Kana> pool, {
     Map<String, KanaStat> stats = const {},
     DateTime? now,
-  }) {
-    if (pool.any((t) => canDiscriminate(t, pool))) return true;
-    if (now == null) return false;
-    return pool.any(
-      (t) => readyForRecall(stats[t.id] ?? const KanaStat(), now: now),
-    );
-  }
+  }) => pool.any((t) => canComposeItem(t, pool, stats: stats, now: now));
 
   /// Remaining slots prefer long-uncovered kana (oldest lastReviewedAt;
   /// never-reviewed first). Equal timestamps are shuffled so gojūon order

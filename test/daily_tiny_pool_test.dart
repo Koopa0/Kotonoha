@@ -41,6 +41,11 @@ void main() {
       DailySession.isReady([..._unit('hira_row_10'), ..._unit('kata_row_10')]),
       isFalse,
     );
+    final n = _unit('hira_row_10').single;
+    final wa = _unit('kata_row_9');
+    expect(DailySession.canComposeItem(n, [n, ...wa]), isFalse);
+    expect(DailySession.canDiscriminate(n, [n, ...wa]), isFalse);
+    expect(DailySession.canComposeItem(wa.first, [n, ...wa]), isTrue);
   });
 
   test('compose: ん／ン yield no Daily items; わ=2, や=3, あ=4', () async {
@@ -261,6 +266,101 @@ void main() {
     expect(store.statFor(n).dueAt, hintedBefore.dueAt);
     expect(store.statFor(n).srsLevel, hintedBefore.srsLevel);
   });
+
+  test('guidance: due ん with undued ワ row is not stuck on daily', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KanaProgressRepository.load();
+    await store.markUnitLearned('hira_row_10');
+    await store.markUnitLearned('kata_row_9');
+    for (final k in [..._unit('hira_row_10'), ..._unit('kata_row_9')]) {
+      await store.recordAnswer(k, correct: true, at: now, latencyMs: 400);
+      await store.recordAnswer(k, correct: true, at: now, latencyMs: 400);
+    }
+    final n = store.allKana.firstWhere((k) => k.character == 'ん');
+    await store.recordAnswer(
+      n,
+      correct: false,
+      at: now.subtract(const Duration(hours: 1)),
+    );
+
+    final learned = StudySet.learned(store);
+    expect(
+      DailySession.canComposeItem(n, learned, stats: store.stats, now: now),
+      isFalse,
+    );
+    final step = Guidance.nextStep(store, now: now);
+    expect(step.target, GuidanceTarget.lessons);
+    expect(step.dueCount, 0);
+    expect(step.target, isNot(GuidanceTarget.daily));
+
+    final items = DailySession.compose(
+      pool: learned,
+      stats: store.stats,
+      newCandidates: const [],
+      now: now,
+      rng: Random(1),
+    );
+    expect(items, isNotEmpty);
+    expect(items.every((i) => i.question.target.character != 'ん'), isTrue);
+    expect(
+      items.every((i) => i.question.target.script == KanaScript.katakana),
+      isTrue,
+    );
+
+    // Answering the only composable items must not keep Guidance on daily.
+    for (final item in items) {
+      await store.recordAnswer(
+        item.question.target,
+        correct: true,
+        at: now.add(const Duration(minutes: 5)),
+        latencyMs: 400,
+      );
+    }
+    expect(Guidance.nextStep(store, now: now).target, GuidanceTarget.lessons);
+  });
+
+  test(
+    'guidance: due strong-fast singleton ん still opens daily via kanaRecall',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = await KanaProgressRepository.load();
+      await store.markUnitLearned('hira_row_10');
+      final n = store.allKana.firstWhere((k) => k.character == 'ん');
+      var at = now.subtract(const Duration(days: 8));
+      for (var i = 0; i < 3; i++) {
+        await store.recordAnswer(n, correct: true, at: at, latencyMs: 500);
+        at = at.add(const Duration(minutes: 1));
+      }
+      expect(DailySession.readyForRecall(store.statFor(n), now: now), isTrue);
+      expect(
+        DailySession.canComposeItem(
+          n,
+          StudySet.learned(store),
+          stats: store.stats,
+          now: now,
+        ),
+        isTrue,
+      );
+      final dueAt = store.statFor(n).dueAt;
+      expect(dueAt, isNotNull);
+      expect(!dueAt!.isAfter(now), isTrue);
+
+      final step = Guidance.nextStep(store, now: now);
+      expect(step.target, GuidanceTarget.daily);
+      expect(step.dueCount, 1);
+
+      final items = DailySession.compose(
+        pool: StudySet.learned(store),
+        stats: store.stats,
+        newCandidates: const [],
+        now: now,
+        rng: Random(1),
+      );
+      expect(items, isNotEmpty);
+      expect(items.single.question.direction, QuizDirection.kanaRecall);
+      expect(items.single.question.options, isEmpty);
+    },
+  );
 
   test('guidance: due あ行 still opens 今日の稽古', () async {
     final store = await _afterRowPass('hira_row_0', now);

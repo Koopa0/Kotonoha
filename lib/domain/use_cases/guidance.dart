@@ -187,10 +187,12 @@ abstract final class Guidance {
   /// sentences → mixed sentences → kanji), which only matters on a cold start
   /// where every track is equally untouched.
   ///
-  /// "Due" for kana reuses [StudySet.reviewPool] + [Scheduler] so it never
-  /// diverges from what 今日の稽古 itself draws on; each reading track's
-  /// standing arrives as a [TrackDue] summary computed by the caller from the
-  /// same repositories its sessions draw on.
+  /// "Due" for kana is the learned set filtered by
+  /// [DailySession.canComposeItem] — the same gate compose uses — so a due ん
+  /// with no same-script foil cannot pin Guidance on 今日の稽古 while the
+  /// session only serves an undued ワ. Each reading track's standing arrives
+  /// as a [TrackDue] summary computed by the caller from the same
+  /// repositories its sessions draw on.
   static GuidanceStep nextStep(
     KanaProgressRepository store, {
     required DateTime now,
@@ -203,21 +205,22 @@ abstract final class Guidance {
     if (store.learnedUnitCount == 0) {
       return const GuidanceStep(GuidanceTarget.lessons);
     }
-    // B — kana reviews take priority over everything else, but only when
-    // the learned pool can actually discriminate (a lone ん is due after
-    // its row test; sending that learner to 今日の稽古 would be a
-    // forced-correct tap, not a review).
-    final due = Scheduler.dueCount(
-      StudySet.reviewPool(store),
-      store.stats,
-      now: now,
-    );
-    if (due > 0 &&
-        DailySession.isReady(
-          StudySet.learned(store),
-          stats: store.stats,
-          now: now,
-        )) {
+    // B — kana reviews take priority, but only for targets compose can
+    // actually serve: a discriminating MCQ, or a strong-fast kanaRecall.
+    // A due singleton ん next to an undued ワ must not pin this branch
+    // (the session would skip ん and never clear the due count).
+    final learned = StudySet.learned(store);
+    final due = Scheduler.due(learned, store.stats, now: now)
+        .where(
+          (k) => DailySession.canComposeItem(
+            k,
+            learned,
+            stats: store.stats,
+            now: now,
+          ),
+        )
+        .length;
+    if (due > 0) {
       return GuidanceStep(GuidanceTarget.daily, dueCount: due);
     }
     // C — caught up, but there is still a row left to learn.
