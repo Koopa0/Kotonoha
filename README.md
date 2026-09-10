@@ -6,29 +6,41 @@
 
 **English** · [繁體中文](README.zh-TW.md) · [日本語](README.JP.md)
 
-> やまとうたは、人の心を種として、よろづの言の葉とぞなれりける。
+A Japanese reading practice app for Traditional Chinese readers. Build familiarity
+with hiragana and katakana, then practise words, short sentences, and kanji readings.
+Short sessions, a quiet interface, and no scores, streaks, or rewards to chase.
 
----
+## Practice
 
-言の葉 (_kotonoha_) means "leaves of words." The line above opens Ki no Tsurayuki's
-preface to the _Kokin Wakashū_ (c. 905): Japanese poetry takes the human heart as
-its seed and grows into the myriad leaves of words. Language, in this view, is not
-built or forged — it grows, the way a flowering follows from a seed. That is what
-this app is for: not to drill a language, but to help a few leaves grow.
+- **手解き — Learn kana.** Meet 208 hiragana and katakana learning units, including
+  voiced sounds, semi-voiced sounds, and contracted sounds, one row at a time.
+- **今日の稽古 — Review kana.** Practise kana already introduced, with questions
+  selected from your learning history. Learn new kana in 手解き.
+- **目利き — Distinguish similar kana.** Practise look-alikes such as シ／ツ and
+  ね／れ／わ.
+- **手習い — Recall on paper.** Write the prompted kana in your notebook, reveal
+  the answer, and check it yourself.
+- **五十音図 — Browse kana.** Look up kana and listen to their pronunciation.
+- **渡し舟 — Meet words.** Hear a word, reveal its kana, and read it back.
+- **文字起こし — Word dictation.** Listen and assemble the word from kana tiles.
+- **黙読 — Read short phrases.** Read first, then reveal the reading and meaning.
+- **漢字の声 — Practise kanji readings.** Learn and recall readings drawn from the
+  app's words and sentences.
+- **名残の仮名 — Read kanji sentences.** Practise mixed-script sentences, with
+  furigana that fades as the associated readings become familiar.
+- **歩み — View progress.** See kana coverage, current learning status, and recurring
+  kana mix-ups when enough practice evidence is available.
 
-So it is unhurried, and it is for **reading**. In a quiet few minutes a day it
-builds the reflex from glyph to sound across all 208 hiragana and katakana, then
-carries you into small words, short sentences, and a first taste of kanji
-readings. No streaks, no badges, no XP, no mascots, no confetti — just you, the
-kana, and a notebook-quiet space: celadon green on washi paper, the calm of a
-garden after rain. Built with Flutter, it runs entirely on your device and asks
-for no account.
+## Audio and local data
 
-There is an older weight to the name, too. In archaic Japanese 言 (_koto_, "word")
-and 事 (_koto_, "thing") were one sound — to say a thing was, in a way, to touch
-it — the root of 言霊, the spirit that lives in words. And leaves fall: speech,
-like a leaf, has its season. That quiet _mono no aware_ is the mood the whole app
-is tuned to.
+Pronunciation uses the device's Japanese text-to-speech (TTS) engine. Voice
+availability and offline playback depend on the installed voices.
+
+Progress and practice logs are stored on the device. No account or ads.
+
+## Platforms
+
+Built with Flutter for Android and iOS.
 
 ## Screenshots
 
@@ -38,55 +50,6 @@ is tuned to.
 |           **黙読 (sentences)**           |              **漢字の声 (kanji)**              |           **名残の仮名 (kanji sentences)**           |            **歩み (progress)**             |
 | ![Sentence](screenshots/06-sentence.png) |       ![Kanji](screenshots/05-kanji.png)       | ![Kanji sentence](screenshots/07-kanji-sentence.png) |  ![Progress](screenshots/04-progress.png)  |
 
-## How a day looks
-
-Open the app and tap **今日の稽古** ("today's practice") — one adaptive run that
-automatically mixes what's due for review, what you've been weak on, and a little
-that's new. There's nothing to configure; you just begin. A couple of minutes
-later, the session settles into 凪 (_nagi_) — a still, wordless close.
-
-## What's inside
-
-Each practice carries a quiet Japanese name; the app tells you plainly what each
-one does.
-
-- **手解き — Learn the kana.** All 208 hiragana and katakana, including dakuten,
-  handakuten, and yōon, taught a row at a time.
-- **今日の稽古 — Today's practice.** A single adaptive session composed from your
-  own data, so you never have to choose a mode.
-- **渡し舟 — The Ferry.** For an ear that runs ahead of the eye: hear a word, watch
-  its kana ink in over the still-ringing audio, then read it back. Sound is
-  ferried across to its written shape.
-- **文字起こし — Dictation.** Hear a word and assemble it from kana tiles — the
-  production rep that recognition alone can't give you.
-- **黙読 — Sentence reading.** Read a short phrase silently, then reveal the
-  reading, the meaning, and the audio.
-- **目利き — Look-alike drill.** Targeted practice for the kana that are easy to
-  confuse (シ / ツ, ね / れ / わ, …).
-- **手習い — Paper handwriting.** Pairs with a physical practice book: see a
-  prompt, write it on paper, reveal, and self-grade. (No on-screen recognition —
-  paper only.)
-- **漢字の声 — Kanji readings.** Give a kanji its Japanese voice: recall the
-  on'yomi / kun'yomi reading from a cue.
-- **名残の仮名 — Kanji sentences.** Read real sentences written with kanji and
-  furigana — and the furigana quietly fades as each reading matures.
-- **五十音図 — The chart.** Browse the whole syllabary; tap any kana for detail.
-- **歩み & 自画像 — Quiet reflection.** See how far you've come and a gentle
-  self-portrait of which kana you confuse and how your reading speed is settling —
-  without a single guilt-trip.
-
-Every kana, word, and sentence can be tapped to hear it in native Japanese
-text-to-speech.
-
-## Private by design
-
-No account, no network, no ads. Everything — your progress, your practice log —
-stays on your device.
-
-## Platforms
-
-Built with Flutter for **Android** and **iOS**.
-
 ## License
 
-[MIT](LICENSE) · © 2026 Koopa
+App: [MIT](LICENSE) · © 2026 Koopa. Klee One font: [SIL OFL 1.1](assets/fonts/OFL.txt).

@@ -18,6 +18,7 @@ class KanaStat {
     this.correctCount = 0,
     this.wrongCount = 0,
     this.lastReviewedAt,
+    this.lastMistakeAt,
     this.srsLevel = 0,
     this.dueAt,
     this.avgLatencyMs = 0,
@@ -26,6 +27,7 @@ class KanaStat {
 
   factory KanaStat.fromJson(Map<String, dynamic> json) {
     final int? millis = (json['l'] as num?)?.toInt();
+    final int? mistakeMillis = (json['lm'] as num?)?.toInt();
     final int? dueMillis = (json['d'] as num?)?.toInt();
     // Counts, level and latency moments are clamped, not trusted: one corrupt
     // persisted entry must never crash the interval lookup or the CV math.
@@ -37,6 +39,13 @@ class KanaStat {
       lastReviewedAt: millis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(millis),
+      // Absent [lm] is left null on purpose: old saves have wrongCount without
+      // a mistake clock, and inventing one from lastReviewedAt would treat a
+      // later correct as a fresh error. Weakness recency stays 0 until a new
+      // wrong answer writes a real timestamp.
+      lastMistakeAt: mistakeMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(mistakeMillis),
       srsLevel: ((json['sl'] as num?)?.toInt() ?? 0).clamp(
         0,
         _intervalsMinutes.length - 1,
@@ -53,6 +62,11 @@ class KanaStat {
   final int correctCount;
   final int wrongCount;
   final DateTime? lastReviewedAt;
+
+  /// When this kana was last answered *wrong*. Independent of
+  /// [lastReviewedAt], which also moves on a correct answer. Null on legacy
+  /// data that predates the field — never backfilled from review time.
+  final DateTime? lastMistakeAt;
 
   /// Lightweight spaced-repetition level (0 = new/just-missed). Drives [dueAt].
   final int srsLevel;
@@ -174,6 +188,7 @@ class KanaStat {
       correctCount: correctCount + (correct ? 1 : 0),
       wrongCount: wrongCount + (correct ? 0 : 1),
       lastReviewedAt: at,
+      lastMistakeAt: correct ? lastMistakeAt : at,
       srsLevel: nextLevel,
       dueAt: at.add(Duration(minutes: mins)),
       avgLatencyMs: nextAvgLatency,
@@ -195,6 +210,7 @@ class KanaStat {
     'c': correctCount,
     'w': wrongCount,
     if (lastReviewedAt != null) 'l': lastReviewedAt!.millisecondsSinceEpoch,
+    if (lastMistakeAt != null) 'lm': lastMistakeAt!.millisecondsSinceEpoch,
     // New fields are omitted at defaults so old kana_stats_v1 stays valid.
     if (srsLevel != 0) 'sl': srsLevel,
     if (dueAt != null) 'd': dueAt!.millisecondsSinceEpoch,

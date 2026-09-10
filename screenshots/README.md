@@ -13,7 +13,7 @@ flutter drive --driver=test_driver/screenshot.dart \
 | `01-home.png` | Home — 言の葉 wordmark, progress ring, 今日の稽古 |
 | `02-session.png` | A question inside 今日の稽古 (the adaptive session) |
 | `03-dictation.png` | 文字起こし — assemble the heard word from kana tiles |
-| `04-progress.png` | 歩み — accuracy + per-kana status |
+| `04-progress.png` | 歩み — coverage + per-kana status |
 | `05-kanji.png` | 漢字の声 — a kanji reading revealed |
 | `06-sentence.png` | 黙読 — a short phrase revealed |
 | `07-kanji-sentence.png` | 名残の仮名 — a kanji sentence with fading furigana |

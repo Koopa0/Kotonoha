@@ -29,6 +29,8 @@ class QuizScreen extends StatefulWidget {
     super.key,
     this.lesson,
     this.onAgain,
+    this.clock,
+    this.monotonicMs,
   });
 
   final List<SessionItem> items;
@@ -40,6 +42,11 @@ class QuizScreen extends StatefulWidget {
   /// Forwarded to the result screen as the "再来一回" action (repeatable drills
   /// only). Null for lessons / one-shot pools.
   final VoidCallback? onAgain;
+
+  /// Optional clock / monotonic elapsed for tests. Production leaves both
+  /// null so the view-model uses [DateTime.now] and [Stopwatch].
+  final DateTime Function()? clock;
+  final int Function()? monotonicMs;
 
   /// Single-mode session: wrap each question with the given [mode].
   static Route<void> route({
@@ -80,9 +87,11 @@ class QuizScreen extends StatefulWidget {
 
 class _QuizScreenState extends State<QuizScreen> {
   late final QuizViewModel _vm;
+  late final AppLifecycleListener _lifecycle;
   Timer? _advanceTimer;
   bool _navigated = false;
   int _spokenIndex = -1;
+  bool _answerable = true;
 
   /// True when the CURRENT question is listening (sound → kana). Per-item, so an
   /// adaptive session can have listening questions mixed in.
@@ -100,7 +109,16 @@ class _QuizScreenState extends State<QuizScreen> {
       persistence: context.read<ProgressPersistenceController>(),
       analytics: context.read<AnalyticsLog>(),
       sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      clock: widget.clock,
+      monotonicMs: widget.monotonicMs,
     )..addListener(_onChanged);
+    _lifecycle = AppLifecycleListener(
+      onInactive: _onUnanswerable,
+      onHide: _onUnanswerable,
+      onPause: _onUnanswerable,
+      onDetach: _onUnanswerable,
+      onResume: _onResumed,
+    );
     if (_isListening) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _spokenIndex = _vm.index;
@@ -109,12 +127,25 @@ class _QuizScreenState extends State<QuizScreen> {
     }
   }
 
+  void _onUnanswerable() {
+    _answerable = false;
+    _vm.noteUnanswerable();
+  }
+
+  void _onResumed() {
+    _answerable = true;
+  }
+
   void _speakCurrent() {
     if (!mounted) return;
     context.read<SpeechService>().speak(_vm.current.target.character);
   }
 
   void _onChanged() {
+    // Advance while still backgrounded must not arm a fresh fluency clock.
+    if (!_answerable) {
+      _vm.noteUnanswerable();
+    }
     if (_vm.isFinished) {
       _goToResults();
       return;
@@ -155,6 +186,7 @@ class _QuizScreenState extends State<QuizScreen> {
   @override
   void dispose() {
     _advanceTimer?.cancel();
+    _lifecycle.dispose();
     _vm.removeListener(_onChanged);
     _vm.dispose();
     super.dispose();

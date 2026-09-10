@@ -144,13 +144,16 @@ class ProgressSnapshotCodec {
   };
 
   /// The complete set of wire field names either stat may carry. Kana uses
-  /// `al`/`vl` (timed RT/CVRT); kanji tolerates them as retired legacy fields
-  /// and ignores them when building its model. Any other field is rejected.
+  /// `al`/`vl` (timed RT/CVRT) and `lm` (last mistake, independent of
+  /// lastReviewed). Kanji tolerates the timed/mistake fields as unknown-to-it
+  /// extras and ignores them when building its model. Any other field is
+  /// rejected.
   static const Set<String> _statFields = {
     's',
     'c',
     'w',
     'l',
+    'lm',
     'sl',
     'd',
     'al',
@@ -424,6 +427,7 @@ class ProgressSnapshotCodec {
     final al = (raw['al'] as int?) ?? 0;
     final vl = (raw['vl'] as int?) ?? 0;
     final l = raw['l'] as int?;
+    final lm = raw['lm'] as int?;
     final d = raw['d'] as int?;
 
     if (s < 0 || c < 0 || w < 0 || al < 0 || vl < 0) {
@@ -435,6 +439,9 @@ class ProgressSnapshotCodec {
     if (c > s || w > s - c) return 'correct + wrong exceeds seen on "$id"';
     if (l != null && !_epochInRange(l)) {
       return 'lastReviewed timestamp out of range on "$id"';
+    }
+    if (lm != null && !_epochInRange(lm)) {
+      return 'lastMistake timestamp out of range on "$id"';
     }
     if (d != null && !_epochInRange(d)) {
       return 'due timestamp out of range on "$id"';
