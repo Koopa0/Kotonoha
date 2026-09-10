@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 
@@ -49,5 +50,41 @@ void main() {
     for (final q in s) {
       expect(memberIds.contains(q.target.id), isTrue);
     }
+  });
+
+  test('first-row learned pool never targets unlearned kana', () {
+    final learned = all.take(5).toList(); // あいうえお
+    final learnedIds = learned.map((k) => k.id).toSet();
+    expect(Confusable.isReady(learned), isTrue);
+    final s = Confusable.session(
+      allKana: learned,
+      length: 12,
+      engine: engine,
+      rng: Random(0),
+    );
+    expect(s, isNotEmpty);
+    for (final q in s) {
+      expect(learnedIds.contains(q.target.id), isTrue);
+      expect(q.options.length, 4);
+      if (q.direction == QuizDirection.romajiToKana) {
+        for (final o in q.options) {
+          expect(learnedIds.contains(o), isTrue);
+        }
+      }
+    }
+  });
+
+  test('too-small learned pool is not ready and composes nothing', () {
+    final onlyA = all.take(1).toList();
+    expect(Confusable.isReady(onlyA), isFalse);
+    expect(
+      Confusable.session(
+        allKana: onlyA,
+        length: 12,
+        engine: engine,
+        rng: Random(1),
+      ),
+      isEmpty,
+    );
   });
 }

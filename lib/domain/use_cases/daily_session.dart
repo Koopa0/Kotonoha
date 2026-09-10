@@ -38,25 +38,42 @@ abstract final class DailySession {
   }) {
     if (pool.isEmpty && newCandidates.isEmpty) return const [];
 
+    // Explicit priority — due / real-weak / new / long-uncovered.
+    // [Weakness.isActionable] (not raw score > 0) so a recovered 1/N
+    // historical miss cannot lock the weak quota by gojūon order.
+    //
+    // Due-vs-not-due leftover fill is coverage-ordered, not a hard
+    // "never pick not-due while due remains" rule. Remaining due often
+    // win that fill because they tend to be older; exclusive-due fill
+    // is a product choice left open.
     final due = Scheduler.due(pool, stats, now: now).take(kDue);
-    final weak = Weakness.weakest(
-      pool,
-      stats,
-      now: now,
-      count: kWeak,
-    ).where((k) => stats[k.id]?.isSeen ?? false);
+    final weak = Weakness.rankByWeakness(pool, stats, now: now)
+        .where(
+          (k) =>
+              Weakness.isActionable(stats[k.id] ?? const KanaStat(), now: now),
+        )
+        .take(kWeak);
     final neu = newCandidates.take(kNew);
 
     final seen = <String>{};
     final targets = <Kana>[];
-    for (final k in [...due, ...weak, ...neu]) {
-      if (seen.add(k.id)) targets.add(k);
+    void addAll(Iterable<Kana> ks) {
+      for (final k in ks) {
+        if (seen.add(k.id)) targets.add(k);
+      }
     }
-    // Fill the rest from the pool.
-    for (final k in List<Kana>.of(pool)..shuffle(rng)) {
-      if (targets.length >= length) break;
-      if (seen.add(k.id)) targets.add(k);
-    }
+
+    addAll(due);
+    addAll(weak);
+    addAll(neu);
+    addAll(
+      _coverageFill(
+        pool.where((k) => !seen.contains(k.id)).toList(),
+        stats,
+        rng,
+        length - targets.length,
+      ),
+    );
     targets.shuffle(rng);
 
     final newIds = neu.map((k) => k.id).toSet();
@@ -77,6 +94,34 @@ abstract final class DailySession {
           mode: PracticeMode.daily,
         ),
     ];
+  }
+
+  /// Remaining slots prefer long-uncovered kana (oldest lastReviewedAt;
+  /// never-reviewed first). Equal timestamps are shuffled so gojūon order
+  /// cannot lock the same four strong items. Recent-correct therefore land
+  /// last among the fill, not in the weak quota.
+  static List<Kana> _coverageFill(
+    List<Kana> candidates,
+    Map<String, KanaStat> stats,
+    Random rng,
+    int want,
+  ) {
+    if (want <= 0 || candidates.isEmpty) return const [];
+    final buckets = <int, List<Kana>>{};
+    for (final k in candidates) {
+      final t = stats[k.id]?.lastReviewedAt?.millisecondsSinceEpoch ?? -1;
+      buckets.putIfAbsent(t, () => []).add(k);
+    }
+    final keys = buckets.keys.toList()..sort();
+    final out = <Kana>[];
+    for (final key in keys) {
+      final group = buckets[key]!..shuffle(rng);
+      for (final k in group) {
+        out.add(k);
+        if (out.length >= want) return out;
+      }
+    }
+    return out;
   }
 
   /// Distractors that lean on the target's look-alike group, so a review can't

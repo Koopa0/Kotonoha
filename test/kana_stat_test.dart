@@ -30,6 +30,27 @@ void main() {
     expect(back.srsLevel, s.srsLevel);
     expect(back.dueAt, s.dueAt);
     expect(back.lastReviewedAt, s.lastReviewedAt);
+    expect(back.lastMistakeAt, s.lastMistakeAt);
+  });
+
+  test('recordAnswer keeps lastMistakeAt on correct, sets it on wrong', () {
+    final missed = const KanaStat().recordAnswer(correct: false, at: now);
+    expect(missed.lastMistakeAt, now);
+    final later = now.add(const Duration(days: 1));
+    final recovered = missed.recordAnswer(
+      correct: true,
+      at: later,
+      latencyMs: 500,
+    );
+    expect(recovered.lastReviewedAt, later);
+    expect(recovered.lastMistakeAt, now);
+  });
+
+  test('old JSON without lastMistakeAt does not invent one', () {
+    final old = {'s': 100, 'c': 99, 'w': 1, 'l': now.millisecondsSinceEpoch};
+    final s = KanaStat.fromJson(old);
+    expect(s.wrongCount, 1);
+    expect(s.lastMistakeAt, isNull);
   });
 
   test(

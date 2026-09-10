@@ -44,18 +44,60 @@ void main() {
         seenCount: 4,
         correctCount: 2,
         wrongCount: 2,
-        lastReviewedAt: now.subtract(const Duration(hours: 1)),
+        lastReviewedAt: now,
+        lastMistakeAt: now.subtract(const Duration(hours: 1)),
       );
       final old = KanaStat(
         seenCount: 4,
         correctCount: 2,
         wrongCount: 2,
-        lastReviewedAt: now.subtract(const Duration(days: 30)),
+        lastReviewedAt: now,
+        lastMistakeAt: now.subtract(const Duration(days: 30)),
       );
       expect(
         Weakness.score(recent, now: now),
         greaterThan(Weakness.score(old, now: now)),
       );
+    });
+
+    test('a later correct fast answer does not revive an old mistake', () {
+      final old = KanaStat(
+        seenCount: 100,
+        correctCount: 99,
+        wrongCount: 1,
+        lastReviewedAt: now.subtract(const Duration(days: 30)),
+        lastMistakeAt: now.subtract(const Duration(days: 30)),
+        avgLatencyMs: 500,
+        srsLevel: 6,
+        dueAt: now,
+      );
+      final before = Weakness.score(old, now: now);
+      final after = old.recordAnswer(correct: true, at: now, latencyMs: 500);
+      expect(after.lastMistakeAt, old.lastMistakeAt);
+      expect(Weakness.score(after, now: now), lessThanOrEqualTo(before));
+    });
+
+    test('legacy wrongCount without lastMistakeAt gets no recency boost', () {
+      final legacy = KanaStat(
+        seenCount: 100,
+        correctCount: 99,
+        wrongCount: 1,
+        lastReviewedAt: now,
+        avgLatencyMs: 500,
+        srsLevel: 6,
+      );
+      // 0.7 * 0.01 + 0 recency + 0 slowness. Must not treat lastReviewedAt
+      // as a fresh mistake.
+      expect(Weakness.score(legacy, now: now), closeTo(0.007, 0.0001));
+    });
+
+    test('a new wrong answer still gets full recency', () {
+      final missed = const KanaStat(
+        seenCount: 10,
+        correctCount: 10,
+      ).recordAnswer(correct: false, at: now);
+      expect(missed.lastMistakeAt, now);
+      expect(Weakness.score(missed, now: now), greaterThan(0.3));
     });
 
     test('a well-known kana scores below the unseen baseline', () {
@@ -118,5 +160,80 @@ void main() {
       expect(top.length, 5);
       expect(top.first.character, 'か');
     });
+  });
+
+  group('Weakness.isActionable', () {
+    test(
+      'legacy 1/1000 miss is scored above 0 but is not a weak-slot claim',
+      () {
+        final recovered = KanaStat(
+          seenCount: 1000,
+          correctCount: 999,
+          wrongCount: 1,
+          lastReviewedAt: now.subtract(const Duration(days: 1)),
+          avgLatencyMs: 500,
+          srsLevel: 6,
+          dueAt: now.add(const Duration(days: 30)),
+        );
+        expect(Weakness.score(recovered, now: now), greaterThan(0));
+        expect(Weakness.isActionable(recovered, now: now), isFalse);
+      },
+    );
+
+    test('a year-old dated miss does not stay actionable after recovery', () {
+      final old = KanaStat(
+        seenCount: 1000,
+        correctCount: 999,
+        wrongCount: 1,
+        lastReviewedAt: now.subtract(const Duration(days: 1)),
+        lastMistakeAt: now.subtract(const Duration(days: 365)),
+        avgLatencyMs: 500,
+        srsLevel: 6,
+        dueAt: now.add(const Duration(days: 30)),
+      );
+      expect(Weakness.score(old, now: now), greaterThan(0));
+      expect(Weakness.isActionable(old, now: now), isFalse);
+    });
+
+    test('a dated miss within recentMistakeDays still claims a weak slot', () {
+      final recent = KanaStat(
+        seenCount: 1000,
+        correctCount: 999,
+        wrongCount: 1,
+        lastReviewedAt: now,
+        lastMistakeAt: now.subtract(const Duration(hours: 3)),
+        avgLatencyMs: 500,
+        srsLevel: 6,
+        dueAt: now.add(const Duration(days: 30)),
+      );
+      expect(Weakness.isActionable(recent, now: now), isTrue);
+    });
+
+    test('slow reading stays actionable even with a tiny historical miss', () {
+      final slow = KanaStat(
+        seenCount: 1000,
+        correctCount: 999,
+        wrongCount: 1,
+        lastReviewedAt: now.subtract(const Duration(days: 1)),
+        avgLatencyMs: 1400,
+        srsLevel: 6,
+        dueAt: now.add(const Duration(days: 30)),
+      );
+      expect(Weakness.isActionable(slow, now: now), isTrue);
+    });
+
+    test(
+      'a still-learning error rate stays actionable without lastMistakeAt',
+      () {
+        final learning = KanaStat(
+          seenCount: 10,
+          correctCount: 6,
+          wrongCount: 4,
+          lastReviewedAt: now,
+          avgLatencyMs: 500,
+        );
+        expect(Weakness.isActionable(learning, now: now), isTrue);
+      },
+    );
   });
 }
