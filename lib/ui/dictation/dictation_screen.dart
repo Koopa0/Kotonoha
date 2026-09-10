@@ -211,113 +211,151 @@ class _DictationScreenState extends State<DictationScreen> {
 
   Widget _question() {
     final target = _targetChars;
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        Text(
-          AppStrings.itemProgress(_index + 1, widget.words.length),
-          style: const TextStyle(
-            color: AppColors.inkMuted,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 24),
-        SpeakButton(text: _current.kana, prominent: true, size: 40),
-        const SizedBox(height: 8),
-        const Text(
-          AppStrings.dictationPrompt,
-          style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
-        ),
-        const SizedBox(height: 28),
-        // Answer slots.
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var i = 0; i < target.length; i++)
-              _Slot(
-                char: i < _picked.length ? _tiles[_picked[i]] : null,
-                state: !_checked
-                    ? _SlotState.building
-                    : (_wasCorrect ? _SlotState.right : _SlotState.wrong),
-              ),
-          ],
-        ),
-        const Spacer(),
-        if (!_checked)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (var i = 0; i < _tiles.length; i++)
-                  if (!_used[i])
-                    _Tile(label: _tiles[i], onTap: () => _tapTile(i)),
-              ],
-            ),
-          )
-        else
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // The same identity block the reading & ferry reveals show. On a
-              // miss, lead with the answer's kana; romaji + meaning follow.
-              if (!_wasCorrect) ...[
-                Text(
-                  _current.kana,
-                  style: const TextStyle(
-                    fontSize: 34,
-                    height: 1.1,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.ink,
+    // Slots wrap when a word's units exceed the width; the page scrolls when
+    // the column exceeds a short or large-text viewport. Slot boxes are sized
+    // for a two-kana unit without reading the glyph, so layout cannot leak
+    // the answer before reveal.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Text(
+                    AppStrings.itemProgress(_index + 1, widget.words.length),
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-              ],
-              Text(
-                _current.romaji,
-                style: const TextStyle(
-                  color: AppColors.accent,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _current.meaning,
-                style: const TextStyle(color: AppColors.ink, fontSize: 18),
-              ),
-            ],
-          ),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: _checked
-              ? SizedBox(
-                  height: 54,
-                  child: FilledButton(
-                    onPressed: _next,
-                    child: const Text(AppStrings.dictationNext),
+                  const SizedBox(height: 24),
+                  SpeakButton(text: _current.kana, prominent: true, size: 40),
+                  const SizedBox(height: 8),
+                  const Text(
+                    AppStrings.dictationPrompt,
+                    style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
                   ),
-                )
-              : SizedBox(
-                  height: 52,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      side: const BorderSide(color: AppColors.hairline),
-                      foregroundColor: AppColors.inkMuted,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  const SizedBox(height: 28),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (var i = 0; i < target.length; i++)
+                          _Slot(
+                            key: ValueKey<String>('dictation-slot-$i'),
+                            char: i < _picked.length
+                                ? _tiles[_picked[i]]
+                                : null,
+                            state: !_checked
+                                ? _SlotState.building
+                                : (_wasCorrect
+                                      ? _SlotState.right
+                                      : _SlotState.wrong),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (!_checked)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          for (var i = 0; i < _tiles.length; i++)
+                            if (!_used[i])
+                              _Tile(label: _tiles[i], onTap: () => _tapTile(i)),
+                        ],
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // The same identity block the reading & ferry
+                          // reveals show. On a miss, lead with the answer's
+                          // kana; romaji + meaning follow.
+                          if (!_wasCorrect) ...[
+                            Text(
+                              _current.kana,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 34,
+                                height: 1.1,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                          ],
+                          Text(
+                            _current.romaji,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _current.meaning,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    onPressed: _picked.isEmpty ? null : _clear,
-                    child: const Text(AppStrings.dictationClear),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: _checked
+                        ? SizedBox(
+                            height: 54,
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: _next,
+                              child: const Text(AppStrings.dictationNext),
+                            ),
+                          )
+                        : SizedBox(
+                            height: 52,
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(52),
+                                side: const BorderSide(
+                                  color: AppColors.hairline,
+                                ),
+                                foregroundColor: AppColors.inkMuted,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              onPressed: _picked.isEmpty ? null : _clear,
+                              child: const Text(AppStrings.dictationClear),
+                            ),
+                          ),
                   ),
-                ),
-        ),
-      ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -325,7 +363,14 @@ class _DictationScreenState extends State<DictationScreen> {
 enum _SlotState { building, right, wrong }
 
 class _Slot extends StatelessWidget {
-  const _Slot({required this.char, required this.state});
+  const _Slot({required this.char, required this.state, super.key});
+
+  /// Tokenizer units are at most two kana (yōon / small-vowel). Every slot
+  /// uses this box so layout never inspects [char] — empty and filled sizes
+  /// match, and the answer is not leaked before reveal.
+  static const int _maxUnitGlyphs = 2;
+  static const double _glyphSize = 30;
+  static const double _minSide = 48;
 
   final String? char;
   final _SlotState state;
@@ -337,22 +382,30 @@ class _Slot extends StatelessWidget {
       _SlotState.right => AppColors.success,
       _SlotState.wrong => AppColors.error,
     };
-    return Container(
-      width: 52,
-      height: 64,
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: border, width: 1.5),
-      ),
-      child: Text(
-        char ?? '',
-        style: const TextStyle(
-          fontSize: 30,
-          color: AppColors.ink,
-          fontWeight: FontWeight.w500,
+    final scaler = MediaQuery.textScalerOf(context);
+    final glyph = scaler.scale(_glyphSize);
+    final width = max(_minSide, glyph * _maxUnitGlyphs + scaler.scale(16));
+    final height = max(_minSide, scaler.scale(64));
+    return SizedBox(
+      width: width,
+      height: height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border, width: 1.5),
+        ),
+        child: Center(
+          child: Text(
+            char ?? '',
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: _glyphSize,
+              color: AppColors.ink,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
       ),
     );
@@ -362,27 +415,36 @@ class _Slot extends StatelessWidget {
 class _Tile extends StatelessWidget {
   const _Tile({required this.label, required this.onTap});
 
+  static const double _labelSize = 28;
+  static const double _minSide = 48;
+
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final side = max(_minSide, MediaQuery.textScalerOf(context).scale(56));
     return Material(
       color: AppColors.accentSoft,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: 56,
-          height: 56,
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 28,
-              color: AppColors.accent,
-              fontWeight: FontWeight.w600,
+        child: SizedBox(
+          width: side,
+          height: side,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: _labelSize,
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),
