@@ -80,6 +80,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   bool _revealed = false;
   bool _unpromptedCommit = false;
@@ -103,7 +104,9 @@ class _ReadingScreenState extends State<ReadingScreen> {
       onHide: _abandonOwnedPlayback,
       onPause: _abandonOwnedPlayback,
       onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
     );
+    _playable = _foreground;
   }
 
   @override
@@ -113,7 +116,17 @@ class _ReadingScreenState extends State<ReadingScreen> {
     super.dispose();
   }
 
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
   void _abandonOwnedPlayback() {
+    _playable = false;
     final generation = _ownedPlay;
     _ownedPlay = null;
     if (generation != null) {
@@ -122,7 +135,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   void _speak() {
-    if (!mounted || widget.quiet) return;
+    if (!mounted || !_playable || !_foreground || widget.quiet) return;
     unawaited(_speech.speak(_say));
     _ownedPlay = _speech.generation;
   }

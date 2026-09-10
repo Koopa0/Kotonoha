@@ -44,6 +44,7 @@ class _StudyScreenState extends State<StudyScreen> {
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   _Phase _phase = _Phase.encode;
   // Recap-only: whether the current card's romaji is revealed. Held in the State
@@ -63,12 +64,24 @@ class _StudyScreenState extends State<StudyScreen> {
       onHide: _abandonOwnedPlayback,
       onPause: _abandonOwnedPlayback,
       onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
     );
+    _playable = _foreground;
     // Auto-play the first card once the first frame is up (auditory learner).
     WidgetsBinding.instance.addPostFrameCallback((_) => _speakCurrent());
   }
 
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
   void _abandonOwnedPlayback() {
+    _playable = false;
     final generation = _ownedPlay;
     _ownedPlay = null;
     if (generation != null) {
@@ -77,7 +90,7 @@ class _StudyScreenState extends State<StudyScreen> {
   }
 
   void _speakCurrent() {
-    if (!mounted) return;
+    if (!mounted || !_playable || !_foreground) return;
     unawaited(_speech.speak(_kana[_index].character));
     _ownedPlay = _speech.generation;
   }

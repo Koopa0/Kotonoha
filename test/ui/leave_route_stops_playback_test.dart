@@ -35,7 +35,17 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _haru = Word(kana: 'はる', romaji: 'haru', meaning: '春天');
+const _nami = Word(kana: 'なみ', romaji: 'nami', meaning: '波浪');
 const _sora = Phrase(kana: 'そらが あおい', romaji: 'sora ga aoi', meaning: '天空是藍的');
+const _hito = KanjiUnit(
+  written: '人',
+  reading: 'ひと',
+  example: KanjiPhrase(
+    segments: [RubySegment(text: '人', furigana: 'ひと')],
+    romaji: 'hito',
+    meaning: '人',
+  ),
+);
 const _gakkou = KanjiUnit(
   written: '学校',
   reading: 'がっこう',
@@ -113,6 +123,23 @@ void _pauseApp(WidgetTester tester) {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+}
+
+void _resumeApp(WidgetTester tester) {
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+}
+
+/// Marks the next drawable frame inactive before post-frame callbacks.
+/// Flutter still paints while inactive; this is not a paused forced-frame.
+void _armInactiveBeforePostFrame(WidgetTester tester) {
+  var armed = true;
+  tester.binding.addPersistentFrameCallback((_) {
+    if (!armed) return;
+    armed = false;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  });
 }
 
 Future<void> _learnUnits(
@@ -525,4 +552,157 @@ void main() {
     await tester.pumpAndSettle();
     expect(tts.stopCount, greaterThan(1));
   });
+
+  testWidgets(
+    'Ferry next-word post-frame does not autoplay after inactive stop',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      await _pumpProviders(
+        tester,
+        speech: speech,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                FerryScreen.route(const [_haru, _nami], AppStrings.ferryTitle),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(tts.spoken, ['はる']);
+
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pump();
+      expect(tts.spoken, ['はる', 'はる']);
+
+      await tester.tap(find.text(AppStrings.ferryReadSelf));
+      await tester.pump();
+      _armInactiveBeforePostFrame(tester);
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pump();
+      expect(tts.spoken, ['はる', 'はる']);
+      expect(find.text(AppStrings.ferryHear), findsOneWidget);
+
+      _resumeApp(tester);
+      await tester.pump();
+      expect(tts.spoken, ['はる', 'はる']);
+      await tester.tap(find.byTooltip(AppStrings.playSound));
+      await tester.pump();
+      expect(tts.spoken, ['はる', 'はる', 'なみ']);
+    },
+  );
+
+  testWidgets(
+    'Home 學單字 已讀 next-word stays silent if inactive before the frame',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      await _pumpApp(
+        tester,
+        speech: speech,
+        learnedUnits: const ['hira_row_5', 'hira_row_8'],
+        seenUnlocks: [Unlock.words.id],
+      );
+      await tester.tap(find.text(AppStrings.meetWordsAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(FerryScreen), findsOneWidget);
+      expect(tts.spoken, hasLength(1));
+
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pump();
+      expect(tts.spoken, hasLength(2));
+      await tester.tap(find.text(AppStrings.ferryReadSelf));
+      await tester.pump();
+      _armInactiveBeforePostFrame(tester);
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pump();
+      expect(tts.spoken, hasLength(2));
+      expect(find.byType(FerryScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets('Ferry foreground next-word still autoplays', (tester) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context).push(
+              FerryScreen.route(const [_haru, _nami], AppStrings.ferryTitle),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.ferryReadSelf));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pump();
+    expect(tts.spoken, ['はる', 'はる', 'なみ']);
+  });
+
+  testWidgets('Study next-card PageView does not autoplay after inactive', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpApp(tester, speech: speech);
+    await tester.tap(find.text(AppStrings.learnNewKanaAction));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('あ行'));
+    await tester.pumpAndSettle();
+    expect(tts.spoken, ['あ']);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.tap(find.text(AppStrings.nextCard));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 280));
+    expect(tts.spoken, ['あ']);
+  });
+
+  testWidgets(
+    'Kanji teach next-unit post-frame does not autoplay after inactive',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      await _pumpProviders(
+        tester,
+        speech: speech,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                KanjiQuizScreen.route(const [
+                  _gakkou,
+                  _hito,
+                ], AppStrings.kanjiTitle),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(tts.spoken, ['がっこう']);
+
+      _armInactiveBeforePostFrame(tester);
+      await tester.tap(find.text(AppStrings.kanjiNext));
+      await tester.pump();
+      expect(tts.spoken, ['がっこう']);
+    },
+  );
 }

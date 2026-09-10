@@ -64,6 +64,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   bool _done = false;
 
@@ -92,7 +93,9 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       onHide: _abandonOwnedPlayback,
       onPause: _abandonOwnedPlayback,
       onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
     );
+    _playable = _foreground;
     _route();
     WidgetsBinding.instance.addPostFrameCallback((_) => _speakIfTeach());
   }
@@ -104,7 +107,17 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     super.dispose();
   }
 
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
   void _abandonOwnedPlayback() {
+    _playable = false;
     final generation = _ownedPlay;
     _ownedPlay = null;
     if (generation != null) {
@@ -136,7 +149,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   }
 
   void _speak(String text) {
-    if (!mounted) return;
+    if (!mounted || !_playable || !_foreground) return;
     unawaited(_speech.speak(text));
     _ownedPlay = _speech.generation;
   }

@@ -61,6 +61,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
+  bool _playable = true;
   int _index = 0;
   bool _revealed = false;
   int _correct = 0;
@@ -77,7 +78,9 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
       onHide: _abandonOwnedPlayback,
       onPause: _abandonOwnedPlayback,
       onDetach: _abandonOwnedPlayback,
+      onResume: _onResumed,
     );
+    _playable = _foreground;
   }
 
   @override
@@ -87,7 +90,17 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
     super.dispose();
   }
 
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _onResumed() {
+    _playable = true;
+  }
+
   void _abandonOwnedPlayback() {
+    _playable = false;
     final generation = _ownedPlay;
     _ownedPlay = null;
     if (generation != null) {
@@ -96,7 +109,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   }
 
   void _speak() {
-    if (!mounted) return;
+    if (!mounted || !_playable || !_foreground) return;
     unawaited(_speech.speak(_current.reading));
     _ownedPlay = _speech.generation;
   }
