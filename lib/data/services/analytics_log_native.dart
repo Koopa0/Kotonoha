@@ -42,6 +42,11 @@ class FileAnalyticsLog implements AnalyticsLog {
   /// flush can retry after a failure.
   Future<void> _writeChain = Future<void>.value();
 
+  /// Test-only append. The production path uses [File.writeAsString];
+  /// tests install a hook to inject a partial write or a flush-reported
+  /// failure against the real [File] — not a fake filesystem.
+  Future<void> Function(File file, String line)? _debugAppend;
+
   static const String _fileName = 'kana_analytics.jsonl';
 
   static Future<FileAnalyticsLog> open() async {
@@ -112,16 +117,84 @@ class FileAnalyticsLog implements AnalyticsLog {
     return result;
   }
 
+  /// Installs a test append hook. Production code never calls this.
+  @visibleForTesting
+  set debugAppend(Future<void> Function(File file, String line)? hook) {
+    _debugAppend = hook;
+  }
+
   Future<void> _appendUnpersisted() async {
     while (_unpersisted.isNotEmpty) {
       final next = _unpersisted.first;
-      await _file.writeAsString(
-        '${jsonEncode(next.toJson())}\n',
-        mode: FileMode.append,
-        flush: true,
-      );
+      final line = '${jsonEncode(next.toJson())}\n';
+      final start = await _lengthOrZero();
+      try {
+        await _writeLine(line);
+      } catch (_) {
+        // writeAsString / the OS may have mutated the tail before
+        // throwing. Pending stays until a complete line is confirmed
+        // at [start]; a partial tail is truncated back so a retry
+        // cannot glue a new JSON object onto a broken prefix.
+        if (!await _confirmOrRestoreTail(start, line)) rethrow;
+        _unpersisted.removeAt(0);
+        continue;
+      }
+      if (!await _confirmOrRestoreTail(start, line)) {
+        throw FileSystemException(
+          'analytics append was not retained as a complete JSONL line',
+          _file.path,
+        );
+      }
       _unpersisted.removeAt(0);
     }
+  }
+
+  Future<void> _writeLine(String line) async {
+    final hook = _debugAppend;
+    if (hook != null) {
+      await hook(_file, line);
+      return;
+    }
+    await _file.writeAsString(line, mode: FileMode.append, flush: true);
+  }
+
+  Future<int> _lengthOrZero() async {
+    if (!await _file.exists()) return 0;
+    return _file.length();
+  }
+
+  /// After an append attempt, the durable tail from [start] must be
+  /// exactly [line] before pending may drop that attempt. Anything
+  /// else (partial bytes, junk) is truncated back to [start].
+  Future<bool> _confirmOrRestoreTail(int start, String line) async {
+    if (!await _file.exists()) return false;
+    final bytes = await _file.readAsBytes();
+    if (bytes.length < start) return false;
+    final tail = bytes.sublist(start);
+    final expected = utf8.encode(line);
+    if (_sameBytes(tail, expected)) return true;
+    if (tail.isEmpty) return false;
+    await _truncateTo(start);
+    return false;
+  }
+
+  Future<void> _truncateTo(int start) async {
+    if (!await _file.exists()) return;
+    final raf = await _file.open(mode: FileMode.writeOnlyAppend);
+    try {
+      await raf.truncate(start);
+      await raf.flush();
+    } finally {
+      await raf.close();
+    }
+  }
+
+  static bool _sameBytes(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   @override

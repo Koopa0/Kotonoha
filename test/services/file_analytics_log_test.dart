@@ -4,6 +4,7 @@
 @TestOn('vm') // dart:io file I/O — not the web build
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -144,6 +145,75 @@ void main() {
       expect(lines.where((l) => l.trim().isNotEmpty).length, 2);
       final reopened = FileAnalyticsLog.forFile(file);
       expect((await reopened.all()).map((a) => a.itemId), ['あ', 'か']);
+    },
+  );
+
+  test(
+    'a partial append is truncated and retried without losing the attempt',
+    () async {
+      final log = FileAnalyticsLog.forFile(file);
+      await log.all();
+      await file.create();
+      var failOnce = true;
+      log.debugAppend = (f, line) async {
+        if (failOnce) {
+          failOnce = false;
+          final raw = utf8.encode(line);
+          expect(raw.length, greaterThan(40));
+          await f.writeAsBytes(raw.sublist(0, 40), flush: true);
+          throw const FileSystemException('injected partial append');
+        }
+        await f.writeAsString(line, mode: FileMode.append, flush: true);
+      };
+
+      await expectLater(
+        log.record(attempt('a')),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await log.count(), 1);
+      expect(log.unpersistedCount, 1);
+      expect(await file.length(), 0);
+
+      await log.record(attempt('b'));
+      await log.flushPending();
+
+      expect(log.unpersistedCount, 0);
+      expect((await log.all()).map((a) => a.itemId), ['a', 'b']);
+      final reopened = FileAnalyticsLog.forFile(file);
+      expect((await reopened.all()).map((a) => a.itemId), ['a', 'b']);
+      final lines = await file.readAsLines();
+      expect(lines.where((l) => l.trim().isNotEmpty).length, 2);
+    },
+  );
+
+  test(
+    'a complete line whose flush reported failure is not rewritten',
+    () async {
+      final log = FileAnalyticsLog.forFile(file);
+      await log.all();
+      await file.create();
+      var failOnce = true;
+      log.debugAppend = (f, line) async {
+        await f.writeAsString(line, mode: FileMode.append, flush: true);
+        if (failOnce) {
+          failOnce = false;
+          throw const FileSystemException('injected flush failure');
+        }
+      };
+
+      await log.record(attempt('a'));
+      expect(log.unpersistedCount, 0);
+      expect(await file.readAsLines(), hasLength(1));
+
+      await log.record(attempt('b'));
+      await log.flushPending();
+
+      expect(log.unpersistedCount, 0);
+      expect((await log.all()).map((a) => a.itemId), ['a', 'b']);
+      final reopened = FileAnalyticsLog.forFile(file);
+      expect((await reopened.all()).map((a) => a.itemId), ['a', 'b']);
+      final lines = await file.readAsLines();
+      expect(lines.where((l) => l.trim().isNotEmpty).length, 2);
     },
   );
 }
