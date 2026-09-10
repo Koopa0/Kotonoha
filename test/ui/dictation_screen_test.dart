@@ -1,7 +1,10 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
@@ -16,6 +19,8 @@ import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dar
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/fake_tts_client.dart';
 
 Finder dictationSlot(int index) =>
     find.byKey(ValueKey<String>('dictation-slot-$index'));
@@ -45,6 +50,8 @@ Future<void> pumpDictation(
   InMemoryAnalyticsLog? analytics,
   WordProgressRepository? wordRepo,
   ProgressPersistenceController? persistence,
+  SpeechService speech = const SilentSpeechService(),
+  KanaProgressRepository? kanaRepo,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -60,10 +67,14 @@ Future<void> pumpDictation(
         wordFlush: resolvedWordRepo.flushPending,
       );
   final resolvedAnalytics = analytics ?? InMemoryAnalyticsLog();
+  final resolvedKana = kanaRepo ?? await KanaProgressRepository.load();
 
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(
+          value: resolvedKana,
+        ),
         ChangeNotifierProvider<WordProgressRepository>.value(
           value: resolvedWordRepo,
         ),
@@ -71,7 +82,7 @@ Future<void> pumpDictation(
           value: resolvedPersistence,
         ),
         Provider<AnalyticsLog>.value(value: resolvedAnalytics),
-        Provider<SpeechService>.value(value: const SilentSpeechService()),
+        Provider<SpeechService>.value(value: speech),
       ],
       child: MaterialApp(
         home: Builder(
@@ -150,12 +161,22 @@ void main() {
     await tester.tap(find.text('み'));
     await tester.pumpAndSettle();
 
-    // Auto-checked at full length → result + next.
+    // Auto-checked at full length → result + next. Silent play is not
+    // listening evidence: assembly can be right, SRS must stay 0.
     expect(find.text(AppStrings.dictationNext), findsOneWidget);
     final logged = await analytics.all();
     expect(logged.single.mode, PracticeMode.dictation.name);
     expect(logged.single.correct, isTrue);
     expect(logged.single.itemId, 'きみ');
+    expect(logged.single.meta[AttemptMeta.heard], isFalse);
+    expect(logged.single.meta[AttemptMeta.scored], isFalse);
+    expect(logged.single.meta[AttemptMeta.prompted], isFalse);
+    await wordRepo.flushPending();
+    expect(
+      (await WordProgressRepository.load()).statForItem('word:きみ').srsLevel,
+      0,
+    );
+    expect(wordRepo.statForItem('word:きみ').isSeen, isFalse);
 
     await tester.tap(find.text(AppStrings.dictationNext));
     await tester.pumpAndSettle();
@@ -379,6 +400,246 @@ void main() {
       expect(tester.getSize(dictationSlot(1)), empty);
       expectNoOverflow(tester);
       expect(find.text(warm.kana), findsNothing);
+    });
+  });
+
+  group('audio evidence', () {
+    Future<void> assembleKimi(WidgetTester tester) async {
+      await tester.tap(find.text('き'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('み'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('platform speak 0 then assemble does not raise word SRS', (
+      tester,
+    ) async {
+      final client = FakeTtsClient(speakResult: 0);
+      final speech = FlutterTtsSpeechService(client: client, ready: true);
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      await pumpDictation(
+        tester,
+        words: const [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')],
+        analytics: analytics,
+        wordRepo: words,
+        speech: speech,
+      );
+
+      expect(client.spoken, ['きみ']);
+      expect(find.text(AppStrings.dictationFailed), findsOneWidget);
+      await assembleKimi(tester);
+
+      final logged = await analytics.all();
+      expect(logged.single.correct, isTrue);
+      expect(logged.single.meta[AttemptMeta.heard], isFalse);
+      expect(logged.single.meta[AttemptMeta.scored], isFalse);
+      expect(
+        logged.single.meta[AttemptMeta.playback],
+        SpeechPlaybackResult.failed.name,
+      );
+      await words.flushPending();
+      expect(
+        (await WordProgressRepository.load()).statForItem('word:きみ').srsLevel,
+        0,
+      );
+      expect(words.statForItem('word:きみ').isSeen, isFalse);
+    });
+
+    testWidgets('fail then replay success then assemble is unprompted SRS', (
+      tester,
+    ) async {
+      final client = FakeTtsClient(speakResult: 0);
+      final speech = FlutterTtsSpeechService(client: client, ready: true);
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      await pumpDictation(
+        tester,
+        words: const [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')],
+        analytics: analytics,
+        wordRepo: words,
+        speech: speech,
+      );
+
+      client.speakResult = 1;
+      await tester.tap(find.byKey(const ValueKey<String>('dictation-replay')));
+      await tester.pump();
+      expect(find.text(AppStrings.dictationFailed), findsNothing);
+      await assembleKimi(tester);
+
+      final logged = await analytics.all();
+      expect(logged.single.meta[AttemptMeta.heard], isTrue);
+      expect(logged.single.meta[AttemptMeta.scored], isTrue);
+      expect(logged.single.meta[AttemptMeta.prompted], isFalse);
+      expect(words.statForItem('word:きみ').srsLevel, 1);
+    });
+
+    testWidgets('assemble after reveal replay cannot backfill unprompted SRS', (
+      tester,
+    ) async {
+      final client = FakeTtsClient(speakResult: 0);
+      final speech = FlutterTtsSpeechService(client: client, ready: true);
+      final words = await WordProgressRepository.load();
+      final analytics = InMemoryAnalyticsLog();
+      await pumpDictation(
+        tester,
+        words: const [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')],
+        analytics: analytics,
+        wordRepo: words,
+        speech: speech,
+      );
+
+      await assembleKimi(tester);
+      expect(words.statForItem('word:きみ').srsLevel, 0);
+      client.speakResult = 1;
+      await tester.tap(find.byKey(const ValueKey<String>('dictation-replay')));
+      await tester.pump();
+      await words.flushPending();
+      expect(
+        (await WordProgressRepository.load()).statForItem('word:きみ').srsLevel,
+        0,
+      );
+      expect((await analytics.all()).single.meta[AttemptMeta.scored], isFalse);
+    });
+
+    testWidgets(
+      'old speak complete after advance cannot credit the next word',
+      (tester) async {
+        const channel = MethodChannel('flutter_tts');
+        Completer<int>? pendingFirst;
+        const subsequent = 0;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          (call) async {
+            switch (call.method) {
+              case 'speak':
+                if (pendingFirst == null) {
+                  pendingFirst = Completer<int>();
+                  return pendingFirst!.future;
+                }
+                return subsequent;
+              case 'stop':
+                return 1;
+              case 'getEngines':
+                return <String>['com.google.android.tts'];
+              case 'setLanguage':
+              case 'setEngine':
+                return 1;
+              default:
+                return 1;
+            }
+          },
+        );
+        addTearDown(() {
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            channel,
+            null,
+          );
+        });
+
+        final speech = await FlutterTtsSpeechService.create();
+        expect(speech.ready, isTrue);
+        final analytics = InMemoryAnalyticsLog();
+        final words = await WordProgressRepository.load();
+        await pumpDictation(
+          tester,
+          words: const [
+            Word(kana: 'きみ', romaji: 'kimi', meaning: '你'),
+            Word(kana: 'あめ', romaji: 'ame', meaning: '雨'),
+          ],
+          analytics: analytics,
+          wordRepo: words,
+          speech: speech,
+        );
+        expect(pendingFirst, isNotNull);
+
+        await assembleKimi(tester);
+        await tester.tap(find.text(AppStrings.dictationNext));
+        pendingFirst!.complete(1);
+        await tester.idle();
+        await tester.pump();
+        await tester.pump();
+
+        await tester.tap(find.text('あ'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('め'));
+        await tester.pumpAndSettle();
+
+        await words.flushPending();
+        final reloaded = await WordProgressRepository.load();
+        expect(reloaded.statForItem('word:あめ').srsLevel, 0);
+        expect(reloaded.statForItem('word:あめ').isSeen, isFalse);
+        expect(words.statForItem('word:あめ').srsLevel, 0);
+        final logged = await analytics.all();
+        expect(
+          logged.where(
+            (a) =>
+                a.itemId.contains('あめ') &&
+                a.meta[AttemptMeta.heard] == true &&
+                a.meta[AttemptMeta.scored] == true,
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    testWidgets('reveal replay sends stop when the app backgrounds', (
+      tester,
+    ) async {
+      addTearDown(() {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      });
+      const channel = MethodChannel('flutter_tts');
+      var stopCount = 0;
+      var speakCount = 0;
+      Completer<int>? pendingReplay;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        switch (call.method) {
+          case 'speak':
+            speakCount++;
+            if (speakCount == 1) return 0;
+            pendingReplay ??= Completer<int>();
+            return pendingReplay!.future;
+          case 'stop':
+            stopCount++;
+            return 1;
+          case 'getEngines':
+            return <String>['com.google.android.tts'];
+          case 'setLanguage':
+          case 'setEngine':
+            return 1;
+          default:
+            return 1;
+        }
+      });
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        );
+      });
+
+      final speech = await FlutterTtsSpeechService.create();
+      expect(speech.ready, isTrue);
+      await pumpDictation(
+        tester,
+        words: const [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')],
+        speech: speech,
+      );
+      expect(speakCount, 1);
+      await assembleKimi(tester);
+      expect(pendingReplay, isNotNull);
+      final stopsBeforeBackground = stopCount;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(stopCount, greaterThan(stopsBeforeBackground));
     });
   });
 }

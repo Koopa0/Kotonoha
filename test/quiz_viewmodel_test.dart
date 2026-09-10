@@ -501,4 +501,119 @@ void main() {
     expect(attempts.last.correct, isTrue);
     expect(attempts.last.distractor, isNull);
   });
+
+  test('persistProgress false skips SRS but still logs the attempt', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final log = InMemoryAnalyticsLog();
+    final kana = all.firstWhere((k) => k.character == 'き');
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(
+          question: QuizQuestion(
+            target: kana,
+            direction: QuizDirection.soundToKana,
+            options: [kana.character, 'い', 'う', 'え'],
+            correctIndex: 0,
+          ),
+          mode: PracticeMode.daily,
+        ),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => fixedNow,
+    );
+    vm.selectAnswer(
+      0,
+      persistProgress: false,
+      extraMeta: {
+        AttemptMeta.heard: false,
+        AttemptMeta.scored: false,
+        AttemptMeta.playback: 'failed',
+      },
+    );
+    expect(repo.statFor(kana).srsLevel, 0);
+    expect(repo.statFor(kana).isSeen, isFalse);
+    expect(repo.statFor(kana).correctCount, 0);
+    final logged = await log.all();
+    expect(logged.single.correct, isTrue);
+    expect(logged.single.meta[AttemptMeta.heard], isFalse);
+    expect(logged.single.meta[AttemptMeta.scored], isFalse);
+    expect(logged.single.meta[AttemptMeta.direction], 'soundToKana');
+    vm.dispose();
+  });
+
+  test('soundToKana without a hear writes no speed evidence', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.firstWhere((k) => k.character == 'き');
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(
+          question: QuizQuestion(
+            target: kana,
+            direction: QuizDirection.soundToKana,
+            options: [kana.character, 'い', 'う', 'え'],
+            correctIndex: 0,
+          ),
+          mode: PracticeMode.daily,
+        ),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    elapsed = 10500;
+    vm.selectAnswer(0);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    expect((await log.all()).single.rtMs, 0);
+    vm.dispose();
+  });
+
+  test('soundToKana RT starts at the first foreground hear', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.firstWhere((k) => k.character == 'き');
+    for (var i = 0; i < 3; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(
+          question: QuizQuestion(
+            target: kana,
+            direction: QuizDirection.soundToKana,
+            options: [kana.character, 'い', 'う', 'え'],
+            correctIndex: 0,
+          ),
+          mode: PracticeMode.daily,
+        ),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    elapsed = 10000;
+    vm.noteListeningHeard();
+    elapsed = 10500;
+    vm.selectAnswer(0);
+    expect((await log.all()).single.rtMs, 500);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    expect(repo.statFor(kana).srsLevel, 4);
+    vm.dispose();
+  });
 }

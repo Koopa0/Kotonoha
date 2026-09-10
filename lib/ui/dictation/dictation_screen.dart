@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -64,6 +65,9 @@ class _DictationScreenState extends State<DictationScreen> {
   final Random _rng = Random();
   final ScrollController _scrollController = ScrollController();
 
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+
   /// Picked once, at the close — an occasional classical 余韻 (often null).
   KotenLine? _share;
   int _index = 0;
@@ -75,6 +79,10 @@ class _DictationScreenState extends State<DictationScreen> {
   int _correct = 0;
   bool _done = false;
   int _shownAtMs = 0;
+  int _playGen = 0;
+  bool _blindHeard = false;
+  String? _heardItemId;
+  SpeechPlaybackResult? _lastPlay;
 
   Word get _current => widget.words[_index];
 
@@ -87,14 +95,46 @@ class _DictationScreenState extends State<DictationScreen> {
   @override
   void initState() {
     super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _onUnanswerable,
+      onHide: _onUnanswerable,
+      onPause: _onUnanswerable,
+      onDetach: _onUnanswerable,
+    );
     _setup();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_play());
+    });
   }
 
   @override
   void dispose() {
+    _lifecycle.dispose();
+    _abandonPlayback();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onUnanswerable() {
+    if (_done) return;
+    // Stopping audio is independent of whether the item is already
+    // assembled — a reveal replay must cancel in the background too.
+    _abandonPlayback();
+    if (mounted) {
+      setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
+    }
+  }
+
+  void _abandonPlayback() {
+    _playGen++;
+    unawaited(_speech.stop());
+  }
+
+  void _resetHearing() {
+    _blindHeard = false;
+    _heardItemId = null;
+    _lastPlay = null;
   }
 
   /// A new listening item must open on its prompt. Same-word assemble / clear
@@ -125,9 +165,23 @@ class _DictationScreenState extends State<DictationScreen> {
     _shownAtMs = _clock().millisecondsSinceEpoch;
   }
 
-  void _speak() {
-    if (!mounted) return;
-    context.read<SpeechService>().speak(_current.kana);
+  Future<void> _play() async {
+    if (!mounted || _done) return;
+    final itemId = _current.progressId;
+    final startedBlind = !_checked;
+    final gen = ++_playGen;
+    final result = await _speech.play(_current.kana);
+    if (!mounted || _done || gen != _playGen || _current.progressId != itemId) {
+      return;
+    }
+    setState(() {
+      _lastPlay = result;
+      if (result != SpeechPlaybackResult.played) return;
+      if (startedBlind && !_checked) {
+        _blindHeard = true;
+        _heardItemId = itemId;
+      }
+    });
   }
 
   void _tapTile(int i) {
@@ -152,6 +206,10 @@ class _DictationScreenState extends State<DictationScreen> {
     final built = _picked.map((i) => _tiles[i]).join();
     final correct = built == _current.kana;
     final now = _clock();
+    final heard = _blindHeard && _heardItemId == _current.progressId;
+    final playback = heard
+        ? SpeechPlaybackResult.played
+        : (_lastPlay ?? SpeechPlaybackResult.interrupted);
     context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -161,27 +219,36 @@ class _DictationScreenState extends State<DictationScreen> {
         correct: correct,
         rtMs: now.millisecondsSinceEpoch - _shownAtMs,
         sessionId: _sessionId,
-        meta: {'romaji': _current.romaji},
+        meta: {
+          'romaji': _current.romaji,
+          AttemptMeta.playback: playback.name,
+          AttemptMeta.heard: heard,
+          AttemptMeta.prompted: false,
+          AttemptMeta.scored: heard,
+        },
       ),
     );
-    // 文字起こし is the words' objective schedule authority: assembled right
-    // or not, no self-grade involved.
-    context.read<ProgressPersistenceController>().trackWord(
-      context.read<WordProgressRepository>().recordAnswer(
-        _current.progressId,
-        correct: correct,
-        at: now,
-      ),
-    );
+    // Only a completed play *before* assembly is unprompted dictation
+    // evidence. A later success cannot backfill SRS for this item.
+    if (heard) {
+      context.read<ProgressPersistenceController>().trackWord(
+        context.read<WordProgressRepository>().recordAnswer(
+          _current.progressId,
+          correct: correct,
+          at: now,
+        ),
+      );
+    }
     if (correct) _correct++;
     setState(() {
       _checked = true;
       _wasCorrect = correct;
     });
-    _speak();
+    unawaited(_play());
   }
 
   void _next() {
+    _abandonPlayback();
     if (_index + 1 >= widget.words.length) {
       final store = context.read<KanaProgressRepository>();
       _share = KotenShare.pick(
@@ -194,10 +261,14 @@ class _DictationScreenState extends State<DictationScreen> {
     } else {
       setState(() {
         _index++;
+        _resetHearing();
         _setup();
       });
       _scrollToPrompt();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _done) return;
+        unawaited(_play());
+      });
     }
   }
 
@@ -207,6 +278,16 @@ class _DictationScreenState extends State<DictationScreen> {
       appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(child: _done ? _summary() : _question()),
     );
+  }
+
+  String? get _playbackStatus {
+    if (_blindHeard) return null;
+    return switch (_lastPlay) {
+      SpeechPlaybackResult.unavailable => AppStrings.dictationUnavailable,
+      SpeechPlaybackResult.failed => AppStrings.dictationFailed,
+      SpeechPlaybackResult.interrupted => AppStrings.dictationInterrupted,
+      SpeechPlaybackResult.played || null => null,
+    };
   }
 
   Widget _summary() {
@@ -248,12 +329,31 @@ class _DictationScreenState extends State<DictationScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  SpeakButton(text: _current.kana, prominent: true, size: 40),
+                  SpeakButton(
+                    key: const ValueKey<String>('dictation-replay'),
+                    text: _current.kana,
+                    prominent: true,
+                    size: 40,
+                    onPlay: () => unawaited(_play()),
+                  ),
                   const SizedBox(height: 8),
                   const Text(
                     AppStrings.dictationPrompt,
                     style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
                   ),
+                  if (_playbackStatus != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _playbackStatus!,
+                      key: const ValueKey<String>('dictation-sound-status'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.inkMuted,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 28),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

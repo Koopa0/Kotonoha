@@ -18,8 +18,9 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 ///
 /// Timing starts when the question becomes current (construct / [advance]).
 /// Quiz `soundToKana` is kana-glyph ID, not listen-first sentence evidence —
-/// that path lives on [ListeningScreen] / #9 and does not go through this
-/// type. This type does not rework audio.
+/// that path lives on [ListeningScreen]. This type does not interpret
+/// playback; the screen passes [persistProgress] so a failed, cancelled,
+/// or stale play cannot become SRS.
 class QuizViewModel extends ChangeNotifier {
   QuizViewModel({
     required this.items,
@@ -48,6 +49,7 @@ class QuizViewModel extends ChangeNotifier {
   bool _timingValid = true;
   bool _recallCommitCaptured = false;
   int? _committedRecallLatencyMs;
+  bool _listeningHeardArmed = false;
 
   final List<AnsweredQuestion> _answers = [];
   int _index = 0;
@@ -103,10 +105,29 @@ class QuizViewModel extends ChangeNotifier {
   /// are untimed — correctness may still be stored, fluency may not.
   int? _latencyMs(DateTime now) {
     if (!_timingValid) return null;
+    // soundToKana waits on the engine; show-time is not a recognition start.
+    // Only a confirmed foreground hear arms fluency. No hear → no speed.
+    if (current.direction == QuizDirection.soundToKana &&
+        !_listeningHeardArmed) {
+      return null;
+    }
     final mono = _nowMonoMs() - _shownMonoMs;
     final wall = now.millisecondsSinceEpoch - _shownWallMs;
     if (mono <= 0 || wall < 0) return null;
     return mono;
+  }
+
+  /// First completed foreground play on a [QuizDirection.soundToKana] item.
+  /// Re-arms the fluency clock from this hear. An already-invalid clock
+  /// stays null — never a fabricated RT. Later replays do not move the start.
+  void noteListeningHeard() {
+    if (isAnswered || _finished) return;
+    if (current.direction != QuizDirection.soundToKana) return;
+    if (_listeningHeardArmed) return;
+    if (!_timingValid) return;
+    _listeningHeardArmed = true;
+    _shownMonoMs = _nowMonoMs();
+    _shownWallMs = _clock().millisecondsSinceEpoch;
   }
 
   /// Freeze foreground RT when the learner commits to an unprompted reading
@@ -139,12 +160,23 @@ class QuizViewModel extends ChangeNotifier {
   }
 
   /// Records the user's choice for the current question and persists it.
-  void selectAnswer(int optionIndex) {
+  ///
+  /// [persistProgress] is the screen's audio-evidence gate for
+  /// [QuizDirection.soundToKana]. False skips repository writes so a
+  /// failed / cancelled / stale play cannot become SRS. Forced-correct
+  /// MCQ still writes nothing. [gradeRecall] is unchanged.
+  void selectAnswer(
+    int optionIndex, {
+    bool persistProgress = true,
+    Map<String, Object?> extraMeta = const {},
+  }) {
     if (isAnswered || _finished) return;
     if (current.direction == QuizDirection.kanaRecall) return;
     _record(
       selectedIndex: optionIndex,
       correct: current.isCorrect(optionIndex),
+      persistProgress: persistProgress,
+      extraMeta: extraMeta,
     );
   }
 
@@ -153,6 +185,7 @@ class QuizViewModel extends ChangeNotifier {
     required bool correct,
     bool forceUntimed = false,
     bool creditRecall = true,
+    bool persistProgress = true,
     Map<String, Object?> extraMeta = const {},
   }) {
     final item = currentItem;
@@ -174,22 +207,24 @@ class QuizViewModel extends ChangeNotifier {
       // Answering never waits on disk (the in-memory effect + notify below
       // are synchronous); the app-scoped owner observes the write so a
       // failure is surfaced instead of dropped.
-      final persist = !correct
-          ? repository.recordAnswer(
-              question.target,
-              correct: false,
-              at: now,
-              latencyMs: latencyMs,
-            )
-          : creditRecall
-          ? repository.recordAnswer(
-              question.target,
-              correct: true,
-              at: now,
-              latencyMs: latencyMs,
-            )
-          : repository.recordPromptedPractice(question.target, at: now);
-      persistence.trackKana(persist);
+      if (persistProgress) {
+        final persist = !correct
+            ? repository.recordAnswer(
+                question.target,
+                correct: false,
+                at: now,
+                latencyMs: latencyMs,
+              )
+            : creditRecall
+            ? repository.recordAnswer(
+                question.target,
+                correct: true,
+                at: now,
+                latencyMs: latencyMs,
+              )
+            : repository.recordPromptedPractice(question.target, at: now);
+        persistence.trackKana(persist);
+      }
       analytics?.recordObserved(
         Attempt(
           ts: now.millisecondsSinceEpoch,
@@ -223,6 +258,7 @@ class QuizViewModel extends ChangeNotifier {
       _selected = null;
       _recallCommitCaptured = false;
       _committedRecallLatencyMs = null;
+      _listeningHeardArmed = false;
       _armTiming();
     }
     notifyListeners();

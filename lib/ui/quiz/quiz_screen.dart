@@ -115,13 +115,17 @@ class QuizScreen extends StatefulWidget {
 
 class _QuizScreenState extends State<QuizScreen> {
   late final QuizViewModel _vm;
+  late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   Timer? _advanceTimer;
   bool _navigated = false;
-  int _spokenIndex = -1;
   bool _answerable = true;
   bool _recallRevealed = false;
   bool _recallUnpromptedCommit = false;
+  int _playGen = 0;
+  bool _blindHeard = false;
+  String? _heardItemId;
+  SpeechPlaybackResult? _lastPlay;
 
   /// True when the CURRENT question is listening (sound → kana). Per-item, so an
   /// adaptive session can have listening questions mixed in.
@@ -142,6 +146,7 @@ class _QuizScreenState extends State<QuizScreen> {
       clock: widget.clock,
       monotonicMs: widget.monotonicMs,
     )..addListener(_onChanged);
+    _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _onUnanswerable,
       onHide: _onUnanswerable,
@@ -151,8 +156,7 @@ class _QuizScreenState extends State<QuizScreen> {
     );
     if (_isListening) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _spokenIndex = _vm.index;
-        _speakCurrent();
+        unawaited(_playCurrent());
       });
     }
   }
@@ -160,15 +164,74 @@ class _QuizScreenState extends State<QuizScreen> {
   void _onUnanswerable() {
     _answerable = false;
     _vm.noteUnanswerable();
+    if (!_isListening) return;
+    // Stop in-flight play even after the item is graded — a reveal
+    // replay must not keep speaking in the background.
+    _abandonPlayback();
+    if (mounted) {
+      setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
+    }
   }
 
   void _onResumed() {
     _answerable = true;
   }
 
-  void _speakCurrent() {
-    if (!mounted) return;
-    context.read<SpeechService>().speak(_vm.current.target.character);
+  void _abandonPlayback() {
+    _playGen++;
+    unawaited(_speech.stop());
+  }
+
+  void _resetHearing() {
+    _blindHeard = false;
+    _heardItemId = null;
+    _lastPlay = null;
+  }
+
+  Future<void> _playCurrent() async {
+    if (!mounted || !_isListening || _vm.isFinished) return;
+    final itemId = _vm.current.target.id;
+    final questionIndex = _vm.index;
+    final alreadyAnswered = _vm.isAnswered;
+    final startedAnswerable = _answerable;
+    // Background must not start a new unanswered play. Graded rehear is
+    // started only from an explicit tap while the route is still up.
+    if (!alreadyAnswered && !startedAnswerable) return;
+    final gen = ++_playGen;
+    final result = await _speech.play(_vm.current.target.character);
+    if (!mounted ||
+        _vm.isFinished ||
+        gen != _playGen ||
+        _vm.index != questionIndex ||
+        _vm.current.target.id != itemId) {
+      return;
+    }
+    setState(() {
+      _lastPlay = result;
+      if (result != SpeechPlaybackResult.played) return;
+      if (alreadyAnswered || _vm.isAnswered) return;
+      if (!startedAnswerable || !_answerable) return;
+      _blindHeard = true;
+      _heardItemId = itemId;
+      _vm.noteListeningHeard();
+    });
+  }
+
+  void _selectListening(int optionIndex) {
+    final heard = _blindHeard && _heardItemId == _vm.current.target.id;
+    final playback = heard
+        ? SpeechPlaybackResult.played
+        : (_lastPlay ?? SpeechPlaybackResult.interrupted);
+    _vm.selectAnswer(
+      optionIndex,
+      persistProgress: heard,
+      extraMeta: {
+        AttemptMeta.playback: playback.name,
+        AttemptMeta.heard: heard,
+        AttemptMeta.scored: heard,
+        AttemptMeta.prompted: false,
+      },
+    );
   }
 
   void _onChanged() {
@@ -181,19 +244,22 @@ class _QuizScreenState extends State<QuizScreen> {
       _recallUnpromptedCommit = false;
     }
     if (_vm.isFinished) {
+      _abandonPlayback();
       _goToResults();
       return;
     }
-    // Auto-play each new sound in listening mode (before it's answered).
-    if (_isListening && !_vm.isAnswered && _spokenIndex != _vm.index) {
-      _spokenIndex = _vm.index;
-      _speakCurrent();
+    // Auto-play each new sound only while the item is answerable.
+    // A background auto-advance must not start or credit a new hear.
+    if (_isListening && !_vm.isAnswered && _answerable) {
+      unawaited(_playCurrent());
     }
     // Calm auto-advance: linger a touch longer on a wrong answer.
     if (_vm.isAnswered && _advanceTimer == null) {
       final correct = _vm.lastWasCorrect ?? true;
       _advanceTimer = Timer(Duration(milliseconds: correct ? 750 : 1150), () {
         _advanceTimer = null;
+        _abandonPlayback();
+        _resetHearing();
         _vm.advance();
       });
     }
@@ -202,6 +268,8 @@ class _QuizScreenState extends State<QuizScreen> {
   void _advanceNow() {
     _advanceTimer?.cancel();
     _advanceTimer = null;
+    _abandonPlayback();
+    _resetHearing();
     _vm.advance();
   }
 
@@ -308,6 +376,7 @@ class _QuizScreenState extends State<QuizScreen> {
   void dispose() {
     _advanceTimer?.cancel();
     _lifecycle.dispose();
+    _abandonPlayback();
     _vm.removeListener(_onChanged);
     _vm.dispose();
     super.dispose();
@@ -380,7 +449,10 @@ class _QuizScreenState extends State<QuizScreen> {
                         ),
                         const SizedBox(height: 20),
                         if (isListening)
-                          _SoundPrompt(onReplay: _speakCurrent)
+                          _SoundPrompt(
+                            onReplay: () => unawaited(_playCurrent()),
+                            status: _soundStatus,
+                          )
                         else
                           _PromptCard(
                             text: q.prompt,
@@ -423,7 +495,9 @@ class _QuizScreenState extends State<QuizScreen> {
                                   fontSize: optionFontSize,
                                   onTap: _vm.isAnswered
                                       ? null
-                                      : () => _vm.selectAnswer(i),
+                                      : () => isListening
+                                            ? _selectListening(i)
+                                            : _vm.selectAnswer(i),
                                 ),
                             ],
                           ),
@@ -457,12 +531,23 @@ class _QuizScreenState extends State<QuizScreen> {
       ),
     );
   }
+
+  String? get _soundStatus {
+    if (_blindHeard) return null;
+    return switch (_lastPlay) {
+      SpeechPlaybackResult.unavailable => AppStrings.quizSoundUnavailable,
+      SpeechPlaybackResult.failed => AppStrings.quizSoundFailed,
+      SpeechPlaybackResult.interrupted => AppStrings.quizSoundInterrupted,
+      SpeechPlaybackResult.played || null => null,
+    };
+  }
 }
 
 class _SoundPrompt extends StatelessWidget {
-  const _SoundPrompt({required this.onReplay});
+  const _SoundPrompt({required this.onReplay, this.status});
 
   final VoidCallback onReplay;
+  final String? status;
 
   @override
   Widget build(BuildContext context) {
@@ -478,6 +563,7 @@ class _SoundPrompt extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton.filled(
+            key: const ValueKey<String>('quiz-replay'),
             onPressed: onReplay,
             iconSize: 56,
             tooltip: AppStrings.replaySound,
@@ -493,6 +579,19 @@ class _SoundPrompt extends StatelessWidget {
             AppStrings.replaySound,
             style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
           ),
+          if (status != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              status!,
+              key: const ValueKey<String>('quiz-sound-status'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.inkMuted,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ],
         ],
       ),
     );

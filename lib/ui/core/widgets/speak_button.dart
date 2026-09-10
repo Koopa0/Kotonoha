@@ -17,15 +17,27 @@ class SpeakButton extends StatelessWidget {
     super.key,
     this.size = 26,
     this.prominent = false,
+    this.onPlay,
   });
 
   final String text;
   final double size;
   final bool prominent;
 
+  /// When set, the button asks the screen to play. Dictation uses this so
+  /// replay shares the same generation / item-id gate as autoplay.
+  final VoidCallback? onPlay;
+
   @override
   Widget build(BuildContext context) {
-    void speak() => context.read<SpeechService>().speak(text);
+    void speak() {
+      if (onPlay != null) {
+        onPlay!();
+        return;
+      }
+      context.read<SpeechService>().speak(text);
+    }
+
     if (prominent) {
       return IconButton.filled(
         onPressed: speak,
