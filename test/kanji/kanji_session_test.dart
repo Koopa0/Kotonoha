@@ -35,6 +35,7 @@ void main() {
       now: now,
       rng: Random(3),
       length: 10,
+      maxNew: 10,
     );
     final a = run();
     final b = run();
@@ -43,6 +44,17 @@ void main() {
     for (final u in a) {
       expect(ids.contains(u.id), isTrue);
     }
+  });
+
+  test('a cold start is a trickle of new units, not the whole corpus', () {
+    final out = KanjiSession.compose(
+      units: kKanjiUnits,
+      stats: const {},
+      now: now,
+      rng: Random(3),
+    );
+    expect(out.length, KanjiSession.kDefaultMaxNew);
+    expect(out.map((u) => u.id).toSet(), hasLength(out.length));
   });
 
   test('never-met units are surfaced before ones that are not yet due', () {
@@ -89,6 +101,58 @@ void main() {
     expect(out.first.id, weak.id);
   });
 
+  test('due units fill the session before any new intake', () {
+    final due = [for (var i = 0; i < 12; i++) unit('D$i', 'だ$i')];
+    final fresh = [for (var i = 0; i < 20; i++) unit('N$i', 'な$i')];
+    final past = now.subtract(const Duration(days: 1));
+    final stats = {
+      for (final u in due)
+        u.id: ReadingStat(
+          seenCount: 1,
+          correctCount: 1,
+          srsLevel: 1,
+          lastReviewedAt: past,
+          dueAt: past,
+        ),
+    };
+
+    final out = KanjiSession.compose(
+      units: [...fresh, ...due],
+      stats: stats,
+      now: now,
+      rng: Random(2),
+    );
+
+    expect(out.map((u) => u.id).toSet(), {for (final u in due) u.id});
+    expect(out.any((u) => stats[u.id] == null), isFalse);
+  });
+
+  test('review intent (maxNew: 0) never boards an unmet unit', () {
+    final seen = unit('人', 'ひと');
+    final fresh = unit('日', 'ひ');
+    final past = now.subtract(const Duration(days: 1));
+    final stats = {
+      seen.id: ReadingStat(
+        seenCount: 1,
+        correctCount: 1,
+        srsLevel: 1,
+        lastReviewedAt: past,
+        dueAt: past,
+      ),
+    };
+
+    final out = KanjiSession.compose(
+      units: [seen, fresh],
+      stats: stats,
+      now: now,
+      rng: Random(4),
+      length: 12,
+      maxNew: 0,
+    );
+
+    expect(out.map((u) => u.id), [seen.id]);
+  });
+
   test('each unit appears at most once per session (teach XOR recall)', () {
     // The honest screen routes new→teach / met→recall off this one-pass
     // uniqueness: a unit is never taught AND recalled in the same session.
@@ -98,6 +162,7 @@ void main() {
       now: now,
       rng: Random(5),
       length: 1000, // larger than the corpus → take everything
+      maxNew: 1000,
     );
     final ids = out.map((u) => u.id).toList();
     expect(ids.toSet().length, ids.length);

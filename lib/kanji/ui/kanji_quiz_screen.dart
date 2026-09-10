@@ -10,7 +10,9 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_reading_question.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_prompt.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
+import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -22,12 +24,13 @@ import 'package:provider/provider.dart';
 
 /// 漢字の声 — honest kanji reading, drilled in WORDS. A never-met unit
 /// (学校【がっこう】) is TAUGHT ear-first: hear it, watch the kana ink in, and see
-/// the sentence it lives in. A met unit is RECALLed cold — choose its reading,
-/// where the wrong options are what reading it character by character would
-/// produce (学校 → がくこう). The meaning is never glossed at all: a
-/// 漢字-literate reader already owns it, and the only thing missing is the
-/// sound. No score on screen, no clock; the per-unit Leitner advances either
-/// way.
+/// the sentence it lives in. A met unit is RECALLed cold — choose its reading
+/// from the written run *in its sentence*, so 日 in 帰国の日 is not the same
+/// question as 日 in 毎日歩く. The wrong options are what reading it character
+/// by character would produce (学校 → がくこう), or another taught reading of
+/// the same run. The meaning is never glossed while asking: a 漢字-literate
+/// reader already owns it, and the only thing missing is the sound. No score
+/// on screen, no clock; the per-unit Leitner advances either way.
 class KanjiQuizScreen extends StatefulWidget {
   KanjiQuizScreen({
     required this.units,
@@ -41,6 +44,9 @@ class KanjiQuizScreen extends StatefulWidget {
 
   /// Injected so option order is deterministic under test.
   final Random rng;
+
+  /// The example-sentence stem shown on a recall beat *before* the answer.
+  static const Key promptStemKey = Key('kanjiPromptStem');
 
   static Route<void> route(List<KanjiUnit> units, String title) =>
       MaterialPageRoute<void>(
@@ -61,6 +67,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   // most once per session (KanjiSession.compose is one-pass), so a unit is
   // taught XOR recalled in a session — teach-before-test holds by construction.
   bool _isTeach = true;
+  bool _isGraded = true; // false when the stem cannot pick one reading
   KanjiReadingQuestion? _question; // recall only
   int? _picked; // recall: chosen option index, null until committed
 
@@ -83,6 +90,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     final p = _current;
     _isTeach = !repo.statForUnit(p.id).isSeen;
     _picked = null;
+    _isGraded = _isTeach || KanjiPrompt.uniquelySelects(p, kKanjiUnits);
     _question = _isTeach
         ? null
         : const KanjiReadingQuiz().buildQuestion(
@@ -161,23 +169,29 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     if (_picked != null) return;
     final now = DateTime.now();
     final correct = i == _question!.correctIndex;
-    context.read<ProgressPersistenceController>().trackKanji(
-      context.read<KanjiReadingRepository>().recordAnswer(
-        _current.id,
+    // A stem that cannot pick one reading is shown, not scored — another
+    // taught reading of the same run would otherwise drop the Leitner.
+    if (_isGraded) {
+      context.read<ProgressPersistenceController>().trackKanji(
+        context.read<KanjiReadingRepository>().recordAnswer(
+          _current.id,
+          correct: correct,
+          at: now,
+        ),
+      );
+      _logAttempt(
         correct: correct,
-        at: now,
-      ),
-    );
-    _logAttempt(
-      correct: correct,
-      beat: 'recall',
-      now: now,
-      chosen: _question!.options[i],
-    );
+        beat: 'recall',
+        now: now,
+        chosen: _question!.options[i],
+      );
+    }
     context.read<SpeechService>().speak(_spoken);
     setState(() {
-      _graded++;
-      if (correct) _correct++;
+      if (_isGraded) {
+        _graded++;
+        if (correct) _correct++;
+      }
       _picked = i;
     });
   }
@@ -278,9 +292,10 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
 
   // What the card reveals depends on the beat. TEACH shows the reading and the
   // sentence it lives in (a reading is never met stripped of its word). RECALL
-  // while ASKING shows the written word and nothing else — no gloss to lean on,
-  // which for a 漢字-literate reader is the whole point. RECALL once ANSWERED
-  // reveals the reading and the same context as confirmation.
+  // while ASKING shows the written run *and* its sentence, with the target
+  // marked and the reading withheld — enough to pick ひ in 帰国の日 without
+  // being told ひ. The Chinese gloss stays off until after the choice. RECALL
+  // once ANSWERED reveals the reading and the same context as confirmation.
   List<Widget> _cardDetail(KanjiUnit p) {
     if (_isTeach) {
       return [
@@ -308,9 +323,11 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       ];
     }
     if (_picked == null) {
-      return const [
-        SizedBox(height: 4),
-        Text(
+      return [
+        const SizedBox(height: 8),
+        _PromptStem(unit: p),
+        const SizedBox(height: 10),
+        const Text(
           AppStrings.kanjiChooseReading,
           style: TextStyle(color: AppColors.inkMuted, fontSize: 15),
         ),
@@ -378,6 +395,39 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     if (i == _picked) return OptionState.wrong;
     if (i == q.correctIndex) return OptionState.revealed;
     return OptionState.dimmed;
+  }
+}
+
+/// The example sentence with the target run marked and every reading withheld.
+/// Lives here (not in domain) because the mark is paint, not scheduling.
+class _PromptStem extends StatelessWidget {
+  const _PromptStem({required this.unit});
+
+  final KanjiUnit unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          for (final s in unit.example.segments)
+            TextSpan(
+              text: s.text,
+              style: s.text == unit.written && s.furigana == unit.reading
+                  ? const TextStyle(
+                      color: AppColors.ink,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.accent,
+                    )
+                  : const TextStyle(color: AppColors.inkMuted),
+            ),
+        ],
+      ),
+      key: KanjiQuizScreen.promptStemKey,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 17, height: 1.5, color: AppColors.ink),
+    );
   }
 }
 
