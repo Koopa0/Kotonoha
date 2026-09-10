@@ -86,6 +86,32 @@ void main() {
     await speech.stop();
     expect(await pending, SpeechPlaybackResult.interrupted);
     expect(client.stopCount, greaterThanOrEqualTo(1));
+    expect(held.isCompleted, isFalse, reason: 'stop must not settle speak');
+
+    held.complete(1);
+    await Future<void>.delayed(Duration.zero);
+    expect(await pending, SpeechPlaybackResult.interrupted);
+  });
+
+  test('late speak completion cannot rewrite a newer play', () async {
+    final firstHold = Completer<Object?>();
+    final client = FakeTtsClient(holdSpeak: firstHold);
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
+
+    final first = speech.play('えき');
+    await Future<void>.delayed(Duration.zero);
+    await speech.stop();
+    expect(await first, SpeechPlaybackResult.interrupted);
+
+    final secondHold = Completer<Object?>();
+    client.holdSpeak = secondHold;
+    final second = speech.play('きっぷ');
+    await Future<void>.delayed(Duration.zero);
+    firstHold.complete(1);
+    await Future<void>.delayed(Duration.zero);
+    expect(secondHold.isCompleted, isFalse);
+    secondHold.complete(1);
+    expect(await second, SpeechPlaybackResult.played);
   });
 
   test('a newer play interrupts the previous one', () async {

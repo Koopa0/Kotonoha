@@ -23,10 +23,9 @@ import 'package:provider/provider.dart';
 
 /// 聞き取り — listen first, recall unaided, reveal, then rehear.
 ///
-/// Playback that is unavailable, failed, interrupted, or cut by leaving the
-/// page is not listening evidence: no wrong Attempt, no Leitner move.
-/// Reveal-after-reading is allowed, but a grade still requires a completed
-/// [SpeechPlaybackResult.played] on this item.
+/// Only a completed play *before* reveal is unprompted listening evidence.
+/// A first success after the answer is visible is prompted practice: it may
+/// be logged, but it cannot backfill a blind success or move SRS.
 class ListeningScreen extends StatefulWidget {
   const ListeningScreen({
     required this.items,
@@ -66,10 +65,10 @@ class _ListeningScreenState extends State<ListeningScreen>
 
   int _index = 0;
   bool _revealed = false;
-  bool _heard = false;
+  bool _blindHeard = false;
+  bool _promptedHeard = false;
   bool _playing = false;
   bool _done = false;
-  int _correct = 0;
   int _heardAtMs = 0;
   int _playGen = 0;
   SpeechPlaybackResult? _lastPlay;
@@ -117,6 +116,7 @@ class _ListeningScreenState extends State<ListeningScreen>
 
   Future<void> _play() async {
     if (!mounted) return;
+    final startedBlind = !_revealed;
     final gen = ++_playGen;
     setState(() => _playing = true);
     final result = await _speech.play(_say);
@@ -124,11 +124,14 @@ class _ListeningScreenState extends State<ListeningScreen>
     setState(() {
       _playing = false;
       _lastPlay = result;
-      if (result == SpeechPlaybackResult.played) {
-        _heard = true;
+      if (result != SpeechPlaybackResult.played) return;
+      if (startedBlind && !_revealed) {
+        _blindHeard = true;
         if (_heardAtMs == 0) {
           _heardAtMs = _clock().millisecondsSinceEpoch;
         }
+      } else {
+        _promptedHeard = true;
       }
     });
   }
@@ -137,35 +140,50 @@ class _ListeningScreenState extends State<ListeningScreen>
     setState(() => _revealed = true);
   }
 
-  void _grade(bool correct) {
-    if (!_heard) return;
-    _advance(record: true, correct: correct);
+  void _gradeBlind(bool correct) {
+    if (!_blindHeard) return;
+    _advance(recordMastery: true, correct: correct);
   }
 
   void _skipUnheard() {
-    if (_heard) return;
-    _advance(record: false, correct: false);
+    if (_blindHeard || _promptedHeard) return;
+    _advance(recordMastery: false, correct: false);
   }
 
-  void _advance({required bool record, required bool correct}) {
+  void _continuePrompted() {
+    if (_blindHeard || !_promptedHeard) return;
+    _advance(recordMastery: false, correct: false, prompted: true);
+  }
+
+  void _advance({
+    required bool recordMastery,
+    required bool correct,
+    bool prompted = false,
+  }) {
     final now = _clock();
-    if (record) {
+    if (recordMastery || prompted) {
       context.read<AnalyticsLog>().recordObserved(
         Attempt(
           ts: now.millisecondsSinceEpoch,
           itemId: _current.displayText,
           itemType: ItemType.word,
           mode: PracticeMode.listening.name,
-          correct: correct,
-          rtMs: _heardAtMs == 0 ? 0 : now.millisecondsSinceEpoch - _heardAtMs,
+          correct: recordMastery && correct,
+          rtMs: recordMastery && _heardAtMs != 0
+              ? now.millisecondsSinceEpoch - _heardAtMs
+              : 0,
           sessionId: _sessionId,
           meta: {
             'romaji': _current.romaji,
             AttemptMeta.playback: SpeechPlaybackResult.played.name,
             AttemptMeta.heard: true,
+            AttemptMeta.prompted: prompted,
+            AttemptMeta.scored: recordMastery,
           },
         ),
       );
+    }
+    if (recordMastery) {
       context.read<ProgressPersistenceController>().trackWord(
         context.read<WordProgressRepository>().recordAnswer(
           _current.progressId,
@@ -173,7 +191,6 @@ class _ListeningScreenState extends State<ListeningScreen>
           at: now,
         ),
       );
-      if (correct) _correct++;
     }
     if (_index + 1 >= widget.items.length) {
       final store = context.read<KanaProgressRepository>();
@@ -190,7 +207,8 @@ class _ListeningScreenState extends State<ListeningScreen>
     setState(() {
       _index++;
       _revealed = false;
-      _heard = false;
+      _blindHeard = false;
+      _promptedHeard = false;
       _playing = false;
       _heardAtMs = 0;
       _lastPlay = null;
@@ -211,7 +229,7 @@ class _ListeningScreenState extends State<ListeningScreen>
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
-      headline: AppStrings.listeningSummary(_correct, widget.items.length),
+      headline: AppStrings.listeningClose,
       note: _share == null
           ? AppStrings.closing(widget.items.last.displayText, band: band)
           : null,
@@ -233,105 +251,120 @@ class _ListeningScreenState extends State<ListeningScreen>
           ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: AppColors.hairline),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(),
-                  IconButton.filled(
-                    key: const ValueKey<String>('listening-replay'),
-                    onPressed: () => unawaited(_play()),
-                    iconSize: _revealed ? 34 : 56,
-                    tooltip: AppStrings.replaySound,
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.accentSoft,
-                      foregroundColor: AppColors.accent,
-                      padding: EdgeInsets.all(_revealed ? 14 : 22),
-                    ),
-                    icon: Icon(
-                      _playing
-                          ? Icons.graphic_eq_rounded
-                          : Icons.volume_up_rounded,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _revealed
-                        ? AppStrings.listeningRehear
-                        : AppStrings.listeningPrompt,
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 15,
-                    ),
-                  ),
-                  if (!_revealed) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      AppStrings.listeningRecall,
-                      style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
-                    ),
-                  ],
-                  if (_revealed) ...[
-                    const SizedBox(height: 24),
-                    Text(
-                      _current.displayText,
-                      key: const ValueKey<String>('listening-answer'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 34,
-                        height: 1.2,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.ink,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: AppColors.hairline),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _current.romaji,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _current.meaning,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ],
-                  if (_blockMessage != null) ...[
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        _blockMessage!,
-                        key: const ValueKey<String>('listening-block'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 14,
-                          height: 1.5,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 20,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton.filled(
+                              key: const ValueKey<String>('listening-replay'),
+                              onPressed: () => unawaited(_play()),
+                              iconSize: _revealed ? 34 : 56,
+                              tooltip: AppStrings.replaySound,
+                              style: IconButton.styleFrom(
+                                backgroundColor: AppColors.accentSoft,
+                                foregroundColor: AppColors.accent,
+                                padding: EdgeInsets.all(_revealed ? 14 : 22),
+                              ),
+                              icon: Icon(
+                                _playing
+                                    ? Icons.graphic_eq_rounded
+                                    : Icons.volume_up_rounded,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _revealed
+                                  ? AppStrings.listeningRehear
+                                  : AppStrings.listeningPrompt,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.inkMuted,
+                                fontSize: 15,
+                              ),
+                            ),
+                            if (!_revealed) ...[
+                              const SizedBox(height: 8),
+                              const Text(
+                                AppStrings.listeningRecall,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.inkMuted,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                            if (_revealed) ...[
+                              const SizedBox(height: 20),
+                              Text(
+                                _current.displayText,
+                                key: const ValueKey<String>('listening-answer'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 34,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _current.romaji,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.accent,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _current.meaning,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.ink,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ],
+                            if (_blockMessage != null) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                _blockMessage!,
+                                key: const ValueKey<String>('listening-block'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.inkMuted,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                  const Spacer(),
-                ],
-              ),
-            ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         Padding(
@@ -343,7 +376,8 @@ class _ListeningScreenState extends State<ListeningScreen>
   }
 
   String? get _blockMessage {
-    if (_heard) return null;
+    if (_blindHeard) return null;
+    if (_promptedHeard) return AppStrings.listeningPrompted;
     return switch (_lastPlay) {
       SpeechPlaybackResult.unavailable => AppStrings.listeningUnavailable,
       SpeechPlaybackResult.failed => AppStrings.listeningFailed,
@@ -356,7 +390,6 @@ class _ListeningScreenState extends State<ListeningScreen>
   Widget _controls() {
     if (!_revealed) {
       return SizedBox(
-        height: 54,
         width: double.infinity,
         child: FilledButton(
           key: const ValueKey<String>('listening-reveal'),
@@ -365,44 +398,50 @@ class _ListeningScreenState extends State<ListeningScreen>
         ),
       );
     }
-    if (_heard) {
-      return Row(
+    if (_blindHeard) {
+      return Column(
         children: [
-          Expanded(
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+              onPressed: () => _gradeBlind(true),
+              child: const Text(AppStrings.listeningHeard),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(54),
                 side: const BorderSide(color: AppColors.error),
                 foregroundColor: AppColors.error,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: () => _grade(false),
+              onPressed: () => _gradeBlind(false),
               child: const Text(AppStrings.listeningMissed),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.success,
-                minimumSize: const Size.fromHeight(54),
-              ),
-              onPressed: () => _grade(true),
-              child: const Text(AppStrings.listeningHeard),
             ),
           ),
         ],
       );
     }
+    if (_promptedHeard) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          key: const ValueKey<String>('listening-next'),
+          onPressed: _continuePrompted,
+          child: const Text(AppStrings.listeningNext),
+        ),
+      );
+    }
     return SizedBox(
-      height: 54,
       width: double.infinity,
       child: OutlinedButton(
         key: const ValueKey<String>('listening-skip'),
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(54),
           side: const BorderSide(color: AppColors.hairline),
           foregroundColor: AppColors.inkMuted,
           shape: RoundedRectangleBorder(

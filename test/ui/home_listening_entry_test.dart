@@ -58,8 +58,9 @@ void main() {
       await kana.markUnitLearned(lesson.id);
     }
     await pumpHome(tester, kana: kana, words: words);
+    expect(find.text(AppStrings.listenFirstAction), findsNothing);
     expect(find.text(AppStrings.listeningEntry), findsNothing);
-    expect(find.text(AppStrings.dictationEntry), findsNothing);
+    expect(find.text(AppStrings.dictationAction), findsNothing);
   });
 
   testWidgets(
@@ -73,10 +74,14 @@ void main() {
       await words.introduce('word:えき', at: DateTime(2026, 9, 10, 12));
       await pumpHome(tester, kana: kana, words: words);
 
+      expect(find.text(AppStrings.listenFirstAction), findsOneWidget);
       expect(find.text(AppStrings.listeningEntry), findsOneWidget);
       expect(find.text(AppStrings.listeningSubtitle), findsOneWidget);
+      expect(find.text(AppStrings.meetWordsAction), findsOneWidget);
       expect(find.text(AppStrings.ferryEntry), findsOneWidget);
+      expect(find.text(AppStrings.dictationAction), findsOneWidget);
       expect(find.text(AppStrings.dictationEntry), findsOneWidget);
+      expect(find.text(AppStrings.readPhrasesAction), findsOneWidget);
       expect(find.text(AppStrings.sentenceEntry), findsOneWidget);
     },
   );

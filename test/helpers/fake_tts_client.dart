@@ -17,28 +17,20 @@ class FakeTtsClient implements TtsClient {
 
   final List<String> spoken = <String>[];
   int stopCount = 0;
-  Completer<Object?>? _inFlight;
 
   @override
   Future<Object?> speak(String text) async {
     spoken.add(text);
-    _inFlight = holdSpeak;
-    try {
-      if (_inFlight != null) return await _inFlight!.future;
-      if (speakError != null) throw speakError!;
-      return speakResult;
-    } finally {
-      _inFlight = null;
-    }
+    if (holdSpeak != null) return holdSpeak!.future;
+    if (speakError != null) throw speakError!;
+    return speakResult;
   }
 
+  /// iOS/macOS flutter_tts: stop returns, but the pending speak future
+  /// is not completed. Tests must not assume stop throws or settles speak.
   @override
   Future<void> stop() async {
     stopCount++;
-    final held = _inFlight;
-    if (held != null && !held.isCompleted) {
-      held.completeError(StateError('stopped'));
-    }
   }
 }
 

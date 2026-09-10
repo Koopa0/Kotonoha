@@ -38,9 +38,11 @@ Future<void> pumpListening(
   InMemoryAnalyticsLog? analytics,
   WordProgressRepository? wordRepo,
   DateTime Function()? clock,
+  Size size = const Size(360, 800),
+  double textScale = 1,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(360, 800);
+  tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
@@ -65,10 +67,16 @@ Future<void> pumpListening(
         Provider<SpeechService>.value(value: speech),
       ],
       child: MaterialApp(
-        home: ListeningScreen(
-          items: items,
-          title: AppStrings.listeningTitle,
-          clock: clock,
+        home: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: ListeningScreen(
+              items: items,
+              title: AppStrings.listeningTitle,
+              clock: clock,
+            ),
+          ),
         ),
       ),
     ),
@@ -127,6 +135,8 @@ void main() {
       expect(logged.single.correct, isTrue);
       expect(logged.single.rtMs, 4000);
       expect(logged.single.meta[AttemptMeta.heard], isTrue);
+      expect(logged.single.meta[AttemptMeta.prompted], isFalse);
+      expect(logged.single.meta[AttemptMeta.scored], isTrue);
       expect(
         logged.single.meta[AttemptMeta.playback],
         SpeechPlaybackResult.played.name,
@@ -162,7 +172,8 @@ void main() {
 
     expect(await analytics.all(), isEmpty);
     expect(words.statForItem('word:きっぷ').isSeen, isFalse);
-    expect(find.text(AppStrings.listeningSummary(0, 1)), findsOneWidget);
+    expect(find.text(AppStrings.listeningClose), findsOneWidget);
+    expect(find.textContaining('聽懂'), findsNothing);
   });
 
   testWidgets('unavailable engine cannot be scored as a miss', (tester) async {
@@ -189,11 +200,11 @@ void main() {
     expect(words.statForItem('phrase:えきは どこ').wrongCount, 0);
   });
 
-  testWidgets('failed then replayed play unlocks a real grade', (tester) async {
-    final speech = ScriptedSpeechService(const [
-      SpeechPlaybackResult.failed,
-      SpeechPlaybackResult.played,
-    ]);
+  testWidgets('fail then reveal then play is prompted — no SRS', (
+    tester,
+  ) async {
+    final client = FakeTtsClient(speakResult: 0);
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
     final analytics = InMemoryAnalyticsLog();
     final words = await WordProgressRepository.load();
     await pumpListening(
@@ -206,19 +217,49 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
     await tester.pump();
-    expect(find.text(AppStrings.listeningHeard), findsNothing);
-
+    expect(find.text('えきは どこ'), findsOneWidget);
+    client.speakResult = 1;
     await tester.tap(find.byKey(const ValueKey<String>('listening-replay')));
     await tester.pump();
-    expect(find.text(AppStrings.listeningHeard), findsOneWidget);
-    await tester.tap(find.text(AppStrings.listeningMissed));
+    expect(find.text(AppStrings.listeningHeard), findsNothing);
+    expect(find.text(AppStrings.listeningPrompted), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('listening-next')));
     await tester.pumpAndSettle();
 
     final logged = await analytics.all();
     expect(logged, hasLength(1));
+    expect(logged.single.meta[AttemptMeta.prompted], isTrue);
+    expect(logged.single.meta[AttemptMeta.scored], isFalse);
     expect(logged.single.correct, isFalse);
-    expect(words.statForItem('phrase:えきは どこ').wrongCount, 1);
+    expect(words.statForItem('phrase:えきは どこ').isSeen, isFalse);
     expect(words.statForItem('phrase:えきは どこ').srsLevel, 0);
+    expect(find.textContaining('聽懂'), findsNothing);
+  });
+
+  testWidgets('reveal while play is in flight is prompted only', (
+    tester,
+  ) async {
+    final speech = HangingSpeechService();
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_station],
+      analytics: analytics,
+      wordRepo: words,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    speech.complete(SpeechPlaybackResult.played);
+    await tester.pump();
+    expect(find.text(AppStrings.listeningHeard), findsNothing);
+    expect(find.text(AppStrings.listeningNext), findsOneWidget);
+    await tester.tap(find.text(AppStrings.listeningNext));
+    await tester.pumpAndSettle();
+    expect(words.statForItem('phrase:えきは どこ').isSeen, isFalse);
+    expect((await analytics.all()).single.meta[AttemptMeta.prompted], isTrue);
   });
 
   testWidgets('rapid replay stays on one speakable and does not leak text', (
@@ -325,5 +366,60 @@ void main() {
     tester.state<NavigatorState>(find.byType(Navigator)).pop();
     await tester.pump();
     expect(speech.stopCount, greaterThanOrEqualTo(1));
+  });
+
+  testWidgets('320x640 at 2x text keeps long T01 reveal reachable', (
+    tester,
+  ) async {
+    final speech = ScriptedSpeechService(const [SpeechPlaybackResult.played]);
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_repeat],
+      size: const Size(320, 640),
+      textScale: 2,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('もういちど いってください'), findsOneWidget);
+    expect(find.text('mou ichido itte kudasai'), findsOneWidget);
+    expect(find.text('請再說一次'), findsOneWidget);
+    expect(find.text(AppStrings.listeningHeard), findsOneWidget);
+    expect(find.text(AppStrings.listeningMissed), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.listeningHeard));
+    await tester.tap(find.text(AppStrings.listeningHeard));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('聽懂'), findsNothing);
+  });
+
+  testWidgets('320x640 at 2x text keeps a failure line and skip reachable', (
+    tester,
+  ) async {
+    final speech = FlutterTtsSpeechService(
+      client: FakeTtsClient(speakResult: 0),
+      ready: true,
+    );
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_repeat],
+      size: const Size(320, 640),
+      textScale: 2,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text(AppStrings.listeningFailed), findsOneWidget);
+    expect(find.text(AppStrings.listeningSkip), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.listeningSkip));
+    await tester.tap(find.text(AppStrings.listeningSkip));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text(AppStrings.listeningClose), findsOneWidget);
+    expect(find.textContaining('聽懂'), findsNothing);
   });
 }

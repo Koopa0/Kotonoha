@@ -274,14 +274,14 @@ class HomeScreen extends StatelessWidget {
                       onTap: () => _startDictation(context),
                     ),
                   // 聞き取り reviews already-met T01 station items only.
-                  // #10 owns naming of this new card; existing labels stay.
                   if (ListeningSession.hasReadyItems(
                     learnedChars: learnedChars,
                     stats: wordProgress.stats,
                   ))
                     _NavCard(
                       icon: Icons.hearing_rounded,
-                      label: AppStrings.listeningEntry,
+                      label: AppStrings.listenFirstAction,
+                      productName: AppStrings.listeningEntry,
                       subtitle: AppStrings.listeningSubtitle,
                       onTap: () => _startListening(context),
                     ),

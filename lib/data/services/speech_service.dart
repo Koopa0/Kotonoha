@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter_tts/flutter_tts.dart';
 
 /// Outcome of one playback attempt. A completed [SpeechService.speak] future
@@ -33,7 +35,8 @@ abstract class SpeechService {
   Future<SpeechPlaybackResult> play(String text);
 
   /// Stops any in-flight utterance. In-flight [play] calls resolve
-  /// [SpeechPlaybackResult.interrupted].
+  /// [SpeechPlaybackResult.interrupted] without waiting for the engine's
+  /// speak future (iOS/macOS may never settle that future after cancel).
   Future<void> stop();
 }
 
@@ -53,6 +56,7 @@ class FlutterTtsSpeechService implements SpeechService {
   final TtsClient client;
   final bool ready;
   int _token = 0;
+  Completer<SpeechPlaybackResult>? _pending;
 
   static Future<FlutterTtsSpeechService> create() async {
     final tts = FlutterTts();
@@ -92,30 +96,76 @@ class FlutterTtsSpeechService implements SpeechService {
     if (text.isEmpty) return SpeechPlaybackResult.failed;
     if (!ready) return SpeechPlaybackResult.unavailable;
 
+    _settlePending(SpeechPlaybackResult.interrupted);
     final token = ++_token;
+    final pending = Completer<SpeechPlaybackResult>();
+    _pending = pending;
+
     try {
       await client.stop();
     } catch (_) {}
-    if (token != _token) return SpeechPlaybackResult.interrupted;
+    if (token != _token) {
+      _settle(pending, SpeechPlaybackResult.interrupted);
+      return pending.future;
+    }
 
+    unawaited(_driveSpeak(token, text, pending));
+    return pending.future;
+  }
+
+  Future<void> _driveSpeak(
+    int token,
+    String text,
+    Completer<SpeechPlaybackResult> pending,
+  ) async {
     try {
       final result = await client.speak(text);
-      if (token != _token) return SpeechPlaybackResult.interrupted;
-      return _acceptedSpeak(result)
-          ? SpeechPlaybackResult.played
-          : SpeechPlaybackResult.failed;
+      if (token != _token) {
+        _settle(pending, SpeechPlaybackResult.interrupted);
+        return;
+      }
+      _settle(
+        pending,
+        _acceptedSpeak(result)
+            ? SpeechPlaybackResult.played
+            : SpeechPlaybackResult.failed,
+      );
     } catch (_) {
-      if (token != _token) return SpeechPlaybackResult.interrupted;
-      return SpeechPlaybackResult.failed;
+      if (token != _token) {
+        _settle(pending, SpeechPlaybackResult.interrupted);
+        return;
+      }
+      _settle(pending, SpeechPlaybackResult.failed);
     }
   }
 
   @override
   Future<void> stop() async {
     _token++;
+    _settlePending(SpeechPlaybackResult.interrupted);
     try {
       await client.stop();
     } catch (_) {}
+  }
+
+  void _settlePending(SpeechPlaybackResult result) {
+    final pending = _pending;
+    _pending = null;
+    if (pending != null && !pending.isCompleted) {
+      pending.complete(result);
+    }
+  }
+
+  void _settle(
+    Completer<SpeechPlaybackResult> pending,
+    SpeechPlaybackResult result,
+  ) {
+    if (!pending.isCompleted) {
+      pending.complete(result);
+    }
+    if (identical(_pending, pending)) {
+      _pending = null;
+    }
   }
 
   static bool _acceptedSpeak(Object? result) {

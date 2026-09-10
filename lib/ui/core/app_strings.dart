@@ -42,6 +42,7 @@ abstract final class AppStrings {
   static const String quietPracticeAction = '安靜練習';
   static const String meetWordsAction = '學單字';
   static const String dictationAction = '聽寫單字';
+  static const String listenFirstAction = '先聽再揭曉';
   static const String readPhrasesAction = '讀短句';
   static const String readKanjiSentencesAction = '漢字句閱讀';
 
@@ -190,11 +191,12 @@ abstract final class AppStrings {
   static const String listeningHeard = '聽懂了';
   static const String listeningMissed = '沒聽懂';
   static const String listeningSkip = '這一題先跳過';
+  static const String listeningNext = '下一題';
   static const String listeningUnavailable = '現在播不出聲音,這一題不算作答。';
   static const String listeningFailed = '剛才沒播出來,這一題不算作答。';
   static const String listeningInterrupted = '播放中斷了,這一題還不能算聽過。';
-  static String listeningSummary(int correct, int total) =>
-      '聽懂 $correct / $total';
+  static const String listeningPrompted = '這是看過答案後才聽到的,不算無提示聽力。';
+  static const String listeningClose = '這一回,先聽到這裡。';
 
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
