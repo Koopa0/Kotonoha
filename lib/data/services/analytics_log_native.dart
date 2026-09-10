@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -30,6 +31,16 @@ class FileAnalyticsLog implements AnalyticsLog {
   /// isolate, so this needs no locking; sharing a file across instances is not
   /// supported.
   List<Attempt>? _cache;
+
+  /// Attempts accepted into [_cache] whose JSONL line is not yet confirmed
+  /// on disk. A failed append leaves them here so a later write can retry
+  /// without duplicating the in-memory view.
+  final List<Attempt> _unpersisted = [];
+
+  /// Serializes appends so two overlapping [record]s cannot write the same
+  /// pending line twice. The chain itself is kept successful so a later
+  /// flush can retry after a failure.
+  Future<void> _writeChain = Future<void>.value();
 
   static const String _fileName = 'kana_analytics.jsonl';
 
@@ -79,15 +90,38 @@ class FileAnalyticsLog implements AnalyticsLog {
   }
 
   @override
+  int get unpersistedCount => _unpersisted.length;
+
+  @override
   Future<void> record(Attempt attempt) async {
-    await _file.writeAsString(
-      '${jsonEncode(attempt.toJson())}\n',
-      mode: FileMode.append,
-      flush: true,
+    await _ensureLoaded();
+    // Retain first: a filesystem fault must not drop the attempt from the
+    // in-memory log, and must not claim the line has landed on disk.
+    _cache!.add(attempt);
+    _unpersisted.add(attempt);
+    await flushPending();
+  }
+
+  @override
+  Future<void> flushPending() {
+    final result = _writeChain.then(
+      (_) => _appendUnpersisted(),
+      onError: (Object _) => _appendUnpersisted(),
     );
-    // Keep the in-memory view in sync if it's already loaded; otherwise the
-    // next read parses the file, which now includes this line.
-    _cache?.add(attempt);
+    _writeChain = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<void> _appendUnpersisted() async {
+    while (_unpersisted.isNotEmpty) {
+      final next = _unpersisted.first;
+      await _file.writeAsString(
+        '${jsonEncode(next.toJson())}\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+      _unpersisted.removeAt(0);
+    }
   }
 
   @override

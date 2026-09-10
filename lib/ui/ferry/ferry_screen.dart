@@ -100,7 +100,7 @@ class _FerryScreenState extends State<FerryScreen> {
 
   void _grade(bool correct) {
     final now = _clock();
-    context.read<AnalyticsLog>().record(
+    context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.kana,

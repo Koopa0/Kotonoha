@@ -100,4 +100,50 @@ void main() {
     expect(all.map((a) => a.itemId), ['す']); // good rows survive
     expect(await log.count(), 1);
   });
+
+  test('a runtime write failure keeps the attempt in memory and does not '
+      'claim the line landed on disk', () async {
+    final log = FileAnalyticsLog.forFile(file);
+    await log.all(); // warm cache — startup already succeeded
+    await dir.delete(recursive: true);
+
+    await expectLater(
+      log.record(attempt('あ')),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(await log.count(), 1);
+    expect((await log.all()).single.itemId, 'あ');
+    expect(log.unpersistedCount, 1);
+    expect(await file.exists(), isFalse);
+  });
+
+  test(
+    'flushPending after the path returns writes each attempt once',
+    () async {
+      final log = FileAnalyticsLog.forFile(file);
+      await log.all();
+      await dir.delete(recursive: true);
+
+      await expectLater(
+        log.record(attempt('あ')),
+        throwsA(isA<FileSystemException>()),
+      );
+      await expectLater(
+        log.record(attempt('か')),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await log.count(), 2);
+      expect(log.unpersistedCount, 2);
+
+      await dir.create(recursive: true);
+      await log.flushPending();
+
+      expect(log.unpersistedCount, 0);
+      expect(await log.count(), 2);
+      final lines = await file.readAsLines();
+      expect(lines.where((l) => l.trim().isNotEmpty).length, 2);
+      final reopened = FileAnalyticsLog.forFile(file);
+      expect((await reopened.all()).map((a) => a.itemId), ['あ', 'か']);
+    },
+  );
 }

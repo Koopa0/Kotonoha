@@ -152,7 +152,7 @@ class _DictationScreenState extends State<DictationScreen> {
     final built = _picked.map((i) => _tiles[i]).join();
     final correct = built == _current.kana;
     final now = _clock();
-    context.read<AnalyticsLog>().record(
+    context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: _current.kana,

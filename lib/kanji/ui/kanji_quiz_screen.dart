@@ -117,7 +117,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     String? chosen,
   }) {
     final p = _current;
-    context.read<AnalyticsLog>().record(
+    context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
         itemId: p.id,
