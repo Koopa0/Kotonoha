@@ -16,6 +16,7 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
+import 'package:kotonoha/ui/core/widgets/answer_option_grid.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/quiz/quiz_viewmodel.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
@@ -480,13 +481,7 @@ class _QuizScreenState extends State<QuizScreen> {
                         ],
                         if (!isRecall) ...[
                           const SizedBox(height: 28),
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 2.6,
+                          AnswerOptionGrid(
                             children: [
                               for (int i = 0; i < q.options.length; i++)
                                 AnswerOptionButton(
