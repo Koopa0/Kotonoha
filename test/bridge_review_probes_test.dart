@@ -18,6 +18,7 @@ import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
+import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -265,6 +266,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(words.statForItem('word:いぬ').correctCount, 1);
   });
+
+  test(
+    'P2-6 confirm wait after 讀得出來 does not pollute strong-item fluency',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await KanaProgressRepository.load();
+      var elapsed = 0;
+      for (var i = 0; i < 8; i++) {
+        await repo.recordAnswer(e, correct: true, at: now, latencyMs: 500);
+      }
+      expect(repo.statFor(e).srsLevel, 6);
+      expect(repo.statFor(e).avgLatencyMs, 500);
+      expect(DailySession.readyForRecall(repo.statFor(e), now: now), isTrue);
+
+      final log = InMemoryAnalyticsLog();
+      final vm = QuizViewModel(
+        items: [
+          SessionItem(
+            question: QuizQuestion(
+              target: e,
+              direction: QuizDirection.kanaRecall,
+              options: const [],
+              correctIndex: 0,
+            ),
+            mode: PracticeMode.daily,
+          ),
+        ],
+        repository: repo,
+        persistence: owner(),
+        analytics: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      elapsed = 500;
+      vm.captureUnpromptedRecall();
+      elapsed = 10500;
+      vm.gradeRecall(correct: true, unprompted: true);
+      expect((await log.all()).single.rtMs, 500);
+      expect(repo.statFor(e).avgLatencyMs, 500);
+      expect(DailySession.readyForRecall(repo.statFor(e), now: now), isTrue);
+      vm.dispose();
+    },
+  );
 
   testWidgets('P2-5 quiet transfer reveal does not speak', (tester) async {
     final spoken = await _revealHotel(tester, quiet: true);

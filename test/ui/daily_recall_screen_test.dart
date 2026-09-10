@@ -12,6 +12,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
@@ -125,4 +126,57 @@ void main() {
     expect(find.text('ホテル'), findsOneWidget);
     expect(find.text(AppStrings.iReadUnprompted), findsOneWidget);
   });
+
+  testWidgets(
+    '10s confirm after 讀得出來 does not slow a strong item back to MCQ',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.binding.setSurfaceSize(const Size(393, 852));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repo = await KanaProgressRepository.load();
+      final words = await WordProgressRepository.load();
+      final now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      for (var i = 0; i < 8; i++) {
+        await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      expect(DailySession.readyForRecall(repo.statFor(kana), now: now), isTrue);
+      final log = InMemoryAnalyticsLog();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(value: repo),
+            ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: repo.flushPending,
+                kanjiFlush: () async {},
+                wordFlush: words.flushPending,
+              ),
+            ),
+            Provider<SpeechService>.value(value: const SilentSpeechService()),
+            Provider<AnalyticsLog>.value(value: log),
+          ],
+          child: MaterialApp(
+            home: QuizScreen(
+              items: [recallItem()],
+              title: AppStrings.dailySession,
+              clock: () => now,
+              monotonicMs: () => elapsed,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      elapsed = 500;
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pump();
+      elapsed = 10500;
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pump();
+      expect((await log.all()).single.rtMs, 500);
+      expect(repo.statFor(kana).avgLatencyMs, 500);
+      expect(DailySession.readyForRecall(repo.statFor(kana), now: now), isTrue);
+    },
+  );
 }

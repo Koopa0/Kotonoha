@@ -345,6 +345,143 @@ void main() {
     },
   );
 
+  test(
+    'confirm wait after 讀得出來 does not enter recall RT or avgLatency',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await KanaProgressRepository.load();
+      final now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
+      final kana = all.first;
+      for (var i = 0; i < 8; i++) {
+        await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      expect(repo.statFor(kana).srsLevel, 6);
+      expect(repo.statFor(kana).avgLatencyMs, 500);
+      QuizQuestion recall() => QuizQuestion(
+        target: kana,
+        direction: QuizDirection.kanaRecall,
+        options: const [],
+        correctIndex: 0,
+      );
+      final log = InMemoryAnalyticsLog();
+      final vm = QuizViewModel(
+        items: [SessionItem(question: recall(), mode: PracticeMode.daily)],
+        repository: repo,
+        persistence: owner(),
+        analytics: log,
+        clock: () => now,
+        monotonicMs: () => elapsed,
+      );
+      elapsed = 500;
+      vm.captureUnpromptedRecall();
+      elapsed = 10500;
+      vm.gradeRecall(correct: true, unprompted: true);
+      expect((await log.all()).single.rtMs, 500);
+      expect(repo.statFor(kana).avgLatencyMs, 500);
+      vm.dispose();
+
+      SharedPreferences.setMockInitialValues({});
+      final repo2 = await KanaProgressRepository.load();
+      for (var i = 0; i < 8; i++) {
+        await repo2.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+      }
+      var elapsed2 = 0;
+      final log2 = InMemoryAnalyticsLog();
+      final vm2 = QuizViewModel(
+        items: [SessionItem(question: recall(), mode: PracticeMode.daily)],
+        repository: repo2,
+        persistence: owner(),
+        analytics: log2,
+        clock: () => now,
+        monotonicMs: () => elapsed2,
+      );
+      elapsed2 = 500;
+      vm2.captureUnpromptedRecall();
+      elapsed2 = 20000;
+      vm2.gradeRecall(correct: true, unprompted: true);
+      expect((await log2.all()).single.rtMs, 500);
+      expect(repo2.statFor(kana).avgLatencyMs, 500);
+      vm2.dispose();
+    },
+  );
+
+  test('interrupt before 讀得出來 keeps confirmation untimed', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 8; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(
+          question: QuizQuestion(
+            target: kana,
+            direction: QuizDirection.kanaRecall,
+            options: const [],
+            correctIndex: 0,
+          ),
+          mode: PracticeMode.daily,
+        ),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    vm.noteUnanswerable();
+    elapsed = 500;
+    vm.captureUnpromptedRecall();
+    elapsed = 10500;
+    vm.gradeRecall(correct: true, unprompted: true);
+    expect((await log.all()).single.rtMs, 0);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    vm.dispose();
+  });
+
+  test('interrupt after 讀得出來 keeps the frozen commit RT', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await KanaProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    var elapsed = 0;
+    final kana = all.first;
+    for (var i = 0; i < 8; i++) {
+      await repo.recordAnswer(kana, correct: true, at: now, latencyMs: 500);
+    }
+    final log = InMemoryAnalyticsLog();
+    final vm = QuizViewModel(
+      items: [
+        SessionItem(
+          question: QuizQuestion(
+            target: kana,
+            direction: QuizDirection.kanaRecall,
+            options: const [],
+            correctIndex: 0,
+          ),
+          mode: PracticeMode.daily,
+        ),
+      ],
+      repository: repo,
+      persistence: owner(),
+      analytics: log,
+      clock: () => now,
+      monotonicMs: () => elapsed,
+    );
+    elapsed = 500;
+    vm.captureUnpromptedRecall();
+    vm.noteUnanswerable();
+    elapsed = 10500;
+    vm.gradeRecall(correct: true, unprompted: true);
+    expect((await log.all()).single.rtMs, 500);
+    expect(repo.statFor(kana).avgLatencyMs, 500);
+    vm.dispose();
+  });
+
   test('emits one Attempt to the analytics log per answer', () async {
     final log = InMemoryAnalyticsLog();
     final vm = await makeVm(['さ', 'し'], analytics: log);

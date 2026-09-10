@@ -265,10 +265,13 @@ class _QuizScreenState extends State<QuizScreen> {
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: () => setState(() {
-              _recallUnpromptedCommit = true;
-              _recallRevealed = true;
-            }),
+            onPressed: () {
+              _vm.captureUnpromptedRecall();
+              setState(() {
+                _recallUnpromptedCommit = true;
+                _recallRevealed = true;
+              });
+            },
             child: const Text(AppStrings.iReadUnprompted),
           ),
         ),

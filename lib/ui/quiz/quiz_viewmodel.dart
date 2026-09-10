@@ -46,6 +46,8 @@ class QuizViewModel extends ChangeNotifier {
   late int _shownMonoMs;
   late int _shownWallMs;
   bool _timingValid = true;
+  bool _recallCommitCaptured = false;
+  int? _committedRecallLatencyMs;
 
   final List<AnsweredQuestion> _answers = [];
   int _index = 0;
@@ -107,6 +109,18 @@ class QuizViewModel extends ChangeNotifier {
     return mono;
   }
 
+  /// Freeze foreground RT when the learner commits to an unprompted reading
+  /// *before* the answer is revealed. Confirmation time after this must not
+  /// enter fluency evidence. An already-invalid clock stays null — never a
+  /// fabricated RT.
+  void captureUnpromptedRecall() {
+    if (isAnswered || _finished) return;
+    if (current.direction != QuizDirection.kanaRecall) return;
+    if (_recallCommitCaptured) return;
+    _committedRecallLatencyMs = _latencyMs(_clock());
+    _recallCommitCaptured = true;
+  }
+
   /// Self-grades a [QuizDirection.kanaRecall] item after the reading has been
   /// revealed for confirmation. [unprompted] is true only when the learner
   /// committed to a reading *before* seeing it. A hinted correct is persisted
@@ -144,7 +158,11 @@ class QuizViewModel extends ChangeNotifier {
     final item = currentItem;
     final question = item.question;
     final now = _clock();
-    final latencyMs = forceUntimed ? null : _latencyMs(now);
+    final latencyMs = forceUntimed
+        ? null
+        : _recallCommitCaptured
+        ? _committedRecallLatencyMs
+        : _latencyMs(now);
     _selected = selectedIndex;
     _answers.add(
       AnsweredQuestion(question: question, selectedIndex: selectedIndex),
@@ -198,6 +216,8 @@ class QuizViewModel extends ChangeNotifier {
     } else {
       _index += 1;
       _selected = null;
+      _recallCommitCaptured = false;
+      _committedRecallLatencyMs = null;
       _armTiming();
     }
     notifyListeners();
