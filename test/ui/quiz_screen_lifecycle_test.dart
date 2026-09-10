@@ -254,6 +254,61 @@ void main() {
   );
 
   testWidgets(
+    'Q2 painted during lingering inactive after hidden stays untimed',
+    (tester) async {
+      addTearDown(() => resumeApp(tester));
+      final env = await seedRepo();
+      await pumpQuiz(
+        tester,
+        repo: env.repo,
+        log: env.log,
+        clock: env.clock,
+        elapsed: env.elapsed,
+        items: [item(), item(), item()],
+      );
+
+      env.setElapsed(500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      expect((await env.log.all()).single.rtMs, 500);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+
+      pauseApp(tester);
+      await tester.pump(const Duration(milliseconds: 800));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      env.setNow(env.clock().add(const Duration(seconds: 10)));
+      env.setElapsed(10500);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      final gesture = await tester.press(find.text(kana.romaji));
+      await tester.pump();
+      env.setElapsed(11000);
+      await gesture.up();
+      await tester.pump();
+      await env.repo.flushPending();
+      expect((await env.log.all()).map((a) => a.rtMs), [500, 0]);
+      expect(env.repo.statFor(kana).srsLevel, 4);
+      expect(env.repo.statFor(kana).correctCount, 5);
+      expect(env.repo.statFor(kana).avgLatencyMs, 500);
+
+      await tester.pump(const Duration(milliseconds: 800));
+      env.setElapsed(11500);
+      await tester.tap(find.text(kana.romaji));
+      await tester.pump();
+      await env.repo.flushPending();
+      final attempts = await env.log.all();
+      expect(attempts.map((a) => a.rtMs), [500, 0, 500]);
+      expect(attempts.every((a) => a.correct), isTrue);
+      final after = (await KanaProgressRepository.load()).statFor(kana);
+      expect(after.srsLevel, 5);
+      expect(after.avgLatencyMs, 500);
+      expect(after.wrongCount, 0);
+    },
+  );
+
+  testWidgets(
     'shown visual item stays untimed after resume and later questions time',
     (tester) async {
       addTearDown(() => resumeApp(tester));

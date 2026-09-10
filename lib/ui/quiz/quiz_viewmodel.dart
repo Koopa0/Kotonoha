@@ -20,9 +20,9 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 /// ([noteAnswerablePresentation]), not merely construct / [advance]. A
 /// question born while hidden stays unarmed until that frame. Once
 /// presented, [noteUnanswerable] freezes the clock — resume must not
-/// restart it. Flutter `inactive` can still be visible, so the view
-/// reports [noteUnanswerable] with [stillVisible] rather than treating
-/// that state as "never shown".
+/// restart it. Flutter `inactive` can stay visible and paint; the view
+/// reports [stillVisible] from an actual painted frame, not from the
+/// previous lifecycle state.
 ///
 /// Quiz `soundToKana` is kana-glyph ID, not listen-first sentence evidence —
 /// that path lives on [ListeningScreen]. This type does not interpret
@@ -120,10 +120,10 @@ class QuizViewModel extends ChangeNotifier {
   /// inactive). Invalidates the current question's RT only; never records
   /// an answer and never auto-wrongs.
   ///
-  /// [stillVisible] is Flutter `inactive` that is not a hidden→inactive
-  /// resume transition: the prompt may still be on screen, so this
-  /// question is presented. A hidden / paused birth stays unpresented
-  /// so the first later answerable frame can start the clock.
+  /// [stillVisible] means a frame of this question was painted while
+  /// Flutter was `inactive` (still on screen). Previous lifecycle
+  /// states do not prove that. A hidden / paused birth stays
+  /// unpresented so a later first answerable frame can start the clock.
   void noteUnanswerable({bool stillVisible = false}) {
     if (_finished || isAnswered) return;
     if (stillVisible) {
