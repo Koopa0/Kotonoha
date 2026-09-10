@@ -40,6 +40,34 @@ class PlacementDraft {
     required this.records,
   });
 
+  /// Honest decode: drop corrupt rows, never invent an outcome. If the same
+  /// id is both recorded and pending, pending wins (unanswered).
+  factory PlacementDraft.fromJson(Map<String, dynamic> json) {
+    final lessons = _stringList(json['lessons']);
+    final pending = <String>[];
+    final pendingSeen = <String>{};
+    for (final id in _stringList(json['pending'])) {
+      if (pendingSeen.add(id)) pending.add(id);
+    }
+    final records = <PlacementRecord>[];
+    final recorded = <String>{};
+    final rawRecords = json['records'];
+    if (rawRecords is List<dynamic>) {
+      for (final row in rawRecords) {
+        final parsed = PlacementRecord.tryParse(row);
+        if (parsed == null) continue;
+        if (pendingSeen.contains(parsed.kanaId)) continue;
+        if (!recorded.add(parsed.kanaId)) continue;
+        records.add(parsed);
+      }
+    }
+    return PlacementDraft(
+      lessonIds: lessons,
+      pendingKanaIds: pending,
+      records: records,
+    );
+  }
+
   static const PlacementDraft empty = PlacementDraft(
     lessonIds: [],
     pendingKanaIds: [],
@@ -69,34 +97,6 @@ class PlacementDraft {
     'pending': pendingKanaIds,
     'records': [for (final r in records) r.toJson()],
   };
-
-  /// Honest decode: drop corrupt rows, never invent an outcome. If the same
-  /// id is both recorded and pending, pending wins (unanswered).
-  factory PlacementDraft.fromJson(Map<String, dynamic> json) {
-    final lessons = _stringList(json['lessons']);
-    final pending = <String>[];
-    final pendingSeen = <String>{};
-    for (final id in _stringList(json['pending'])) {
-      if (pendingSeen.add(id)) pending.add(id);
-    }
-    final records = <PlacementRecord>[];
-    final recorded = <String>{};
-    final rawRecords = json['records'];
-    if (rawRecords is List<dynamic>) {
-      for (final row in rawRecords) {
-        final parsed = PlacementRecord.tryParse(row);
-        if (parsed == null) continue;
-        if (pendingSeen.contains(parsed.kanaId)) continue;
-        if (!recorded.add(parsed.kanaId)) continue;
-        records.add(parsed);
-      }
-    }
-    return PlacementDraft(
-      lessonIds: lessons,
-      pendingKanaIds: pending,
-      records: records,
-    );
-  }
 }
 
 PlacementOutcome? _outcomeNamed(Object? raw) {

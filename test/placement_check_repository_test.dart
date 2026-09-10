@@ -4,10 +4,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
+import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/placement_check.dart';
-import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/fake_preferences_service.dart';
