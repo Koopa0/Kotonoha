@@ -186,41 +186,36 @@ class HomeScreen extends StatelessWidget {
                   ),
                 const SizedBox(height: 20),
                 if (store.learnedUnitCount > 0) ...[
-                  FilledButton(
+                  _HeroAction(
+                    action: AppStrings.reviewKanaAction,
+                    productName: AppStrings.dailySession,
                     onPressed: () => _startDaily(context),
-                    child: const Text(AppStrings.dailySession),
                   ),
                   // A quiet aside under the same button — two doors to the same
                   // 稽古. 静かに composes a silent run (no listening prompts) for
                   // practising without sound. Per-tap, never a saved mode; it
                   // hugs its text (like 知道了) so it reads as a subordinate
                   // aside, not a second full-width primary action.
-                  TextButton(
+                  _HeroAction(
+                    action: AppStrings.quietPracticeAction,
+                    productName: AppStrings.dailyQuiet,
+                    kind: _HeroKind.text,
                     onPressed: () => _startDaily(context, quiet: true),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.inkMuted,
-                    ),
-                    child: const Text(AppStrings.dailyQuiet),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      side: const BorderSide(color: AppColors.hairline),
-                      foregroundColor: AppColors.ink,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                  _HeroAction(
+                    action: AppStrings.learnNewKanaAction,
+                    productName: AppStrings.continueLearning,
+                    kind: _HeroKind.outlined,
                     onPressed: () =>
                         Navigator.of(context).push(LessonsScreen.route()),
-                    child: const Text(AppStrings.continueLearning),
                   ),
                 ] else
-                  FilledButton(
+                  _HeroAction(
+                    action: AppStrings.learnNewKanaAction,
+                    productName: AppStrings.continueLearning,
                     onPressed: () =>
                         Navigator.of(context).push(LessonsScreen.route()),
-                    child: const Text(AppStrings.continueLearning),
                   ),
                 // The home is grouped into a quiet 目次 — 假名 → 詞と句 → 漢字 →
                 // 回望. Each header appears only when its section has a card, so
@@ -257,7 +252,8 @@ class HomeScreen extends StatelessWidget {
                   if (readableWords.isNotEmpty)
                     _NavCard(
                       icon: Icons.sailing_rounded,
-                      label: AppStrings.ferryEntry,
+                      label: AppStrings.meetWordsAction,
+                      productName: AppStrings.ferryEntry,
                       subtitle: AppStrings.ferrySubtitle,
                       onTap: () => _startFerry(context),
                     ),
@@ -268,14 +264,16 @@ class HomeScreen extends StatelessWidget {
                   ))
                     _NavCard(
                       icon: Icons.keyboard_rounded,
-                      label: AppStrings.dictationEntry,
+                      label: AppStrings.dictationAction,
+                      productName: AppStrings.dictationEntry,
                       subtitle: AppStrings.dictationSubtitle,
                       onTap: () => _startDictation(context),
                     ),
                   if (readablePhrases.isNotEmpty)
                     _NavCard(
                       icon: Icons.subject_rounded,
-                      label: AppStrings.sentenceEntry,
+                      label: AppStrings.readPhrasesAction,
+                      productName: AppStrings.sentenceEntry,
                       subtitle: AppStrings.sentenceSubtitle,
                       onTap: () => _startSentence(context, readablePhrases),
                     ),
@@ -290,7 +288,8 @@ class HomeScreen extends StatelessWidget {
                   if (readableKanjiPhrases.isNotEmpty)
                     _NavCard(
                       icon: Icons.auto_stories_rounded,
-                      label: AppStrings.kanjiSentenceEntry,
+                      label: AppStrings.readKanjiSentencesAction,
+                      productName: AppStrings.kanjiSentenceEntry,
                       subtitle: AppStrings.kanjiSentenceSubtitle,
                       onTap: () =>
                           _startKanjiSentence(context, readableKanjiPhrases),
@@ -830,21 +829,122 @@ class _AboutKotonoha extends StatelessWidget {
   }
 }
 
+/// Primary home CTA: Chinese action on the first line, Japanese room name
+/// beneath. Official Material buttons — no custom ink/focus of our own.
+enum _HeroKind { filled, outlined, text }
+
+class _HeroAction extends StatelessWidget {
+  const _HeroAction({
+    required this.action,
+    required this.productName,
+    required this.onPressed,
+    this.kind = _HeroKind.filled,
+  });
+
+  final String action;
+  final String productName;
+  final VoidCallback onPressed;
+  final _HeroKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(action, textAlign: TextAlign.center),
+        const SizedBox(height: 2),
+        Text(
+          productName,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: switch (kind) {
+              _HeroKind.filled => Colors.white.withValues(alpha: 0.82),
+              _HeroKind.outlined || _HeroKind.text => AppColors.inkMuted,
+            },
+          ),
+        ),
+      ],
+    );
+    return switch (kind) {
+      _HeroKind.filled => FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        child: label,
+      ),
+      _HeroKind.outlined => OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          side: const BorderSide(color: AppColors.hairline),
+          foregroundColor: AppColors.ink,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: label,
+      ),
+      _HeroKind.text => TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
+        child: label,
+      ),
+    };
+  }
+}
+
 class _NavCard extends StatelessWidget {
   const _NavCard({
     required this.icon,
     required this.label,
     required this.subtitle,
     required this.onTap,
+    this.productName,
   });
 
   final IconData icon;
   final String label;
   final String subtitle;
+  final String? productName;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    // Title stays the scannable action (Chinese when we pass one). The
+    // Japanese room name is its own line so find.text(product) still works
+    // and a screen reader hears action, then the room, then the hint.
+    final title = productName == null
+        ? Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.ink,
+            ),
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.ink,
+                ),
+              ),
+              Text(
+                productName!,
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          );
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -853,17 +953,12 @@ class _NavCard extends StatelessWidget {
           foregroundColor: AppColors.accent,
           child: Icon(icon),
         ),
-        title: Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            color: AppColors.ink,
-          ),
-        ),
+        title: title,
         subtitle: Text(
           subtitle,
           style: const TextStyle(color: AppColors.inkMuted),
         ),
+        isThreeLine: productName != null,
         trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         onTap: onTap,

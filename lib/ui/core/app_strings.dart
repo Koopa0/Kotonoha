@@ -34,6 +34,17 @@ abstract final class AppStrings {
   static const String learnHiragana = '五十音図';
   static const String learnHiraganaSubtitle = '瀏覽所有平假名';
 
+  // Home entry actions — Chinese scan labels so a beginner can name the work
+  // without first knowing the Japanese room names. Product names stay on the
+  // second line (and as in-session titles); existing 繁中 hints stay as-is.
+  static const String learnNewKanaAction = '學新假名';
+  static const String reviewKanaAction = '假名複習';
+  static const String quietPracticeAction = '安靜練習';
+  static const String meetWordsAction = '學單字';
+  static const String dictationAction = '聽寫單字';
+  static const String readPhrasesAction = '讀短句';
+  static const String readKanjiSentencesAction = '漢字句閱讀';
+
   // Guidance — the ambient one-line "next step" + the home card-path section
   // headers. The pure use_case returns only a target (+ a count); the 繁中 copy
   // lives here in the UI layer, so the domain stays Flutter-free.
