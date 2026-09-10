@@ -77,10 +77,13 @@ class WordProgressRepository extends ChangeNotifier {
 
   /// First meeting of an item (渡し舟's encode beat): counts as one correct
   /// untimed answer so the item enters the schedule (level 0 → 1) — but ONLY
-  /// the first time. Re-ferrying a seen item is exposure, not schedule: a
-  /// no-op here (the analytics log still records the attempt).
+  /// the first time. Re-ferrying a seen item is exposure, not schedule: the
+  /// analytics log still records the attempt, and domain counts / SRS stay
+  /// put. The returned future still follows the persistence owner's contract:
+  /// success means every dirty store is on disk. A clean seen item is an
+  /// honest no-op; a pending failed write is flushed (never a fake success).
   Future<void> introduce(String progressId, {required DateTime at}) {
-    if (statForItem(progressId).isSeen) return Future<void>.value();
+    if (statForItem(progressId).isSeen) return flushPending();
     return recordAnswer(progressId, correct: true, at: at);
   }
 
