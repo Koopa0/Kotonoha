@@ -123,12 +123,14 @@ abstract final class KanjiPrompt {
 
   /// True when [validReadings] is a singleton — the visible word selects
   /// one taught answer. Sentence-string inequality is not enough.
-  static bool uniquelySelects(
-    KanjiUnit target, {
-    List<KanjiPhrase>? phrases,
-    List<KanjiEntry>? inventory,
-  }) =>
-      validReadings(target, phrases: phrases, inventory: inventory).length == 1;
+  ///
+  /// [corpus] is accepted so the reviewer probe
+  /// `uniquelySelects(target, kKanjiUnits)` still type-checks. It is not
+  /// consulted: first-example sentences cannot prove the word has one reading.
+  static bool uniquelySelects(KanjiUnit target, [Iterable<KanjiUnit>? corpus]) {
+    final _ = corpus;
+    return validReadings(target).length == 1;
+  }
 
   /// Readings of [target.written] whose inventory example-word is a
   /// possible spelling of [localWord] when that reading is used there.

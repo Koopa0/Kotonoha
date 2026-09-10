@@ -23,6 +23,7 @@ void main() {
     expect(KanjiPrompt.localWord(toshi), '毎年');
     expect(KanjiPrompt.validReadings(toshi), {'とし', 'ねん'});
     expect(KanjiPrompt.uniquelySelects(toshi), isFalse);
+    expect(KanjiPrompt.uniquelySelects(toshi, units), isFalse);
 
     expect(KanjiPrompt.localWord(nen), '三年');
     expect(KanjiPrompt.validReadings(nen), {'ねん'});
