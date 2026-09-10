@@ -72,7 +72,7 @@ void main() {
       await pumpOption(tester, state: OptionState.idle, onTap: () {});
       expect(
         tester.getSemantics(find.byType(AnswerOptionButton)),
-        containsSemantics(
+        isSemantics(
           label: 'あ',
           isButton: true,
           hasEnabledState: true,
@@ -84,7 +84,7 @@ void main() {
       await pumpOption(tester, state: OptionState.correct);
       expect(
         tester.getSemantics(find.byType(AnswerOptionButton)),
-        containsSemantics(
+        isSemantics(
           label: 'あ',
           isButton: true,
           hasEnabledState: true,
