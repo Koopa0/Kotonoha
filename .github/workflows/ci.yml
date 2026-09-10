@@ -47,3 +47,15 @@ jobs:
 
       - name: Tests
         run: flutter test
+
+      - name: Bundled font license
+        run: |
+          flutter build bundle --debug --no-pub
+          python3 - <<'PYTHON'
+          import gzip
+          from pathlib import Path
+
+          expected = Path('assets/fonts/OFL.txt').read_text().strip()
+          with gzip.open('build/flutter_assets/NOTICES.Z', 'rt') as notices:
+              assert expected in notices.read(), 'Klee One license missing from app bundle'
+          PYTHON
