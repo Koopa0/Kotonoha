@@ -33,9 +33,10 @@ class FileAnalyticsLog implements AnalyticsLog {
   List<Attempt>? _cache;
 
   /// Attempts accepted into [_cache] whose JSONL line is not yet confirmed
-  /// on disk. A failed append leaves them here so a later write can retry
-  /// without duplicating the in-memory view.
-  final List<Attempt> _unpersisted = [];
+  /// on disk. Each entry keeps the byte offset of its first append so a
+  /// failed tail-read or truncate cannot make the next flush treat the
+  /// junk EOF as a new start.
+  final List<_PendingWrite> _unpersisted = [];
 
   /// Serializes appends so two overlapping [record]s cannot write the same
   /// pending line twice. The chain itself is kept successful so a later
@@ -46,6 +47,11 @@ class FileAnalyticsLog implements AnalyticsLog {
   /// tests install a hook to inject a partial write or a flush-reported
   /// failure against the real [File] — not a fake filesystem.
   Future<void> Function(File file, String line)? _debugAppend;
+
+  /// Test-only tail read / truncate, so CI can inject a repair-path
+  /// [FileSystemException] without chmod (which root would bypass).
+  Future<List<int>> Function(File file, int start, int count)? _debugReadTail;
+  Future<void> Function(File file, int start)? _debugTruncate;
 
   static const String _fileName = 'kana_analytics.jsonl';
 
@@ -103,7 +109,7 @@ class FileAnalyticsLog implements AnalyticsLog {
     // Retain first: a filesystem fault must not drop the attempt from the
     // in-memory log, and must not claim the line has landed on disk.
     _cache!.add(attempt);
-    _unpersisted.add(attempt);
+    _unpersisted.add(_PendingWrite(attempt));
     await flushPending();
   }
 
@@ -123,18 +129,35 @@ class FileAnalyticsLog implements AnalyticsLog {
     _debugAppend = hook;
   }
 
+  /// Installs a test tail-read hook. Production code never calls this.
+  @visibleForTesting
+  set debugReadTail(
+    Future<List<int>> Function(File file, int start, int count)? hook,
+  ) {
+    _debugReadTail = hook;
+  }
+
+  /// Installs a test truncate hook. Production code never calls this.
+  @visibleForTesting
+  set debugTruncate(Future<void> Function(File file, int start)? hook) {
+    _debugTruncate = hook;
+  }
+
   Future<void> _appendUnpersisted() async {
     while (_unpersisted.isNotEmpty) {
       final next = _unpersisted.first;
-      final line = '${jsonEncode(next.toJson())}\n';
-      final start = await _lengthOrZero();
+      final line = '${jsonEncode(next.attempt.toJson())}\n';
+      // Capture the boundary once, before any write. Later flushes reuse
+      // it — they must restore this tail, not append at today's EOF.
+      next.start ??= await _lengthOrZero();
+      final start = next.start!;
+      if (await _confirmOrRestoreTail(start, line)) {
+        _unpersisted.removeAt(0);
+        continue;
+      }
       try {
         await _writeLine(line);
       } catch (_) {
-        // writeAsString / the OS may have mutated the tail before
-        // throwing. Pending stays until a complete line is confirmed
-        // at [start]; a partial tail is truncated back so a retry
-        // cannot glue a new JSON object onto a broken prefix.
         if (!await _confirmOrRestoreTail(start, line)) rethrow;
         _unpersisted.removeAt(0);
         continue;
@@ -165,20 +188,37 @@ class FileAnalyticsLog implements AnalyticsLog {
 
   /// After an append attempt, the durable tail from [start] must be
   /// exactly [line] before pending may drop that attempt. Anything
-  /// else (partial bytes, junk) is truncated back to [start].
+  /// else (partial bytes, junk) is truncated back to [start]. Reads
+  /// only `[start, EOF]`, never the whole historical log.
   Future<bool> _confirmOrRestoreTail(int start, String line) async {
     if (!await _file.exists()) return false;
-    final bytes = await _file.readAsBytes();
-    if (bytes.length < start) return false;
-    final tail = bytes.sublist(start);
+    final length = await _file.length();
+    if (length <= start) return false;
+    final tail = await _readTail(start, length - start);
     final expected = utf8.encode(line);
     if (_sameBytes(tail, expected)) return true;
-    if (tail.isEmpty) return false;
     await _truncateTo(start);
     return false;
   }
 
+  Future<List<int>> _readTail(int start, int count) async {
+    final hook = _debugReadTail;
+    if (hook != null) return hook(_file, start, count);
+    final raf = await _file.open();
+    try {
+      await raf.setPosition(start);
+      return await raf.read(count);
+    } finally {
+      await raf.close();
+    }
+  }
+
   Future<void> _truncateTo(int start) async {
+    final hook = _debugTruncate;
+    if (hook != null) {
+      await hook(_file, start);
+      return;
+    }
     if (!await _file.exists()) return;
     final raf = await _file.open(mode: FileMode.writeOnlyAppend);
     try {
@@ -208,4 +248,16 @@ class FileAnalyticsLog implements AnalyticsLog {
     await _ensureLoaded();
     return _cache!.length;
   }
+}
+
+/// One accepted attempt whose durable JSONL line is not yet confirmed.
+class _PendingWrite {
+  _PendingWrite(this.attempt);
+
+  final Attempt attempt;
+
+  /// Byte offset of this attempt's first append. Null until the first
+  /// flush looks at the file; then retained until the complete line is
+  /// confirmed, even if a later tail-read or truncate fails.
+  int? start;
 }
