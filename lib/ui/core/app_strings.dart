@@ -235,10 +235,12 @@ abstract final class AppStrings {
   static const String travelSceneTransport = '交通';
   static const String travelSceneClothing = '購衣';
   static const String travelSceneShrine = '神社古城';
-  static const String travelSceneParkQueue = '一般入園／排隊';
-  static const String travelSceneLater = '這一幕後續再接，這一回先走交通與購衣。';
+  static const String travelSceneParkQueue = '一般入園／排隊／求助';
   static const String travelScenePurposeTransport = '這一回只練車站、電車、轉乘與行李。';
   static const String travelScenePurposeClothing = '這一回只練衣服尺寸、價錢與購買。';
+  static const String travelScenePurposeShrine = '這一回只練神社、寺院與古城的方向、進出與風景。';
+  static const String travelScenePurposeParkQueue =
+      '這一回只練一般遊樂園的入口、排隊與當場求助。不定活動檔期。';
   static const String travelSceneMeetAction = '先見面';
   static const String travelSceneRecallAction = '回想';
   static const String travelSceneListenAction = '先聽再揭曉';

@@ -47,18 +47,19 @@ class TravelSceneView {
 
 /// Scene-scoped選材 and learn-then-practice composition.
 ///
-/// Pools are existing corpus ids only. Walkable scenes for this slice are
-/// 交通 and 購衣; shrine / park-queue stay listed so later work does not
-/// invent a second schema.
+/// Pools are existing corpus ids only. All four travel purposes walk the
+/// same learn-then-practice gates; membership stays disjoint so one scene
+/// never pads with another.
 ///
 /// Pure logic: no `package:flutter/*` imports.
 abstract final class TravelScene {
   static const int length = 8;
 
-  /// First reviewable slice — the two scenes that must actually walk.
   static const Set<TravelSceneId> walkable = {
     TravelSceneId.transport,
     TravelSceneId.clothing,
+    TravelSceneId.shrine,
+    TravelSceneId.parkQueue,
   };
 
   static const Map<TravelSceneId, List<String>> progressIds = {
@@ -100,12 +101,69 @@ abstract final class TravelScene {
       'phrase:じんじゃは どこ',
       'phrase:しずかな てらに はいる',
       'phrase:ふるい おしろが みえる',
+      'phrase:しゃしんを とる',
+      'phrase:きれいな はなを みつけた',
+      'phrase:こころが しずか',
       'word:じんじゃ',
+      'word:てら',
+      'word:ふるい',
+      'word:しずか',
+      'word:はいる',
+      'word:みる',
+      'word:れきし',
+      'word:けしき',
+      'word:おみやげ',
+      'word:しゃしん',
+      'word:きれい',
+      'word:いし',
+      'word:さくら',
+      'word:はな',
+      'word:やま',
+      'word:もり',
+      'word:にわ',
+      'word:そっと',
+      'word:まもる',
+      'word:たいせつ',
+      'word:さがす',
+      'word:みつける',
     ],
     TravelSceneId.parkQueue: [
       'phrase:いりぐちで ならぶ',
       'phrase:たすけて ください',
+      'phrase:みずを ください',
+      'phrase:ちょっと まってください',
+      'phrase:もういちど いってください',
+      'phrase:ゆっくり はなしてください',
+      'phrase:すこし つかれた',
+      'phrase:きょうは たのしかった',
+      'phrase:これは なに',
+      'phrase:いま なんじ',
       'word:いりぐち',
+      'word:ならぶ',
+      'word:たすける',
+      'word:まつ',
+      'word:ちょっと',
+      'word:トイレ',
+      'word:よやく',
+      'word:うけつけ',
+      'word:だいじょうぶ',
+      'word:わかる',
+      'word:ひと',
+      'word:こども',
+      'word:おとな',
+      'word:いそぐ',
+      'word:つかれる',
+      'word:にぎやか',
+      'word:たのしい',
+      'word:あそぶ',
+      'word:けが',
+      'word:くすり',
+      'word:まだ',
+      'word:やっと',
+      'word:たくさん',
+      'word:すぐ',
+      'word:もんだい',
+      'word:しつもん',
     ],
   };
 

@@ -205,17 +205,38 @@ void main() {
     expect(repos.words.statForItem('word:えき').srsLevel, 0);
   });
 
-  testWidgets('later scenes stay listed but are not walkable', (tester) async {
-    await pumpHome(tester);
+  testWidgets('newbie: shrine and park only offer 先學假名 and write nothing', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
     await tester.ensureVisible(find.text(AppStrings.travelSceneAction));
     await tester.tap(find.text(AppStrings.travelSceneAction));
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.travelSceneShrine), findsOneWidget);
     expect(find.text(AppStrings.travelSceneParkQueue), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeParkQueue), findsOneWidget);
+    expect(find.text('芙莉蓮'), findsNothing);
+    expect(find.text('USJ'), findsNothing);
+
     await tester.tap(find.text(AppStrings.travelSceneShrine));
     await tester.pumpAndSettle();
-    expect(find.byType(TravelSceneHub), findsNothing);
-    expect(find.byType(TravelSceneScreen), findsOneWidget);
+    expect(find.byType(TravelSceneHub), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+    expect(find.text(AppStrings.travelSceneRecallAction), findsNothing);
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneParkQueue));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelScenePurposeParkQueue), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeShrine), findsNothing);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+    expect(repos.words.seenItemCount, 0);
   });
 
   Future<void> finishLessonRow(WidgetTester tester, String title) async {
@@ -376,6 +397,210 @@ void main() {
       findsOneWidget,
     );
     expect(find.text(AppStrings.ferryHear), findsOneWidget);
+    expect(find.text('ふく'), findsNothing);
+  });
+
+  testWidgets('partial あ行・さ行: shrine meets いし; park stays 先學假名', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [0, 2]);
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneShrine);
+    expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneRecallAction), findsNothing);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(AppStrings.travelSceneMeetTitle(AppStrings.travelSceneShrine)),
+      findsOneWidget,
+    );
+    expect(find.text('まつ'), findsNothing);
+    expect(find.text('えき'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneParkQueue));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelScenePurposeParkQueue), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+  });
+
+  testWidgets('partial た行・ま行: park meets まつ; shrine stays 先學假名', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [3, 6]);
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneParkQueue);
+    expect(find.text(AppStrings.travelScenePurposeParkQueue), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneMeetTitle(AppStrings.travelSceneParkQueue),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('いし'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneShrine));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+  });
+
+  testWidgets('returning: seen shrine いし can recall and reuse 聞き取り', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [0, 2]);
+    await repos.words.markIntroduced('word:いし', at: DateTime(2026, 9, 10, 12));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:いし').srsLevel, 0);
+
+    await openScene(tester, AppStrings.travelSceneShrine);
+    expect(find.text(AppStrings.travelSceneRecallAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneListenAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.travelSceneRecallAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(find.text('いし'), findsOneWidget);
+    expect(find.text('まつ'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.travelSceneListenAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ListeningScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneListenTitle(AppStrings.travelSceneShrine),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text(AppStrings.listeningReveal));
+    await tester.pumpAndSettle();
+    expect(find.text('いし'), findsOneWidget);
+    expect(find.text('まつ'), findsNothing);
+    expect(repos.words.statForItem('word:まつ').isSeen, isFalse);
+    expect(repos.words.statForItem('word:いし').srsLevel, 0);
+  });
+
+  testWidgets(
+    'route return: 先學假名 → あ行／さ行 quiz → 回神社 shows 先見面 without reopening',
+    (tester) async {
+      final repos = await pumpHome(tester);
+      await openScene(tester, AppStrings.travelSceneShrine);
+      expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+      expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.travelSceneLearnAction));
+      await tester.pumpAndSettle();
+      await finishLessonRow(tester, 'あ行');
+      expect(repos.kana.isUnitLearned('hira_row_0'), isTrue);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+
+      await tester.tap(find.text(AppStrings.travelSceneLearnAction));
+      await tester.pumpAndSettle();
+      await finishLessonRow(tester, 'さ行');
+      expect(repos.kana.isUnitLearned('hira_row_2'), isTrue);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(TravelSceneHub), findsOneWidget);
+      expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
+      expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+      expect(repos.words.seenItemCount, 0);
+    },
+  );
+
+  testWidgets(
+    'small shrine pool: ferry いし then もう一回 returns to hub recall／listen',
+    (tester) async {
+      final repos = await pumpHub(tester, scene: TravelSceneId.shrine);
+      await learnRows(repos.kana, const [0, 2]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(FerryScreen), findsOneWidget);
+      await finishFerryWord(tester);
+      expect(find.text(AppStrings.practiceAgain), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.practiceAgain));
+      await tester.pumpAndSettle();
+      expect(find.byType(FerryScreen), findsNothing);
+      expect(find.byType(TravelSceneHub), findsOneWidget);
+      expect(find.text(AppStrings.travelSceneRecallAction), findsOneWidget);
+      expect(find.text(AppStrings.travelSceneListenAction), findsOneWidget);
+      expect(repos.words.statForItem('word:いし').isSeen, isTrue);
+      expect(repos.words.statForItem('word:まつ').isSeen, isFalse);
+      expect(repos.words.statForItem('word:えき').isSeen, isFalse);
+    },
+  );
+
+  testWidgets(
+    'small park pool: ferry まつ then もう一回 returns to hub recall／listen',
+    (tester) async {
+      final repos = await pumpHub(tester, scene: TravelSceneId.parkQueue);
+      await learnRows(repos.kana, const [3, 6]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(FerryScreen), findsOneWidget);
+      await finishFerryWord(tester);
+      await tester.tap(find.text(AppStrings.practiceAgain));
+      await tester.pumpAndSettle();
+      expect(find.byType(TravelSceneHub), findsOneWidget);
+      expect(find.text(AppStrings.travelSceneRecallAction), findsOneWidget);
+      expect(repos.words.statForItem('word:まつ').isSeen, isTrue);
+      expect(repos.words.statForItem('word:いし').isSeen, isFalse);
+    },
+  );
+
+  testWidgets('leftover shrine intro: もう一回 stays shrine and does not pad', (
+    tester,
+  ) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.shrine);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      if (lesson.id.startsWith('hira')) {
+        await repos.kana.markUnitLearned(lesson.id);
+      }
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(find.text('1 / 8'), findsOneWidget);
+    for (var i = 0; i < 8; i++) {
+      await finishFerryWord(tester);
+    }
+    await tester.tap(find.text(AppStrings.practiceAgain));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(AppStrings.travelSceneMeetTitle(AppStrings.travelSceneShrine)),
+      findsOneWidget,
+    );
+    expect(find.text('まつ'), findsNothing);
     expect(find.text('ふく'), findsNothing);
   });
 

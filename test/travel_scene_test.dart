@@ -40,17 +40,36 @@ void main() {
   });
 
   test('walkable scenes stay disjoint and do not invent phrases', () {
-    expect(TravelScene.walkable, {
-      TravelSceneId.transport,
-      TravelSceneId.clothing,
-    });
-    final transport = TravelScene.progressIds[TravelSceneId.transport]!.toSet();
-    final clothing = TravelScene.progressIds[TravelSceneId.clothing]!.toSet();
-    expect(transport.intersection(clothing), isEmpty);
-    expect(transport, contains('phrase:にもつは だいじょうぶ'));
-    expect(clothing, contains('phrase:この ふくは ちいさい'));
-    expect(clothing, contains('phrase:あかい ふくを かう'));
-    expect(kPhrases.where((p) => p.kana == 'じんじゃは どこ'), hasLength(1));
+    expect(TravelScene.walkable, TravelSceneId.values.toSet());
+    final pools = {
+      for (final scene in TravelSceneId.values)
+        scene: TravelScene.progressIds[scene]!.toSet(),
+    };
+    for (final a in TravelSceneId.values) {
+      for (final b in TravelSceneId.values) {
+        if (a == b) continue;
+        expect(pools[a]!.intersection(pools[b]!), isEmpty, reason: '$a ∩ $b');
+      }
+    }
+    expect(pools[TravelSceneId.transport], contains('phrase:にもつは だいじょうぶ'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:この ふくは ちいさい'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:あかい ふくを かう'));
+    expect(pools[TravelSceneId.shrine], contains('phrase:じんじゃは どこ'));
+    expect(pools[TravelSceneId.shrine], contains('phrase:ふるい おしろが みえる'));
+    expect(pools[TravelSceneId.parkQueue], contains('phrase:いりぐちで ならぶ'));
+    expect(pools[TravelSceneId.parkQueue], contains('phrase:たすけて ください'));
+    for (final kana in const [
+      'じんじゃは どこ',
+      'しずかな てらに はいる',
+      'ふるい おしろが みえる',
+      'この ふくは ちいさい',
+      'あかい ふくを かう',
+      'いりぐちで ならぶ',
+      'にもつは だいじょうぶ',
+      'たすけて ください',
+    ]) {
+      expect(kPhrases.where((p) => p.kana == kana), hasLength(1), reason: kana);
+    }
   });
 
   test('inspect writes nothing and a newbie has only a learn-first path', () {
@@ -295,6 +314,155 @@ void main() {
     expect(
       ListeningSession.t01ProgressIds,
       isNot(contains('phrase:にもつは だいじょうぶ')),
+    );
+    expect(ListeningSession.t01ProgressIds, isNot(contains('phrase:じんじゃは どこ')));
+    expect(
+      ListeningSession.t01ProgressIds,
+      isNot(contains('phrase:たすけて ください')),
+    );
+  });
+
+  test('partial あ行・さ行 opens shrine いし, not park まつ', () {
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    final shrine = TravelScene.inspect(
+      scene: TravelSceneId.shrine,
+      learnedChars: aSa,
+      stats: const {},
+    );
+    final park = TravelScene.inspect(
+      scene: TravelSceneId.parkQueue,
+      learnedChars: aSa,
+      stats: const {},
+    );
+    expect(shrine.readable.map((i) => i.progressId), ['word:いし']);
+    expect(shrine.canMeet, isTrue);
+    expect(shrine.canRecall, isFalse);
+    expect(park.readable, isEmpty);
+    expect(park.needsKanaFirst, isTrue);
+    expect(park.canMeet, isFalse);
+  });
+
+  test('partial た行・ま行 opens park まつ, not shrine いし', () {
+    final taMa = {'た', 'ち', 'つ', 'て', 'と', 'ま', 'み', 'む', 'め', 'も'};
+    final shrine = TravelScene.inspect(
+      scene: TravelSceneId.shrine,
+      learnedChars: taMa,
+      stats: const {},
+    );
+    final park = TravelScene.inspect(
+      scene: TravelSceneId.parkQueue,
+      learnedChars: taMa,
+      stats: const {},
+    );
+    expect(park.readable.map((i) => i.progressId), ['word:まつ']);
+    expect(park.canMeet, isTrue);
+    expect(shrine.readable, isEmpty);
+    expect(shrine.needsKanaFirst, isTrue);
+  });
+
+  test('shrine and park intros stay inside the scene and write nothing', () {
+    final stats = <String, WordStat>{};
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    final shrineWords = TravelScene.composeIntroWords(
+      scene: TravelSceneId.shrine,
+      learnedChars: aSa,
+      rng: Random(1),
+      now: now,
+      stats: stats,
+    );
+    expect(shrineWords.map((w) => w.progressId), ['word:いし']);
+    expect(stats, isEmpty);
+
+    final taMa = {'た', 'ち', 'つ', 'て', 'と', 'ま', 'み', 'む', 'め', 'も'};
+    final parkWords = TravelScene.composeIntroWords(
+      scene: TravelSceneId.parkQueue,
+      learnedChars: taMa,
+      rng: Random(1),
+      now: now,
+      stats: stats,
+    );
+    expect(parkWords.map((w) => w.progressId), ['word:まつ']);
+    expect(parkWords.map((w) => w.progressId), isNot(contains('word:いし')));
+    expect(stats, isEmpty);
+  });
+
+  test('returning shrine learner does not unlock park recall', () {
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    final stats = {'word:いし': seenAt()};
+    final shrine = TravelScene.inspect(
+      scene: TravelSceneId.shrine,
+      learnedChars: aSa,
+      stats: stats,
+    );
+    final park = TravelScene.inspect(
+      scene: TravelSceneId.parkQueue,
+      learnedChars: aSa,
+      stats: stats,
+    );
+    expect(shrine.canRecall, isTrue);
+    expect(shrine.canListen, isTrue);
+    expect(shrine.canMeet, isFalse);
+    expect(park.canRecall, isFalse);
+    expect(park.canMeet, isFalse);
+    final review = TravelScene.composeReview(
+      scene: TravelSceneId.shrine,
+      learnedChars: aSa,
+      rng: Random(2),
+      now: now,
+      stats: stats,
+    );
+    expect(review.map((i) => i.progressId), ['word:いし']);
+    expect(review.map((i) => i.progressId), isNot(contains('word:まつ')));
+  });
+
+  test('spent shrine いし pool has no more intro; leftover kana still does', () {
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    expect(
+      TravelScene.hasMoreIntro(
+        scene: TravelSceneId.shrine,
+        learnedChars: aSa,
+        rng: Random(7),
+        now: now,
+        stats: {'word:いし': seenAt()},
+      ),
+      isFalse,
+    );
+    expect(
+      TravelScene.hasMoreIntro(
+        scene: TravelSceneId.shrine,
+        learnedChars: allChars,
+        rng: Random(8),
+        now: now,
+        sessionLength: 1,
+      ),
+      isTrue,
+    );
+  });
+
+  test('familiar shrine still shuffles; two seeds are not a fixed face', () {
+    final seen = {
+      for (final id in TravelScene.progressIds[TravelSceneId.shrine]!)
+        id: seenAt(),
+    };
+    final a = TravelScene.composeReview(
+      scene: TravelSceneId.shrine,
+      learnedChars: allChars,
+      rng: Random(11),
+      now: now,
+      stats: seen,
+    );
+    final b = TravelScene.composeReview(
+      scene: TravelSceneId.shrine,
+      learnedChars: allChars,
+      rng: Random(29),
+      now: now,
+      stats: seen,
+    );
+    expect(a, isNotEmpty);
+    expect(b, isNotEmpty);
+    expect(
+      a.map((i) => i.progressId).toList(),
+      isNot(equals(b.map((i) => i.progressId).toList())),
     );
   });
 }
