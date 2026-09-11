@@ -1,8 +1,8 @@
 # Screenshots
 
-README files use these four frames, all 1080×2154, captured from the live
-widgets at `fe74958b029f128ad4ffef9d316aa8c6ebafa07b` with marked sample
-progress (not a learner record):
+README files use these four frames, all 1080×2154, with marked sample
+progress (not a learner record). The existing capture entry writes the
+same four names.
 
 | File | Screen |
 |---|---|
