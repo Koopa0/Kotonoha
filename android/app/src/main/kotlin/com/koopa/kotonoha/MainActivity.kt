@@ -11,7 +11,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        snapshotSaf = SnapshotSafStore(this)
+        snapshotSaf = SnapshotSafStore.attach(this)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             SnapshotSafStore.CHANNEL,
