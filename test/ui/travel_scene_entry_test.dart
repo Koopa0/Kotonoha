@@ -1156,11 +1156,13 @@ void main() {
   }
 
   Future<void> openHotelInfo(WidgetTester tester) async {
-    await tester.ensureVisible(find.text(AppStrings.infoAction));
-    await tester.tap(find.text(AppStrings.infoAction));
+    final door = find.byKey(const ValueKey<String>('travel-hotel-info'));
+    await tester.ensureVisible(door);
+    await tester.tap(door);
     await tester.pumpAndSettle();
     expect(find.byType(InfoHubScreen), findsOneWidget);
     expect(find.text(AppStrings.infoHotelPurpose), findsOneWidget);
+    expect(find.text(AppStrings.infoPurpose), findsNothing);
   }
 
   Future<void> finishReadingItem(WidgetTester tester) async {
@@ -1181,12 +1183,12 @@ void main() {
     await openScene(tester, AppStrings.travelSceneHotel);
     await openHotelInfo(tester);
     expect(find.text(AppStrings.infoStartAction), findsNothing);
-    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('info-meet')), findsOneWidget);
     expect(find.byType(ReadingScreen), findsNothing);
 
-    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.tap(find.byKey(const ValueKey<String>('info-meet')));
     await tester.pumpAndSettle();
-    expect(find.byType(InfoHubScreen), findsOneWidget);
+    expect(find.byType(InfoHubScreen, skipOffstage: false), findsOneWidget);
     expect(find.byType(ReadingScreen), findsOneWidget);
     expect(find.text(AppStrings.infoHotelMeetTitle), findsOneWidget);
     final reading = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
@@ -1228,8 +1230,8 @@ void main() {
 
     await openHotelInfo(tester);
     expect(find.text(AppStrings.infoStartAction), findsNothing);
-    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
-    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    expect(find.byKey(const ValueKey<String>('info-meet')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('info-meet')));
     await tester.pumpAndSettle();
     expect(find.byType(FerryScreen), findsOneWidget);
     expect(find.text(AppStrings.infoHotelMeetTitle), findsOneWidget);
@@ -1290,7 +1292,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await openHotelInfo(tester);
-    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.tap(find.byKey(const ValueKey<String>('info-meet')));
     await tester.pumpAndSettle();
     expect(find.byType(FerryScreen), findsOneWidget);
     final ferry = tester.widget<FerryScreen>(find.byType(FerryScreen));
@@ -1302,7 +1304,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReadingScreen), findsOneWidget);
     expect(find.text(AppStrings.infoHotelMeetTitle), findsOneWidget);
-    expect(find.byType(InfoHubScreen), findsOneWidget);
+    expect(find.byType(InfoHubScreen, skipOffstage: false), findsOneWidget);
     final reading = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
     expect(
       reading.items.map((i) => i.progressId),
