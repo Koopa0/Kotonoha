@@ -7,9 +7,12 @@ import 'package:integration_test/integration_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
+import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
@@ -92,6 +95,16 @@ Future<void> main() async {
           // Capture the listen-first room, not the no-voice banner.
           Provider<SpeechService>.value(value: const _HeardSpeechService()),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<ProgressSnapshotExporter>.value(
+            value: ProgressSnapshotExporter(
+              snapshots: ProgressSnapshotRepository(
+                kana: store,
+                kanji: kanji,
+                words: words,
+              ),
+              files: FilePickerSnapshotPort(),
+            ),
+          ),
         ],
         child: const KanaLoopApp(),
       ),
