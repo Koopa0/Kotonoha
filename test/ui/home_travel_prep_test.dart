@@ -394,7 +394,7 @@ void main() {
     expect(repos.words.seenItemCount, greaterThan(0));
 
     await _popToTravelHome(tester);
-    expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
+    expect(find.textContaining('接著練「交通」'), findsNothing);
     expect(
       repos.travel.plan.servedOn[TravelSceneId.transport],
       DateTime(2026, 9, 11),
@@ -433,7 +433,7 @@ void main() {
       DateTime(2026, 9, 11),
     );
     expect(repos.words.seenItemCount, 0);
-    expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
+    expect(find.textContaining('接著練「交通」'), findsNothing);
   });
 }
 
@@ -442,7 +442,20 @@ int _kanaSeenTotal(KanaProgressRepository kana) =>
 
 Future<void> _finishDailyRound(WidgetTester tester) async {
   for (var i = 0; i < 24; i++) {
-    if (find.byType(QuizScreen).evaluate().isEmpty) return;
+    await tester.pump();
+    if (find.byType(QuizScreen).evaluate().isEmpty) {
+      await tester.pumpAndSettle();
+      return;
+    }
+    final canAnswer =
+        find.text(AppStrings.iReadUnprompted).evaluate().isNotEmpty ||
+        find.text(AppStrings.iReadIt).evaluate().isNotEmpty ||
+        find.byType(AnswerOptionButton).evaluate().isNotEmpty;
+    if (!canAnswer) {
+      await tester.pumpAndSettle();
+      if (find.byType(QuizScreen).evaluate().isEmpty) return;
+      continue;
+    }
     await _answerCurrentDaily(tester);
   }
   await tester.pumpAndSettle();
@@ -458,6 +471,17 @@ Future<void> _answerCurrentDaily(WidgetTester tester) async {
     await tester.tap(find.text(AppStrings.iReadUnprompted));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    return;
+  }
+  if (find.text(AppStrings.iReadIt).evaluate().isNotEmpty &&
+      find.byType(AnswerOptionButton).evaluate().isEmpty) {
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    return;
+  }
+  if (find.byType(AnswerOptionButton).evaluate().isEmpty) {
+    await tester.pumpAndSettle();
     return;
   }
   final quiz = tester.widget<QuizScreen>(find.byType(QuizScreen));
@@ -479,7 +503,7 @@ Future<void> _answerCurrentDaily(WidgetTester tester) async {
   final next = find.text(AppStrings.continueLabel);
   if (next.evaluate().isNotEmpty) {
     await tester.tap(next);
-  } else {
+  } else if (find.text(AppStrings.seeResults).evaluate().isNotEmpty) {
     await tester.tap(find.text(AppStrings.seeResults));
   }
   await tester.pump();
@@ -501,7 +525,7 @@ Future<void> _finishFerryRound(WidgetTester tester) async {
 }
 
 Future<void> _popToTravelHome(WidgetTester tester) async {
-  for (var i = 0; i < 6; i++) {
+  for (var i = 0; i < 8; i++) {
     final overlayGone =
         find.byType(QuizScreen).evaluate().isEmpty &&
         find.byType(QuizResultScreen).evaluate().isEmpty &&
@@ -510,12 +534,20 @@ Future<void> _popToTravelHome(WidgetTester tester) async {
     if (overlayGone && find.byType(HomeScreen).evaluate().isNotEmpty) {
       return;
     }
+    if (find.text(AppStrings.done).evaluate().isNotEmpty) {
+      await tester.ensureVisible(find.text(AppStrings.done));
+      await tester.tap(find.text(AppStrings.done));
+      await tester.pumpAndSettle();
+      continue;
+    }
     if (find.byType(BackButton).evaluate().isNotEmpty) {
       await tester.tap(find.byType(BackButton));
-    } else {
-      await tester.pageBack();
+      await tester.pumpAndSettle();
+      continue;
     }
     await tester.pumpAndSettle();
   }
+  expect(find.byType(QuizScreen), findsNothing);
+  expect(find.byType(QuizResultScreen), findsNothing);
   expect(find.byType(HomeScreen), findsOneWidget);
 }
