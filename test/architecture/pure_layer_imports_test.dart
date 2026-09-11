@@ -85,7 +85,7 @@ void main() {
     final offenders = _scan(
       dirs: ['lib/ui', 'lib/kanji/ui'],
       forbidden: RegExp(
-        '''^\\s*import\\s+['"](package:shared_preferences/|package:path_provider/|package:flutter_tts/|dart:io)''',
+        '''^\\s*import\\s+['"](package:shared_preferences/|package:path_provider/|package:file_picker/|package:flutter_tts/|dart:io)''',
       ),
     );
     expect(
