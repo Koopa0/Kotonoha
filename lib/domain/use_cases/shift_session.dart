@@ -208,13 +208,15 @@ abstract final class ShiftSession {
         sentence.item.isNotEmpty;
   }
 
-  /// Sense support already on screen. Looking at the roles Chinese gloss
-  /// is the same class of help as tapping the sense hint. [readSupport]
-  /// stays a reading-only flag.
+  /// Sense support already on screen. The roles Chinese gloss, or the
+  /// correct who / what labels shown after a miss, is the same class of
+  /// help as tapping the sense hint. A correct unprompted roles lock is
+  /// not sense help. [readSupport] stays a reading-only flag.
   static bool sensePrompted({
     required bool askedSenseHint,
     required bool sawRolesGloss,
-  }) => askedSenseHint || sawRolesGloss;
+    bool sawRolesReveal = false,
+  }) => askedSenseHint || sawRolesGloss || sawRolesReveal;
 
   /// Transfer evidence is the sense check on the swapped sentence.
   /// Prompted and unprompted stay distinct; neither masters the focus.

@@ -98,6 +98,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   bool _senseUnprompted = false;
   bool _verbPrompted = false;
   bool _rolesPrompted = false;
+  bool _rolesRevealedAnswer = false;
   String? _pickedVerb;
   String? _pickedActor;
   String? _pickedItem;
@@ -288,7 +289,10 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     unawaited(
       _record(ShiftCheck.roles, prompted: _rolesPrompted, correct: correct),
     );
-    setState(() => _phase = _Phase.rolesReveal);
+    setState(() {
+      _rolesRevealedAnswer = !correct;
+      _phase = _Phase.rolesReveal;
+    });
   }
 
   void _afterRoles() {
@@ -304,9 +308,11 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     return ShiftReadSupport.prompted;
   }
 
+  bool get _rolesSenseSupport => _rolesPrompted || _rolesRevealedAnswer;
+
   void _commitSense({required bool unprompted}) {
     setState(() {
-      _senseUnprompted = unprompted && !_rolesPrompted;
+      _senseUnprompted = unprompted && !_rolesSenseSupport;
       _phase = _Phase.senseGrade;
     });
   }
@@ -317,6 +323,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       prompted: ShiftSession.sensePrompted(
         askedSenseHint: !_senseUnprompted,
         sawRolesGloss: _rolesPrompted,
+        sawRolesReveal: _rolesRevealedAnswer,
       ),
       correct: correct,
       readSupport: _readSupportAtSenseGrade(),
@@ -333,6 +340,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _senseUnprompted = false;
         _verbPrompted = false;
         _rolesPrompted = false;
+        _rolesRevealedAnswer = false;
         _pickedVerb = null;
         _pickedActor = null;
         _pickedItem = null;

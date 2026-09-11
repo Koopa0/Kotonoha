@@ -513,7 +513,8 @@ void main() {
       await tester.tap(find.text(AppStrings.shiftSenseReady));
       await tester.pumpAndSettle();
       expect(find.text('我把包包帶過來。'), findsOneWidget);
-      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      expect(find.text(AppStrings.shiftSenseOk), findsNothing);
+      await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
       await tester.pumpAndSettle();
 
       expect(find.text('かれが かばんを もってきます'), findsOneWidget);
@@ -547,7 +548,7 @@ void main() {
       expect(logged, hasLength(8));
       expect(logged[3].meta[AttemptMeta.evidence], ShiftCheck.sense.name);
       expect(logged[3].meta[AttemptMeta.beat], ShiftBeat.base.name);
-      expect(logged[3].meta[AttemptMeta.prompted], isFalse);
+      expect(logged[3].meta[AttemptMeta.prompted], isTrue);
       expect(
         logged[3].meta[AttemptMeta.readSupport],
         ShiftReadSupport.independent,
@@ -582,12 +583,22 @@ void main() {
       expect(
         find.text(
           AppStrings.shiftSenseSelfGrade(
-            prompted: false,
+            prompted: true,
             correct: true,
             readSupport: ShiftReadSupport.independent,
           ),
         ),
         findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: false,
+            correct: true,
+            readSupport: ShiftReadSupport.independent,
+          ),
+        ),
+        findsNothing,
       );
       expect(words.stats, isEmpty);
     },
@@ -650,6 +661,132 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'roles miss reveal carries who/what support into sense; correct lock does not',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      final drill = ShiftSession.drillById('bring-actor-watashi-kare')!;
+      await tester.binding.setSurfaceSize(const Size(420, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          words: words,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            beats: const [ShiftBeat.base],
+            clock: () => DateTime(2026, 9, 11, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _finishIntro(tester);
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('もってくる'));
+      await tester.pumpAndSettle();
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+
+      expect(find.text(AppStrings.shiftRolesHint), findsOneWidget);
+      await tester.tap(find.text('かれ'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ほん'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftRolesReady));
+      await tester.pumpAndSettle();
+      expect(find.text(drill.base.relation), findsNothing);
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+      await tester.enterText(find.byType(TextField), '自評用筆記');
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftSenseOk), findsNothing);
+      await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
+      await tester.pumpAndSettle();
+
+      var logged = _grades(await analytics.all());
+      expect(logged, hasLength(4));
+      expect(logged[2].meta[AttemptMeta.evidence], ShiftCheck.roles.name);
+      expect(logged[2].correct, isFalse);
+      expect(logged[2].meta[AttemptMeta.prompted], isFalse);
+      expect(logged[3].meta[AttemptMeta.evidence], ShiftCheck.sense.name);
+      expect(logged[3].meta[AttemptMeta.prompted], isTrue);
+      expect(
+        logged[3].meta[AttemptMeta.readSupport],
+        ShiftReadSupport.independent,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftRolesSelfGrade(prompted: false, correct: false),
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: true,
+            correct: true,
+            readSupport: ShiftReadSupport.independent,
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftVerbSelfGrade(prompted: false, correct: true),
+        ),
+        findsWidgets,
+      );
+      expect(words.stats, isEmpty);
+    },
+  );
+
+  testWidgets('correct unprompted roles leave sense unprompted', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    final drill = ShiftSession.drillById('bring-actor-watashi-kare')!;
+    await tester.binding.setSurfaceSize(const Size(420, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftPracticeScreen(
+          drill: drill,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 11, 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _finishIntro(tester);
+    await _completeActionBeat(tester, drill.base, unprompted: true);
+
+    final logged = _grades(await analytics.all());
+    expect(logged, hasLength(4));
+    expect(logged[2].meta[AttemptMeta.evidence], ShiftCheck.roles.name);
+    expect(logged[2].correct, isTrue);
+    expect(logged[2].meta[AttemptMeta.prompted], isFalse);
+    expect(logged[3].meta[AttemptMeta.evidence], ShiftCheck.sense.name);
+    expect(logged[3].meta[AttemptMeta.prompted], isFalse);
+    expect(
+      logged[3].meta[AttemptMeta.readSupport],
+      ShiftReadSupport.independent,
+    );
+    expect(
+      find.text(
+        AppStrings.shiftSenseSelfGrade(
+          prompted: false,
+          correct: true,
+          readSupport: ShiftReadSupport.independent,
+        ),
+      ),
+      findsWidgets,
+    );
+  });
 
   testWidgets(
     'reserved-shift sitting still teaches first, then only the held beat',
