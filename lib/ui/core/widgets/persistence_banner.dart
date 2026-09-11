@@ -84,9 +84,9 @@ class _PersistenceBannerState extends State<PersistenceBanner> {
         onAction: retrying ? null : controller.retry,
       );
     }
-    final restoreRecovery = context.watch<ProgressRestoreRecoveryController?>();
-    if (restoreRecovery?.needsRecovery ?? false) {
-      final retrying = restoreRecovery!.isRetrying;
+    final restoreRecovery = context.watch<ProgressRestoreRecoveryController>();
+    if (restoreRecovery.needsRecovery) {
+      final retrying = restoreRecovery.isRetrying;
       return _PersistenceSurface(
         message: AppStrings.restoreJournalRecoveryLine,
         detail: AppStrings.restoreJournalRecoveryDetail,

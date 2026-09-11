@@ -59,6 +59,13 @@ class WordProgressRepository extends ChangeNotifier {
   /// Whether an unfinished restore journal still blocks learning writes.
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
+  Future<void>? _blockedWriteFuture() {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    return null;
+  }
+
   static Future<WordProgressRepository> load([
     PreferencesService? prefs,
   ]) async {
@@ -100,6 +107,8 @@ class WordProgressRepository extends ChangeNotifier {
   /// but this is not an unprompted recall. First meeting only; seen items
   /// are an honest no-op that still flushes a pending write.
   Future<void> markIntroduced(String progressId, {required DateTime at}) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final current = statForItem(progressId);
     if (current.isSeen) return flushPending();
     _stats[progressId] = current.markIntroduced(at: at);
@@ -116,6 +125,8 @@ class WordProgressRepository extends ChangeNotifier {
     required bool correct,
     required DateTime at,
   }) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     _stats[progressId] = statForItem(progressId)
         .recordAnswer(correct: correct, at: at);
     _statsGen++;
@@ -179,6 +190,8 @@ class WordProgressRepository extends ChangeNotifier {
   /// full [RecoverableStore] recovery semantics (see [KanjiReadingRepository]
   /// — the generation rules are identical).
   Future<void> reset() {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final before = Map<String, WordStat>.of(_stats);
     _stats.clear();
     _statsGen++;

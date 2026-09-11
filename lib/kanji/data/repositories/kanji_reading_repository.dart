@@ -64,6 +64,13 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// Whether an unfinished restore journal still blocks learning writes.
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
+  Future<void>? _blockedWriteFuture() {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    return null;
+  }
+
   static Future<KanjiReadingRepository> load([
     PreferencesService? prefs,
   ]) async {
@@ -100,6 +107,8 @@ class KanjiReadingRepository extends ChangeNotifier {
     required bool correct,
     required DateTime at,
   }) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     _stats[unitId] = statForUnit(unitId).recordAnswer(correct: correct, at: at);
     _statsGen++;
     notifyListeners();
@@ -172,6 +181,8 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// pre-reset snapshot is restored conservatively and the store stays
   /// dirty — an unknown state is never marked persisted.
   Future<void> reset() {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final before = Map<String, ReadingStat>.of(_stats);
     _stats.clear();
     _statsGen++;

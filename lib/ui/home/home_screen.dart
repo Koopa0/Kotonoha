@@ -38,6 +38,7 @@ import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
@@ -61,6 +62,19 @@ class HomeScreen extends StatelessWidget {
 
   /// Injectable clock so 凪「もう一回」 can be exercised in daytime in tests.
   final DateTime Function()? clock;
+
+  bool _restoreJournalBlocksLearning(BuildContext context) =>
+      context.read<ProgressRestoreRecoveryController>().needsRecovery;
+
+  void _openLessons(BuildContext context) {
+    if (_restoreJournalBlocksLearning(context)) return;
+    Navigator.of(context).push(LessonsScreen.route());
+  }
+
+  void _openLearnGrid(BuildContext context) {
+    if (_restoreJournalBlocksLearning(context)) return;
+    Navigator.of(context).push(LearnScreen.route());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -249,8 +263,7 @@ class HomeScreen extends StatelessWidget {
                     icon: Icons.grid_view_rounded,
                     label: AppStrings.learnHiragana,
                     subtitle: AppStrings.learnHiraganaSubtitle,
-                    onTap: () =>
-                        Navigator.of(context).push(LearnScreen.route()),
+                    onTap: () => _openLearnGrid(context),
                   ),
                 ]),
                 ..._section(AppStrings.sectionWords, [
@@ -422,7 +435,7 @@ class HomeScreen extends StatelessWidget {
     );
     if (practice.kana.isEmpty) {
       // Nothing that can discriminate or recall — go learn instead.
-      Navigator.of(context).push(LessonsScreen.route());
+      _openLessons(context);
       return;
     }
     final nextExclude = DailyBridge.nextExclude(
@@ -693,7 +706,7 @@ class HomeScreen extends StatelessWidget {
     final questions = _composeConfusable(store);
     if (questions.isEmpty) {
       // Not enough learned look-alikes for a real drill — go learn more.
-      Navigator.of(context).push(LessonsScreen.route());
+      _openLessons(context);
       return;
     }
     Navigator.of(context).push(
@@ -782,7 +795,7 @@ class HomeScreen extends StatelessWidget {
           action: AppStrings.learnNewKanaAction,
           productName: AppStrings.continueLearning,
           kind: _HeroKind.outlined,
-          onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+          onPressed: () => _openLessons(context),
         ),
       ];
     }
@@ -809,7 +822,7 @@ class HomeScreen extends StatelessWidget {
           action: AppStrings.learnNewKanaAction,
           productName: AppStrings.continueLearning,
           kind: _HeroKind.outlined,
-          onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+          onPressed: () => _openLessons(context),
         ),
       ];
     }
@@ -817,7 +830,7 @@ class HomeScreen extends StatelessWidget {
       _HeroAction(
         action: AppStrings.learnNewKanaAction,
         productName: AppStrings.continueLearning,
-        onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+        onPressed: () => _openLessons(context),
       ),
     ];
   }
@@ -873,7 +886,7 @@ class HomeScreen extends StatelessWidget {
         _startTravelListen(context, step);
       case GuidanceTarget.travelLearnKana:
         if (step.scene == null) {
-          Navigator.of(context).push(LessonsScreen.route());
+          _openLessons(context);
           return;
         }
         Navigator.of(context)
@@ -1068,7 +1081,7 @@ class HomeScreen extends StatelessWidget {
       GuidanceTarget.travelListen => () => _startTravelListen(context, step),
       GuidanceTarget.travelLearnKana => () {
         if (step.scene == null) {
-          Navigator.of(context).push(LessonsScreen.route());
+          _openLessons(context);
           return;
         }
         Navigator.of(context)
@@ -1076,9 +1089,7 @@ class HomeScreen extends StatelessWidget {
       },
       GuidanceTarget.lessons ||
       GuidanceTarget.rest ||
-      GuidanceTarget.travelHold => () => Navigator.of(
-        context,
-      ).push(LessonsScreen.route()),
+      GuidanceTarget.travelHold => () => _openLessons(context),
     };
     return Center(
       child: InkWell(

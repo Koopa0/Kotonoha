@@ -99,6 +99,13 @@ class KanaProgressRepository extends ChangeNotifier {
   /// Whether an unfinished restore journal still blocks learning writes.
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
+  Future<void>? _blockedWriteFuture() {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    return null;
+  }
+
   /// Loads persisted stats + learned units (or starts empty).
   static Future<KanaProgressRepository> load([
     PreferencesService? prefs,
@@ -159,6 +166,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// memory after an earlier failed write, so success is only reported once
   /// every pending store is really flushed.
   Future<void> markUnitLearned(String unitId) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     if (_learnedUnits.add(unitId)) {
       _learnedGen++;
       notifyListeners();
@@ -178,6 +187,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// re-triggering the home's listener every frame; an already-seen id still
   /// joins the queue so a pending earlier write is flushed, never faked.
   Future<void> markUnlockSeen(String id) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     if (_seenUnlocks.add(id)) {
       _unlocksGen++;
       notifyListeners();
@@ -237,6 +248,8 @@ class KanaProgressRepository extends ChangeNotifier {
     int? latencyMs,
     bool listening = false,
   }) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final current = statFor(kana);
     final scale = kConfusableChars.contains(kana.character) ? 0.5 : 1.0;
     _stats[kana.id] = current.recordAnswer(
@@ -254,6 +267,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// Persists hinted-recall exposure without treating it as a successful
   /// recall or renewing the schedule. See [KanaStat.recordPromptedPractice].
   Future<void> recordPromptedPractice(Kana kana, {required DateTime at}) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     _stats[kana.id] = statFor(kana).recordPromptedPractice(at: at);
     _statsGen++;
     notifyListeners();
@@ -350,6 +365,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// fails, the pre-reset snapshot is restored conservatively and the store
   /// stays dirty — an unknown state is never marked persisted.
   Future<void> reset() {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final statsBefore = Map<String, KanaStat>.of(_stats);
     final learnedBefore = Set<String>.of(_learnedUnits);
     final unlocksBefore = Set<String>.of(_seenUnlocks);

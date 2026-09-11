@@ -30,23 +30,32 @@ Future<void> main() async {
 /// Builds the fully-wired app widget: load persisted progress, init TTS, and
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
-Future<Widget> bootstrap() async {
-  final prefs = await PreferencesService.create();
-  final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(prefs);
-  final store = await KanaProgressRepository.load(prefs);
-  final kanji = await KanjiReadingRepository.load(prefs);
-  final words = await WordProgressRepository.load(prefs);
+///
+/// [prefs], [speech], and [analytics] are test seams only — production [main]
+/// leaves them null.
+Future<Widget> bootstrap({
+  PreferencesService? prefs,
+  SpeechService? speech,
+  AnalyticsLog? analytics,
+}) async {
+  final resolvedPrefs = prefs ?? await PreferencesService.create();
+  final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
+    resolvedPrefs,
+  );
+  final store = await KanaProgressRepository.load(resolvedPrefs);
+  final kanji = await KanjiReadingRepository.load(resolvedPrefs);
+  final words = await WordProgressRepository.load(resolvedPrefs);
   final restoreRecovery = ProgressRestoreRecoveryController(
-    prefs: prefs,
+    prefs: resolvedPrefs,
     kana: store,
     kanji: kanji,
     words: words,
     needsRecovery: journalRecovery.needsRecovery,
   );
-  final checks = await PlacementCheckRepository.load(prefs);
-  final travel = await TravelFocusRepository.load(prefs);
-  final speech = await FlutterTtsSpeechService.create();
-  final analytics = await openAnalyticsLog();
+  final checks = await PlacementCheckRepository.load(resolvedPrefs);
+  final travel = await TravelFocusRepository.load(resolvedPrefs);
+  final resolvedSpeech = speech ?? await FlutterTtsSpeechService.create();
+  final resolvedAnalytics = analytics ?? await openAnalyticsLog();
   // The app-scoped owner of every progress-persistence future: it takes the
   // startup health of each store (to surface an honest recovery notice) and
   // flushes any repository on retry / lifecycle drain.
@@ -55,7 +64,7 @@ Future<Widget> bootstrap() async {
     kanjiFlush: kanji.flushPending,
     wordFlush: words.flushPending,
     placementFlush: checks.flushPending,
-    analyticsFlush: analytics.flushPending,
+    analyticsFlush: resolvedAnalytics.flushPending,
     travelFocusFlush: travel.flushPending,
     health: [
       store.statsHealth,
@@ -80,18 +89,15 @@ Future<Widget> bootstrap() async {
       ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
         value: restoreRecovery,
       ),
-      Provider<ProgressRestoreRecoveryController?>.value(
-        value: restoreRecovery,
-      ),
-      Provider<SpeechService>.value(value: speech),
-      Provider<AnalyticsLog>.value(value: analytics),
+      Provider<SpeechService>.value(value: resolvedSpeech),
+      Provider<AnalyticsLog>.value(value: resolvedAnalytics),
       Provider<ProgressSnapshotExporter>.value(
         value: ProgressSnapshotExporter(
           snapshots: ProgressSnapshotRepository(
             kana: store,
             kanji: kanji,
             words: words,
-            prefs: prefs,
+            prefs: resolvedPrefs,
           ),
           files: FilePickerSnapshotPort(),
         ),
@@ -102,10 +108,10 @@ Future<Widget> bootstrap() async {
             kana: store,
             kanji: kanji,
             words: words,
-            prefs: prefs,
+            prefs: resolvedPrefs,
           ),
           restore: ProgressSnapshotRestoreRepository(
-            prefs: prefs,
+            prefs: resolvedPrefs,
             kana: store,
             kanji: kanji,
             words: words,
