@@ -82,5 +82,6 @@ void main() {
       TravelFocusPlan.sceneNamed('convenience'),
       TravelSceneId.convenience,
     );
+    expect(TravelFocusPlan.sceneNamed('hotel'), TravelSceneId.hotel);
   });
 }

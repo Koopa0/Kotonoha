@@ -98,6 +98,15 @@ class TravelSceneScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _SceneCard(
+              key: const ValueKey<String>('travel-scene-hotel'),
+              label: AppStrings.travelSceneHotel,
+              purpose: AppStrings.travelScenePurposeHotel,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(TravelSceneHub.route(TravelSceneId.hotel)),
+            ),
+            const SizedBox(height: 12),
+            _SceneCard(
               key: const ValueKey<String>('travel-scene-info'),
               label: AppStrings.infoAction,
               purpose: AppStrings.infoPurpose,
@@ -134,6 +143,7 @@ class TravelSceneHub extends StatelessWidget {
     TravelSceneId.parkQueue => AppStrings.travelSceneParkQueue,
     TravelSceneId.restaurant => AppStrings.travelSceneRestaurant,
     TravelSceneId.convenience => AppStrings.travelSceneConvenience,
+    TravelSceneId.hotel => AppStrings.travelSceneHotel,
   };
 
   String get _purpose => switch (scene) {
@@ -143,6 +153,7 @@ class TravelSceneHub extends StatelessWidget {
     TravelSceneId.parkQueue => AppStrings.travelScenePurposeParkQueue,
     TravelSceneId.restaurant => AppStrings.travelScenePurposeRestaurant,
     TravelSceneId.convenience => AppStrings.travelScenePurposeConvenience,
+    TravelSceneId.hotel => AppStrings.travelScenePurposeHotel,
   };
 
   ReplySceneId? get _replyScene => switch (scene) {
@@ -151,7 +162,8 @@ class TravelSceneHub extends StatelessWidget {
     TravelSceneId.convenience => ReplySceneId.convenience,
     TravelSceneId.transport ||
     TravelSceneId.shrine ||
-    TravelSceneId.parkQueue => null,
+    TravelSceneId.parkQueue ||
+    TravelSceneId.hotel => null,
   };
 
   Set<String> _learnedChars(BuildContext context) =>

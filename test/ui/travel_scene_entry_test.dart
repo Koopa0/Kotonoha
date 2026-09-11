@@ -804,6 +804,145 @@ void main() {
     },
   );
 
+  testWidgets('hotel hub does not surface a reply door', (tester) async {
+    await pumpHub(tester, scene: TravelSceneId.hotel);
+    expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.replyAction), findsNothing);
+  });
+
+  testWidgets('partial は行・や行: hotel meets へや; restaurant stays 先學假名', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [5, 7]);
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneHotel);
+    expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(AppStrings.travelSceneMeetTitle(AppStrings.travelSceneHotel)),
+      findsOneWidget,
+    );
+    expect(find.text('すし'), findsNothing);
+    expect(find.text('ふくろ'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneRestaurant));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelScenePurposeRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+  });
+
+  testWidgets('Home→旅行→旅館→先見面 Reading 教チェックイン，不教泊まる當入住', (tester) async {
+    final repos = await pumpHome(tester);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    for (final id in TravelScene.progressIds[TravelSceneId.hotel]!) {
+      if (id.startsWith('word:')) {
+        await repos.words.markIntroduced(id, at: noon());
+      }
+    }
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneHotel);
+    expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(
+      find.text(AppStrings.travelSceneMeetTitle(AppStrings.travelSceneHotel)),
+      findsOneWidget,
+    );
+    final reading = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
+    expect(reading.items.map((i) => i.displayText), contains('チェックインを おねがい'));
+    expect(
+      reading.items.map((i) => i.displayText),
+      isNot(contains('うけつけで とまる')),
+    );
+    expect(reading.items.map((i) => i.meaning), contains('請辦理入住'));
+    expect(reading.items.map((i) => i.meaning), isNot(contains('在櫃檯入住')));
+
+    var found = find.text('チェックインを おねがい').evaluate().isNotEmpty;
+    for (var i = 0; i < reading.items.length && !found; i++) {
+      await tester.tap(find.text(AppStrings.recallHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
+      await tester.pumpAndSettle();
+      found = find.text('チェックインを おねがい').evaluate().isNotEmpty;
+    }
+    expect(find.text('チェックインを おねがい'), findsOneWidget);
+    expect(find.text('請辦理入住'), findsNothing);
+    await tester.tap(find.text(AppStrings.recallHint));
+    await tester.pumpAndSettle();
+    expect(find.text('chekkuin o onegai'), findsOneWidget);
+    expect(find.text('請辦理入住'), findsOneWidget);
+    expect(find.text('在櫃檯入住'), findsNothing);
+    expect(find.text('うけつけで とまる'), findsNothing);
+    await tester.tap(find.text(AppStrings.iReadAfterHint));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('phrase:チェックインを おねがい').isSeen, isTrue);
+  });
+
+  testWidgets('旅館入住 320×640／2× Reading 須看見請辦理入住才能記 seen', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final repos = await pumpHub(tester, scene: TravelSceneId.hotel);
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    for (final id in TravelScene.progressIds[TravelSceneId.hotel]!) {
+      if (id == 'phrase:チェックインを おねがい') continue;
+      await repos.words.markIntroduced(id, at: noon());
+    }
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('phrase:チェックインを おねがい').isSeen, isFalse);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(find.text('チェックインを おねがい'), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadUnprompted).hitTestable(), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey<String>('reading-meaning')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('請辦理入住').hitTestable(), findsOneWidget);
+    final meaning = tester.getRect(
+      find.byKey(const ValueKey<String>('reading-meaning')),
+    );
+    expect(meaning.bottom, lessThanOrEqualTo(641));
+    expect(meaning.top, greaterThanOrEqualTo(-1));
+    expect(repos.words.statForItem('phrase:チェックインを おねがい').isSeen, isFalse);
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadIt).hitTestable(), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('phrase:チェックインを おねがい').isSeen, isTrue);
+  });
+
   testWidgets('travel picker surfaces info extraction entry', (tester) async {
     await pumpHome(tester);
     await tester.ensureVisible(find.text(AppStrings.travelSceneAction));
