@@ -51,6 +51,43 @@ void main() {
     expect(stat.lastReviewedAt, now);
   });
 
+  test('scored listening freshness survives reload and still ages', () async {
+    final store = await KanaProgressRepository.load();
+    final kana = all[5];
+    await store.recordAnswer(
+      kana,
+      correct: true,
+      at: now,
+      latencyMs: 400,
+      listening: true,
+    );
+    await store.recordAnswer(
+      kana,
+      correct: true,
+      at: now.add(const Duration(minutes: 1)),
+      latencyMs: 400,
+      listening: true,
+    );
+
+    final reloaded = await KanaProgressRepository.load();
+    final stat = reloaded.statFor(kana);
+    expect(stat.listenSeenCount, 2);
+    expect(stat.listenCorrectCount, 2);
+    expect(stat.lastListenAt, now.add(const Duration(minutes: 1)));
+    expect(
+      stat.hasRecentListening(now: now.add(const Duration(days: 1))),
+      isTrue,
+    );
+    expect(
+      stat.listeningPendingRecheck(now: now.add(const Duration(days: 8))),
+      isTrue,
+    );
+    expect(
+      stat.hasReliableListening(now: now.add(const Duration(days: 40))),
+      isTrue,
+    );
+  });
+
   test('status classification reflects accuracy', () async {
     final store = await KanaProgressRepository.load();
     final kana = all[2];

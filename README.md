@@ -6,6 +6,8 @@
 
 **English** · [繁體中文](README.zh-TW.md) · [日本語](README.JP.md)
 
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+
 A Japanese reading practice app for Traditional Chinese readers. Meet hiragana
 and katakana first, then step into words, short sentences, listen-first
 practice, and kanji readings. Sessions stay short. The interface stays quiet.
@@ -30,6 +32,8 @@ asks you to assemble it, and **聞き取り** (先聽再揭曉) plays a station 
 you have already met, hides the text, then lets you reveal and hear it again.
 旅の場面 lets you pick a travel purpose — transit, clothing, shrines, or
 park queues — meet those items first, then recall or listen.
+You can keep one or two travel focuses; Home then runs one needed kana
+boost and continues the chosen scene, without waiting for every kana row.
 換句 swaps a word in an original sentence so you can check the reading and
 the sense separately, or keep the swapped line for the next day; that check
 is self-graded, not a system score.
@@ -40,7 +44,8 @@ can use them. 歩み is a map of coverage, not a grade.
 
 Pronunciation uses the device's Japanese text-to-speech engine. Which voices
 exist, and whether they work offline, depends on what is installed. Progress
-stays on the device. No account, no ads.
+stays on the device. 歩み can save kana, kanji, and word progress as a file;
+it does not include answer history. No account, no ads.
 
 <p align="center">
   <img src="screenshots/01-home.png" width="280" alt="Home with sample coverage and current action names">

@@ -303,6 +303,113 @@ void main() {
   });
 
   testWidgets(
+    'Home 換句: failed read after 讀得出來 does not claim independent support',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      await expand(tester);
+      await _pumpHome(
+        tester,
+        analytics: analytics,
+        words: words,
+        clock: () => DateTime(2026, 9, 10, 10),
+      );
+      await tester.tap(find.text(AppStrings.shiftAction));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftStart));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iCouldnt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      final first = ShiftSession.selfGrades(await analytics.all());
+      expect(first, hasLength(2));
+      expect(first[0].check, ShiftCheck.read);
+      expect(first[0].correct, isFalse);
+      expect(first[0].prompted, isFalse);
+      expect(first[1].check, ShiftCheck.sense);
+      expect(first[1].correct, isTrue);
+      expect(first[1].prompted, isFalse);
+      expect(first[1].readSupport, ShiftReadSupport.prompted);
+
+      await _completeBeat(tester, unprompted: false);
+      expect(find.text(AppStrings.shiftClose), findsOneWidget);
+      expect(
+        find.text(
+          AppStrings.shiftReadSelfGrade(prompted: false, correct: false),
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: false,
+            correct: true,
+            readSupport: ShiftReadSupport.prompted,
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(find.textContaining('讀音自行讀出'), findsNothing);
+      expect(words.stats, isEmpty);
+    },
+  );
+
+  testWidgets('Home 換句: verified 讀得出來 keeps independent support on sense', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    await expand(tester);
+    await _pumpHome(
+      tester,
+      analytics: analytics,
+      words: words,
+      clock: () => DateTime(2026, 9, 10, 10),
+    );
+    await tester.tap(find.text(AppStrings.shiftAction));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftStart));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftSenseReady));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftSenseOk));
+    await tester.pumpAndSettle();
+
+    final first = ShiftSession.selfGrades(await analytics.all());
+    expect(first, hasLength(2));
+    expect(first[0].correct, isTrue);
+    expect(first[0].prompted, isFalse);
+    expect(first[1].correct, isTrue);
+    expect(first[1].readSupport, ShiftReadSupport.independent);
+
+    await _completeBeat(tester, unprompted: true);
+    expect(
+      find.text(
+        AppStrings.shiftSenseSelfGrade(
+          prompted: false,
+          correct: true,
+          readSupport: ShiftReadSupport.independent,
+        ),
+      ),
+      findsWidgets,
+    );
+    expect(find.textContaining('讀音自行讀出'), findsWidgets);
+    expect(words.stats, isEmpty);
+  });
+
+  testWidgets(
     'day 1 first confirm then More is already-seen review, not first-unseen',
     (tester) async {
       final analytics = InMemoryAnalyticsLog();
@@ -558,6 +665,7 @@ Future<void> _pumpHome(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
+            analyticsFlush: analytics.flushPending,
           ),
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),

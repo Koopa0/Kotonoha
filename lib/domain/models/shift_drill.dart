@@ -170,6 +170,9 @@ abstract final class ShiftSightKind {
 }
 
 /// Reading support already on screen when the sense check was graded.
+///
+/// [independent] is a verified unprompted read after the reveal check,
+/// not the pre-reveal「讀得出來」commit. A failed self-grade is [prompted].
 abstract final class ShiftReadSupport {
   static const String independent = 'independent';
   static const String prompted = 'prompted';

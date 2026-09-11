@@ -263,6 +263,87 @@ void main() {
     },
   );
 
+  testWidgets(
+    'slow sense write ignores a double confirm and still advances one beat',
+    (tester) async {
+      final analytics = _GatedAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+
+      analytics.senseGate = Completer<void>();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pump();
+      analytics.senseGate!.complete();
+      await tester.pumpAndSettle();
+
+      final senses = _grades(await analytics.all()).where(
+        (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
+      );
+      expect(senses, hasLength(1));
+      expect(senses.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
+      expect(find.text('あおい うみ'), findsOneWidget);
+      expect(find.text(AppStrings.shiftClose), findsNothing);
+    },
+  );
+
+  testWidgets('hold lane slow sense write records one sense row only', (
+    tester,
+  ) async {
+    final analytics = _GatedAnalyticsLog();
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftPracticeScreen(
+          drill: drill,
+          lane: ShiftLane.hold,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 10, 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftSenseReady));
+    await tester.pumpAndSettle();
+
+    analytics.senseGate = Completer<void>();
+    await tester.tap(find.text(AppStrings.shiftSenseOk));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.shiftSenseOk));
+    await tester.pump();
+    analytics.senseGate!.complete();
+    await tester.pumpAndSettle();
+
+    final senses = _grades(await analytics.all()).where(
+      (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
+    );
+    expect(senses, hasLength(1));
+    expect(find.text(AppStrings.shiftClose), findsOneWidget);
+  });
+
   testWidgets('picker does not start until the learner chooses a drill', (
     tester,
   ) async {
@@ -977,6 +1058,34 @@ void main() {
   );
 }
 
+/// Holds [record] on sense rows until [senseGate] completes — reproduces a
+/// slow durable write while the learner can still tap confirm.
+class _GatedAnalyticsLog implements AnalyticsLog {
+  final List<Attempt> _items = [];
+  Completer<void>? senseGate;
+
+  @override
+  int get unpersistedCount => 0;
+
+  @override
+  Future<void> record(Attempt attempt) async {
+    _items.add(attempt);
+    if (attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name &&
+        senseGate != null) {
+      await senseGate!.future;
+    }
+  }
+
+  @override
+  Future<List<Attempt>> all() async => List.unmodifiable(_items);
+
+  @override
+  Future<int> count() async => _items.length;
+
+  @override
+  Future<void> flushPending() async {}
+}
+
 List<Attempt> _grades(List<Attempt> all) => [
   for (final attempt in all)
     if (attempt.meta[AttemptMeta.scored] != false &&
@@ -1034,6 +1143,7 @@ Future<void> _pumpOfficialHome(
   final kana = await KanaProgressRepository.load();
   final kanji = await KanjiReadingRepository.load();
   final wordRepo = words ?? await WordProgressRepository.load();
+  final analyticsLog = analytics ?? InMemoryAnalyticsLog();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -1045,12 +1155,11 @@ Future<void> _pumpOfficialHome(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: wordRepo.flushPending,
+            analyticsFlush: analyticsLog.flushPending,
           ),
         ),
         Provider<SpeechService>.value(value: speech),
-        Provider<AnalyticsLog>.value(
-          value: analytics ?? InMemoryAnalyticsLog(),
-        ),
+        Provider<AnalyticsLog>.value(value: analyticsLog),
       ],
       child: const KanaLoopApp(),
     ),

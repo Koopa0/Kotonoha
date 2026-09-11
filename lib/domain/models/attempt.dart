@@ -16,6 +16,7 @@ enum PracticeMode {
   shift, // original swap-sentence: reading vs sense, base vs transferred
   placementCheck, // explicit prior-range check: answer first, then reveal
   reply, // hear a station ask, pick intent, pick a short reply (not speech)
+  info, // hear travel info, pick amount / time / headcount (not speech)
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji
@@ -63,9 +64,10 @@ abstract final class AttemptMeta {
   static const String sight = 'sight';
 
   /// Reading support already given when a shift sense check was graded
-  /// (`independent` or `prompted`). Sense never inherits a mastery flag.
-  /// This is reading-only — a roles Chinese gloss is sense support, not
-  /// this key.
+  /// (`independent` or `prompted`). Independent requires a correct
+  /// unprompted read after reveal, not the pre-reveal commit alone.
+  /// Sense never inherits a mastery flag. This is reading-only — a roles
+  /// Chinese gloss is sense support, not this key.
   static const String readSupport = 'readSupport';
 }
 

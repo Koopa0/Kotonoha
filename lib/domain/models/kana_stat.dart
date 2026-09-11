@@ -22,7 +22,11 @@ enum KanaStatus { unseen, learning, weak, strong }
 ///   must keep the default `listening: false`.
 /// * Unknown is not a miss and must not reset SRS by itself.
 /// * A listening miss stays unrecovered until a later scored hear.
-///   Calendar time and visual answers never mint [hasReliableListening].
+///   Calendar time and visual answers never mint [hasReliableListening]
+///   and never demote it: elapsed days are not a miss and do not reset
+///   SRS. A hear older than [kListeningRecheckWindow] is historical
+///   success pending reconfirmation ([listeningPendingRecheck]).
+/// * Visual answers and prompted practice never refresh [lastListenAt].
 ///
 /// Pure data: no `package:flutter/*` imports.
 class KanaStat {
@@ -176,8 +180,15 @@ class KanaStat {
   static const double kMaxGraduationCv = 0.30;
 
   /// Two scored correct hears, with the latest listen not a miss, are
-  /// enough to stop probing. One lucky pick is not treated as mastery.
+  /// enough historical success. One lucky pick is not treated as mastery.
+  /// Recency is a separate contract — see [kListeningRecheckWindow].
   static const int kListeningVerifiedCorrect = 2;
+
+  /// Product default for "recently confirmed" listening. A scored hear
+  /// this old or newer still counts as recent; older evidence is
+  /// historical success pending another hear. Adjustable and testable,
+  /// not a claimed optimal memory interval.
+  static const Duration kListeningRecheckWindow = Duration(days: 7);
 
   /// True when the latest scored listen was a miss. Unknown (no listen
   /// miss clock) is never unrecovered. Visual answers and elapsed days
@@ -190,19 +201,39 @@ class KanaStat {
     return !last.isAfter(missed);
   }
 
-  /// Enough scored sound→kana evidence to leave the listening probe.
-  /// Visual strength and calendar time alone never satisfy this.
-  /// [now] is kept so #49 can share the predicate without a second clock.
+  /// Enough scored sound→kana evidence to count as historical success.
+  /// Visual strength and calendar time alone never satisfy this, and
+  /// elapsed days never clear it. [now] is kept so #49 / freshness
+  /// predicates share one clock.
   bool hasReliableListening({required DateTime now}) {
     if (listenCorrectCount < kListeningVerifiedCorrect) return false;
     if (listeningUnrecovered) return false;
     return true;
   }
 
-  /// Daily should still sample sound when listening is unknown, thin, or
-  /// unrecovered. Not a quota — a per-item evidence gap.
+  /// True when a scored hear landed inside [kListeningRecheckWindow] of
+  /// [now]. A missing [lastListenAt] is never treated as recent — old
+  /// saves with counts but no clock stay pending reconfirmation.
+  bool listeningHeardRecently({required DateTime now}) {
+    final last = lastListenAt;
+    if (last == null) return false;
+    return !now.isAfter(last.add(kListeningRecheckWindow));
+  }
+
+  /// Historical success that is still inside the recheck window.
+  bool hasRecentListening({required DateTime now}) =>
+      hasReliableListening(now: now) && listeningHeardRecently(now: now);
+
+  /// Two-plus correct hears, no unrecovered miss, but the last hear is
+  /// missing or older than the window. Not a demotion.
+  bool listeningPendingRecheck({required DateTime now}) =>
+      hasReliableListening(now: now) && !listeningHeardRecently(now: now);
+
+  /// Daily should still sample sound when listening is unknown, thin,
+  /// unrecovered, or historically successful but past the recheck
+  /// window. Not a quota — a per-item evidence gap.
   bool needsListeningProbe({required DateTime now}) =>
-      !hasReliableListening(now: now);
+      !hasRecentListening(now: now);
 
   /// Returns a copy with one answer recorded, advancing the SRS schedule.
   /// [latencyMs] gates graduation (null/0/≥threshold = not fast); past the
