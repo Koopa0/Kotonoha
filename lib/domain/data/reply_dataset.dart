@@ -143,7 +143,7 @@ const List<ReplyDrill> kReplyDrills = [
     promptRomaji: 'jinja wa doko',
     promptMeaning: '神社在哪裡',
     intentCorrect: '問神社在哪裡',
-    intentWrong: ['說要安靜進寺', '說在入口排隊'],
+    intentWrong: ['說走進安靜寺院', '說在入口排隊'],
     replyCorrectKana: 'ひだりです',
     replyCorrectRomaji: 'hidari desu',
     replyCorrectMeaning: '在左邊',
@@ -157,7 +157,7 @@ const List<ReplyDrill> kReplyDrills = [
     promptKana: 'しずかな てらに はいる',
     promptRomaji: 'shizuka na tera ni hairu',
     promptMeaning: '走進安靜的寺院',
-    intentCorrect: '說要安靜進寺',
+    intentCorrect: '說走進安靜寺院',
     intentWrong: ['問神社在哪裡', '說請稍等'],
     replyCorrectKana: 'はい',
     replyCorrectRomaji: 'hai',
@@ -183,7 +183,7 @@ const List<ReplyDrill> kReplyDrills = [
   ReplyDrill(
     id: 'reply:chotto-matte',
     scene: ReplySceneId.parkQueue,
-    sceneZh: '工作人員請你稍等。',
+    sceneZh: '入口前方人手調整動線。',
     promptKana: 'ちょっと まってください',
     promptRomaji: 'chotto matte kudasai',
     promptMeaning: '請稍等一下',
@@ -228,7 +228,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyWrongKana: ['はい', 'もういちど いってください'],
     requiredSeenIds: [
       'phrase:いま なんじ',
-      'word:ゆっくり',
+      'phrase:ゆっくり はなしてください',
     ],
   ),
 ];

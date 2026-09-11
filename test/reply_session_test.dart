@@ -118,7 +118,7 @@ void main() {
     const stationLeaks = ['問你', '要去哪', '問路', '車站在哪', '是不是車站', '這裡是車站嗎'];
     const clothingLeaks = ['這件太小', '價格貴', '要不要買', '這個貴嗎', '要買嗎'];
     const shrineLeaks = ['問神社', '走進安靜', '請稍等', '在入口排隊'];
-    const parkLeaks = ['在入口排隊', '請稍等一下', '聽不清楚'];
+    const parkLeaks = ['在入口排隊', '請稍等一下', '請稍等', '稍等', '聽不清楚'];
     const helpLeaks = ['聽不清楚', '說得太快', '再說一次', '說慢一點'];
     for (final drill in kReplyDrills) {
       expect(
@@ -414,7 +414,7 @@ void main() {
     expect(session.map((d) => d.replyCorrectKana), isNot(contains('はい')));
   });
 
-  test('help-slow waits for ゆっくり before a scored slow reply', () {
+  test('help-slow waits for the slow-request phrase before a scored reply', () {
     final stats = {'phrase:いま なんじ': seenAt()};
     final view = ReplySession.inspect(
       learnedChars: allChars,
@@ -424,7 +424,27 @@ void main() {
     expect(view.ready, isEmpty);
     expect(view.canPractice, isFalse);
     expect(view.canMeet, isTrue);
-    expect(view.unreadRequired.map((i) => i.progressId), contains('word:ゆっくり'));
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      contains('phrase:ゆっくり はなしてください'),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('word:ゆっくり')),
+    );
+  });
+
+  test('help intents align with prompt meaning; scenes disambiguate repeat vs slow', () {
+    final repeat = kReplyDrills.firstWhere((d) => d.id == 'reply:help-repeat');
+    final slow = kReplyDrills.firstWhere((d) => d.id == 'reply:help-slow');
+    expect(repeat.promptMeaning, '這是什麼');
+    expect(slow.promptMeaning, '現在幾點');
+    expect(repeat.intentCorrect, '聽不清楚');
+    expect(slow.intentCorrect, '說得太快');
+    expect(repeat.sceneZh, contains('聽清楚'));
+    expect(slow.sceneZh, contains('語速'));
+    expect(repeat.intentWrong, isNot(contains('說得太快')));
+    expect(slow.intentWrong, contains('聽不清楚'));
   });
 
   test('shrine unreadRequired never pulls station or clothing phrases', () {
