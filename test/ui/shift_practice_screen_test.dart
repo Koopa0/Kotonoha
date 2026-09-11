@@ -707,7 +707,7 @@ void main() {
       await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
       await tester.pumpAndSettle();
 
-      var logged = _grades(await analytics.all());
+      final logged = _grades(await analytics.all());
       expect(logged, hasLength(4));
       expect(logged[2].meta[AttemptMeta.evidence], ShiftCheck.roles.name);
       expect(logged[2].correct, isFalse);

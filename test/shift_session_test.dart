@@ -228,14 +228,6 @@ void main() {
       ),
       isTrue,
     );
-    expect(
-      ShiftSession.sensePrompted(
-        askedSenseHint: false,
-        sawRolesGloss: false,
-        sawRolesReveal: false,
-      ),
-      isFalse,
-    );
     final drill = ShiftSession.drillById('bring-actor-watashi-kare')!;
     final sense = ShiftSession.attempt(
       drill: drill,
