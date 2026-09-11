@@ -279,7 +279,7 @@ void main() {
     await tester.tap(find.text(AppStrings.replyStartAction));
     await tester.pumpAndSettle();
     expect(find.byType(ReplyScreen), findsOneWidget);
-    expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingIntentPrompt), findsOneWidget);
     expect(find.text('問要點什麼'), findsOneWidget);
     expect(find.text('桌上還沒有主食。'), findsOneWidget);
     expect(repos.words.statForItem('phrase:ごはんを ください').isSeen, isFalse);
@@ -316,6 +316,7 @@ void main() {
     await tester.tap(find.text(AppStrings.replyStartAction));
     await tester.pumpAndSettle();
     expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingIntentPrompt), findsOneWidget);
     expect(find.text('問還要不要別的'), findsOneWidget);
     expect(find.text('吃完了，準備離開。'), findsOneWidget);
     expect(repos.words.statForItem('phrase:かいけいを おねがい').isSeen, isFalse);
@@ -353,7 +354,7 @@ void main() {
     await tester.tap(find.text(AppStrings.replyStartAction));
     await tester.pumpAndSettle();
     expect(find.byType(ReplyScreen), findsOneWidget);
-    expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingIntentPrompt), findsOneWidget);
     expect(find.text('問要不要加熱'), findsOneWidget);
     expect(repos.words.statForItem('phrase:あたためて ください').isSeen, isFalse);
   });
