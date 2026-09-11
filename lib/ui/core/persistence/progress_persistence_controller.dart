@@ -10,7 +10,7 @@ import 'package:kotonoha/data/services/recoverable_store.dart';
 /// tracked per repository, not per store, because a repository flushes ALL of
 /// its dirty stores together — so one confirmed write clears the whole
 /// repository's backlog.
-enum _Repo { kana, kanji, word }
+enum _Repo { kana, kanji, word, placement }
 
 /// The startup recovery notice, coalesced most-severe-wins across every store.
 /// Ordered by how much it should worry the reader ([none] < [salvaged] <
@@ -41,7 +41,7 @@ enum PersistenceStatus {
 /// any route, so a failure survives the screen that caused it.
 ///
 /// Screens hand it the future a repository mutation returns ([trackKana] /
-/// [trackKanji] / [trackWord]) instead of dropping it. The mutation's in-memory effect and
+/// [trackKanji] / [trackWord] / [trackPlacement]) instead of dropping it. The mutation's in-memory effect and
 /// its UI feedback have already fired synchronously, so tracking never delays
 /// the response — it only observes the disk outcome out-of-band. Every tracked
 /// error is handled here, so none escapes to the uncaught zone.
@@ -58,11 +58,13 @@ class ProgressPersistenceController extends ChangeNotifier {
     required Future<void> Function() kanaFlush,
     required Future<void> Function() kanjiFlush,
     required Future<void> Function() wordFlush,
+    Future<void> Function()? placementFlush,
     Iterable<StoreHealth> health = const [],
   }) : _flush = {
          _Repo.kana: kanaFlush,
          _Repo.kanji: kanjiFlush,
          _Repo.word: wordFlush,
+         _Repo.placement: placementFlush ?? () async {},
        },
        _recovery = _noticeFor(health);
 
@@ -116,6 +118,12 @@ class ProgressPersistenceController extends ChangeNotifier {
 
   /// Observes a 詞と句-progress mutation's future. See [trackKana].
   void trackWord(Future<void> save) => _track(_Repo.word, save);
+
+  /// Observes a placement-check draft write. Retry / drain flush the draft
+  /// only — they never replay [QuizViewModel.gradeRecall] or mint a second
+  /// independent correct. Production always passes [placementFlush]; the
+  /// no-op default is for tests that never touch this store.
+  void trackPlacement(Future<void> save) => _track(_Repo.placement, save);
 
   // The observable signature the banner reacts to; notify only when it moves.
   (PersistenceStatus, bool) _view() => (status, _retrying);

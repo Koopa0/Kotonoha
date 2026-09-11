@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -50,18 +51,21 @@ Future<void> main() async {
 
     final kanji = await KanjiReadingRepository.load();
     final words = await WordProgressRepository.load();
+    final checks = await PlacementCheckRepository.load();
     // The same app-scoped owner main.dart wires — real flush callbacks and the
     // real startup StoreHealth of every store (no silent/no-op fallback).
     final persistence = ProgressPersistenceController(
       kanaFlush: store.flushPending,
       kanjiFlush: kanji.flushPending,
       wordFlush: words.flushPending,
+      placementFlush: checks.flushPending,
       health: [
         store.statsHealth,
         store.learnedUnitsHealth,
         store.seenUnlocksHealth,
         kanji.statsHealth,
         words.statsHealth,
+        checks.health,
       ],
     );
     await tester.pumpWidget(
@@ -70,6 +74,7 @@ Future<void> main() async {
           ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
           ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
           ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+          ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: persistence,
           ),

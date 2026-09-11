@@ -14,6 +14,7 @@ enum PracticeMode {
   dictation, // hear → assemble the kana (production / encoding)
   listening, // hear → recall → reveal → rehear (comprehension; not kana ID)
   shift, // original swap-sentence: reading vs sense, base vs transferred
+  placementCheck, // explicit prior-range check: answer first, then reveal
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji

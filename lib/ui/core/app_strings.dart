@@ -80,7 +80,8 @@ abstract final class AppStrings {
   // available, never auto-shown, never modal: tap to reveal how to learn.
   static const String aboutTrigger = 'これは?';
   static const String aboutBody =
-      '先學五十音,讀得動了再慢慢往「詞と句」、漢字走。「手解き」一行一行帶你認字,'
+      '先學五十音,讀得動了再慢慢往「詞と句」、漢字走。「手解き」一行一行帶你認字;'
+      '已經接觸過的,可以先自己讀、再只補不熟的。'
       '「今日の稽古」幫你複習該複習的;其他的房間,等你讀得動了自然會開。';
 
   // ④ 言の葉 とは — the name's meaning, woven into the same fold (pull, never
@@ -109,6 +110,27 @@ abstract final class AppStrings {
   static const String extendedSection = '濁音・半濁音・拗音';
   static const String testThisRow = '測驗這一行';
   static const String nextCard = '下一個';
+
+  // Explicit prior-range check — answer first, then reveal. Not a score.
+  static const String placementEntry = '先確認會哪些';
+  static const String placementEntrySubtitle = '已經接觸過的假名,先自己讀,再只補不熟的';
+  static const String placementTitle = '先確認';
+  static const String placementIntro = '選你接觸過的行。每一個假名都會先自己讀,不會先看答案。';
+  static const String placementStart = '開始確認';
+  static const String placementResume = '接著上次沒確認完的';
+  static const String placementSeeResult = '看剛才確認的結果';
+  static const String placementStartNew = '改選範圍,重新開始';
+  static const String placementNeedSelection = '先選至少一行';
+  static const String placementResumeHint = '上次選的範圍還有假名沒確認,不會幫你填答案。';
+  static const String placementUnknown = '還不認得';
+  static const String placementIndependent = '讀得出來的';
+  static const String placementPrompted = '看過讀音才想起的';
+  static const String placementForgotten = '還不熟的';
+  static const String placementNextFill = '先補這些';
+  static String placementFillRow(String title) => '先補$title';
+  static const String placementNextDaily = '回首頁,從今日の稽古繼續';
+  static const String placementNextLessons = '回課程,一行一行學';
+  static const String placementClose = '這一回先確認到這裡。';
 
   /// The "n / m" position counter shared by every paged practice (手解き study,
   /// 黙読, 渡し舟, 文字起こし, 漢字の声, 名残の仮名) — one source so the format

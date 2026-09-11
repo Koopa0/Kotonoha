@@ -16,9 +16,12 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/use_cases/lessons.dart';
+import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,12 +55,14 @@ void main() {
     Future<void> Function()? kanaFlush,
     Future<void> Function()? kanjiFlush,
     Future<void> Function()? wordFlush,
+    Future<void> Function()? placementFlush,
     List<StoreHealth> health = const [],
   }) {
     return ProgressPersistenceController(
       kanaFlush: kanaFlush ?? () async {},
       kanjiFlush: kanjiFlush ?? () async {},
       wordFlush: wordFlush ?? () async {},
+      placementFlush: placementFlush,
       health: health,
     );
   }
@@ -288,6 +293,7 @@ void main() {
     var kanaFlushes = 0;
     var kanjiFlushes = 0;
     var wordFlushes = 0;
+    var placementFlushes = 0;
     final c = owner(
       kanaFlush: () async {
         kanaFlushes++;
@@ -298,17 +304,58 @@ void main() {
       wordFlush: () async {
         wordFlushes++;
       },
+      placementFlush: () async {
+        placementFlushes++;
+      },
     );
     c.drain();
-    expect(kanaFlushes, 1); // all three invoked synchronously by drain
+    expect(kanaFlushes, 1); // all four invoked synchronously by drain
     expect(kanjiFlushes, 1);
     expect(wordFlushes, 1);
+    expect(placementFlushes, 1);
     await nextWhere(c, () => c.status == PersistenceStatus.idle);
     expect(
       c.hasWriteFailure,
       isFalse,
     ); // a clean drain never raises the surface
   });
+
+  test(
+    'a failed placement write is surfaced; retry only flushes the draft',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final fake = FakePreferencesService();
+      fake.failWrites.add('placement_check_v1');
+      final repo = await PlacementCheckRepository.load(fake);
+      var flushCalls = 0;
+      final c = owner(
+        placementFlush: () {
+          flushCalls++;
+          return repo.flushPending();
+        },
+      );
+
+      var draft = PlacementCheck.start([
+        Lessons.fromKana(kAllKana).firstWhere((l) => l.id == 'hira_row_0'),
+      ])!;
+      draft = PlacementCheck.noteHinted(draft, 'あ');
+      final save = repo.save(draft);
+      c.trackPlacement(save);
+      await expectLater(save, throwsA(isA<StoreWriteFailure>()));
+      expect(c.hasWriteFailure, isTrue);
+      expect(flushCalls, 0);
+
+      fake.failWrites.clear();
+      await c.retry();
+      expect(flushCalls, 1);
+      expect(c.hasWriteFailure, isFalse);
+
+      final fresh = await PlacementCheckRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(fresh.draft.isHinted('あ'), isTrue);
+    },
+  );
 
   test('a drain whose flush fails is surfaced, then retryable', () async {
     var shouldFail = true;

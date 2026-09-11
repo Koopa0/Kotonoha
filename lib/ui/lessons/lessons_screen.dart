@@ -8,6 +8,7 @@ import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/placement/placement_scope_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -40,6 +41,8 @@ class LessonsScreen extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
+                const _PlacementEntry(),
+                const SizedBox(height: 20),
                 if (hira.isNotEmpty) ...[
                   const _SectionHeader(AppStrings.hiraganaSection),
                   for (final l in hira) ...[
@@ -59,6 +62,39 @@ class LessonsScreen extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _PlacementEntry extends StatelessWidget {
+  const _PlacementEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: const CircleAvatar(
+          radius: 26,
+          backgroundColor: AppColors.accentSoft,
+          child: Icon(Icons.visibility_outlined, color: AppColors.accent),
+        ),
+        title: const Text(
+          AppStrings.placementEntry,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: AppColors.ink,
+          ),
+        ),
+        subtitle: const Text(
+          AppStrings.placementEntrySubtitle,
+          style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        onTap: () => Navigator.of(context).push(PlacementScopeScreen.route()),
       ),
     );
   }
