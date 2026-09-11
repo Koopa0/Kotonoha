@@ -378,7 +378,6 @@ void main() {
       drill: drill,
       now: day0,
       attempts: [held],
-      requested: ShiftLane.sameDay,
     );
     expect(optOut.lane, ShiftLane.sameDay);
     expect(optOut.beats, [ShiftBeat.base, ShiftBeat.shift]);
@@ -524,7 +523,7 @@ void main() {
   test('legacy rows without sight metadata are unknown, not unseen', () {
     final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
     final legacy = Attempt(
-      ts: DateTime(2026, 9, 1).millisecondsSinceEpoch,
+      ts: DateTime(2026, 9).millisecondsSinceEpoch,
       itemId: ShiftSession.itemId(drill, ShiftBeat.base),
       itemType: ItemType.shift,
       mode: PracticeMode.shift.name,
@@ -555,7 +554,7 @@ void main() {
   test('legacy unknown stays unknown after menu preview on the other beat', () {
     final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
     final legacy = Attempt(
-      ts: DateTime(2026, 9, 1).millisecondsSinceEpoch,
+      ts: DateTime(2026, 9).millisecondsSinceEpoch,
       itemId: ShiftSession.itemId(drill, ShiftBeat.base),
       itemType: ItemType.shift,
       mode: PracticeMode.shift.name,
