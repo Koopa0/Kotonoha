@@ -453,7 +453,7 @@ void main() {
     expect(logged[1].correct, isFalse);
   });
 
-  testWidgets('sale-tag scene たかいです is a scored miss without はい', (
+  testWidgets('low-price scene たかいです is a scored miss without はい', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 640);
