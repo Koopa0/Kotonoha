@@ -62,7 +62,9 @@ abstract final class AttemptMeta {
   static const String sight = 'sight';
 
   /// Reading support already given when the sense check was graded
-  /// (`independent` or `prompted`). Sense never inherits a mastery flag.
+  /// (`independent` or `prompted`). Independent requires a correct
+  /// unprompted read after reveal, not the pre-reveal commit alone.
+  /// Sense never inherits a mastery flag.
   static const String readSupport = 'readSupport';
 }
 

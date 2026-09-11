@@ -205,8 +205,11 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
-  /// Reading support on screen when the sense check is graded — not the
-  /// pre-reveal commit alone.
+  /// Support already on screen at the sense grade.
+  ///
+  /// [_readUnprompted] is the pre-reveal attempt; [_readCorrect] is the
+  /// post-reveal self-grade. Independent only when both hold. A failed
+  /// check has already revealed the reading, so the sense row is prompted.
   String _readSupportAtSenseGrade() {
     if (_readUnprompted && _readCorrect) {
       return ShiftReadSupport.independent;

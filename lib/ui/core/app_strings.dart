@@ -352,6 +352,7 @@ abstract final class AppStrings {
     if (readSupport == ShiftReadSupport.prompted) {
       return '$sense（讀音當時已提示）';
     }
+    // Verified unprompted read at sense time — not the「讀得出來」commit.
     if (readSupport == ShiftReadSupport.independent) {
       return '$sense（讀音自行讀出）';
     }
