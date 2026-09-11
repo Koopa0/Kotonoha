@@ -453,7 +453,7 @@ void main() {
     expect(logged[1].correct, isFalse);
   });
 
-  testWidgets('low-price scene たかいです is a scored miss without はい', (
+  testWidgets('budget-below scene やすいです is independent without はい', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 640);
@@ -470,6 +470,34 @@ void main() {
       surface: const Size(320, 640),
     );
     _expectSceneKeepsAskHidden(_priceAsk);
+    expect(find.text('吊牌價低於你的預算。'), findsOneWidget);
+    expect(find.text('はい'), findsNothing);
+    await _hearThenPick(tester, intent: '問價格貴不貴', reply: 'やすいです');
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isTrue);
+    expect(find.text('（它）便宜'), findsOneWidget);
+  });
+
+  testWidgets('budget-below scene たかいです contradicts premise and scores miss', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final env = await pumpReply(
+      tester,
+      drills: [_priceAsk],
+      surface: const Size(320, 640),
+    );
+    _expectSceneKeepsAskHidden(_priceAsk);
+    expect(find.text('吊牌價低於你的預算。'), findsOneWidget);
     expect(find.text('はい'), findsNothing);
     await _hearThenPick(tester, intent: '問價格貴不貴', reply: 'たかいです');
     final logged = await env.analytics.all();

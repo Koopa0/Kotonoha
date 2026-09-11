@@ -108,7 +108,7 @@ const List<ReplyDrill> kReplyDrills = [
   ReplyDrill(
     id: 'reply:takai-yasui',
     scene: ReplySceneId.clothing,
-    sceneZh: '特價牌上的價格比你預期低。',
+    sceneZh: '吊牌價低於你的預算。',
     promptKana: 'たかい ですか',
     promptRomaji: 'takai desu ka',
     promptMeaning: '這個貴嗎',
