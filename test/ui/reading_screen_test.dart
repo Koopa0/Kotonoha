@@ -11,6 +11,7 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -24,15 +25,10 @@ import '../services/fake_preferences_service.dart';
 DateTime _noon() => DateTime(2026, 9, 11, 12);
 
 const _inu = Word(kana: 'いぬ', romaji: 'inu', meaning: '狗');
-const _cardNo = Phrase(
-  kana: 'カードは つかえません',
-  romaji: 'kaado wa tsukaemasen',
-  meaning: '不能用卡',
-);
 
 Future<void> _pumpReading(
   WidgetTester tester, {
-  required List<Word> items,
+  required List<ReadingItem> items,
   required WordProgressRepository words,
   Set<String> alreadyTransferredIds = const {},
   ProgressPersistenceController? persist,
@@ -389,34 +385,54 @@ void main() {
     });
   });
 
-  testWidgets('320x640 at 2x text keeps payment phrase reveal readable', (
+  testWidgets('320×640 / 2x keeps カードは つかえません meaning and grade reachable', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
     tester.platformDispatcher.textScaleFactorTestValue = 2;
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(
-      () => tester.platformDispatcher.textScaleFactorTestValue = null,
-    );
-
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+      tester.binding.setSurfaceSize(null);
+    });
+    await tester.binding.setSurfaceSize(const Size(320, 640));
     final words = await WordProgressRepository.load();
     await _pumpReading(
       tester,
-      items: const [_cardNo],
+      items: const [
+        Phrase(
+          kana: 'カードは つかえません',
+          romaji: 'kaado wa tsukaemasen',
+          meaning: '不能用卡',
+        ),
+      ],
       words: words,
     );
+
+    expect(find.text('カードは つかえません'), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadUnprompted).hitTestable(), findsOneWidget);
     await tester.tap(find.text(AppStrings.iReadUnprompted));
     await _pumpFrame(tester);
-    expect(tester.takeException(), isNull);
-    expect(find.text('カードは つかえません'), findsOneWidget);
-    expect(find.text('不能用卡'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('不能用卡'));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey<String>('reading-meaning')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('不能用卡').hitTestable(), findsOneWidget);
+    final meaning = tester.getRect(
+      find.byKey(const ValueKey<String>('reading-meaning')),
+    );
+    expect(meaning.bottom, lessThanOrEqualTo(641));
+    expect(meaning.top, greaterThanOrEqualTo(-1));
+    expect(words.statForItem('phrase:カードは つかえません').isSeen, isFalse);
     await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadIt).hitTestable(), findsOneWidget);
     await tester.tap(find.text(AppStrings.iReadIt));
     await _pumpFrame(tester);
-    expect(tester.takeException(), isNull);
+    expect(words.statForItem('phrase:カードは つかえません').isSeen, isTrue);
   });
 }

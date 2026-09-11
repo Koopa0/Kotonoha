@@ -234,100 +234,113 @@ class _FerryScreenState extends State<FerryScreen> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
+                key: const ValueKey<String>('ferry-scroll'),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: AppColors.card,
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: AppColors.hairline),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 20,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SpeakButton(
-                              text: _current.kana,
-                              prominent: true,
-                              size: showKana ? 34 : 56,
-                              onPlay: _speak,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: AppColors.card,
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(color: AppColors.hairline),
                             ),
-                            if (showKana) ...[
-                              const SizedBox(height: 24),
-                              // The kana inks in — fades and rises into being.
-                              _InkIn(
-                                key: ValueKey(_index),
-                                child: Text(
-                                  _current.kana,
-                                  style: const TextStyle(
-                                    fontSize: 64,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.ink,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 20,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SpeakButton(
+                                    text: _current.kana,
+                                    prominent: true,
+                                    size: showKana ? 34 : 56,
+                                    onPlay: _speak,
                                   ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              // The same identity block the reading screen reveals, kept
-                              // consistent: romaji (the reading) then meaning (the word
-                              // you own). The ear already gave him the sound; these confirm.
-                              Text(
-                                _current.romaji,
-                                style: const TextStyle(
-                                  color: AppColors.accent,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _current.meaning,
-                                style: const TextStyle(
-                                  color: AppColors.ink,
-                                  fontSize: 18,
-                                ),
-                              ),
-                              // 同形異義語: a quiet, on-demand note when the kanji means
-                              // something different in Japanese than a Chinese reader
-                              // would assume. Pull, never pushed.
-                              if (_current.falseFriend != null)
-                                _FalseFriendNote(
-                                  _current.falseFriend!,
-                                  key: ValueKey(_current.kana),
-                                ),
-                            ],
-                            const SizedBox(height: 16),
-                            Text(
-                              switch (_beat) {
-                                _Beat.hear => AppStrings.ferryHear,
-                                _Beat.see => AppStrings.ferrySee,
-                                _Beat.readback => AppStrings.ferryReadback,
-                              },
-                              style: const TextStyle(
-                                color: AppColors.inkMuted,
-                                fontSize: 15,
+                                  if (showKana) ...[
+                                    const SizedBox(height: 24),
+                                    // Keep the 64 glyph size; wrap and scroll
+                                    // rather than shrinking the learner scale.
+                                    _InkIn(
+                                      key: ValueKey(_index),
+                                      child: Text(
+                                        _current.kana,
+                                        textAlign: TextAlign.center,
+                                        softWrap: true,
+                                        style: const TextStyle(
+                                          fontSize: 64,
+                                          height: 1.1,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppColors.ink,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _current.romaji,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.accent,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _current.meaning,
+                                      key: const ValueKey<String>(
+                                        'ferry-meaning',
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.ink,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    if (_current.falseFriend != null)
+                                      _FalseFriendNote(
+                                        _current.falseFriend!,
+                                        key: ValueKey(_current.kana),
+                                      ),
+                                  ],
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    switch (_beat) {
+                                      _Beat.hear => AppStrings.ferryHear,
+                                      _Beat.see => AppStrings.ferrySee,
+                                      _Beat.readback =>
+                                        AppStrings.ferryReadback,
+                                    },
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppColors.inkMuted,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        // After the meaning, so large type must scroll past
+                        // せん and 不能用 before the learner can mark seen.
+                        _controls(),
+                      ],
                     ),
                   ),
                 ),
               );
             },
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: _controls(),
         ),
       ],
     );
@@ -336,20 +349,16 @@ class _FerryScreenState extends State<FerryScreen> {
   Widget _controls() {
     switch (_beat) {
       case _Beat.hear:
-        return SizedBox(
-          height: 54,
-          child: FilledButton(
-            onPressed: _showText,
-            child: const Text(AppStrings.ferryShowText),
-          ),
+        return FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+          onPressed: _showText,
+          child: const Text(AppStrings.ferryShowText),
         );
       case _Beat.see:
-        return SizedBox(
-          height: 54,
-          child: FilledButton(
-            onPressed: _readSelf,
-            child: const Text(AppStrings.ferryReadSelf),
-          ),
+        return FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+          onPressed: _readSelf,
+          child: const Text(AppStrings.ferryReadSelf),
         );
       case _Beat.readback:
         return Row(

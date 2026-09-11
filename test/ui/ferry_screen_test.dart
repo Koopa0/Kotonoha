@@ -177,51 +177,171 @@ void main() {
     expect(find.textContaining('廁紙'), findsOneWidget); // unfolded on demand
   });
 
-  testWidgets('320x640 at 2x text keeps つかえません meaning reachable on see beat', (
+  testWidgets('320×640 / 2x keeps つかえません and 不能用 reachable before seen', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(320, 640);
-    tester.platformDispatcher.textScaleFactorTestValue = 2;
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(
-      () => tester.platformDispatcher.textScaleFactorTestValue = null,
+    final wordRepo = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    _phone320x640At2x(tester);
+    await _pumpFerry(
+      tester,
+      words: const [
+        Word(kana: 'つかえません', romaji: 'tsukaemasen', meaning: '不能用'),
+      ],
+      kana: wordRepo,
+      wordRepo: words,
     );
 
-    const word = Word(
-      kana: 'つかえません',
-      romaji: 'tsukaemasen',
-      meaning: '不能用',
-    );
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
-          Provider<SpeechService>.value(value: const SilentSpeechService()),
-        ],
-        child: const MaterialApp(
-          home: FerryScreen(words: [word], title: AppStrings.ferryTitle),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
+    expect(find.text('つかえません'), findsNothing);
+    expect(words.statForItem('word:つかえません').isSeen, isFalse);
     await tester.tap(find.text(AppStrings.ferryShowText));
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
     expect(find.text('つかえません'), findsOneWidget);
     expect(find.text('不能用'), findsOneWidget);
+    expect(
+      find.text(AppStrings.ferryReadSelf).hitTestable(),
+      findsNothing,
+      reason: '完成鈕必須在否定與意思之後，不能沒看完就按',
+    );
+    expect(words.statForItem('word:つかえません').isSeen, isFalse);
 
     await tester.ensureVisible(find.text('不能用'));
+    await tester.pumpAndSettle();
+    _expectFullyOnScreen(tester, find.text('不能用'));
+    _expectKanaTailAboveMeaning(
+      tester,
+      kana: find.text('つかえません'),
+      meaning: find.text('不能用'),
+    );
+    expect(words.statForItem('word:つかえません').isSeen, isFalse);
+
+    await tester.ensureVisible(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.ferryReadSelf).hitTestable(), findsOneWidget);
     await tester.tap(find.text(AppStrings.ferryReadSelf));
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(find.text(AppStrings.ferryReadback), findsOneWidget);
-
     await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadIt).hitTestable(), findsOneWidget);
     await tester.tap(find.text(AppStrings.iReadIt));
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
+    expect(words.statForItem('word:つかえません').isSeen, isTrue);
   });
+
+  testWidgets(
+    '320×640 / 2x keeps short ふく readable and back does not mark seen',
+    (tester) async {
+      final kana = await KanaProgressRepository.load();
+      final words = await WordProgressRepository.load();
+      _phone320x640At2x(tester);
+      await _pumpFerry(
+        tester,
+        words: const [Word(kana: 'ふく', romaji: 'fuku', meaning: '衣服')],
+        kana: kana,
+        wordRepo: words,
+        pushRoute: true,
+      );
+
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('衣服'));
+      await tester.pumpAndSettle();
+      _expectFullyOnScreen(tester, find.text('衣服'));
+      expect(find.text('ふく'), findsOneWidget);
+      expect(words.statForItem('word:ふく').isSeen, isFalse);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(FerryScreen), findsNothing);
+      expect(words.statForItem('word:ふく').isSeen, isFalse);
+    },
+  );
+}
+
+void _phone320x640At2x(WidgetTester tester) {
+  tester.view.physicalSize = const Size(320, 640);
+  tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = 2;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+    tester.platformDispatcher.clearTextScaleFactorTestValue();
+    tester.binding.setSurfaceSize(null);
+  });
+}
+
+void _expectFullyOnScreen(WidgetTester tester, Finder finder) {
+  expect(finder, findsOneWidget);
+  expect(finder.hitTestable(), findsOneWidget);
+  final rect = tester.getRect(finder);
+  expect(rect.height, greaterThan(0), reason: '$finder has no height');
+  expect(rect.top, greaterThanOrEqualTo(-1), reason: '$finder top ${rect.top}');
+  expect(
+    rect.bottom,
+    lessThanOrEqualTo(641),
+    reason: '$finder bottom ${rect.bottom}',
+  );
+}
+
+void _expectKanaTailAboveMeaning(
+  WidgetTester tester, {
+  required Finder kana,
+  required Finder meaning,
+}) {
+  final kanaRect = tester.getRect(kana);
+  final meaningRect = tester.getRect(meaning);
+  expect(kanaRect.bottom, greaterThan(0));
+  expect(kanaRect.bottom, lessThanOrEqualTo(meaningRect.top + 1));
+  expect(
+    kanaRect.bottom,
+    lessThanOrEqualTo(641),
+    reason: 'せん must sit on-screen just above the meaning',
+  );
+}
+
+Future<void> _pumpFerry(
+  WidgetTester tester, {
+  required List<Word> words,
+  required KanaProgressRepository kana,
+  required WordProgressRepository wordRepo,
+  bool pushRoute = false,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(320, 640));
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+        ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: ProgressPersistenceController(
+            kanaFlush: kana.flushPending,
+            kanjiFlush: () async {},
+            wordFlush: wordRepo.flushPending,
+          ),
+        ),
+        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        Provider<SpeechService>.value(value: const SilentSpeechService()),
+      ],
+      child: MaterialApp(
+        home: pushRoute
+            ? Builder(
+                builder: (context) => Scaffold(
+                  body: Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).push(FerryScreen.route(words, AppStrings.ferryTitle)),
+                      child: const Text('open'),
+                    ),
+                  ),
+                ),
+              )
+            : FerryScreen(words: words, title: AppStrings.ferryTitle),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  if (pushRoute) {
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+  }
 }

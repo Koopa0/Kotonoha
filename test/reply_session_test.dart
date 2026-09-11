@@ -138,6 +138,9 @@ void main() {
       '搖頭',
       '收銀箱',
       '指著機器',
+      '右手',
+      '右邊',
+      '左邊',
     ];
     for (final drill in kReplyDrills) {
       expect(
@@ -173,6 +176,7 @@ void main() {
     expect(byId['reply:shichaku-shimasu-ka']!.sceneZh, contains('衣架'));
     expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, contains('試衣間'));
     expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, isNot(contains('右')));
+    expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, isNot(contains('左')));
     expect(byId['reply:size-l-onegai']!.sceneZh, contains('L'));
     expect(byId['reply:card-desu-ka']!.sceneZh, contains('刷卡'));
     expect(byId['reply:card-tsukaemasu']!.sceneZh, contains('只帶了卡'));
@@ -452,6 +456,9 @@ void main() {
     expect(room.replyWrongKana, contains('ひだりです'));
     expect(room.replyWrongKana, isNot(contains('わかりました')));
     expect(room.replyWrongKana, isNot(contains('はい')));
+    expect(room.sceneZh, '你問過試衣間。');
+    expect(room.sceneZh, isNot(contains(room.intentCorrect)));
+    expect(room.sceneZh, isNot(contains(room.promptMeaning)));
   });
 
   test('payment splits staff ask from usable / unusable replies', () {
@@ -499,10 +506,7 @@ void main() {
     expect(onlyAsk.ready.map((d) => d.id), ['reply:card-desu-ka']);
     expect(
       onlyAsk.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({
-        'phrase:カードは つかえます',
-        'phrase:カードは つかえません',
-      }),
+      containsAll({'phrase:カードは つかえます', 'phrase:カードは つかえません'}),
     );
   });
 
@@ -531,10 +535,7 @@ void main() {
     expect(cold.ready.map((d) => d.id), contains('reply:card-desu-ka'));
     expect(
       cold.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({
-        'phrase:カードは つかえます',
-        'phrase:カードは つかえません',
-      }),
+      containsAll({'phrase:カードは つかえます', 'phrase:カードは つかえません'}),
     );
     expect(
       ReplySession.compose(

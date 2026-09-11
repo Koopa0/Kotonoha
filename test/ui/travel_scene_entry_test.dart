@@ -762,6 +762,64 @@ void main() {
     expect(find.text('カードは つかえません'), findsNothing);
     expect(find.text('カードは つかえます'), findsNothing);
   });
+
+  testWidgets('Home→旅行→購衣：320×640／2x 先見面 つかえません 須看見不能用才能記 seen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final repos = await pumpHub(tester, scene: TravelSceneId.clothing);
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    for (final id in TravelScene.progressIds[TravelSceneId.clothing]!) {
+      if (id == 'word:つかえません') continue;
+      await repos.words.markIntroduced(id, at: noon());
+    }
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    expect(find.text('つかえません'), findsOneWidget);
+    expect(find.text('不能用'), findsOneWidget);
+    expect(
+      find.text(AppStrings.ferryReadSelf).hitTestable(),
+      findsNothing,
+      reason: '未捲到否定意思前不能完成',
+    );
+    expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
+    await tester.ensureVisible(find.text('不能用'));
+    await tester.pumpAndSettle();
+    expect(find.text('不能用').hitTestable(), findsOneWidget);
+    final meaning = tester.getRect(find.text('不能用'));
+    expect(meaning.top, greaterThanOrEqualTo(-1));
+    expect(meaning.bottom, lessThanOrEqualTo(641));
+    final kana = tester.getRect(find.text('つかえません'));
+    expect(kana.bottom, greaterThan(0));
+    expect(kana.bottom, lessThanOrEqualTo(641));
+    expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
+    await tester.ensureVisible(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadIt).hitTestable(), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:つかえません').isSeen, isTrue);
+  });
 }
 
 Future<void> _answerCurrent(WidgetTester tester) async {

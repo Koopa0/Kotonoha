@@ -239,8 +239,9 @@ const List<Phrase> kPhrases = <Phrase>[
   // 旅 — Kyoto / Osaka travel decode: shrine and castle signs, clothing
   // size / try-on / fitting-room / cash checkout, an entrance queue,
   // luggage, and a plain ask-for-help. Original short sentences
-  // (い／な adjectives and everyday verbs). Hiragana only — katakana
-  // size and card readings live on Word. No event dates or yen amounts.
+  // (い／な adjectives and everyday verbs). Most lines stay hiragana;
+  // the card-availability pair keeps カード as the heard shop chunk.
+  // No event dates or yen amounts.
   Phrase(kana: 'じんじゃは どこ', romaji: 'jinja wa doko', meaning: '神社在哪裡'),
   Phrase(
     kana: 'しずかな てらに はいる',
@@ -274,16 +275,8 @@ const List<Phrase> kPhrases = <Phrase>[
     meaning: '可以用現金嗎',
   ),
   Phrase(kana: 'げんきんで かいけい', romaji: 'genkin de kaikei', meaning: '用現金結帳'),
-  Phrase(
-    kana: 'カードは つかえます',
-    romaji: 'kaado wa tsukaemasu',
-    meaning: '可以用卡',
-  ),
-  Phrase(
-    kana: 'カードは つかえません',
-    romaji: 'kaado wa tsukaemasen',
-    meaning: '不能用卡',
-  ),
+  Phrase(kana: 'カードは つかえます', romaji: 'kaado wa tsukaemasu', meaning: '可以用卡'),
+  Phrase(kana: 'カードは つかえません', romaji: 'kaado wa tsukaemasen', meaning: '不能用卡'),
   Phrase(kana: 'いりぐちで ならぶ', romaji: 'iriguchi de narabu', meaning: '在入口排隊'),
   Phrase(kana: 'にもつは だいじょうぶ', romaji: 'nimotsu wa daijoubu', meaning: '行李沒問題'),
   Phrase(kana: 'たすけて ください', romaji: 'tasukete kudasai', meaning: '請幫幫我'),
