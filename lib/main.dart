@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/analytics_opener.dart';
+import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
+import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -56,6 +59,16 @@ Future<Widget> bootstrap() async {
       ),
       Provider<SpeechService>.value(value: speech),
       Provider<AnalyticsLog>.value(value: analytics),
+      Provider<ProgressSnapshotExporter>.value(
+        value: ProgressSnapshotExporter(
+          snapshots: ProgressSnapshotRepository(
+            kana: store,
+            kanji: kanji,
+            words: words,
+          ),
+          files: const FilePickerSnapshotPort(),
+        ),
+      ),
     ],
     child: const KanaLoopApp(),
   );

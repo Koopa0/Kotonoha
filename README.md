@@ -39,7 +39,8 @@ can use them. 歩み is a map of coverage, not a grade.
 
 Pronunciation uses the device's Japanese text-to-speech engine. Which voices
 exist, and whether they work offline, depends on what is installed. Progress
-stays on the device. No account, no ads.
+stays on the device. 歩み can save kana, kanji, and word progress as a file;
+it does not include answer history. No account, no ads.
 
 <p align="center">
   <img src="screenshots/01-home.png" width="280" alt="Home with sample coverage and current action names">
