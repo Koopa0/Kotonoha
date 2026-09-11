@@ -77,6 +77,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   bool _playable = true;
   _Phase _phase = _Phase.readCommit;
   bool _readUnprompted = false;
+  bool _readCorrect = false;
   bool _senseUnprompted = false;
   bool _done = false;
 
@@ -196,7 +197,19 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   void _gradeRead({required bool correct}) {
     _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
-    setState(() => _phase = _Phase.senseCommit);
+    setState(() {
+      _readCorrect = correct;
+      _phase = _Phase.senseCommit;
+    });
+  }
+
+  /// Reading support on screen when the sense check is graded — not the
+  /// pre-reveal commit alone.
+  String _readSupportAtSenseGrade() {
+    if (_readUnprompted && _readCorrect) {
+      return ShiftReadSupport.independent;
+    }
+    return ShiftReadSupport.prompted;
   }
 
   void _commitSense({required bool unprompted}) {
@@ -211,9 +224,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       ShiftCheck.sense,
       prompted: !_senseUnprompted,
       correct: correct,
-      readSupport: _readUnprompted
-          ? ShiftReadSupport.independent
-          : ShiftReadSupport.prompted,
+      readSupport: _readSupportAtSenseGrade(),
     );
     final next = _beats.indexOf(_beat) + 1;
     if (next < _beats.length) {
@@ -222,6 +233,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
+        _readCorrect = false;
         _senseUnprompted = false;
       });
       _markPracticeSight();

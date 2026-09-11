@@ -175,6 +175,90 @@ void main() {
     },
   );
 
+  testWidgets(
+    'read self-grade failure after unprompted commit does not claim independent read support',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iCouldnt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      final logged = _grades(await analytics.all());
+      expect(logged, hasLength(2));
+      expect(logged.first.correct, isFalse);
+      expect(logged.first.meta[AttemptMeta.evidence], ShiftCheck.read.name);
+      expect(logged.last.correct, isTrue);
+      expect(
+        logged.last.meta[AttemptMeta.readSupport],
+        ShiftReadSupport.prompted,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: false,
+            correct: true,
+            readSupport: ShiftReadSupport.prompted,
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(find.textContaining('讀音自行讀出'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'verified unprompted read keeps independent read support on sense grade',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      final logged = _grades(await analytics.all());
+      expect(logged, hasLength(2));
+      expect(logged.first.correct, isTrue);
+      expect(logged.last.correct, isTrue);
+      expect(
+        logged.last.meta[AttemptMeta.readSupport],
+        ShiftReadSupport.independent,
+      );
+    },
+  );
+
   testWidgets('picker does not start until the learner chooses a drill', (
     tester,
   ) async {
