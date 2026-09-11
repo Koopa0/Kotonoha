@@ -14,6 +14,7 @@ import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
+import 'package:kotonoha/ui/info/info_hub_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
@@ -76,6 +77,13 @@ class TravelSceneScreen extends StatelessWidget {
               onTap: () =>
                   Navigator.of(context)
                       .push(TravelSceneHub.route(TravelSceneId.parkQueue)),
+            ),
+            const SizedBox(height: 12),
+            _SceneCard(
+              key: const ValueKey<String>('travel-scene-info'),
+              label: AppStrings.infoAction,
+              purpose: AppStrings.infoPurpose,
+              onTap: () => Navigator.of(context).push(InfoHubScreen.route()),
             ),
           ],
         ),
