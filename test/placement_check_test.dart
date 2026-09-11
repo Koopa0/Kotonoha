@@ -3,6 +3,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';

@@ -1,0 +1,6 @@
+{"type":"start","protocolVersion":"0.1.1"}
+{"type":"testStart","test":{"id":1,"name":"loading test.dart"}}
+{"type":"testDone","testID":1,"result":"success","skipped":false,"hidden":true}
+{"type":"testStart","test":{"id":2,"name":"actual test"}}
+{"type":"testDone","testID":2,"result":"success","skipped":false,"hidden":false}
+{"type":"done"}

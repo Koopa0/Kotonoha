@@ -1,7 +1,11 @@
 name: CI
 
-# Rule verification gate: license headers, formatting, strict static analysis,
-# and the full test suite must all pass on every push / PR.
+# Fast host gate plus native compile, Android emulator integration, and the
+# isolated OS partial-write probe. Native / emulator / persist jobs have no
+# continue-on-error: a missing platform or zero/skipped tests is red.
+#
+# Not claimed by these jobs: physical-device audio, headphones, offline voice
+# packs, or a specific GPU (including PowerVR).
 on:
   push:
     branches: [main]
@@ -13,6 +17,13 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned to the last validated stable hotfix. pubspec floors
+  # flutter: ">=3.47.0"; an unpinned stable can flip format/analyze
+  # red with zero code change. Bump this with a same-line hotfix
+  # eval — do not casually flutter upgrade a shared host SDK.
+  FLUTTER_VERSION: "3.47.3"
 
 jobs:
   verify:
@@ -26,12 +37,11 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
-          # Pinned to the last validated stable hotfix. pubspec floors
-          # flutter: ">=3.47.0"; an unpinned stable can flip format/analyze
-          # red with zero code change. Bump this with a same-line hotfix
-          # eval — do not casually flutter upgrade a shared host SDK.
-          flutter-version: 3.47.3
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+
+      - name: Record SHA and platform
+        run: bash tool/ci_record_context.sh
 
       - name: Install dependencies
         run: flutter pub get
@@ -48,6 +58,9 @@ jobs:
       - name: Tests
         run: flutter test
 
+      - name: Test-report gate self-check (fault fixtures must stay red)
+        run: bash tool/check_test_report_gate.sh
+
       - name: Bundled font license
         run: |
           flutter build bundle --debug --no-pub
@@ -59,3 +72,204 @@ jobs:
           with gzip.open('build/flutter_assets/NOTICES.Z', 'rt') as notices:
               assert expected in notices.read(), 'Klee One license missing from app bundle'
           PYTHON
+
+      - name: Retain verify context
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verify-${{ github.sha }}
+          path: build/ci/
+          if-no-files-found: error
+          retention-days: 14
+
+  persist-os-partial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Record SHA and platform
+        run: bash tool/ci_record_context.sh
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: OS partial-write probe (isolated process)
+        env:
+          KOTONOHA_RUN_OS_PARTIAL: "1"
+        run: bash tool/run_os_partial_probe.sh
+
+      - name: Retain persist probe report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: persist-os-partial-${{ github.sha }}
+          path: build/ci/
+          if-no-files-found: error
+          retention-days: 14
+
+  android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Record SHA and platform
+        run: bash tool/ci_record_context.sh
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Android release APK
+        run: |
+          flutter build apk --release
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$apk"
+          {
+            echo "apk=$apk"
+            echo "apk_bytes=$(wc -c < "$apk")"
+          } | tee -a build/ci/context.txt
+
+      - name: Retain Android build context
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-apk-${{ github.sha }}
+          path: build/ci/
+          if-no-files-found: error
+          retention-days: 14
+
+  ios-unsigned:
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Record SHA and platform
+        run: bash tool/ci_record_context.sh
+
+      - name: Require Xcode
+        run: |
+          if ! command -v xcodebuild >/dev/null 2>&1; then
+            echo "BLOCKED: xcodebuild missing on macos-15; iOS unsigned build cannot run" >&2
+            exit 1
+          fi
+          xcodebuild -version | tee -a build/ci/context.txt
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: iOS unsigned release build
+        run: |
+          flutter build ios --release --no-codesign
+          app=build/ios/iphoneos/Runner.app
+          test -d "$app"
+          echo "ios_app=$app" | tee -a build/ci/context.txt
+
+      - name: Retain iOS build context
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-unsigned-${{ github.sha }}
+          path: build/ci/
+          if-no-files-found: error
+          retention-days: 14
+
+  android-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Record SHA and platform
+        run: bash tool/ci_record_context.sh
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          if [[ ! -e /dev/kvm ]]; then
+            echo "BLOCKED: /dev/kvm is not available on this runner; refusing host fallback" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Emulator 37 still reserves ~7372 MB userdata even when disk-size=2048M.
+      # First Actions run went red here (5789 MB free). Clear unused toolchains
+      # so the reservation fits; fail closed if the runner is still too small.
+      - name: Free runner disk for emulator userdata
+        run: bash tool/free_github_runner_disk.sh
+
+      # API 29 AOSP is enough for real bootstrap / navigation.
+      # Default AVD skins squeeze gojūon cells to ~49px and overflow KanaCard
+      # by <1px; Pixel 6 is a phone-sized surface the grid already targets.
+      # run_android_integration.sh passes --no-enable-impeller: Impeller
+      # OpenGLES SIGSEGV's the raster thread on this SwiftShader AVD.
+      - name: Android emulator integration tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          force-avd-creation: true
+          disable-animations: true
+          ram-size: 2048
+          disk-size: 2048M
+          sdcard-path-or-size: 64M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-metrics
+          script: bash tool/run_android_integration.sh
+
+      - name: Retain Android integration report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-integration-${{ github.sha }}
+          path: build/ci/
+          if-no-files-found: error
+          retention-days: 14

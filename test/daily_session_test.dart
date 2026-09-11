@@ -71,7 +71,7 @@ void main() {
     }
   });
 
-  test('strong fast recovered reviews leave MCQ for unprompted recall', () {
+  test('visual-strong unknown listening is probed as soundToKana', () {
     final stats = <String, KanaStat>{
       for (final k in all)
         k.id: KanaStat(
@@ -81,6 +81,36 @@ void main() {
           avgLatencyMs: 500,
           lastReviewedAt: now.subtract(const Duration(days: 1)),
           dueAt: now.add(const Duration(days: 30)),
+        ),
+    };
+    final items = DailySession.compose(
+      pool: all,
+      stats: stats,
+      newCandidates: const [],
+      now: now,
+      rng: Random(4),
+    );
+    expect(items, isNotEmpty);
+    for (final i in items) {
+      expect(i.question.direction, QuizDirection.soundToKana);
+      expect(i.question.options.length, 4);
+    }
+  });
+
+  test('visual-strong with reliable listening stays kanaRecall', () {
+    final heard = now.subtract(const Duration(days: 2));
+    final stats = <String, KanaStat>{
+      for (final k in all)
+        k.id: KanaStat(
+          seenCount: 20,
+          correctCount: 20,
+          srsLevel: 6,
+          avgLatencyMs: 500,
+          lastReviewedAt: now.subtract(const Duration(days: 1)),
+          dueAt: now.add(const Duration(days: 30)),
+          listenSeenCount: 2,
+          listenCorrectCount: 2,
+          lastListenAt: heard,
         ),
     };
     final items = DailySession.compose(

@@ -85,7 +85,7 @@ class SnapshotEncodeException implements Exception {
 ///   "schemaVersion": 2,
 ///   "createdAt": "<UTC ISO-8601 ending in Z>",
 ///   "payload": {
-///     "kanaStats": { "<id>": { s,c,w,l,sl,d,al,vl }, ... },
+///     "kanaStats": { "<id>": { s,c,w,l,sl,d,al,vl,ls,lc,lw,ll,llm }, ... },
 ///     "learnedUnits": [ "<id>", ... ],
 ///     "seenUnlocks": [ "<id>", ... ],
 ///     "kanjiReadingStats": { "<id>": { s,c,w,l,sl,d }, ... },
@@ -144,10 +144,12 @@ class ProgressSnapshotCodec {
   };
 
   /// The complete set of wire field names either stat may carry. Kana uses
-  /// `al`/`vl` (timed RT/CVRT) and `lm` (last mistake, independent of
-  /// lastReviewed). Kanji tolerates the timed/mistake fields as unknown-to-it
-  /// extras and ignores them when building its model. Any other field is
-  /// rejected.
+  /// `al`/`vl` (timed RT/CVRT), `lm` (last mistake, independent of
+  /// lastReviewed), and the optional listen evidence (`ls`/`lc`/`lw`/`ll`/
+  /// `llm`). Absent listen keys stay unknown — visual totals are never
+  /// treated as hearing mastery. Kanji tolerates the timed/mistake/listen
+  /// fields as unknown-to-it extras and ignores them when building its
+  /// model. Any other field is rejected.
   static const Set<String> _statFields = {
     's',
     'c',
@@ -158,6 +160,11 @@ class ProgressSnapshotCodec {
     'd',
     'al',
     'vl',
+    'ls',
+    'lc',
+    'lw',
+    'll',
+    'llm',
   };
 
   /// The wire-expressible SRS level range (7 Leitner intervals, indices 0..6).
@@ -426,17 +433,32 @@ class ProgressSnapshotCodec {
     final sl = (raw['sl'] as int?) ?? 0;
     final al = (raw['al'] as int?) ?? 0;
     final vl = (raw['vl'] as int?) ?? 0;
+    final ls = (raw['ls'] as int?) ?? 0;
+    final lc = (raw['lc'] as int?) ?? 0;
+    final lw = (raw['lw'] as int?) ?? 0;
     final l = raw['l'] as int?;
     final lm = raw['lm'] as int?;
     final d = raw['d'] as int?;
+    final ll = raw['ll'] as int?;
+    final llm = raw['llm'] as int?;
 
-    if (s < 0 || c < 0 || w < 0 || al < 0 || vl < 0) {
+    if (s < 0 ||
+        c < 0 ||
+        w < 0 ||
+        al < 0 ||
+        vl < 0 ||
+        ls < 0 ||
+        lc < 0 ||
+        lw < 0) {
       return 'negative count on "$id"';
     }
     if (sl < 0 || sl > _maxSrsLevel) return 'srs level out of range on "$id"';
     // Overflow-safe correct + wrong <= seen (operands already non-negative), so
     // int64-max counts can never wrap the comparison into a false pass.
     if (c > s || w > s - c) return 'correct + wrong exceeds seen on "$id"';
+    if (lc > ls || lw > ls - lc) {
+      return 'listen correct + wrong exceeds listen seen on "$id"';
+    }
     if (l != null && !_epochInRange(l)) {
       return 'lastReviewed timestamp out of range on "$id"';
     }
@@ -445,6 +467,12 @@ class ProgressSnapshotCodec {
     }
     if (d != null && !_epochInRange(d)) {
       return 'due timestamp out of range on "$id"';
+    }
+    if (ll != null && !_epochInRange(ll)) {
+      return 'lastListen timestamp out of range on "$id"';
+    }
+    if (llm != null && !_epochInRange(llm)) {
+      return 'lastListenMistake timestamp out of range on "$id"';
     }
     return null;
   }

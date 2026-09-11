@@ -11,6 +11,19 @@ enum KanaStatus { unseen, learning, weak, strong }
 
 /// Per-kana practice statistics, persisted via shared_preferences.
 ///
+/// Visual / shared counts ([seenCount], [correctCount], [avgLatencyMs]) are
+/// recognition evidence. Listening is a separate optional contract used by
+/// daily direction selection (#50) and by any later diagnostic (#49):
+///
+/// * Absent listen fields decode as unknown and stay unknown.
+/// * Visual totals are never migrated into listening mastery.
+/// * Only a scored sound-to-kana trial with valid audio may write listen
+///   fields (`recordAnswer(listening: true)`). A glyph-only diagnostic
+///   must keep the default `listening: false`.
+/// * Unknown is not a miss and must not reset SRS by itself.
+/// * A listening miss stays unrecovered until a later scored hear.
+///   Calendar time and visual answers never mint [hasReliableListening].
+///
 /// Pure data: no `package:flutter/*` imports.
 class KanaStat {
   const KanaStat({
@@ -23,12 +36,19 @@ class KanaStat {
     this.dueAt,
     this.avgLatencyMs = 0,
     this.varLatencyMs2 = 0,
+    this.listenSeenCount = 0,
+    this.listenCorrectCount = 0,
+    this.listenWrongCount = 0,
+    this.lastListenAt,
+    this.lastListenMistakeAt,
   });
 
   factory KanaStat.fromJson(Map<String, dynamic> json) {
     final int? millis = (json['l'] as num?)?.toInt();
     final int? mistakeMillis = (json['lm'] as num?)?.toInt();
     final int? dueMillis = (json['d'] as num?)?.toInt();
+    final int? listenMillis = (json['ll'] as num?)?.toInt();
+    final int? listenMistakeMillis = (json['llm'] as num?)?.toInt();
     // Counts, level and latency moments are clamped, not trusted: one corrupt
     // persisted entry must never crash the interval lookup or the CV math.
     int clampCount(Object? v) => ((v as num?)?.toInt() ?? 0).clamp(0, 1 << 30);
@@ -55,6 +75,17 @@ class KanaStat {
           : DateTime.fromMillisecondsSinceEpoch(dueMillis),
       avgLatencyMs: clampCount(json['al']),
       varLatencyMs2: clampCount(json['vl']),
+      // Absent listen keys stay zero/null: old visual-only saves are unknown
+      // listening, never inferred from [seenCount] / [correctCount].
+      listenSeenCount: clampCount(json['ls']),
+      listenCorrectCount: clampCount(json['lc']),
+      listenWrongCount: clampCount(json['lw']),
+      lastListenAt: listenMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(listenMillis),
+      lastListenMistakeAt: listenMistakeMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(listenMistakeMillis),
     );
   }
 
@@ -85,7 +116,26 @@ class KanaStat {
   /// the research-backed index of recognition automaticity — see [cvLatency].
   final int varLatencyMs2;
 
+  /// Scored sound→kana trials with valid audio. 0 = listening still unknown,
+  /// including every pre-field save. Visual [seenCount] is a different tally.
+  final int listenSeenCount;
+
+  final int listenCorrectCount;
+  final int listenWrongCount;
+
+  /// When a scored listening trial last landed. Independent of
+  /// [lastReviewedAt], which also moves on visual answers.
+  final DateTime? lastListenAt;
+
+  /// When a scored listening trial was last wrong. Null until a real miss;
+  /// never invented from visual [lastMistakeAt].
+  final DateTime? lastListenMistakeAt;
+
   bool get isSeen => seenCount > 0;
+
+  /// True until a scored listening trial with valid audio has been stored.
+  /// Unknown is not a miss and does not lower fluency by itself.
+  bool get listeningUnknown => listenSeenCount == 0;
 
   /// Accuracy in [0, 1]; 0 when never seen.
   double get accuracy => seenCount == 0 ? 0 : correctCount / seenCount;
@@ -125,15 +175,49 @@ class KanaStat {
   /// early learning still graduates on speed alone (CV needs a few samples).
   static const double kMaxGraduationCv = 0.30;
 
+  /// Two scored correct hears, with the latest listen not a miss, are
+  /// enough to stop probing. One lucky pick is not treated as mastery.
+  static const int kListeningVerifiedCorrect = 2;
+
+  /// True when the latest scored listen was a miss. Unknown (no listen
+  /// miss clock) is never unrecovered. Visual answers and elapsed days
+  /// do not clear this — only a later scored hear moves [lastListenAt].
+  bool get listeningUnrecovered {
+    final missed = lastListenMistakeAt;
+    if (missed == null) return false;
+    final last = lastListenAt;
+    if (last == null) return true;
+    return !last.isAfter(missed);
+  }
+
+  /// Enough scored sound→kana evidence to leave the listening probe.
+  /// Visual strength and calendar time alone never satisfy this.
+  /// [now] is kept so #49 can share the predicate without a second clock.
+  bool hasReliableListening({required DateTime now}) {
+    if (listenCorrectCount < kListeningVerifiedCorrect) return false;
+    if (listeningUnrecovered) return false;
+    return true;
+  }
+
+  /// Daily should still sample sound when listening is unknown, thin, or
+  /// unrecovered. Not a quota — a per-item evidence gap.
+  bool needsListeningProbe({required DateTime now}) =>
+      !hasReliableListening(now: now);
+
   /// Returns a copy with one answer recorded, advancing the SRS schedule.
   /// [latencyMs] gates graduation (null/0/≥threshold = not fast); past the
   /// untimed cap a fast answer also needs a low [cvLatency] (consistent-fast).
   /// [intervalScale] shrinks the next interval (e.g. 0.5 for confusable kana).
+  ///
+  /// [listening] is true only for a scored sound→kana trial with valid audio.
+  /// Visual answers and failed/cancelled playback keep it false so listen
+  /// fields stay honestly unknown.
   KanaStat recordAnswer({
     required bool correct,
     required DateTime at,
     int? latencyMs,
     double intervalScale = 1.0,
+    bool listening = false,
   }) {
     // EMA the reaction time AND its variance, but only on real timed readings —
     // untimed answers (paper writing, reading-back) leave both signals untouched.
@@ -193,12 +277,22 @@ class KanaStat {
       dueAt: at.add(Duration(minutes: mins)),
       avgLatencyMs: nextAvgLatency,
       varLatencyMs2: nextVarLatency2,
+      listenSeenCount: listening ? listenSeenCount + 1 : listenSeenCount,
+      listenCorrectCount: listening
+          ? listenCorrectCount + (correct ? 1 : 0)
+          : listenCorrectCount,
+      listenWrongCount: listening
+          ? listenWrongCount + (correct ? 0 : 1)
+          : listenWrongCount,
+      lastListenAt: listening ? at : lastListenAt,
+      lastListenMistakeAt: listening && !correct ? at : lastListenMistakeAt,
     );
   }
 
   /// Hinted / prompted practice: the learner saw the reading before grading.
   /// Counts as exposure so a persisted attempt exists, but must not increment
   /// successful-recall [correctCount] or renew [dueAt] / [srsLevel].
+  /// Listening evidence is left untouched — a hinted glyph is not a hear.
   KanaStat recordPromptedPractice({required DateTime at}) {
     return KanaStat(
       seenCount: seenCount + 1,
@@ -210,6 +304,11 @@ class KanaStat {
       dueAt: dueAt,
       avgLatencyMs: avgLatencyMs,
       varLatencyMs2: varLatencyMs2,
+      listenSeenCount: listenSeenCount,
+      listenCorrectCount: listenCorrectCount,
+      listenWrongCount: listenWrongCount,
+      lastListenAt: lastListenAt,
+      lastListenMistakeAt: lastListenMistakeAt,
     );
   }
 
@@ -233,6 +332,12 @@ class KanaStat {
     if (dueAt != null) 'd': dueAt!.millisecondsSinceEpoch,
     if (avgLatencyMs != 0) 'al': avgLatencyMs,
     if (varLatencyMs2 != 0) 'vl': varLatencyMs2,
+    if (listenSeenCount != 0) 'ls': listenSeenCount,
+    if (listenCorrectCount != 0) 'lc': listenCorrectCount,
+    if (listenWrongCount != 0) 'lw': listenWrongCount,
+    if (lastListenAt != null) 'll': lastListenAt!.millisecondsSinceEpoch,
+    if (lastListenMistakeAt != null)
+      'llm': lastListenMistakeAt!.millisecondsSinceEpoch,
   };
 
   @override

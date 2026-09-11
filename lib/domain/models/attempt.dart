@@ -13,6 +13,7 @@ enum PracticeMode {
   ferry, // hear → watch the kana ink in → read it back (sound↔glyph binding)
   dictation, // hear → assemble the kana (production / encoding)
   listening, // hear → recall → reveal → rehear (comprehension; not kana ID)
+  shift, // original swap-sentence: reading vs sense, base vs transferred
   placementCheck, // explicit prior-range check: answer first, then reveal
 }
 
@@ -22,6 +23,7 @@ abstract final class ItemType {
   static const String kana = 'kana';
   static const String kanji = 'kanji';
   static const String word = 'word';
+  static const String shift = 'shift';
 }
 
 /// Well-known keys inside [Attempt.meta] (mode-specific payload).
@@ -33,6 +35,16 @@ abstract final class AttemptMeta {
   static const String playback = 'playback'; // SpeechPlaybackResult.name
   static const String heard = 'heard'; // true only after a completed play
   static const String scored = 'scored'; // false = exposure, not a grade
+  /// Shift-practice check: [ShiftCheck.name] (`read` or `sense`).
+  static const String evidence = 'evidence';
+
+  /// Shift-practice beat: [ShiftBeat.name] (`base` or `shift`).
+  static const String beat = 'beat';
+  static const String drill = 'drill';
+  static const String focus = 'focus';
+
+  /// Optional learner-supplied source URL (context only; never fetched).
+  static const String source = 'source';
 }
 
 /// One answered item — the fine-grained event stream behind learning analytics.

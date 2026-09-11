@@ -45,6 +45,7 @@ abstract final class AppStrings {
   static const String listenFirstAction = '先聽再揭曉';
   static const String readPhrasesAction = '讀短句';
   static const String readKanjiSentencesAction = '漢字句閱讀';
+  static const String shiftAction = '指定難點再練';
 
   // Guidance — the ambient one-line "next step" + the home card-path section
   // headers. The pure use_case returns only a target (+ a count); the 繁中 copy
@@ -251,6 +252,36 @@ abstract final class AppStrings {
   static const String sentenceEntry = '黙読';
   static const String sentenceSubtitle = '讀短句,心裡默讀,再用耳朵確認';
   static const String sentenceTitle = '黙読';
+
+  // 換句 — original swap-sentence for a named intensive-reading difficulty.
+  // Satori keeps reading / audio / notes / word cards; this room only practises
+  // a human-checked variant. #47 owns travel-scene selection separately.
+  static const String shiftEntry = '換句';
+  static const String shiftSubtitle = '換一個詞,分開確認讀音與句意';
+  static const String shiftTitle = '換句';
+  static const String shiftPickerLead = '指定這次卡住的重點,換一個詞再確認句意還在。';
+  static const String shiftPickerBoundary =
+      'Satori 的閱讀、原音、註解與詞卡留在原處;這裡只練原創變化句。'
+      '跨教材的學習判斷仍以你原本的紀錄為準,不用在這裡重填進度。';
+  static const String shiftSelfGradeNote =
+      '下面的對錯是自評,不是系統判定理解。寫下的中文或假名不會被拿來自動對答案。';
+  static const String shiftSourceLabel = '來源連結（選填）';
+  static const String shiftSourceHint = '只作備註,不會抓內容或同步帳號';
+  static const String shiftStart = '開始這組';
+  static const String shiftSensePrompt = '這句是誰修飾誰?可用中文或假名寫下你的理解。';
+  static const String shiftSenseHint = '看句意';
+  static const String shiftSenseReady = '我想好了';
+  static const String shiftSensePadHint = '寫給自己看,不會自動批改';
+  static const String shiftSenseOk = '句意對了';
+  static const String shiftSenseOkAfterHint = '看過後對上了';
+  static const String shiftSenseMiss = '句意還對不上';
+  static const String shiftBridgeNoun = '下一句換了被修飾的名詞。先自己讀,再想誰修飾誰。';
+  static const String shiftBridgeModifier = '下一句換了修飾詞。先自己讀,再想誰修飾誰。';
+  static const String shiftClose = '這一回,先練到這裡。';
+  static const String shiftCloseNote =
+      '無提示讀音、提示後讀音、換句後的句意是分開記下的自評。'
+      '這一題不會把整個文法點、章節或相關詞句標成掌握。';
+  static String shiftSourceChip(String url) => '來源備註 $url';
 
   // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';

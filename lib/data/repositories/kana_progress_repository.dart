@@ -212,11 +212,16 @@ class KanaProgressRepository extends ChangeNotifier {
   /// Records a single answer for [kana] and persists. The returned future
   /// completes with an error if persisting failed — the in-memory state keeps
   /// the answer and the next mutation retries the write.
+  ///
+  /// [listening] is true only for a scored sound-to-kana trial with valid
+  /// audio. Visual answers and the #49 diagnostic keep the default so
+  /// listen fields stay unknown.
   Future<void> recordAnswer(
     Kana kana, {
     required bool correct,
     required DateTime at,
     int? latencyMs,
+    bool listening = false,
   }) {
     final current = statFor(kana);
     final scale = kConfusableChars.contains(kana.character) ? 0.5 : 1.0;
@@ -225,6 +230,7 @@ class KanaProgressRepository extends ChangeNotifier {
       at: at,
       latencyMs: latencyMs,
       intervalScale: scale,
+      listening: listening,
     );
     _statsGen++;
     notifyListeners();

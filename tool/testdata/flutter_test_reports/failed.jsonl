@@ -1,0 +1,5 @@
+{"type":"start","protocolVersion":"0.1.1"}
+{"type":"testStart","test":{"id":1,"name":"actual test"}}
+{"type":"error","testID":1,"error":"Expected: <0> Actual: <40>"}
+{"type":"testDone","testID":1,"result":"failure","skipped":false,"hidden":false}
+{"type":"done","success":false}
