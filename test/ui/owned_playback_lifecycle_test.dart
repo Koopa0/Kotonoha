@@ -689,7 +689,10 @@ void main() {
         speech: speech,
         kana: kana,
         words: words,
-        home: TravelSceneHub(scene: TravelSceneId.transport, clock: _noon),
+        home: const TravelSceneHub(
+          scene: TravelSceneId.transport,
+          clock: _noon,
+        ),
       );
       await tester.tap(find.text(AppStrings.travelSceneListenAction));
       await tester.pumpAndSettle();
