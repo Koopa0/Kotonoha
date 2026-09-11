@@ -298,10 +298,8 @@ abstract final class AppStrings {
   static const String shiftStart = '開始這組';
   static const String shiftHoldStart = '今天只練原句';
   static const String shiftHoldContinue = '繼續原句';
-  static const String shiftHoldHint =
-      '換句留到明天再確認。選單、結束畫面與提示都不會先出現保留句。';
-  static const String shiftHeldUntilTomorrow =
-      '換句已保留到明天。今天重進仍是原句,不是隔日回測。';
+  static const String shiftHoldHint = '換句留到明天再確認。選單、結束畫面與提示都不會先出現保留句。';
+  static const String shiftHeldUntilTomorrow = '換句已保留到明天。今天重進仍是原句,不是隔日回測。';
   static const String shiftHoldPending = '換句已保留到明天';
   static const String shiftConfirmStart = '隔天換句確認';
   static const String shiftConfirmDue = '保留的換句已到期。開始前不重播讀音或句意。';
@@ -350,9 +348,7 @@ abstract final class AppStrings {
     required bool correct,
     String? readSupport,
   }) {
-    final sense = !correct
-        ? '句意：仍不會'
-        : (prompted ? '句意：看過後對上了' : '句意：自行判斷');
+    final sense = !correct ? '句意：仍不會' : (prompted ? '句意：看過後對上了' : '句意：自行判斷');
     if (readSupport == ShiftReadSupport.prompted) {
       return '$sense（讀音當時已提示）';
     }
@@ -371,8 +367,7 @@ abstract final class AppStrings {
   static const String replyClothingPurpose =
       '這一回只練購衣時聽懂店員在說什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
-  static const String replyClothingMeetHint =
-      '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
   static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
   static const String replyStartAction = '開始這一回';

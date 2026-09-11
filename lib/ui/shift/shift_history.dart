@@ -17,7 +17,9 @@ class ShiftHistoryView extends StatelessWidget {
     if (grades.isEmpty) return const SizedBox.shrink();
     final groups = <String, List<ShiftSelfGrade>>{};
     for (final grade in grades) {
-      groups.putIfAbsent('${grade.day}:${grade.beat.name}', () => []).add(grade);
+      groups
+          .putIfAbsent('${grade.day}:${grade.beat.name}', () => [])
+          .add(grade);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

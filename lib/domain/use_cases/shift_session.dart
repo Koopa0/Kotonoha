@@ -52,7 +52,8 @@ abstract final class ShiftSession {
     return '$y-$m-$d';
   }
 
-  static DateTime startOfDay(DateTime at) => DateTime(at.year, at.month, at.day);
+  static DateTime startOfDay(DateTime at) =>
+      DateTime(at.year, at.month, at.day);
 
   static DateTime nextCalendarDate(DateTime at) =>
       startOfDay(at).add(const Duration(days: 1));
@@ -189,8 +190,7 @@ abstract final class ShiftSession {
       attempt.itemType == ItemType.shift;
 
   static bool forDrill(Attempt attempt, String drillId) =>
-      isShiftAttempt(attempt) &&
-      attempt.meta[AttemptMeta.drill] == drillId;
+      isShiftAttempt(attempt) && attempt.meta[AttemptMeta.drill] == drillId;
 
   /// Known display of this beat. Missing grades on legacy rows are
   /// [ShiftSight.unknown], not unseen.
@@ -257,11 +257,10 @@ abstract final class ShiftSession {
     final baseSight = sightOf(drill, ShiftBeat.base, attempts: attempts);
     final shiftSight = sightOf(drill, ShiftBeat.shift, attempts: attempts);
     final holdUntil = latestHoldUntil(attempts, drill.id);
-    final holdPending =
-        holdUntil != null && today.compareTo(holdUntil) < 0;
-    final confirmDue =
-        holdUntil != null && today.compareTo(holdUntil) >= 0;
-    final confirmed = confirmDue &&
+    final holdPending = holdUntil != null && today.compareTo(holdUntil) < 0;
+    final confirmDue = holdUntil != null && today.compareTo(holdUntil) >= 0;
+    final confirmed =
+        confirmDue &&
         hasShiftGradeAfterHold(
           attempts: attempts,
           drillId: drill.id,

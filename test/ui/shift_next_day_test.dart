@@ -26,170 +26,185 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   }
 
-  testWidgets('Home hold: day 0 is base only and never leaks the reserved shift', (
-    tester,
-  ) async {
-    final analytics = InMemoryAnalyticsLog();
-    final words = await WordProgressRepository.load();
-    var now = DateTime(2026, 9, 10, 10);
-    await expand(tester);
-    await _pumpHome(
-      tester,
-      analytics: analytics,
-      words: words,
-      clock: () => now,
-    );
-
-    expect(find.text(AppStrings.shiftAction), findsOneWidget);
-    await tester.tap(find.text(AppStrings.shiftAction));
-    await tester.pumpAndSettle();
-    expect(find.text(AppStrings.shiftHoldStart), findsOneWidget);
-    expect(find.text('あおい うみ'), findsNothing);
-    expect(find.text('藍色的海'), findsNothing);
-
-    await tester.tap(find.text(AppStrings.shiftHoldStart));
-    await tester.pumpAndSettle();
-    expect(find.text('あおい そら'), findsOneWidget);
-    expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
-    expect(find.text('あおい うみ'), findsNothing);
-    expect(find.text('aoi umi'), findsNothing);
-    expect(find.text('藍色的海'), findsNothing);
-
-    await _completeBeat(tester, unprompted: true);
-    expect(find.text(AppStrings.shiftClose), findsOneWidget);
-    expect(find.textContaining(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
-    expect(find.text('あおい うみ'), findsNothing);
-    expect(find.text(AppStrings.shiftReadSelfGrade(prompted: false, correct: true)),
-        findsWidgets);
-    expect(
-      find.text(
-        AppStrings.shiftSenseSelfGrade(
-          prompted: false,
-          correct: true,
-          readSupport: ShiftReadSupport.independent,
-        ),
-      ),
-      findsWidgets,
-    );
-
-    expect(words.stats, isEmpty);
-    final reserved = (await analytics.all()).where(
-      (a) =>
-          a.meta[AttemptMeta.lane] == ShiftLane.hold.name &&
-          a.meta[AttemptMeta.holdUntil] == '2026-09-11',
-    );
-    expect(reserved, isNotEmpty);
-
-    await tester.tap(find.text(AppStrings.done));
-    await tester.pumpAndSettle();
-    expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
-    expect(find.text(AppStrings.shiftHoldContinue), findsOneWidget);
-    expect(find.text('あおい うみ'), findsNothing);
-
-    await tester.tap(find.text(AppStrings.shiftHoldContinue));
-    await tester.pumpAndSettle();
-    expect(find.text('あおい そら'), findsOneWidget);
-    expect(find.text('あおい うみ'), findsNothing);
-    expect(find.text(AppStrings.shiftConfirmStart), findsNothing);
-  });
-
-  testWidgets('day 1 confirm shows the reserved shift without replaying answers', (
-    tester,
-  ) async {
-    final analytics = InMemoryAnalyticsLog();
-    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
-    var now = DateTime(2026, 9, 10, 10);
-    await analytics.record(
-      ShiftSession.reservation(drill: drill, sessionId: 'h', at: now),
-    );
-    await analytics.record(
-      ShiftSession.attempt(
-        drill: drill,
-        beat: ShiftBeat.base,
-        check: ShiftCheck.read,
-        prompted: false,
-        correct: true,
-        sessionId: 'h',
-        at: now,
-        lane: ShiftLane.hold,
-      ),
-    );
-    await analytics.record(
-      ShiftSession.attempt(
-        drill: drill,
-        beat: ShiftBeat.base,
-        check: ShiftCheck.sense,
-        prompted: true,
-        correct: true,
-        sessionId: 'h',
-        at: now,
-        lane: ShiftLane.hold,
-        readSupport: ShiftReadSupport.independent,
-      ),
-    );
-
-    now = DateTime(2026, 9, 11, 9);
-    await expand(tester);
-    await tester.pumpWidget(
-      _harness(
+  testWidgets(
+    'Home hold: day 0 is base only and never leaks the reserved shift',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      var now = DateTime(2026, 9, 10, 10);
+      await expand(tester);
+      await _pumpHome(
+        tester,
         analytics: analytics,
-        child: ShiftFocusScreen(
-          clock: () => now,
-          attempts: await analytics.all(),
+        words: words,
+        clock: () => now,
+      );
+
+      expect(find.text(AppStrings.shiftAction), findsOneWidget);
+      await tester.tap(find.text(AppStrings.shiftAction));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftHoldStart), findsOneWidget);
+      expect(find.text('あおい うみ'), findsNothing);
+      expect(find.text('藍色的海'), findsNothing);
+
+      await tester.tap(find.text(AppStrings.shiftHoldStart));
+      await tester.pumpAndSettle();
+      expect(find.text('あおい そら'), findsOneWidget);
+      expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
+      expect(find.text('あおい うみ'), findsNothing);
+      expect(find.text('aoi umi'), findsNothing);
+      expect(find.text('藍色的海'), findsNothing);
+
+      await _completeBeat(tester, unprompted: true);
+      expect(find.text(AppStrings.shiftClose), findsOneWidget);
+      expect(
+        find.textContaining(AppStrings.shiftHeldUntilTomorrow),
+        findsWidgets,
+      );
+      expect(find.text('あおい うみ'), findsNothing);
+      expect(
+        find.text(
+          AppStrings.shiftReadSelfGrade(prompted: false, correct: true),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text(AppStrings.shiftConfirmStart), findsOneWidget);
-    expect(find.text('あおい うみ'), findsNothing);
-    expect(find.text('aoi umi'), findsNothing);
-    expect(find.text('藍色的海'), findsNothing);
-    expect(find.text('aoi sora'), findsNothing);
-    expect(find.text('藍色的天空'), findsNothing);
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: false,
+            correct: true,
+            readSupport: ShiftReadSupport.independent,
+          ),
+        ),
+        findsWidgets,
+      );
 
-    await tester.tap(find.text(AppStrings.shiftConfirmStart));
-    await tester.pumpAndSettle();
-    expect(find.text('あおい うみ'), findsOneWidget);
-    expect(find.text(AppStrings.shiftFirstUnseen), findsWidgets);
-    expect(find.text(AppStrings.shiftConfirmLead), findsOneWidget);
-    expect(find.text('aoi umi'), findsNothing);
-    expect(find.text('藍色的海'), findsNothing);
-    expect(find.text('藍色的天空'), findsNothing);
+      expect(words.stats, isEmpty);
+      final reserved = (await analytics.all()).where(
+        (a) =>
+            a.meta[AttemptMeta.lane] == ShiftLane.hold.name &&
+            a.meta[AttemptMeta.holdUntil] == '2026-09-11',
+      );
+      expect(reserved, isNotEmpty);
 
-    await tester.tap(find.text(AppStrings.recallHint));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.iReadAfterHint));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.shiftSenseReady));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.shiftSenseOk));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.done));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
+      expect(find.text(AppStrings.shiftHoldContinue), findsOneWidget);
+      expect(find.text('あおい うみ'), findsNothing);
 
-    expect(find.text(AppStrings.shiftReadSelfGrade(prompted: true, correct: true)),
-        findsWidgets);
-    expect(
-      find.text(
-        AppStrings.shiftSenseSelfGrade(
+      await tester.tap(find.text(AppStrings.shiftHoldContinue));
+      await tester.pumpAndSettle();
+      expect(find.text('あおい そら'), findsOneWidget);
+      expect(find.text('あおい うみ'), findsNothing);
+      expect(find.text(AppStrings.shiftConfirmStart), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'day 1 confirm shows the reserved shift without replaying answers',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      var now = DateTime(2026, 9, 10, 10);
+      await analytics.record(
+        ShiftSession.reservation(drill: drill, sessionId: 'h', at: now),
+      );
+      await analytics.record(
+        ShiftSession.attempt(
+          drill: drill,
+          beat: ShiftBeat.base,
+          check: ShiftCheck.read,
           prompted: false,
           correct: true,
-          readSupport: ShiftReadSupport.prompted,
+          sessionId: 'h',
+          at: now,
+          lane: ShiftLane.hold,
         ),
-      ),
-      findsWidgets,
-    );
-    expect(find.text(AppStrings.shiftReadSelfGrade(prompted: false, correct: true)),
-        findsWidgets);
-    expect(
-      find.text(
-        AppStrings.shiftSenseSelfGrade(
+      );
+      await analytics.record(
+        ShiftSession.attempt(
+          drill: drill,
+          beat: ShiftBeat.base,
+          check: ShiftCheck.sense,
           prompted: true,
           correct: true,
+          sessionId: 'h',
+          at: now,
+          lane: ShiftLane.hold,
           readSupport: ShiftReadSupport.independent,
         ),
-      ),
-      findsWidgets,
-    );
-  });
+      );
+
+      now = DateTime(2026, 9, 11, 9);
+      await expand(tester);
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftFocusScreen(
+            clock: () => now,
+            attempts: await analytics.all(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftConfirmStart), findsOneWidget);
+      expect(find.text('あおい うみ'), findsNothing);
+      expect(find.text('aoi umi'), findsNothing);
+      expect(find.text('藍色的海'), findsNothing);
+      expect(find.text('aoi sora'), findsNothing);
+      expect(find.text('藍色的天空'), findsNothing);
+
+      await tester.tap(find.text(AppStrings.shiftConfirmStart));
+      await tester.pumpAndSettle();
+      expect(find.text('あおい うみ'), findsOneWidget);
+      expect(find.text(AppStrings.shiftFirstUnseen), findsWidgets);
+      expect(find.text(AppStrings.shiftConfirmLead), findsOneWidget);
+      expect(find.text('aoi umi'), findsNothing);
+      expect(find.text('藍色的海'), findsNothing);
+      expect(find.text('藍色的天空'), findsNothing);
+
+      await tester.tap(find.text(AppStrings.recallHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(AppStrings.shiftReadSelfGrade(prompted: true, correct: true)),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: false,
+            correct: true,
+            readSupport: ShiftReadSupport.prompted,
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftReadSelfGrade(prompted: false, correct: true),
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: true,
+            correct: true,
+            readSupport: ShiftReadSupport.independent,
+          ),
+        ),
+        findsWidgets,
+      );
+    },
+  );
 
   testWidgets('exposure then exit is not first-unseen after restart', (
     tester,

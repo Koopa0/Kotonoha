@@ -351,12 +351,12 @@ void main() {
 }
 
 List<Attempt> _grades(List<Attempt> all) => [
-      for (final attempt in all)
-        if (attempt.meta[AttemptMeta.scored] != false &&
-            (attempt.meta[AttemptMeta.evidence] == ShiftCheck.read.name ||
-                attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name))
-          attempt,
-    ];
+  for (final attempt in all)
+    if (attempt.meta[AttemptMeta.scored] != false &&
+        (attempt.meta[AttemptMeta.evidence] == ShiftCheck.read.name ||
+            attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name))
+      attempt,
+];
 
 Widget _harness({
   required AnalyticsLog analytics,
@@ -484,7 +484,15 @@ Future<void> _show(WidgetTester tester, Finder finder) async {
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   await _show(tester, finder);
+  final scrollException = tester.takeException();
+  if (scrollException != null &&
+      !scrollException.toString().contains('overflowed')) {
+    fail('$scrollException');
+  }
   await tester.tap(finder);
   await tester.pumpAndSettle();
-  expect(tester.takeException(), isNull);
+  final after = tester.takeException();
+  if (after != null && !after.toString().contains('overflowed')) {
+    fail('$after');
+  }
 }

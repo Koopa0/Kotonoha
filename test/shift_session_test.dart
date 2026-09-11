@@ -110,56 +110,59 @@ void main() {
     expect(attempts.where(ShiftSession.isTransferSense), hasLength(1));
   });
 
-  test('day 0 hold keeps the reserved shift hidden until the next local day', () {
-    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
-    final day0 = DateTime(2026, 9, 10, 10);
-    final day0Evening = DateTime(2026, 9, 10, 22);
-    final day1 = DateTime(2026, 9, 11, 9);
-    final hold = ShiftSession.plan(
-      drill: drill,
-      now: day0,
-      requested: ShiftLane.hold,
-    );
-    expect(hold.lane, ShiftLane.hold);
-    expect(hold.beats, [ShiftBeat.base]);
-    expect(hold.firstUnseen, isFalse);
-    expect(ShiftSession.pickerPreview(hold), drill.base.kana);
-    expect(hold.holdUntil, '2026-09-11');
+  test(
+    'day 0 hold keeps the reserved shift hidden until the next local day',
+    () {
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      final day0 = DateTime(2026, 9, 10, 10);
+      final day0Evening = DateTime(2026, 9, 10, 22);
+      final day1 = DateTime(2026, 9, 11, 9);
+      final hold = ShiftSession.plan(
+        drill: drill,
+        now: day0,
+        requested: ShiftLane.hold,
+      );
+      expect(hold.lane, ShiftLane.hold);
+      expect(hold.beats, [ShiftBeat.base]);
+      expect(hold.firstUnseen, isFalse);
+      expect(ShiftSession.pickerPreview(hold), drill.base.kana);
+      expect(hold.holdUntil, '2026-09-11');
 
-    final reserved = ShiftSession.reservation(
-      drill: drill,
-      sessionId: 'hold',
-      at: day0,
-    );
-    expect(reserved.meta[AttemptMeta.scored], isFalse);
-    expect(reserved.meta.containsKey(AttemptMeta.sight), isFalse);
-    expect(reserved.meta[AttemptMeta.holdUntil], '2026-09-11');
-    expect(
-      ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: [reserved]),
-      ShiftSight.unseen,
-    );
+      final reserved = ShiftSession.reservation(
+        drill: drill,
+        sessionId: 'hold',
+        at: day0,
+      );
+      expect(reserved.meta[AttemptMeta.scored], isFalse);
+      expect(reserved.meta.containsKey(AttemptMeta.sight), isFalse);
+      expect(reserved.meta[AttemptMeta.holdUntil], '2026-09-11');
+      expect(
+        ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: [reserved]),
+        ShiftSight.unseen,
+      );
 
-    final sameDay = ShiftSession.plan(
-      drill: drill,
-      now: day0Evening,
-      attempts: [reserved],
-      requested: ShiftLane.hold,
-    );
-    expect(sameDay.lane, ShiftLane.hold);
-    expect(sameDay.confirmDue, isFalse);
-    expect(sameDay.holdPending, isTrue);
-    expect(sameDay.firstUnseen, isFalse);
+      final sameDay = ShiftSession.plan(
+        drill: drill,
+        now: day0Evening,
+        attempts: [reserved],
+        requested: ShiftLane.hold,
+      );
+      expect(sameDay.lane, ShiftLane.hold);
+      expect(sameDay.confirmDue, isFalse);
+      expect(sameDay.holdPending, isTrue);
+      expect(sameDay.firstUnseen, isFalse);
 
-    final confirm = ShiftSession.plan(
-      drill: drill,
-      now: day1,
-      attempts: [reserved],
-    );
-    expect(confirm.lane, ShiftLane.confirm);
-    expect(confirm.beats, [ShiftBeat.shift]);
-    expect(confirm.firstUnseen, isTrue);
-    expect(ShiftSession.pickerPreview(confirm), isNull);
-  });
+      final confirm = ShiftSession.plan(
+        drill: drill,
+        now: day1,
+        attempts: [reserved],
+      );
+      expect(confirm.lane, ShiftLane.confirm);
+      expect(confirm.beats, [ShiftBeat.shift]);
+      expect(confirm.firstUnseen, isTrue);
+      expect(ShiftSession.pickerPreview(confirm), isNull);
+    },
+  );
 
   test('same-day start is still available and is not a next-day confirm', () {
     final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
@@ -290,11 +293,7 @@ void main() {
       lane: ShiftLane.confirm,
     );
     expect(
-      ShiftSession.sightOf(
-        drill,
-        ShiftBeat.shift,
-        attempts: [reserved, shown],
-      ),
+      ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: [reserved, shown]),
       ShiftSight.seen,
     );
     final plan = ShiftSession.plan(
