@@ -601,6 +601,8 @@ void main() {
       );
       expect(a.srsLevel, 0); // absent → model default
       expect(a.avgLatencyMs, 0); // absent → model default
+      expect(a.listeningUnknown, isTrue);
+      expect(a.hasReliableListening(now: DateTime.utc(2026, 3, 4)), isFalse);
       expect(s.learnedUnits, {'hira_row_0'});
       expect(s.seenUnlocks, {'words'});
       expect(s.createdAtUtc, DateTime.utc(2026, 3, 4, 5, 6, 7));
@@ -909,6 +911,77 @@ void main() {
       expect(back.createdAtUtc, local.toUtc()); // same instant
       expect(back.createdAtUtc.isUtc, isTrue);
       expect(codec.encode(back), bytes); // deterministic
+    });
+  });
+
+  group('listening evidence stays unknown unless scored', () {
+    test('high visual totals in an old snapshot are not hearing mastery', () {
+      final s = decoded(
+        _file(
+          _unsigned(
+            kanaStats: {
+              'あ': const <String, Object?>{
+                's': 138,
+                'c': 138,
+                'sl': 6,
+                'al': 500,
+              },
+            },
+          ),
+        ),
+      );
+      final a = s.kanaStats['あ']!;
+      expect(a.seenCount, 138);
+      expect(a.listeningUnknown, isTrue);
+      expect(a.listenCorrectCount, 0);
+      expect(a.hasReliableListening(now: DateTime.utc(2026, 9, 10)), isFalse);
+    });
+
+    test(
+      'listen correct + wrong overflowing listen seen is invalidPayload',
+      () {
+        expect(
+          failure(
+            _file(
+              _unsigned(
+                kanaStats: {
+                  'あ': const <String, Object?>{'ls': 1, 'lc': 2, 'lw': 0},
+                },
+              ),
+            ),
+          ),
+          SnapshotDecodeError.invalidPayload,
+        );
+      },
+    );
+
+    test('scored listen fields round-trip without rewriting visual totals', () {
+      final at = DateTime.fromMillisecondsSinceEpoch(1748509200000);
+      final snapshot = ProgressSnapshot(
+        createdAt: DateTime.utc(2026, 9, 10, 12),
+        kanaStats: {
+          'あ': KanaStat(
+            seenCount: 20,
+            correctCount: 20,
+            srsLevel: 6,
+            avgLatencyMs: 500,
+            listenSeenCount: 2,
+            listenCorrectCount: 2,
+            lastListenAt: at,
+          ),
+        },
+        learnedUnits: const {},
+        seenUnlocks: const {},
+        kanjiReadingStats: const {},
+        wordStats: const {},
+      );
+      final back = decoded(codec.encode(snapshot));
+      final a = back.kanaStats['あ']!;
+      expect(a.seenCount, 20);
+      expect(a.listenSeenCount, 2);
+      expect(a.listenCorrectCount, 2);
+      expect(a.lastListenAt, at);
+      expect(a.listeningUnknown, isFalse);
     });
   });
 }

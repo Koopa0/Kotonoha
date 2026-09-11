@@ -78,6 +78,27 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('home keeps both 換句 and 選旅遊場景 after main merge', (tester) async {
+    await pumpHome(tester);
+    expect(find.text(AppStrings.shiftAction), findsOneWidget);
+    expect(find.text(AppStrings.shiftEntry), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneEntry), findsOneWidget);
+
+    await tester.ensureVisible(find.text(AppStrings.shiftAction));
+    await tester.tap(find.text(AppStrings.shiftAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.shiftPickerLead), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text(AppStrings.travelSceneAction));
+    await tester.tap(find.text(AppStrings.travelSceneAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(TravelSceneScreen), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneTransport), findsOneWidget);
+  });
+
   testWidgets('newbie: travel entry is present and only offers 先學假名', (
     tester,
   ) async {

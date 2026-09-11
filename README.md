@@ -1,4 +1,4 @@
-<div align="center" style="text-align: center">
+<div align="center">
   <img src="assets/icon/app_icon.png" width="104" alt="言の葉" />
 </div>
 
@@ -6,51 +6,53 @@
 
 **English** · [繁體中文](README.zh-TW.md) · [日本語](README.JP.md)
 
-A Japanese reading practice app for Traditional Chinese readers. Build familiarity
-with hiragana and katakana, then practise words, short sentences, and kanji readings.
-Short sessions, a quiet interface, and no scores, streaks, or rewards to chase.
+A Japanese reading practice app for Traditional Chinese readers. Meet hiragana
+and katakana first, then step into words, short sentences, listen-first
+practice, and kanji readings. Sessions stay short. The interface stays quiet.
+There are no scores, streaks, or rewards to chase.
 
-## Practice
+## Who it is for
 
-- **手解き — Learn kana.** Meet 208 hiragana and katakana learning units, including
-  voiced sounds, semi-voiced sounds, and contracted sounds, one row at a time.
-- **今日の稽古 — Review kana.** Practise kana already introduced, with questions
-  selected from your learning history. Familiar kana leave multiple-choice
-  and ask for an unprompted reading, then a word and a short sentence you
-  can already decode. Learn new kana in 手解き.
-- **目利き — Distinguish similar kana.** Practise look-alikes such as シ／ツ and
-  ね／れ／わ.
-- **手習い — Recall on paper.** Write the prompted kana in your notebook, reveal
-  the answer, and check it yourself.
-- **五十音図 — Browse kana.** Look up kana and listen to their pronunciation.
-- **渡し舟 — Meet words.** Hear a word, reveal its kana, and read it back.
-- **文字起こし — Word dictation.** Listen and assemble the word from kana tiles.
-- **黙読 — Read short phrases.** Read first, then reveal the reading and meaning.
-- **漢字の声 — Practise kanji readings.** Learn and recall readings drawn from the
-  app's words and sentences.
-- **名残の仮名 — Read kanji sentences.** Practise mixed-script sentences, with
-  furigana that fades as the associated readings become familiar.
-- **歩み — View progress.** See kana coverage, current learning status, and recurring
-  kana mix-ups when enough practice evidence is available.
+If you already read Traditional Chinese and want Japanese writing to become
+readable — not a grammar course, not a scoreboard, and not a content library
+of paid textbooks or human recordings.
 
-## Audio and local data
+## How practice unfolds
 
-Pronunciation uses the device's Japanese text-to-speech (TTS) engine. Voice
-availability and offline playback depend on the installed voices.
+手解き introduces kana a row at a time. 今日の稽古 reviews kana you have
+already met: familiar ones leave multiple choice and ask for an unprompted
+reading. When a word or sentence that reuses those kana is available, a short
+transfer item may follow. It is not promised every time — if nothing readable
+is ready, the review stays with kana.
 
-Progress and practice logs are stored on the device. No account or ads.
+Once those kana can spell a word, 渡し舟 introduces it by ear, 文字起こし
+asks you to assemble it, and **聞き取り** (先聽再揭曉) plays a station phrase
+you have already met, hides the text, then lets you reveal and hear it again.
+漢字の声 teaches and recalls readings inside the app's own words and
+sentences, not as isolated characters. Other rooms — look-alike kana, paper
+recall, a kana chart, short phrases, mixed-script sentences — open when you
+can use them. 歩み is a map of coverage, not a grade.
 
-## Platforms
+Pronunciation uses the device's Japanese text-to-speech engine. Which voices
+exist, and whether they work offline, depends on what is installed. Progress
+stays on the device. No account, no ads.
+
+<p align="center">
+  <img src="screenshots/01-home.png" width="280" alt="Home with sample coverage and current action names">
+  <img src="screenshots/02-listening.png" width="280" alt="聞き取り: listen first, then reveal">
+</p>
+<p align="center">
+  Home · sample progress&emsp;·&emsp;聞き取り — listen, then reveal
+</p>
+<p align="center">
+  <img src="screenshots/03-kanji.png" width="280" alt="漢字の声 teaching a reading inside a sentence">
+  <img src="screenshots/04-progress.png" width="280" alt="歩み coverage map with sample progress">
+</p>
+<p align="center">
+  漢字の声 — a reading in its sentence&emsp;·&emsp;歩み — coverage, not a score
+</p>
 
 Built with Flutter for Android and iOS.
-
-## Screenshots
-
-|              言の葉 (home)               |               今日の稽古 (today)               |                  渡し舟 (the Ferry)                  |           文字起こし (dictation)           |
-| :--------------------------------------: | :--------------------------------------------: | :--------------------------------------------------: | :----------------------------------------: |
-|     ![Home](screenshots/01-home.png)     | ![Today's session](screenshots/02-session.png) |          ![Ferry](screenshots/08-ferry.png)          | ![Dictation](screenshots/03-dictation.png) |
-|           **黙読 (sentences)**           |              **漢字の声 (kanji)**              |           **名残の仮名 (kanji sentences)**           |            **歩み (progress)**             |
-| ![Sentence](screenshots/06-sentence.png) |       ![Kanji](screenshots/05-kanji.png)       | ![Kanji sentence](screenshots/07-kanji-sentence.png) |  ![Progress](screenshots/04-progress.png)  |
 
 ## License
 
