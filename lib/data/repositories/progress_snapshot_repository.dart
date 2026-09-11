@@ -34,7 +34,9 @@ class SnapshotExportBlocked implements Exception {
 /// succeeded: a mutation that is committed to memory but whose platform write
 /// failed or is still gated is included, because that is the truth the learner
 /// sees. Applying a snapshot back into the stores is deliberately OUT OF SCOPE
-/// here — this owns capture + encode only.
+/// here — this owns capture + encode only. The restore transaction (journal +
+/// rollback of these five primaries) lands in a follow-up on the same ticket;
+/// it must not change this capture contract.
 class ProgressSnapshotRepository {
   ProgressSnapshotRepository({
     required this._kana,
@@ -48,13 +50,26 @@ class ProgressSnapshotRepository {
   final WordProgressRepository _words;
   final ProgressSnapshotCodec _codec;
 
-  // Store identities reported when a store needs recovery — the same primary
-  // keys the repositories own.
-  static const String _kanaStatsStore = 'kana_stats_v1';
-  static const String _learnedUnitsStore = 'learned_units_v1';
-  static const String _seenUnlocksStore = 'seen_unlocks_v1';
-  static const String _kanjiStatsStore = 'kanji_units_v1';
-  static const String _wordStatsStore = 'word_stats_v1';
+  /// Primary keys of the five snapshot bodies — the same identities the
+  /// source repositories own. Restore must replace exactly these, and an
+  /// unresolved restore journal must name them when it blocks export.
+  static const String kanaStatsStore = 'kana_stats_v1';
+  static const String learnedUnitsStore = 'learned_units_v1';
+  static const String seenUnlocksStore = 'seen_unlocks_v1';
+  static const String kanjiStatsStore = 'kanji_units_v1';
+  static const String wordStatsStore = 'word_stats_v1';
+
+  /// Canonical stores still needing recovery. Empty when export may proceed.
+  /// Unmodifiable — a caller cannot mutate the reported set.
+  List<String> get blockedStores => List.unmodifiable([
+    if (_kana.statsHealth == StoreHealth.recoveryRequired) kanaStatsStore,
+    if (_kana.learnedUnitsHealth == StoreHealth.recoveryRequired)
+      learnedUnitsStore,
+    if (_kana.seenUnlocksHealth == StoreHealth.recoveryRequired)
+      seenUnlocksStore,
+    if (_kanji.statsHealth == StoreHealth.recoveryRequired) kanjiStatsStore,
+    if (_words.statsHealth == StoreHealth.recoveryRequired) wordStatsStore,
+  ]);
 
   /// Synchronously captures the five in-memory progress bodies into an
   /// immutable [ProgressSnapshot] — no await, so nothing can interleave between
@@ -66,15 +81,7 @@ class ProgressSnapshotRepository {
   /// install) and a recovered store (salvaged / restored / preservation-pending
   /// — a usable value is in memory) both export normally.
   ProgressSnapshot capture({required DateTime createdAt}) {
-    final blocked = <String>[
-      if (_kana.statsHealth == StoreHealth.recoveryRequired) _kanaStatsStore,
-      if (_kana.learnedUnitsHealth == StoreHealth.recoveryRequired)
-        _learnedUnitsStore,
-      if (_kana.seenUnlocksHealth == StoreHealth.recoveryRequired)
-        _seenUnlocksStore,
-      if (_kanji.statsHealth == StoreHealth.recoveryRequired) _kanjiStatsStore,
-      if (_words.statsHealth == StoreHealth.recoveryRequired) _wordStatsStore,
-    ];
+    final blocked = blockedStores;
     if (blocked.isNotEmpty) throw SnapshotExportBlocked(blocked);
 
     return ProgressSnapshot(

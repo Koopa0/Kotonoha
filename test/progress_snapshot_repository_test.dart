@@ -447,5 +447,18 @@ void main() {
         }
       },
     );
+
+    test('blockedStores is unmodifiable by the caller', () async {
+      final fake = FakePreferencesService();
+      fake.seed('kana_stats_v1', 'not json');
+      final (kana, kanji, words) = await loadAll(fake);
+      final stores = ProgressSnapshotRepository(
+        kana: kana,
+        kanji: kanji,
+        words: words,
+      ).blockedStores;
+      expect(stores, contains('kana_stats_v1'));
+      expect(() => stores.add('x'), throwsUnsupportedError);
+    });
   });
 }
