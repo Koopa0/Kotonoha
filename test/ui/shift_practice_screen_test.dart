@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
@@ -14,10 +16,13 @@ import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/shift/shift_focus_screen.dart';
 import 'package:kotonoha/ui/shift/shift_practice_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/fake_tts_client.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -188,20 +193,290 @@ void main() {
     expect(started?.id, 'i-adj-aoi-noun');
     expect(find.text('あおい そら'), findsOneWidget);
   });
+
+  testWidgets(
+    'replay then Home return stops the owned play via FlutterTtsSpeechService',
+    (tester) async {
+      final client = FakeTtsClient(holdSpeak: Completer<Object?>());
+      final speech = FlutterTtsSpeechService(client: client, ready: true);
+      _configureView(tester, size: const Size(420, 2000));
+      await _pumpOfficialHome(tester, speech: speech);
+      await _openShizukaFromHome(tester);
+
+      await _tapVisible(tester, find.text(AppStrings.iReadUnprompted));
+      await tester.pump();
+      expect(client.spoken, ['しずかなへや']);
+      expect(client.stopCount, 1);
+
+      await _tapVisible(tester, find.byTooltip(AppStrings.playSound));
+      await tester.pump();
+      expect(client.spoken, ['しずかなへや', 'しずかなへや']);
+      expect(client.stopCount, 2);
+
+      final stopsBeforeLeave = client.stopCount;
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(client.stopCount, greaterThan(stopsBeforeLeave));
+    },
+  );
+
+  testWidgets(
+    'replay then inactive/paused stops the owned play via FlutterTtsSpeechService',
+    (tester) async {
+      final client = FakeTtsClient(holdSpeak: Completer<Object?>());
+      final speech = FlutterTtsSpeechService(client: client, ready: true);
+      _configureView(tester, size: const Size(420, 2000));
+      await _pumpOfficialHome(tester, speech: speech);
+      await _openShizukaFromHome(tester);
+
+      await _tapVisible(tester, find.text(AppStrings.recallHint));
+      await tester.pump();
+      await _tapVisible(tester, find.byTooltip(AppStrings.playSound));
+      await tester.pump();
+      expect(client.stopCount, 2);
+
+      final stopsBeforeBackground = client.stopCount;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(client.stopCount, greaterThan(stopsBeforeBackground));
+    },
+  );
+
+  testWidgets('old shift cleanup must not stop a newer play', (tester) async {
+    final client = FakeTtsClient(holdSpeak: Completer<Object?>());
+    final speech = FlutterTtsSpeechService(client: client, ready: true);
+    final first = ShiftSession.drillById('i-adj-aoi-noun')!;
+    final second = ShiftSession.drillById('na-adj-shizuka-noun')!;
+    await tester.pumpWidget(
+      _harness(
+        analytics: InMemoryAnalyticsLog(),
+        speech: speech,
+        child: Builder(
+          builder: (context) => Scaffold(
+            body: Column(
+              children: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.of(context)
+                          .push(ShiftPracticeScreen.route(first)),
+                  child: const Text('open-a'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('open-a'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pump();
+    await tester.tap(find.byTooltip(AppStrings.playSound));
+    await tester.pump();
+    final stale = speech.generation;
+    expect(stale, isNonZero);
+
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(ShiftPracticeScreen.route(second));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pump();
+    expect(speech.generation, isNot(stale));
+    final stopsBeforeStale = client.stopCount;
+
+    await speech.stop(generation: stale);
+    expect(client.stopCount, stopsBeforeStale);
+  });
+
+  testWidgets(
+    '320x640 2x + keyboard keeps source, sense pad, and submit reachable',
+    (tester) async {
+      _configureView(
+        tester,
+        size: const Size(320, 640),
+        textScale: 2,
+        keyboardInset: 300,
+      );
+      await _pumpOfficialHome(tester, speech: const SilentSpeechService());
+      await _openShizukaFromHome(
+        tester,
+        sourceUrl: 'https://www.satorireader.com/articles/haru-episode-1',
+      );
+      expect(tester.takeException(), isNull);
+
+      await _completeBeat(tester, unprompted: true);
+      expect(find.text('しずかな まち'), findsOneWidget);
+      await _completeBeat(tester, unprompted: false);
+      expect(tester.takeException(), isNull);
+      expect(find.text(AppStrings.shiftClose), findsOneWidget);
+    },
+  );
+
+  testWidgets('320x640 1x with source keeps the sense pad operable', (
+    tester,
+  ) async {
+    _configureView(tester, size: const Size(320, 640));
+    await _pumpOfficialHome(tester, speech: const SilentSpeechService());
+    await _openShizukaFromHome(
+      tester,
+      sourceUrl: 'https://www.satorireader.com/articles/haru-episode-1',
+    );
+    await _tapVisible(tester, find.text(AppStrings.iReadUnprompted));
+    await _tapVisible(tester, find.text(AppStrings.iReadIt));
+    expect(find.byType(TextField), findsOneWidget);
+    await _tapVisible(tester, find.text(AppStrings.shiftSenseReady));
+    await _tapVisible(tester, find.text(AppStrings.shiftSenseOk));
+    expect(tester.takeException(), isNull);
+    expect(find.text('しずかな まち'), findsOneWidget);
+  });
+
+  testWidgets('320x640 2x without source keeps the sense pad operable', (
+    tester,
+  ) async {
+    _configureView(tester, size: const Size(320, 640), textScale: 2);
+    await _pumpOfficialHome(tester, speech: const SilentSpeechService());
+    await _openShizukaFromHome(tester);
+    await _completeBeat(tester, unprompted: true);
+    expect(tester.takeException(), isNull);
+    expect(find.text('しずかな まち'), findsOneWidget);
+  });
 }
 
 Widget _harness({
   required AnalyticsLog analytics,
   required Widget child,
   WordProgressRepository? words,
+  SpeechService speech = const SilentSpeechService(),
 }) {
   return MultiProvider(
     providers: [
       if (words != null)
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
-      Provider<SpeechService>.value(value: const SilentSpeechService()),
+      Provider<SpeechService>.value(value: speech),
       Provider<AnalyticsLog>.value(value: analytics),
     ],
     child: MaterialApp(home: child),
   );
+}
+
+void _configureView(
+  WidgetTester tester, {
+  required Size size,
+  double textScale = 1,
+  double keyboardInset = 0,
+}) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = textScale;
+  if (keyboardInset > 0) {
+    tester.view.viewInsets = FakeViewPadding(bottom: keyboardInset);
+  }
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+    tester.view.resetViewInsets();
+    tester.platformDispatcher.clearTextScaleFactorTestValue();
+  });
+}
+
+Future<void> _pumpOfficialHome(
+  WidgetTester tester, {
+  required SpeechService speech,
+}) async {
+  SharedPreferences.setMockInitialValues({});
+  final kana = await KanaProgressRepository.load();
+  final kanji = await KanjiReadingRepository.load();
+  final words = await WordProgressRepository.load();
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+        ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+        ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: ProgressPersistenceController(
+            kanaFlush: kana.flushPending,
+            kanjiFlush: kanji.flushPending,
+            wordFlush: words.flushPending,
+          ),
+        ),
+        Provider<SpeechService>.value(value: speech),
+        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+      ],
+      child: const KanaLoopApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openShizukaFromHome(
+  WidgetTester tester, {
+  String? sourceUrl,
+}) async {
+  await _tapVisible(tester, find.text(AppStrings.shiftAction));
+  await _tapVisible(tester, find.text('しずかな + 名詞'));
+  if (sourceUrl != null) {
+    await _show(tester, find.byType(TextField));
+    await tester.enterText(find.byType(TextField), sourceUrl);
+    await tester.pumpAndSettle();
+  }
+  await _tapVisible(tester, find.text(AppStrings.shiftStart));
+  expect(find.text('しずかな へや'), findsOneWidget);
+}
+
+Future<void> _completeBeat(
+  WidgetTester tester, {
+  required bool unprompted,
+}) async {
+  await _tapVisible(
+    tester,
+    find.text(unprompted ? AppStrings.iReadUnprompted : AppStrings.recallHint),
+  );
+  await _tapVisible(
+    tester,
+    find.text(unprompted ? AppStrings.iReadIt : AppStrings.iReadAfterHint),
+  );
+  await _show(tester, find.byType(TextField));
+  await tester.enterText(find.byType(TextField), '自評用筆記');
+  await tester.pumpAndSettle();
+  await _tapVisible(
+    tester,
+    find.text(
+      unprompted ? AppStrings.shiftSenseReady : AppStrings.shiftSenseHint,
+    ),
+  );
+  await _tapVisible(
+    tester,
+    find.text(
+      unprompted ? AppStrings.shiftSenseOk : AppStrings.shiftSenseOkAfterHint,
+    ),
+  );
+}
+
+Future<void> _show(WidgetTester tester, Finder finder) async {
+  if (finder.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      finder,
+      280,
+      scrollable: find.byType(Scrollable).last,
+    );
+  } else {
+    await tester.ensureVisible(finder);
+  }
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await _show(tester, finder);
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+  expect(tester.takeException(), isNull);
 }
