@@ -136,14 +136,12 @@ class ProgressRestoreJournal {
     }
   }
 
-  /// Records a durable committed decision, then removes the journal. A failed
-  /// remove leaves [committed] on disk and throws so callers do not treat the
-  /// restore as fully consistent until cleanup succeeds or restart finishes it.
+  /// Records a durable committed decision, then best-effort journal cleanup.
+  /// Primaries already hold the new bodies; a failed remove leaves [committed]
+  /// on disk and must not be rolled back on the next launch.
   Future<void> commit() async {
     await _writeJournalPhase(RestoreJournalPhase.committed);
-    if (!await _prefs.remove(journalKey)) {
-      throw RestoreJournalWriteFailure(journalKey);
-    }
+    await _removeJournalBestEffort();
   }
 
   /// Rolls every primary back to the captured rollback raw. Returns false when

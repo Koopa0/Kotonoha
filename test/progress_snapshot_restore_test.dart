@@ -325,12 +325,11 @@ void main() {
     );
   });
 
-  test('commit journal removal failure does not report restored', () async {
+  test('commit journal removal failure still reports restored with memory', () async {
     final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
     final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
 
     final (fake, kana, kanji, words) = await loadAll();
-    final before = primaryRaws(fake);
     fake.failRemoves.add(ProgressRestoreJournal.journalKey);
 
     final files = FakeSnapshotFilePort()..pickContents = backup;
@@ -342,18 +341,15 @@ void main() {
 
     final result = await restorer.restore(confirm: (_) async => true);
 
-    expect(result.status, SnapshotRestoreStatus.failed);
-    expect(kana.learnedUnits, isEmpty);
+    expect(result.status, SnapshotRestoreStatus.restored);
+    expect(kana.learnedUnits, contains('hira_row_0'));
     expect(fake.durable[ProgressRestoreJournal.journalKey], isNotNull);
     expect(
       RestoreJournalPhase.committed.name,
       isIn(fake.durable[ProgressRestoreJournal.journalKey]!),
     );
-    expect(
-      fake.durable[ProgressSnapshotRepository.learnedUnitsStore],
-      isNot(before[ProgressSnapshotRepository.learnedUnitsStore]),
-    );
     expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+    await kana.recordAnswer(kana.allKana.first, correct: true, at: now);
   });
 
   test(
@@ -373,7 +369,7 @@ void main() {
         files: files,
       );
       final result = await restorer.restore(confirm: (_) async => true);
-      expect(result.status, SnapshotRestoreStatus.failed);
+      expect(result.status, SnapshotRestoreStatus.restored);
 
       final restarted = FakePreferencesService.restarted(fake);
       await ProgressRestoreJournal.recoverIfNeeded(restarted);
