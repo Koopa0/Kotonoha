@@ -513,7 +513,11 @@ class HomeScreen extends StatelessWidget {
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  void _startListening(BuildContext context, {bool replace = false}) {
+  void _startListening(
+    BuildContext context, {
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+  }) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -525,11 +529,20 @@ class HomeScreen extends StatelessWidget {
       stats: context.read<WordProgressRepository>().stats,
     );
     if (items.isEmpty) return;
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: items,
+    );
     final nav = Navigator.of(context);
     final route = ListeningScreen.route(
       items,
       AppStrings.listeningTitle,
-      onMore: () => _startListening(context, replace: true),
+      alreadyTransferredIds: excludeProgressIds,
+      onMore: () => _startListening(
+        context,
+        replace: true,
+        excludeProgressIds: nextExclude,
+      ),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }

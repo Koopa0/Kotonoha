@@ -14,6 +14,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
+import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -32,6 +33,7 @@ class ListeningScreen extends StatefulWidget {
     required this.title,
     this.clock,
     this.onMore,
+    this.alreadyTransferredIds = const {},
     super.key,
   });
 
@@ -44,12 +46,22 @@ class ListeningScreen extends StatefulWidget {
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
 
+  /// Progress ids already covered in this 「もう一回」 grind. A wrap-around
+  /// item may be shown again but must not renew SRS.
+  final Set<String> alreadyTransferredIds;
+
   static Route<void> route(
     List<ReadingItem> items,
     String title, {
     VoidCallback? onMore,
+    Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
-    builder: (_) => ListeningScreen(items: items, title: title, onMore: onMore),
+    builder: (_) => ListeningScreen(
+      items: items,
+      title: title,
+      onMore: onMore,
+      alreadyTransferredIds: alreadyTransferredIds,
+    ),
   );
 
   @override
@@ -198,13 +210,17 @@ class _ListeningScreenState extends State<ListeningScreen>
       );
     }
     if (recordMastery) {
-      context.read<ProgressPersistenceController>().trackWord(
-        context.read<WordProgressRepository>().recordAnswer(
-          _current.progressId,
-          correct: correct,
-          at: now,
-        ),
-      );
+      final words = context.read<WordProgressRepository>();
+      final persist = context.read<ProgressPersistenceController>();
+      final id = _current.progressId;
+      // A miss always resets. Unprompted correct climbs only the first
+      // time this grind covers the id — wrap-around practice may repeat
+      // the item but must not farm the schedule.
+      if (!correct) {
+        persist.trackWord(words.recordAnswer(id, correct: false, at: now));
+      } else if (DailyBridge.shouldRenew(id, widget.alreadyTransferredIds)) {
+        persist.trackWord(words.recordAnswer(id, correct: true, at: now));
+      }
     }
     if (_index + 1 >= widget.items.length) {
       final store = context.read<KanaProgressRepository>();

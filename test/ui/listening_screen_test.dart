@@ -123,6 +123,7 @@ Future<void> pumpListening(
   InMemoryAnalyticsLog? analytics,
   WordProgressRepository? wordRepo,
   DateTime Function()? clock,
+  Set<String> alreadyTransferredIds = const {},
   Size size = const Size(360, 800),
   double textScale = 1,
 }) async {
@@ -160,6 +161,7 @@ Future<void> pumpListening(
               items: items,
               title: AppStrings.listeningTitle,
               clock: clock,
+              alreadyTransferredIds: alreadyTransferredIds,
             ),
           ),
         ),
@@ -577,6 +579,110 @@ void main() {
       );
     },
   );
+
+  testWidgets('もう一回 wrap: same id does not climb; a new grind id still does', (
+    tester,
+  ) async {
+    final speech = ScriptedSpeechService(const [SpeechPlaybackResult.played]);
+    final words = await WordProgressRepository.load();
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_station, _ticket],
+      wordRepo: words,
+      alreadyTransferredIds: {_station.progressId},
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.listeningHeard));
+    await tester.pump();
+    await tester.pump();
+    expect(words.statForItem(_station.progressId).srsLevel, 0);
+    expect(words.statForItem(_station.progressId).correctCount, 0);
+    expect(words.statForItem(_station.progressId).isSeen, isFalse);
+
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.listeningHeard));
+    await tester.pump();
+    await tester.pump();
+    expect(words.statForItem(_ticket.progressId).srsLevel, 1);
+    expect(words.statForItem(_ticket.progressId).correctCount, 1);
+  });
+
+  testWidgets('もう一回 wrap miss still resets SRS', (tester) async {
+    final speech = ScriptedSpeechService(const [SpeechPlaybackResult.played]);
+    final words = await WordProgressRepository.load();
+    final now = DateTime(2026, 9, 10, 12);
+    await words.recordAnswer(_station.progressId, correct: true, at: now);
+    expect(words.statForItem(_station.progressId).srsLevel, 1);
+
+    await pumpListening(
+      tester,
+      speech: speech,
+      items: const [_station],
+      wordRepo: words,
+      alreadyTransferredIds: {_station.progressId},
+    );
+    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.listeningMissed));
+    await tester.pumpAndSettle();
+    expect(words.statForItem(_station.progressId).srsLevel, 0);
+    expect(words.statForItem(_station.progressId).wrongCount, 1);
+  });
+
+  testWidgets('route forwards alreadyTransferredIds into the screen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(
+            value: await KanaProgressRepository.load(),
+          ),
+          ChangeNotifierProvider<WordProgressRepository>.value(
+            value: await WordProgressRepository.load(),
+          ),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: () async {},
+              kanjiFlush: () async {},
+              wordFlush: () async {},
+            ),
+          ),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<SpeechService>.value(
+            value: ScriptedSpeechService(const [SpeechPlaybackResult.played]),
+          ),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    ListeningScreen.route(
+                      const [_station],
+                      AppStrings.listeningTitle,
+                      alreadyTransferredIds: {_station.progressId},
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump();
+    final screen = tester.widget<ListeningScreen>(find.byType(ListeningScreen));
+    expect(screen.alreadyTransferredIds, {_station.progressId});
+  });
 
   testWidgets(
     'old speak complete after next item failed play cannot credit あめ',
