@@ -10,12 +10,7 @@ import 'package:kotonoha/data/services/preferences_service.dart';
 /// journal after it) is finished. Anything else on the next [recoverIfNeeded]
 /// must roll back primaries — except [committed], which must never be rolled
 /// back even when journal cleanup is still pending.
-enum RestoreJournalPhase {
-  staging,
-  applying,
-  rollingBack,
-  committed,
-}
+enum RestoreJournalPhase { staging, applying, rollingBack, committed }
 
 /// Primary keys participating in a restore transaction — the same five bodies
 /// [ProgressSnapshotRepository] captures.
@@ -35,7 +30,7 @@ abstract final class RestoreJournalStores {
 /// Rollback captures each primary's exact raw string at transaction start (null
 /// when absent). Staging holds the encoded replacement for each body. Memory is
 /// updated only after every primary write succeeds and the journal records a
-/// durable [RestoreJournalPhase.committed] decision.
+/// durable [RestoreJournalPhase.committed] decision and cleanup succeeds.
 class ProgressRestoreJournal {
   ProgressRestoreJournal(this._prefs);
 
@@ -105,12 +100,14 @@ class ProgressRestoreJournal {
     }
   }
 
-  /// Records a durable committed decision, then best-effort journal cleanup.
-  /// Primaries already hold the new bodies; a failed remove leaves [committed]
-  /// on disk and must not be rolled back on the next launch.
+  /// Records a durable committed decision, then removes the journal. A failed
+  /// remove leaves [committed] on disk and throws so callers do not treat the
+  /// restore as fully consistent until cleanup succeeds or restart finishes it.
   Future<void> commit() async {
     await _writeJournalPhase(RestoreJournalPhase.committed);
-    await _removeJournalBestEffort();
+    if (!await _prefs.remove(journalKey)) {
+      throw RestoreJournalWriteFailure(journalKey);
+    }
   }
 
   /// Rolls every primary back to the captured rollback raw. Returns false when
@@ -137,13 +134,16 @@ class ProgressRestoreJournal {
 
   /// Aborts an in-flight transaction. Throws [RestoreJournalRollbackFailure]
   /// when rollback cannot be confirmed on disk — the journal is left blocking.
+  /// Never rolls back once [RestoreJournalPhase.committed] is durable.
   Future<void> abortAndRollback() async {
     if (_phase == RestoreJournalPhase.committed) return;
     final rolled = await _rollbackPrimaries();
     if (!rolled) {
       throw RestoreJournalRollbackFailure(journalKey);
     }
-    await _removeJournalBestEffort();
+    if (!await _prefs.remove(journalKey)) {
+      throw RestoreJournalRollbackFailure(journalKey);
+    }
   }
 
   Future<void> _writeJournalPhase(RestoreJournalPhase phase) async {
