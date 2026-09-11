@@ -97,6 +97,8 @@ abstract final class TravelScene {
       'phrase:しちゃくしつは どこ',
       'phrase:げんきんは いいですか',
       'phrase:げんきんで かいけい',
+      'phrase:カードは つかえます',
+      'phrase:カードは つかえません',
       'word:ふく',
       'word:かう',
       'word:おおきい',

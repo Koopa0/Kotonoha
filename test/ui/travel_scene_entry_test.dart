@@ -742,13 +742,11 @@ void main() {
 
     await tester.tap(find.text(AppStrings.travelSceneMeetAction));
     await tester.pumpAndSettle();
-    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(find.byType(ReadingScreen), findsOneWidget);
     expect(find.text(AppStrings.replyClothingMeetTitle), findsOneWidget);
-    await tester.tap(find.text(AppStrings.ferryShowText));
-    await tester.pumpAndSettle();
     expect(
-      find.text('つかえます').evaluate().isNotEmpty ||
-          find.text('つかえません').evaluate().isNotEmpty,
+      find.text('カードは つかえます').evaluate().isNotEmpty ||
+          find.text('カードは つかえません').evaluate().isNotEmpty,
       isTrue,
     );
     expect(find.text('使用'), findsNothing);

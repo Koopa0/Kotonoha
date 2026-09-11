@@ -214,7 +214,12 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'kaado de onegai',
     replyCorrectMeaning: '請用卡',
     replyWrongKana: ['げんきんです', 'しちゃくして いいですか'],
-    requiredSeenIds: ['word:カード', 'word:つかえます', 'word:おねがい', 'word:げんきん'],
+    requiredSeenIds: [
+      'word:カード',
+      'word:おねがい',
+      'word:げんきん',
+      'phrase:カードは つかえます',
+    ],
   ),
   ReplyDrill(
     id: 'reply:card-tsukaemasen',
@@ -231,9 +236,9 @@ const List<ReplyDrill> kReplyDrills = [
     replyWrongKana: ['カードで おねがい', 'やすいです'],
     requiredSeenIds: [
       'word:カード',
-      'word:つかえません',
       'word:げんきん',
       'phrase:げんきんで かいけい',
+      'phrase:カードは つかえません',
     ],
   ),
 ];

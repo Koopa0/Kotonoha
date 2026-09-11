@@ -54,6 +54,8 @@ void main() {
         'しちゃくしつは どこ',
         'げんきんは いいですか',
         'げんきんで かいけい',
+        'カードは つかえます',
+        'カードは つかえません',
         'いりぐちで ならぶ',
         'にもつは だいじょうぶ',
         'たすけて ください',
@@ -382,8 +384,8 @@ void main() {
         'word:サイズ',
         'word:カード',
         'word:げんきん',
-        'word:つかえます',
-        'word:つかえません',
+        'phrase:カードは つかえます',
+        'phrase:カードは つかえません',
       }),
     );
   });
@@ -476,9 +478,9 @@ void main() {
     expect(no.sceneZh, contains('還有現金'));
     expect(no.sceneZh, isNot(contains('搖頭')));
     expect(no.sceneZh, isNot(contains('收銀箱')));
-    expect(yes.requiredSeenIds, contains('word:つかえます'));
+    expect(yes.requiredSeenIds, contains('phrase:カードは つかえます'));
     expect(yes.requiredSeenIds, isNot(contains('word:つかう')));
-    expect(no.requiredSeenIds, contains('word:つかえません'));
+    expect(no.requiredSeenIds, contains('phrase:カードは つかえません'));
     expect(no.requiredSeenIds, isNot(contains('word:つかう')));
 
     final onlyAsk = ReplySession.inspect(
@@ -494,7 +496,10 @@ void main() {
     expect(onlyAsk.ready.map((d) => d.id), ['reply:card-desu-ka']);
     expect(
       onlyAsk.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({'word:つかえます', 'word:つかえません'}),
+      containsAll({
+        'phrase:カードは つかえます',
+        'phrase:カードは つかえません',
+      }),
     );
   });
 
@@ -523,7 +528,10 @@ void main() {
     expect(cold.ready.map((d) => d.id), contains('reply:card-desu-ka'));
     expect(
       cold.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({'word:つかえます', 'word:つかえません'}),
+      containsAll({
+        'phrase:カードは つかえます',
+        'phrase:カードは つかえません',
+      }),
     );
     expect(
       ReplySession.compose(
@@ -537,7 +545,7 @@ void main() {
 
     final yesReady = ReplySession.inspect(
       learnedChars: allChars,
-      stats: {...taughtUse, 'word:つかえます': seenAt()},
+      stats: {...taughtUse, 'phrase:カードは つかえます': seenAt()},
       scene: ReplySceneId.clothing,
     );
     expect(yesReady.ready.map((d) => d.id), contains('reply:card-tsukaemasu'));
@@ -548,7 +556,7 @@ void main() {
 
     final noReady = ReplySession.inspect(
       learnedChars: allChars,
-      stats: {...taughtUse, 'word:つかえません': seenAt()},
+      stats: {...taughtUse, 'phrase:カードは つかえません': seenAt()},
       scene: ReplySceneId.clothing,
     );
     expect(noReady.ready.map((d) => d.id), contains('reply:card-tsukaemasen'));

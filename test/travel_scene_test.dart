@@ -57,6 +57,8 @@ void main() {
     expect(pools[TravelSceneId.clothing], contains('phrase:しちゃくして いいですか'));
     expect(pools[TravelSceneId.clothing], contains('phrase:しちゃくしつは どこ'));
     expect(pools[TravelSceneId.clothing], contains('phrase:げんきんは いいですか'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:カードは つかえます'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:カードは つかえません'));
     expect(pools[TravelSceneId.clothing], contains('word:サイズ'));
     expect(pools[TravelSceneId.clothing], contains('word:カード'));
     expect(pools[TravelSceneId.clothing], contains('word:デパート'));
@@ -74,6 +76,8 @@ void main() {
       'しちゃくしつは どこ',
       'げんきんは いいですか',
       'げんきんで かいけい',
+      'カードは つかえます',
+      'カードは つかえません',
       'いりぐちで ならぶ',
       'にもつは だいじょうぶ',
       'たすけて ください',
@@ -488,6 +492,8 @@ void main() {
         'phrase:しちゃくして いいですか',
         'phrase:しちゃくしつは どこ',
         'phrase:げんきんは いいですか',
+        'phrase:カードは つかえます',
+        'phrase:カードは つかえません',
         'word:サイズ',
         'word:エル',
         'word:カード',

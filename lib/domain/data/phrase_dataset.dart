@@ -274,6 +274,16 @@ const List<Phrase> kPhrases = <Phrase>[
     meaning: '可以用現金嗎',
   ),
   Phrase(kana: 'げんきんで かいけい', romaji: 'genkin de kaikei', meaning: '用現金結帳'),
+  Phrase(
+    kana: 'カードは つかえます',
+    romaji: 'kaado wa tsukaemasu',
+    meaning: '可以用卡',
+  ),
+  Phrase(
+    kana: 'カードは つかえません',
+    romaji: 'kaado wa tsukaemasen',
+    meaning: '不能用卡',
+  ),
   Phrase(kana: 'いりぐちで ならぶ', romaji: 'iriguchi de narabu', meaning: '在入口排隊'),
   Phrase(kana: 'にもつは だいじょうぶ', romaji: 'nimotsu wa daijoubu', meaning: '行李沒問題'),
   Phrase(kana: 'たすけて ください', romaji: 'tasukete kudasai', meaning: '請幫幫我'),
