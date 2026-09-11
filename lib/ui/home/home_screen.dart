@@ -47,6 +47,7 @@ import 'package:kotonoha/ui/progress/progress_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/shift/shift_focus_screen.dart';
+import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -302,8 +303,7 @@ class HomeScreen extends StatelessWidget {
                       subtitle: AppStrings.sentenceSubtitle,
                       onTap: () => _startSentence(context, readablePhrases),
                     ),
-                  // #48 owns this room. #47 owns travel-scene selection and
-                  // must not reuse this card or a shared picker schema.
+                  // #48 owns this room. Isolated from travel-scene selection.
                   _NavCard(
                     icon: Icons.swap_horiz_rounded,
                     label: AppStrings.shiftAction,
@@ -311,6 +311,16 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.shiftSubtitle,
                     onTap: () =>
                         Navigator.of(context).push(ShiftFocusScreen.route()),
+                  ),
+                  // Isolated travel-purpose picker. Does not change 渡し舟 /
+                  // 黙読 / 聞き取り / 換句 contracts.
+                  _NavCard(
+                    icon: Icons.place_outlined,
+                    label: AppStrings.travelSceneAction,
+                    productName: AppStrings.travelSceneEntry,
+                    subtitle: AppStrings.travelSceneSubtitle,
+                    onTap: () =>
+                        Navigator.of(context).push(TravelSceneScreen.route()),
                   ),
                 ]),
                 ..._section(AppStrings.sectionKanji, [

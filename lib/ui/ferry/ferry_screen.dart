@@ -51,8 +51,10 @@ class FerryScreen extends StatefulWidget {
     List<Word> words,
     String title, {
     VoidCallback? onMore,
+    DateTime Function()? clock,
   }) => MaterialPageRoute<void>(
-    builder: (_) => FerryScreen(words: words, title: title, onMore: onMore),
+    builder: (_) =>
+        FerryScreen(words: words, title: title, onMore: onMore, clock: clock),
   );
 
   @override
