@@ -288,107 +288,94 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   Widget _body() {
     final source = widget.sourceUrl?.trim();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        children: [
+          Column(
+            children: [
+              Text(
+                AppStrings.itemProgress(
+                  _beats.indexOf(_beat) + 1,
+                  _beats.length,
+                ),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (source != null && source.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    AppStrings.shiftSourceChip(source),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              if (_laneCaption != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _laneCaption!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: AppColors.hairline),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  child: Column(
                     children: [
+                      if (_beat == ShiftBeat.shift) ...[
+                        Text(
+                          widget.lane == ShiftLane.confirm
+                              ? AppStrings.shiftConfirmLead
+                              : widget.drill.change == ShiftChange.noun
+                              ? AppStrings.shiftBridgeNoun
+                              : AppStrings.shiftBridgeModifier,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       Text(
-                        AppStrings.itemProgress(
-                          _beats.indexOf(_beat) + 1,
-                          _beats.length,
-                        ),
+                        _sentence.kana,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 44,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
                         ),
                       ),
-                      if (source != null && source.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            AppStrings.shiftSourceChip(source),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.inkMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      if (_laneCaption != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            _laneCaption!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.inkMuted,
-                              fontSize: 13,
-                              height: 1.45,
-                            ),
-                          ),
-                        ),
                       const SizedBox(height: 16),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.card,
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                          child: Column(
-                            children: [
-                              if (_beat == ShiftBeat.shift) ...[
-                                Text(
-                                  widget.lane == ShiftLane.confirm
-                                      ? AppStrings.shiftConfirmLead
-                                      : widget.drill.change == ShiftChange.noun
-                                      ? AppStrings.shiftBridgeNoun
-                                      : AppStrings.shiftBridgeModifier,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.inkMuted,
-                                    height: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                              Text(
-                                _sentence.kana,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 44,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ..._phaseCopy(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      ..._phaseCopy(),
                     ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: _actions(),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
+          Padding(padding: const EdgeInsets.only(top: 16), child: _actions()),
+        ],
+      ),
     );
   }
 

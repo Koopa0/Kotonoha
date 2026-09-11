@@ -21,14 +21,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  Future<void> expand(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(420, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  }
+
   testWidgets('Home hold: day 0 is base only and never leaks the reserved shift', (
     tester,
   ) async {
     final analytics = InMemoryAnalyticsLog();
     final words = await WordProgressRepository.load();
     var now = DateTime(2026, 9, 10, 10);
-    await tester.binding.setSurfaceSize(const Size(420, 2000));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await expand(tester);
     await _pumpHome(
       tester,
       analytics: analytics,
@@ -125,10 +129,14 @@ void main() {
     );
 
     now = DateTime(2026, 9, 11, 9);
+    await expand(tester);
     await tester.pumpWidget(
       _harness(
         analytics: analytics,
-        child: ShiftFocusScreen(clock: () => now),
+        child: ShiftFocusScreen(
+          clock: () => now,
+          attempts: await analytics.all(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -194,10 +202,14 @@ void main() {
       ShiftSession.reservation(drill: drill, sessionId: 'h', at: day0),
     );
     now = DateTime(2026, 9, 11, 9);
+    await expand(tester);
     await tester.pumpWidget(
       _harness(
         analytics: analytics,
-        child: ShiftFocusScreen(clock: () => now),
+        child: ShiftFocusScreen(
+          clock: () => now,
+          attempts: await analytics.all(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -212,7 +224,10 @@ void main() {
     await tester.pumpWidget(
       _harness(
         analytics: analytics,
-        child: ShiftFocusScreen(clock: () => now),
+        child: ShiftFocusScreen(
+          clock: () => now,
+          attempts: await analytics.all(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -246,11 +261,13 @@ void main() {
         );
       }
     }
+    await expand(tester);
     await tester.pumpWidget(
       _harness(
         analytics: analytics,
         child: ShiftFocusScreen(
           clock: () => DateTime(2026, 9, 11, 10),
+          attempts: await analytics.all(),
         ),
       ),
     );
@@ -292,10 +309,14 @@ void main() {
         },
       ),
     );
+    await expand(tester);
     await tester.pumpWidget(
       _harness(
         analytics: analytics,
-        child: ShiftFocusScreen(clock: () => DateTime(2026, 9, 11)),
+        child: ShiftFocusScreen(
+          clock: () => DateTime(2026, 9, 11),
+          attempts: await analytics.all(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

@@ -39,9 +39,7 @@ class ShiftFocusScreen extends StatefulWidget {
   final List<Attempt>? attempts;
 
   static Route<void> route({DateTime Function()? clock}) =>
-      MaterialPageRoute<void>(
-        builder: (_) => ShiftFocusScreen(clock: clock),
-      );
+      MaterialPageRoute<void>(builder: (_) => ShiftFocusScreen(clock: clock));
 
   @override
   State<ShiftFocusScreen> createState() => _ShiftFocusScreenState();
@@ -49,7 +47,8 @@ class ShiftFocusScreen extends StatefulWidget {
 
 class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
   final TextEditingController _source = TextEditingController();
-  final String _pickerSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  final String _pickerSessionId = DateTime.now().millisecondsSinceEpoch
+      .toString();
   final Set<String> _previewed = <String>{};
   late String _selectedId;
   List<Attempt> _attempts = const [];
@@ -61,13 +60,15 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
   List<ShiftDrill> get _drills =>
       widget.drills ?? ShiftSession.focuses().expand((f) => f.drills).toList();
 
-  ShiftPlan _plan(ShiftDrill drill, {ShiftLane requested = ShiftLane.sameDay}) =>
-      ShiftSession.plan(
-        drill: drill,
-        now: _clock(),
-        attempts: _attempts,
-        requested: requested,
-      );
+  ShiftPlan _plan(
+    ShiftDrill drill, {
+    ShiftLane requested = ShiftLane.sameDay,
+  }) => ShiftSession.plan(
+    drill: drill,
+    now: _clock(),
+    attempts: _attempts,
+    requested: requested,
+  );
 
   @override
   void initState() {
@@ -156,9 +157,7 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
   @override
   Widget build(BuildContext context) {
     final selected = ShiftSession.drillById(_selectedId, drills: _drills);
-    final selectedPlan = selected == null
-        ? null
-        : _plan(selected);
+    final selectedPlan = selected == null ? null : _plan(selected);
     final holdPlan = selected == null
         ? null
         : _plan(selected, requested: ShiftLane.hold);
@@ -184,11 +183,6 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
             const SizedBox(height: 10),
             const Text(
               AppStrings.shiftSelfGradeNote,
-              style: TextStyle(color: AppColors.inkMuted, height: 1.55),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              AppStrings.shiftHoldHint,
               style: TextStyle(color: AppColors.inkMuted, height: 1.55),
             ),
             const SizedBox(height: 20),
@@ -237,11 +231,17 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
               const SizedBox(height: 12),
             ],
             if (selectedPlan != null) ...[
-              Text(
-                _statusCopy(selectedPlan),
-                style: const TextStyle(color: AppColors.inkMuted, height: 1.55),
-              ),
-              const SizedBox(height: 16),
+              if (_statusCopy(selectedPlan) case final status
+                  when status.isNotEmpty) ...[
+                Text(
+                  status,
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
+                    height: 1.55,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               ShiftHistoryView(
                 grades: ShiftSession.selfGrades(
                   _attempts,
@@ -306,7 +306,7 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
     }
     if (plan.holdPending) return AppStrings.shiftHeldUntilTomorrow;
     if (plan.noUnseenVariant) return AppStrings.shiftReviewOnly;
-    return AppStrings.shiftHoldHint;
+    return '';
   }
 
   String _primaryLabel(ShiftPlan? plan) {

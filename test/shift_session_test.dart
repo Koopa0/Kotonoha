@@ -265,8 +265,10 @@ void main() {
     expect(history[3].readSupport, ShiftReadSupport.prompted);
     expect(history[4].correct, isFalse);
     expect(history[5].correct, isFalse);
-    expect(history.map((g) => '${g.check.name}:${g.prompted}:${g.correct}').toSet(),
-        hasLength(5));
+    expect(
+      history.map((g) => '${g.check.name}:${g.prompted}:${g.correct}').toSet(),
+      hasLength(6),
+    );
     expect(ShiftSession.marksFocusMastered(rows), isFalse);
   });
 
