@@ -241,13 +241,17 @@ void main() {
       'ふるい おしろが みえる',
       'この ふくは ちいさい',
       'あかい ふくを かう',
+      'しちゃくして いいですか',
+      'しちゃくしつは どこ',
+      'げんきんは いいですか',
+      'げんきんで かいけい',
       'いりぐちで ならぶ',
       'にもつは だいじょうぶ',
       'たすけて ください',
     };
     final phraseKanas = kPhrases.map((p) => p.kana).toList();
     expect(phraseKanas.toSet().length, phraseKanas.length);
-    expect(added.length, 8);
+    expect(added.length, 12);
     expect(phraseKanas.toSet().intersection(added), added);
 
     final allUnits = {for (final k in kAllKana) k.character};

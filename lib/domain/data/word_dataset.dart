@@ -389,6 +389,8 @@ const List<Word> kWords = <Word>[
   Word(kana: 'にわ', romaji: 'niwa', meaning: '庭院'),
   Word(kana: 'くつ', romaji: 'kutsu', meaning: '鞋子'),
   Word(kana: 'ふく', romaji: 'fuku', meaning: '衣服'),
+  Word(kana: 'しちゃく', romaji: 'shichaku', meaning: '試穿'),
+  Word(kana: 'しちゃくしつ', romaji: 'shichakushitsu', meaning: '試衣間'),
   Word(kana: 'ぼうし', romaji: 'boushi', meaning: '帽子'),
   // --- food & drink ---
   Word(kana: 'みず', romaji: 'mizu', meaning: '水', theme: ContentTheme.daily),
@@ -818,6 +820,41 @@ const List<Word> kWords = <Word>[
     script: KanaScript.katakana,
   ),
   Word(
+    kana: 'サイズ',
+    romaji: 'saizu',
+    meaning: '尺寸',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
+    kana: 'エス',
+    romaji: 'esu',
+    meaning: '尺寸 S',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
+    kana: 'エム',
+    romaji: 'emu',
+    meaning: '尺寸 M',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
+    kana: 'エル',
+    romaji: 'eru',
+    meaning: '尺寸 L',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
+    kana: 'カード',
+    romaji: 'kaado',
+    meaning: '卡（付款）',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
     kana: 'プール',
     romaji: 'puuru',
     meaning: '游泳池',
@@ -989,4 +1026,10 @@ const List<Word> kWords = <Word>[
     theme: ContentTheme.travel,
   ),
   Word(kana: 'おつり', romaji: 'otsuri', meaning: '找零', theme: ContentTheme.daily),
+  Word(
+    kana: 'げんきん',
+    romaji: 'genkin',
+    meaning: '現金',
+    theme: ContentTheme.travel,
+  ),
 ];

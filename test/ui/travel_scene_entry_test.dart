@@ -23,6 +23,7 @@ import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/reply/reply_hub_screen.dart';
+import 'package:kotonoha/ui/reply/reply_screen.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:provider/provider.dart';
@@ -647,6 +648,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(InfoHubScreen), findsOneWidget);
     expect(find.text(AppStrings.infoPurpose), findsOneWidget);
+  });
+
+  testWidgets('Home→旅行→購衣 states try-on and pay, then meets in-scene', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    await tester.pumpAndSettle();
+    await openScene(tester, AppStrings.travelSceneClothing);
+    expect(find.text(AppStrings.travelScenePurposeClothing), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneMeetTitle(AppStrings.travelSceneClothing),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('えき'), findsNothing);
+    expect(repos.words.seenItemCount, 0);
+  });
+
+  testWidgets('clothing reply starts try-on after the request phrase is met', (
+    tester,
+  ) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.clothing);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    await repos.words.markIntroduced('word:しちゃく', at: noon());
+    await repos.words.markIntroduced('phrase:しちゃくして いいですか', at: noon());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text('你停在外套衣架前。店員從架上取下那一件，看著你。'), findsOneWidget);
+    expect(find.text('問要不要試穿'), findsOneWidget);
+    expect(find.text('要試穿嗎'), findsNothing);
+    expect(find.text('しちゃくしますか'), findsNothing);
+    expect(find.text(AppStrings.replyNotSpeaking), findsOneWidget);
   });
 }
 
