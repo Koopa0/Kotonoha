@@ -184,6 +184,9 @@ class ProgressRestoreJournal {
       if (_prefs.readString(journalKey) == null) {
         return; // native removal succeeded before the throw
       }
+      if (_validated?.phase == RestoreJournalPhase.committed) {
+        return; // cleanup failed but commit is durable
+      }
       rethrow;
     }
     await _prefs.reload();

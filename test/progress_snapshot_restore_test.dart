@@ -751,6 +751,31 @@ void main() {
   );
 
   test(
+    'journal remove before-effect throw still restores memory when committed durable',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      fake.throwRemoves.add(ProgressRestoreJournal.journalKey);
+
+      final files = FakeSnapshotFilePort()..pickContents = backup;
+      final restorer = ProgressSnapshotRestorer(
+        snapshots: snapshotsFor(fake, kana, kanji, words),
+        restore: restoreFor(fake, kana, kanji, words),
+        files: files,
+      );
+
+      final result = await restorer.restore(confirm: (_) async => true);
+
+      expect(result.status, SnapshotRestoreStatus.restored);
+      expect(kana.learnedUnits, contains('hira_row_0'));
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNotNull);
+      expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+    },
+  );
+
+  test(
     'journal remove after-effect still restores memory when committed durable',
     () async {
       final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();

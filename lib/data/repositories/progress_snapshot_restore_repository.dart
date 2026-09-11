@@ -92,9 +92,15 @@ class ProgressSnapshotRestoreRepository {
         await _syncMemoryFromDurable();
         rethrow;
       } catch (_) {
+        await _prefs.reload();
+        if (_isDurableCommitted()) {
+          _applyToMemory(snapshot);
+          return;
+        }
         try {
           await _journal.abortAndRollback();
         } on RestoreJournalRollbackFailure {}
+        await _syncMemoryFromDurable();
         rethrow;
       }
       _applyToMemory(snapshot);
@@ -102,6 +108,18 @@ class ProgressSnapshotRestoreRepository {
       _kana.finishRestore();
       _kanji.finishRestore();
       _words.finishRestore();
+    }
+  }
+
+  bool _isDurableCommitted() {
+    final raw = _prefs.readString(ProgressRestoreJournal.journalKey);
+    if (raw == null) return false;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return false;
+      return decoded['phase'] == RestoreJournalPhase.committed.name;
+    } on FormatException {
+      return false;
     }
   }
 
