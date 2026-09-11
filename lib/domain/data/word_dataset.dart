@@ -701,6 +701,13 @@ const List<Word> kWords = <Word>[
     theme: ContentTheme.travel,
   ),
   Word(
+    kana: 'チェックイン',
+    romaji: 'chekkuin',
+    meaning: '辦理入住',
+    script: KanaScript.katakana,
+    theme: ContentTheme.travel,
+  ),
+  Word(
     kana: 'タクシー',
     romaji: 'takushii',
     meaning: '計程車',

@@ -261,7 +261,7 @@ abstract final class AppStrings {
   static const String travelScenePurposeConvenience =
       '這一回只練袋子、加熱與結帳時的基本意思。不定即時價格。';
   static const String travelScenePurposeHotel =
-      '這一回只練表明預約與入住、確認有無早餐、以及明天離開。不定訂房或真實付款。';
+      '這一回只練表明預約、請辦理入住、確認有無早餐、以及明天離開。不定訂房或真實付款。';
   static const String travelSceneMeetAction = '先見面';
   static const String travelSceneRecallAction = '回想';
   static const String travelSceneListenAction = '先聽再揭曉';

@@ -71,9 +71,12 @@ void main() {
     expect(pools[TravelSceneId.convenience], contains('phrase:ふくろは いりますか'));
     expect(pools[TravelSceneId.convenience], contains('phrase:あたためますか'));
     expect(pools[TravelSceneId.hotel], contains('phrase:よやくが あります'));
+    expect(pools[TravelSceneId.hotel], contains('phrase:チェックインを おねがい'));
+    expect(pools[TravelSceneId.hotel], contains('word:チェックイン'));
     expect(pools[TravelSceneId.hotel], contains('phrase:あした でます'));
     expect(pools[TravelSceneId.hotel], isNot(contains('word:よやく')));
     expect(pools[TravelSceneId.hotel], isNot(contains('word:うけつけ')));
+    expect(pools[TravelSceneId.hotel], isNot(contains('phrase:うけつけで とまる')));
     for (final kana in const [
       'じんじゃは どこ',
       'しずかな てらに はいる',
@@ -96,7 +99,7 @@ void main() {
       'あたためますか',
       'あたためて ください',
       'よやくが あります',
-      'うけつけで とまる',
+      'チェックインを おねがい',
       'あさごはんは ありますか',
       'あした でます',
     ]) {
@@ -753,6 +756,27 @@ void main() {
       );
     },
   );
+
+  test('hotel check-in is チェックイン, not 受付で泊まる', () {
+    expect(kPhrases.where((p) => p.kana == 'うけつけで とまる'), isEmpty);
+    final checkIn = kPhrases.singleWhere((p) => p.kana == 'チェックインを おねがい');
+    expect(checkIn.romaji, 'chekkuin o onegai');
+    expect(checkIn.meaning, '請辦理入住');
+    final loan = kWords.singleWhere((w) => w.kana == 'チェックイン');
+    expect(loan.romaji, 'chekkuin');
+    expect(loan.meaning, '辦理入住');
+    final stay = kWords.singleWhere((w) => w.kana == 'とまる');
+    expect(stay.meaning, '停下;過夜');
+    expect(stay.meaning.contains('入住'), isFalse);
+    expect(
+      TravelScene.progressIds[TravelSceneId.hotel],
+      containsAll([
+        'phrase:チェックインを おねがい',
+        'word:チェックイン',
+        'word:とまる',
+      ]),
+    );
+  });
 
   test('partial は行・や行 opens hotel へや, not restaurant すし', () {
     const haYa = {'は', 'ひ', 'ふ', 'へ', 'ほ', 'や', 'ゆ', 'よ'};
