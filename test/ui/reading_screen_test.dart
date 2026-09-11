@@ -22,6 +22,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/fake_preferences_service.dart';
+import '../support/restore_recovery_test_support.dart';
 
 DateTime _noon() => DateTime(2026, 9, 11, 12);
 
@@ -36,6 +37,7 @@ Future<void> _pumpReading(
   bool banner = false,
 }) async {
   final kana = await KanaProgressRepository.load();
+  final recovery = await idleRestoreRecovery();
   final persistence =
       persist ??
       ProgressPersistenceController(
@@ -51,7 +53,9 @@ Future<void> _pumpReading(
         ChangeNotifierProvider<ProgressPersistenceController>.value(
           value: persistence,
         ),
-        Provider<ProgressRestoreRecoveryController?>.value(value: null),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
+        ),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
       ],

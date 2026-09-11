@@ -703,6 +703,11 @@ void main() {
         ),
         throwsA(isA<ProgressRestoreJournalBlocked>()),
       );
+      await expectLater(
+        reloadedKana.markUnitLearned('blocked_unit'),
+        throwsA(isA<ProgressRestoreJournalBlocked>()),
+      );
+      expect(reloadedKana.isUnitLearned('blocked_unit'), isFalse);
 
       fake.failWriteOnAttempt.clear();
       await controller.retry();

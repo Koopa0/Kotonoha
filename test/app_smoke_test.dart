@@ -12,8 +12,11 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'support/restore_recovery_test_support.dart';
 
 Future<void> pumpApp(WidgetTester tester, {bool seedLearned = false}) async {
   // Use a phone-sized surface so lazily-built list items are all present.
@@ -50,6 +53,7 @@ Future<void> pumpApp(WidgetTester tester, {bool seedLearned = false}) async {
       words.statsHealth,
     ],
   );
+  final recovery = await idleRestoreRecovery();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -58,6 +62,9 @@ Future<void> pumpApp(WidgetTester tester, {bool seedLearned = false}) async {
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
         ChangeNotifierProvider<ProgressPersistenceController>.value(
           value: persistence,
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

@@ -8,17 +8,26 @@
 // surface state is reached deterministically.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
+import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
+import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/persistence_banner.dart';
 import 'package:provider/provider.dart';
+
+import '../services/fake_preferences_service.dart';
+import '../support/restore_recovery_test_support.dart';
 
 void main() {
   ProgressPersistenceController controllerWith({
@@ -41,13 +50,16 @@ void main() {
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final recovery = await idleRestoreRecovery();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: controller,
           ),
-          Provider<ProgressRestoreRecoveryController?>.value(value: null),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
+          ),
         ],
         child: MaterialApp(
           home: Builder(
@@ -190,13 +202,16 @@ void main() {
 
   testWidgets('the failure surface survives a route change', (tester) async {
     final controller = controllerWith();
+    final recovery = await idleRestoreRecovery();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: controller,
           ),
-          Provider<ProgressRestoreRecoveryController?>.value(value: null),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
+          ),
         ],
         // The banner lives in MaterialApp.builder, above the navigator — just
         // as production wires it — so it outlives the route that caused it.
@@ -276,6 +291,7 @@ void main() {
     tester.view.padding = const FakeViewPadding(top: 40);
     addTearDown(tester.view.reset);
     final controller = controllerWith();
+    final recovery = await idleRestoreRecovery();
     // Production-shaped: banner in MaterialApp.builder; the route below has its
     // own SafeArea and a top-aligned marker.
     await tester.pumpWidget(
@@ -284,7 +300,9 @@ void main() {
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: controller,
           ),
-          Provider<ProgressRestoreRecoveryController?>.value(value: null),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
+          ),
         ],
         child: MaterialApp(
           builder: (context, child) =>
@@ -373,6 +391,60 @@ void main() {
       },
     );
   }
+
+  Future<(ProgressRestoreRecoveryController, FakePreferencesService)>
+  blockingRecoverySetup() async {
+    final fake = FakePreferencesService();
+    final seeded = await KanaProgressRepository.load(fake);
+    await seeded.markUnitLearned('keep_me');
+    final before = {
+      for (final key in RestoreJournalStores.all) key: fake.durable[key],
+    };
+    fake.durable[ProgressSnapshotRepository.kanaStatsStore] =
+        '{"partial":true}';
+    fake.seed(
+      ProgressRestoreJournal.journalKey,
+      jsonEncode(<String, Object?>{
+        'phase': RestoreJournalPhase.applying.name,
+        'rollback': before,
+        'staging': <String, String>{
+          for (final key in RestoreJournalStores.all) key: '{"partial":true}',
+        },
+      }),
+    );
+    fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {2};
+    await ProgressRestoreJournal.recoverIfNeeded(fake);
+    final kana = await KanaProgressRepository.load(fake);
+    final kanji = await KanjiReadingRepository.load(fake);
+    final words = await WordProgressRepository.load(fake);
+    final recovery = ProgressRestoreRecoveryController(
+      prefs: fake,
+      kana: kana,
+      kanji: kanji,
+      words: words,
+      needsRecovery: true,
+    );
+    return (recovery, fake);
+  }
+
+  test('restore journal retry success clears needsRecovery', () async {
+    final (recovery, fake) = await blockingRecoverySetup();
+    expect(recovery.needsRecovery, isTrue);
+
+    fake.failWriteOnAttempt.clear();
+    await recovery.retry();
+
+    expect(recovery.needsRecovery, isFalse);
+  });
+
+  test('restore journal retry failure keeps needsRecovery', () async {
+    final (recovery, fake) = await blockingRecoverySetup();
+    fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {3};
+
+    await recovery.retry();
+
+    expect(recovery.needsRecovery, isTrue);
+  });
 
   test('recovery copy avoids proportion claims and expiring present tense', () {
     // salvaged must not assert a proportion, but still note the raw is kept.
