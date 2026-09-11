@@ -3,15 +3,17 @@
 
 import 'package:kotonoha/domain/models/reply_drill.dart';
 
-/// First-slice station replies: hear a Kyoto-station ask, name the intent,
-/// pick one short answer that fits the named situation. Original staff /
-/// passer-by turns. Reuses shipped T01 phrases or already-met station words;
-/// does not copy paid text and does not join the 黙読 / [TravelScene] pools.
+/// Station and clothing reply pools: hear a shop or station turn, name the
+/// intent, pick one short answer that fits the named situation. Original
+/// staff / passer-by turns. Reuses shipped T01 phrases or already-met scene
+/// words; does not copy paid text and does not join the 黙読 / [TravelScene]
+/// pools.
 ///
 /// Pure data: no `package:flutter/*` imports.
 const List<ReplyDrill> kReplyDrills = [
   ReplyDrill(
     id: 'reply:doko-e-iku',
+    scene: ReplySceneId.station,
     sceneZh: '檢票口。此行前往京都。',
     promptKana: 'どこへ いく',
     promptRomaji: 'doko e iku',
@@ -26,6 +28,7 @@ const List<ReplyDrill> kReplyDrills = [
   ),
   ReplyDrill(
     id: 'reply:eki-wa-doko',
+    scene: ReplySceneId.station,
     sceneZh: '改札在你右邊。',
     promptKana: 'えきは どこ',
     promptRomaji: 'eki wa doko',
@@ -40,6 +43,7 @@ const List<ReplyDrill> kReplyDrills = [
   ),
   ReplyDrill(
     id: 'reply:eki-wa-koko',
+    scene: ReplySceneId.station,
     sceneZh: '你站在車站門口。',
     promptKana: 'えきは どこ',
     promptRomaji: 'eki wa doko',
@@ -54,6 +58,7 @@ const List<ReplyDrill> kReplyDrills = [
   ),
   ReplyDrill(
     id: 'reply:koko-wa-eki',
+    scene: ReplySceneId.station,
     sceneZh: '你現在在車站。',
     promptKana: 'ここは えきですか',
     promptRomaji: 'koko wa eki desu ka',
@@ -66,4 +71,69 @@ const List<ReplyDrill> kReplyDrills = [
     replyWrongKana: ['みぎです', 'きょうとです'],
     requiredSeenIds: ['word:ここ', 'word:えき'],
   ),
+  ReplyDrill(
+    id: 'reply:fuku-chiisai-ookii',
+    scene: ReplySceneId.clothing,
+    sceneZh: '試衣間外還掛著大一號。',
+    promptKana: 'この ふくは ちいさい',
+    promptRomaji: 'kono fuku wa chiisai',
+    promptMeaning: '這件衣服太小',
+    intentCorrect: '說這件太小',
+    intentWrong: ['問價格貴不貴', '問要不要買'],
+    replyCorrectKana: 'おおきい おねがい',
+    replyCorrectRomaji: 'ookii onegai',
+    replyCorrectMeaning: '要大一號',
+    replyWrongKana: ['やすいです', 'はい'],
+    requiredSeenIds: ['phrase:この ふくは ちいさい', 'word:おおきい'],
+  ),
+  ReplyDrill(
+    id: 'reply:fuku-chiisai-kau',
+    scene: ReplySceneId.clothing,
+    sceneZh: '紅色只剩這一件。',
+    promptKana: 'この ふくは ちいさい',
+    promptRomaji: 'kono fuku wa chiisai',
+    promptMeaning: '這件衣服太小',
+    intentCorrect: '說這件太小',
+    intentWrong: ['問價格貴不貴', '問要不要買'],
+    replyCorrectKana: 'かいます',
+    replyCorrectRomaji: 'kaimasu',
+    replyCorrectMeaning: '我買',
+    replyWrongKana: ['やすいです', 'はい'],
+    requiredSeenIds: ['phrase:この ふくは ちいさい', 'word:かう'],
+  ),
+  ReplyDrill(
+    id: 'reply:takai-yasui',
+    scene: ReplySceneId.clothing,
+    sceneZh: '同一排有特價款。',
+    promptKana: 'たかい ですか',
+    promptRomaji: 'takai desu ka',
+    promptMeaning: '這個貴嗎',
+    intentCorrect: '問價格貴不貴',
+    intentWrong: ['說這件太小', '問要不要買'],
+    replyCorrectKana: 'やすいです',
+    replyCorrectRomaji: 'yasui desu',
+    replyCorrectMeaning: '有便宜的',
+    replyWrongKana: ['おおきい おねがい', 'はい'],
+    requiredSeenIds: ['word:たかい', 'word:やすい'],
+  ),
+  ReplyDrill(
+    id: 'reply:kau-masu-ka',
+    scene: ReplySceneId.clothing,
+    sceneZh: '你已挑好紅色那件。',
+    promptKana: 'かい ますか',
+    promptRomaji: 'kai masu ka',
+    promptMeaning: '要買嗎',
+    intentCorrect: '問要不要買',
+    intentWrong: ['說這件太小', '問價格貴不貴'],
+    replyCorrectKana: 'はい',
+    replyCorrectRomaji: 'hai',
+    replyCorrectMeaning: '要／好',
+    replyWrongKana: ['やすいです', 'おおきい おねがい'],
+    requiredSeenIds: ['word:かう', 'phrase:あかい ふくを かう'],
+  ),
+];
+
+List<ReplyDrill> replyDrillsFor(ReplySceneId scene) => [
+  for (final drill in kReplyDrills)
+    if (drill.scene == scene) drill,
 ];

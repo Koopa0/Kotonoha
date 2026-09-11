@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/domain/models/reply_drill.dart';
 import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/domain/use_cases/travel_scene.dart';
@@ -16,6 +17,7 @@ import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
+import 'package:kotonoha/ui/reply/reply_hub_screen.dart';
 import 'package:provider/provider.dart';
 
 /// Picker for travel purposes. Isolated from 渡し舟 / 黙読 / #48 精讀入口.
@@ -209,6 +211,21 @@ class TravelSceneHub extends StatelessWidget {
                 productName: AppStrings.listeningEntry,
                 kind: _ActionKind.outlined,
                 onPressed: () => _startListen(context),
+              ),
+            ],
+            if (scene == TravelSceneId.clothing) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply'),
+                label: AppStrings.replyAction,
+                productName: AppStrings.replyEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  ReplyHubScreen.route(
+                    scene: ReplySceneId.clothing,
+                    clock: clock,
+                  ),
+                ),
               ),
             ],
           ],

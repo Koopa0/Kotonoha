@@ -21,6 +21,7 @@ import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
+import 'package:kotonoha/ui/reply/reply_hub_screen.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:provider/provider.dart';
@@ -612,6 +613,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.listenFirstAction), findsNothing);
     expect(find.text(AppStrings.travelSceneAction), findsOneWidget);
+  });
+
+  testWidgets('transport hub does not surface the clothing reply door', (
+    tester,
+  ) async {
+    await pumpHub(tester, scene: TravelSceneId.transport);
+    expect(find.text(AppStrings.replyAction), findsNothing);
+  });
+
+  testWidgets('clothing hub opens the scoped reply room, not station copy', (
+    tester,
+  ) async {
+    await pumpHub(tester, scene: TravelSceneId.clothing);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyPurpose), findsNothing);
+    expect(find.text('えきは どこ'), findsNothing);
   });
 }
 

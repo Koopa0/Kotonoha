@@ -70,17 +70,27 @@ class ReplySessionView {
 abstract final class ReplySession {
   static const int length = 3;
 
-  static List<ReplyDrill> catalog([List<ReplyDrill>? drills]) =>
-      List<ReplyDrill>.unmodifiable(drills ?? kReplyDrills);
+  static List<ReplyDrill> catalog({
+    List<ReplyDrill>? drills,
+    ReplySceneId? scene,
+  }) {
+    final source = drills ?? kReplyDrills;
+    if (scene == null) return List<ReplyDrill>.unmodifiable(source);
+    return List<ReplyDrill>.unmodifiable([
+      for (final drill in source)
+        if (drill.scene == scene) drill,
+    ]);
+  }
 
   static ReplySessionView inspect({
     required Set<String> learnedChars,
     required Map<String, WordStat> stats,
     List<ReplyDrill>? drills,
+    ReplySceneId? scene,
     List<ReadingItem>? words,
     List<ReadingItem>? phrases,
   }) {
-    final all = catalog(drills);
+    final all = catalog(drills: drills, scene: scene);
     final readable = [
       for (final drill in all)
         if (_isReadable(drill, learnedChars)) drill,
@@ -116,13 +126,14 @@ abstract final class ReplySession {
     required Set<String> learnedChars,
     required Map<String, WordStat> stats,
     List<ReplyDrill>? drills,
+    ReplySceneId? scene,
     List<ReadingItem>? words,
     List<ReadingItem>? phrases,
   }) {
     final byId = _corpus(words: words, phrases: phrases);
     final seen = <String>{};
     final items = <ReadingItem>[];
-    for (final drill in catalog(drills)) {
+    for (final drill in catalog(drills: drills, scene: scene)) {
       if (!_isReadable(drill, learnedChars)) continue;
       for (final id in drill.requiredSeenIds) {
         if (stats[id]?.isSeen ?? false) continue;
@@ -142,12 +153,14 @@ abstract final class ReplySession {
     required Set<String> learnedChars,
     required Map<String, WordStat> stats,
     List<ReplyDrill>? drills,
+    ReplySceneId? scene,
     List<ReadingItem>? words,
     List<ReadingItem>? phrases,
   }) => unreadRequired(
     learnedChars: learnedChars,
     stats: stats,
     drills: drills,
+    scene: scene,
     words: words,
     phrases: phrases,
   ).whereType<Word>().toList();
@@ -156,12 +169,14 @@ abstract final class ReplySession {
     required Set<String> learnedChars,
     required Map<String, WordStat> stats,
     List<ReplyDrill>? drills,
+    ReplySceneId? scene,
     List<ReadingItem>? words,
     List<ReadingItem>? phrases,
   }) => unreadRequired(
     learnedChars: learnedChars,
     stats: stats,
     drills: drills,
+    scene: scene,
     words: words,
     phrases: phrases,
   ).where((item) => item.progressId.startsWith('phrase:')).toList();
@@ -201,10 +216,11 @@ abstract final class ReplySession {
     required Random rng,
     Map<String, WordStat> stats = const {},
     List<ReplyDrill>? drills,
+    ReplySceneId? scene,
     int sessionLength = length,
   }) {
     final ready = [
-      for (final drill in catalog(drills))
+      for (final drill in catalog(drills: drills, scene: scene))
         if (_isReadable(drill, learnedChars) && _isMet(drill, stats)) drill,
     ];
     if (ready.isEmpty) return const [];
