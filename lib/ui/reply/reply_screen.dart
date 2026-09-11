@@ -354,6 +354,9 @@ class _ReplyScreenState extends State<ReplyScreen> {
         ? switch (widget.scene) {
             ReplySceneId.station => AppStrings.replyIntentPrompt,
             ReplySceneId.clothing => AppStrings.replyClothingIntentPrompt,
+            ReplySceneId.shrine => AppStrings.replyShrineIntentPrompt,
+            ReplySceneId.parkQueue => AppStrings.replyParkIntentPrompt,
+            ReplySceneId.help => AppStrings.replyHelpIntentPrompt,
           }
         : AppStrings.replyReplyPrompt;
     return Column(

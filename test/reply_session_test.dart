@@ -31,10 +31,16 @@ void main() {
         for (final id in drill.requiredSeenIds) {
           expect(corpus.where((item) => item.progressId == id), hasLength(1));
         }
-        expect(
-          drill.requiredSeenIds,
-          isNot(contains('phrase:${drill.replyCorrectKana}')),
+        final replyPhraseId = 'phrase:${drill.replyCorrectKana}';
+        final replyIsShippedPhrase = kPhrases.any(
+          (p) => p.progressId == replyPhraseId,
         );
+        if (!replyIsShippedPhrase) {
+          expect(
+            drill.requiredSeenIds,
+            isNot(contains(replyPhraseId)),
+          );
+        }
       }
       expect(
         kReplyDrills
@@ -111,6 +117,9 @@ void main() {
   test('scene text is background only and does not translate the ask', () {
     const stationLeaks = ['問你', '要去哪', '問路', '車站在哪', '是不是車站', '這裡是車站嗎'];
     const clothingLeaks = ['這件太小', '價格貴', '要不要買', '這個貴嗎', '要買嗎'];
+    const shrineLeaks = ['問神社', '走進安靜', '請稍等', '在入口排隊'];
+    const parkLeaks = ['在入口排隊', '請稍等一下', '聽不清楚'];
+    const helpLeaks = ['聽不清楚', '說得太快', '再說一次', '說慢一點'];
     for (final drill in kReplyDrills) {
       expect(
         drill.sceneZh,
@@ -122,9 +131,13 @@ void main() {
         isNot(contains(drill.promptMeaning)),
         reason: drill.id,
       );
-      final leaks = drill.scene == ReplySceneId.station
-          ? stationLeaks
-          : clothingLeaks;
+      final leaks = switch (drill.scene) {
+        ReplySceneId.station => stationLeaks,
+        ReplySceneId.clothing => clothingLeaks,
+        ReplySceneId.shrine => shrineLeaks,
+        ReplySceneId.parkQueue => parkLeaks,
+        ReplySceneId.help => helpLeaks,
+      };
       for (final leak in leaks) {
         expect(
           drill.sceneZh,
@@ -142,6 +155,11 @@ void main() {
     expect(byId['reply:takai-yasui']!.sceneZh, contains('覺得'));
     expect(byId['reply:fuku-chiisai-kau']!.sceneZh, contains('帶走'));
     expect(byId['reply:kau-masu-ka']!.sceneZh, contains('紅色'));
+    expect(byId['reply:jinjia-hidari']!.sceneZh, contains('左'));
+    expect(byId['reply:shizuka-hai']!.sceneZh, contains('聲音'));
+    expect(byId['reply:iriguchi-narabu']!.sceneZh, contains('隊'));
+    expect(byId['reply:help-repeat']!.sceneZh, contains('聽清楚'));
+    expect(byId['reply:help-slow']!.sceneZh, contains('語速'));
   });
 
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
@@ -333,6 +351,123 @@ void main() {
         'word:かう',
         'word:たかい',
         'word:やすい',
+      }),
+    );
+  });
+
+  test('shrine compose stays in the shrine pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.shrine))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(5),
+      stats: stats,
+      scene: ReplySceneId.shrine,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.shrine});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'じんじゃは どこ',
+      'しずかな てらに はいる',
+    });
+    expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
+  });
+
+  test('park compose stays in the park pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.parkQueue))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(6),
+      stats: stats,
+      scene: ReplySceneId.parkQueue,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.parkQueue});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'いりぐちで ならぶ',
+      'ちょっと まってください',
+    });
+  });
+
+  test('help compose stays in the help pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.help))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(7),
+      stats: stats,
+      scene: ReplySceneId.help,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.help});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'これは なに',
+      'いま なんじ',
+    });
+    expect(session.map((d) => d.replyCorrectKana), isNot(contains('はい')));
+  });
+
+  test('help-slow waits for ゆっくり before a scored slow reply', () {
+    final stats = {'phrase:いま なんじ': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.help,
+    );
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.canMeet, isTrue);
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:ゆっくり'));
+  });
+
+  test('shrine unreadRequired never pulls station or clothing phrases', () {
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: const {},
+      scene: ReplySceneId.shrine,
+    );
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:えきは どこ')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:この ふくは ちいさい')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({
+        'phrase:じんじゃは どこ',
+        'phrase:しずかな てらに はいる',
+        'word:ひだり',
+      }),
+    );
+  });
+
+  test('park unreadRequired never pulls shrine phrases', () {
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: const {},
+      scene: ReplySceneId.parkQueue,
+    );
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:じんじゃは どこ')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({
+        'phrase:いりぐちで ならぶ',
+        'phrase:ちょっと まってください',
       }),
     );
   });

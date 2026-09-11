@@ -318,16 +318,36 @@ abstract final class AppStrings {
   static const String replyPurpose = '這一回只練車站裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyClothingPurpose =
       '這一回只練購衣時聽懂店員在說什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyShrinePurpose =
+      '這一回只練參道與神社裡聽懂對方在說什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyParkPurpose =
+      '這一回只練排隊入口聽懂工作人員在說什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyHelpPurpose =
+      '這一回只練聽不懂時怎麼請對方再說或說慢一點。選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
   static const String replyClothingMeetHint =
       '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyShrineMeetHint =
+      '還沒見過的神社詞句,先見面;見過的才聽對方再回應。';
+  static const String replyParkMeetHint =
+      '還沒見過的排隊詞句,先見面;見過的才聽對方再回應。';
+  static const String replyHelpMeetHint =
+      '還沒見過的求助詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
   static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
   static const String replyStartAction = '開始這一回';
   static const String replyMeetTitle = '車站・見面';
   static const String replyClothingMeetTitle = '購衣・見面';
+  static const String replyShrineMeetTitle = '神社・見面';
+  static const String replyParkMeetTitle = '排隊・見面';
+  static const String replyHelpMeetTitle = '求助・見面';
+  static const String replyHelpAction = '聽不懂請對方配合';
+  static const String replyHelpEntry = '困ったとき';
   static const String replyIntentPrompt = '對方在問什麼?';
   static const String replyClothingIntentPrompt = '對方在說什麼?';
+  static const String replyShrineIntentPrompt = '對方在說什麼?';
+  static const String replyParkIntentPrompt = '對方在說什麼?';
+  static const String replyHelpIntentPrompt = '你遇到什麼狀況?';
   static const String replyReplyPrompt = '你要怎麼回?';
   static const String replyHint = '看意思提示';
   static const String replyShowText = '看日文';

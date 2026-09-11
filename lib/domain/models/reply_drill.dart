@@ -3,7 +3,7 @@
 
 /// Which travel slice a reply room draws from. Isolated from [TravelSceneId]
 /// membership — only scopes [ReplyDrill] pools and hub copy.
-enum ReplySceneId { station, clothing }
+enum ReplySceneId { station, clothing, shrine, parkQueue, help }
 
 /// One exchange: hear the other person, name their intent, pick a short reply.
 /// Not a [ReadingItem] and not a 黙読 / travel-scene member.

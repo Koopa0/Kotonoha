@@ -38,16 +38,25 @@ class ReplyHubScreen extends StatelessWidget {
   String get _purpose => switch (scene) {
     ReplySceneId.station => AppStrings.replyPurpose,
     ReplySceneId.clothing => AppStrings.replyClothingPurpose,
+    ReplySceneId.shrine => AppStrings.replyShrinePurpose,
+    ReplySceneId.parkQueue => AppStrings.replyParkPurpose,
+    ReplySceneId.help => AppStrings.replyHelpPurpose,
   };
 
   String get _meetHint => switch (scene) {
     ReplySceneId.station => AppStrings.replyMeetHint,
     ReplySceneId.clothing => AppStrings.replyClothingMeetHint,
+    ReplySceneId.shrine => AppStrings.replyShrineMeetHint,
+    ReplySceneId.parkQueue => AppStrings.replyParkMeetHint,
+    ReplySceneId.help => AppStrings.replyHelpMeetHint,
   };
 
   String get _meetTitle => switch (scene) {
     ReplySceneId.station => AppStrings.replyMeetTitle,
     ReplySceneId.clothing => AppStrings.replyClothingMeetTitle,
+    ReplySceneId.shrine => AppStrings.replyShrineMeetTitle,
+    ReplySceneId.parkQueue => AppStrings.replyParkMeetTitle,
+    ReplySceneId.help => AppStrings.replyHelpMeetTitle,
   };
 
   Set<String> _learnedChars(BuildContext context) =>
