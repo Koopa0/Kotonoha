@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -133,14 +135,26 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
         lane: plan.lane,
         beats: plan.beats,
         firstUnseen: plan.firstUnseen,
-        onMore: () => _again(drill, sourceUrl, requested),
+        onMore: () => unawaited(_again(drill, sourceUrl, requested)),
       ),
     );
     if (mounted) await _reload();
   }
 
-  void _again(ShiftDrill drill, String sourceUrl, ShiftLane requested) {
+  Future<void> _again(
+    ShiftDrill drill,
+    String sourceUrl,
+    ShiftLane requested,
+  ) async {
+    final log = context.read<AnalyticsLog>();
+    if (log.unpersistedCount > 0) {
+      await log.flushPending().catchError((_) {});
+    }
+    final all = await log.all();
+    if (!mounted) return;
+    setState(() => _attempts = all);
     final plan = _plan(drill, requested: requested);
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       ShiftPracticeScreen.route(
         drill,
@@ -149,7 +163,7 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
         lane: plan.lane,
         beats: plan.beats,
         firstUnseen: plan.firstUnseen,
-        onMore: () => _again(drill, sourceUrl, requested),
+        onMore: () => unawaited(_again(drill, sourceUrl, requested)),
       ),
     );
   }

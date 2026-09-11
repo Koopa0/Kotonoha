@@ -339,6 +339,56 @@ void main() {
     expect(find.text(AppStrings.shiftReviewStart), findsOneWidget);
     expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
     expect(find.text('あおい うみ'), findsNothing);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftFocusScreen(
+          clock: () => DateTime(2026, 9, 11),
+          attempts: await analytics.all(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.shiftSightUnknown), findsWidgets);
+    expect(find.text(AppStrings.shiftReviewStart), findsOneWidget);
+    expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
+    expect(find.text('あおい うみ'), findsNothing);
+  });
+
+  testWidgets('day 1 confirm More uses fresh history as already shown review', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    var now = DateTime(2026, 9, 10, 10);
+    await analytics.record(
+      ShiftSession.reservation(drill: drill, sessionId: 'h', at: now),
+    );
+    now = DateTime(2026, 9, 11, 12);
+    await expand(tester);
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftFocusScreen(clock: () => now),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftConfirmStart));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.shiftFirstUnseen), findsWidgets);
+
+    await _completeBeat(tester, unprompted: false);
+    expect(find.text(AppStrings.shiftClose), findsOneWidget);
+    expect(find.text(AppStrings.shiftAlreadyShown), findsNothing);
+
+    await tester.tap(find.text(AppStrings.practiceAgain));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
+    expect(find.text(AppStrings.shiftReviewOnly), findsWidgets);
+    expect(find.text('あおい うみ'), findsOneWidget);
   });
 }
 

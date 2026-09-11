@@ -355,6 +355,44 @@ void main() {
     expect(plan.noUnseenVariant, isTrue);
   });
 
+  test('legacy unknown stays unknown after menu preview on the other beat', () {
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    final legacy = Attempt(
+      ts: DateTime(2026, 9, 1).millisecondsSinceEpoch,
+      itemId: ShiftSession.itemId(drill, ShiftBeat.base),
+      itemType: ItemType.shift,
+      mode: PracticeMode.shift.name,
+      correct: true,
+      sessionId: 'old',
+      meta: const {
+        AttemptMeta.prompted: false,
+        AttemptMeta.evidence: 'read',
+        AttemptMeta.beat: 'base',
+        AttemptMeta.drill: 'i-adj-aoi-noun',
+        AttemptMeta.focus: 'adj-mod',
+      },
+    );
+    final preview = ShiftSession.sighting(
+      drill: drill,
+      beat: ShiftBeat.base,
+      kind: ShiftSightKind.preview,
+      sessionId: 'p',
+      at: DateTime(2026, 9, 11),
+    );
+    expect(
+      ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: [legacy, preview]),
+      ShiftSight.unknown,
+    );
+    final plan = ShiftSession.plan(
+      drill: drill,
+      now: DateTime(2026, 9, 11),
+      attempts: [legacy, preview],
+    );
+    expect(plan.lane, ShiftLane.review);
+    expect(plan.firstUnseen, isFalse);
+    expect(plan.noUnseenVariant, isTrue);
+  });
+
   test('seen pair is an old-sentence review, not a new item', () {
     final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
     final at = DateTime(2026, 9, 10);

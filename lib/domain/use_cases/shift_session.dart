@@ -208,14 +208,19 @@ abstract final class ShiftSession {
         if (forDrill(attempt, drill.id)) attempt,
     ];
     var sawBeat = false;
-    var protocolKnown = false;
+    var hasLegacy = false;
+    var beatProtocol = false;
+    var anyProtocol = false;
     for (final attempt in mine) {
-      if (_hasProtocolMeta(attempt)) protocolKnown = true;
+      if (_isLegacyRow(attempt)) hasLegacy = true;
+      if (_hasProtocolMeta(attempt)) anyProtocol = true;
+      if (_hasBeatProtocol(attempt, beat)) beatProtocol = true;
       if (_exposes(attempt, beat)) sawBeat = true;
     }
     if (sawBeat) return ShiftSight.seen;
     if (mine.isEmpty) return ShiftSight.unseen;
-    if (protocolKnown) return ShiftSight.unseen;
+    if (hasLegacy && !beatProtocol) return ShiftSight.unknown;
+    if (beatProtocol || anyProtocol) return ShiftSight.unseen;
     return ShiftSight.unknown;
   }
 
@@ -388,10 +393,15 @@ abstract final class ShiftSession {
     return rows;
   }
 
+  static bool _isLegacyRow(Attempt attempt) => !_hasProtocolMeta(attempt);
+
   static bool _hasProtocolMeta(Attempt attempt) =>
       attempt.meta.containsKey(AttemptMeta.sight) ||
       attempt.meta.containsKey(AttemptMeta.lane) ||
       attempt.meta.containsKey(AttemptMeta.holdUntil);
+
+  static bool _hasBeatProtocol(Attempt attempt, ShiftBeat beat) =>
+      _hasProtocolMeta(attempt) && _beatOf(attempt) == beat;
 
   static bool _exposes(Attempt attempt, ShiftBeat beat) {
     if (_beatOf(attempt) != beat) return false;
