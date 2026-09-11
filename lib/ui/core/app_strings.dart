@@ -237,11 +237,17 @@ abstract final class AppStrings {
   static const String travelSceneClothing = '購衣';
   static const String travelSceneShrine = '神社古城';
   static const String travelSceneParkQueue = '一般入園／排隊／求助';
+  static const String travelSceneRestaurant = '餐廳';
+  static const String travelSceneConvenience = '便利商店';
   static const String travelScenePurposeTransport = '這一回只練車站、電車、轉乘與行李。';
   static const String travelScenePurposeClothing = '這一回只練衣服尺寸、價錢與購買。';
   static const String travelScenePurposeShrine = '這一回只練神社、寺院與古城的方向、進出與風景。';
   static const String travelScenePurposeParkQueue =
       '這一回只練一般遊樂園的入口、排隊與當場求助。不定活動檔期。';
+  static const String travelScenePurposeRestaurant =
+      '這一回只練人數、點餐與請結帳。不定推薦或真實付款。';
+  static const String travelScenePurposeConvenience =
+      '這一回只練袋子、加熱與結帳時的基本意思。不定即時價格。';
   static const String travelSceneMeetAction = '先見面';
   static const String travelSceneRecallAction = '回想';
   static const String travelSceneListenAction = '先聽再揭曉';
@@ -318,14 +324,21 @@ abstract final class AppStrings {
   static const String replyPurpose = '這一回只練車站裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyClothingPurpose =
       '這一回只練購衣時聽懂店員在說什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyRestaurantPurpose =
+      '這一回只練餐廳裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyConveniencePurpose =
+      '這一回只練便利商店裡聽懂店員在問什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
-  static const String replyClothingMeetHint =
-      '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyRestaurantMeetHint = '還沒見過的餐廳詞句,先見面;見過的才聽對方再回應。';
+  static const String replyConvenienceMeetHint = '還沒見過的便利商店詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
   static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
   static const String replyStartAction = '開始這一回';
   static const String replyMeetTitle = '車站・見面';
   static const String replyClothingMeetTitle = '購衣・見面';
+  static const String replyRestaurantMeetTitle = '餐廳・見面';
+  static const String replyConvenienceMeetTitle = '便利商店・見面';
   static const String replyIntentPrompt = '對方在問什麼?';
   static const String replyClothingIntentPrompt = '對方在說什麼?';
   static const String replyReplyPrompt = '你要怎麼回?';

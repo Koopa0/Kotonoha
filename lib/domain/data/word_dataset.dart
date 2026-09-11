@@ -955,6 +955,25 @@ const List<Word> kWords = <Word>[
     theme: ContentTheme.daily,
   ),
   Word(
+    kana: 'ひとり',
+    romaji: 'hitori',
+    meaning: '一個人',
+    theme: ContentTheme.daily,
+  ),
+  Word(
+    kana: 'ふたり',
+    romaji: 'futari',
+    meaning: '兩個人',
+    theme: ContentTheme.daily,
+  ),
+  Word(kana: 'ふくろ', romaji: 'fukuro', meaning: '袋子', theme: ContentTheme.daily),
+  Word(
+    kana: 'あたためる',
+    romaji: 'atatameru',
+    meaning: '加熱',
+    theme: ContentTheme.daily,
+  ),
+  Word(
     kana: 'うけつけ',
     romaji: 'uketsuke',
     meaning: '櫃檯、受理',

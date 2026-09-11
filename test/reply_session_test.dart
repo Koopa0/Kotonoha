@@ -111,6 +111,8 @@ void main() {
   test('scene text is background only and does not translate the ask', () {
     const stationLeaks = ['問你', '要去哪', '問路', '車站在哪', '是不是車站', '這裡是車站嗎'];
     const clothingLeaks = ['這件太小', '價格貴', '要不要買', '這個貴嗎', '要買嗎'];
+    const restaurantLeaks = ['問來了幾個人', '問要點什麼', '問還要不要別的', '幾個人', '要點什麼'];
+    const convenienceLeaks = ['問要不要袋子', '問要不要加熱', '問可不可以結帳', '需要袋子嗎', '要加熱嗎'];
     for (final drill in kReplyDrills) {
       expect(
         drill.sceneZh,
@@ -122,9 +124,12 @@ void main() {
         isNot(contains(drill.promptMeaning)),
         reason: drill.id,
       );
-      final leaks = drill.scene == ReplySceneId.station
-          ? stationLeaks
-          : clothingLeaks;
+      final leaks = switch (drill.scene) {
+        ReplySceneId.station => stationLeaks,
+        ReplySceneId.clothing => clothingLeaks,
+        ReplySceneId.restaurant => restaurantLeaks,
+        ReplySceneId.convenience => convenienceLeaks,
+      };
       for (final leak in leaks) {
         expect(
           drill.sceneZh,
@@ -142,6 +147,10 @@ void main() {
     expect(byId['reply:takai-yasui']!.sceneZh, contains('覺得'));
     expect(byId['reply:fuku-chiisai-kau']!.sceneZh, contains('帶走'));
     expect(byId['reply:kau-masu-ka']!.sceneZh, contains('紅色'));
+    expect(byId['reply:nannin-hitori']!.sceneZh, contains('只坐你'));
+    expect(byId['reply:nannin-futari']!.sceneZh, contains('同行入座'));
+    expect(byId['reply:fukuro-hai']!.sceneZh, contains('沒有'));
+    expect(byId['reply:atatame-iie']!.sceneZh, contains('以後'));
   });
 
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
@@ -310,6 +319,105 @@ void main() {
       'かい ますか',
     });
     expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
+  });
+
+  test('なんにん ですか scenes split ひとりです and ふたりです', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.restaurant))
+        drill.id: drill,
+    };
+    final one = byId['reply:nannin-hitori']!;
+    final two = byId['reply:nannin-futari']!;
+    expect(one.promptKana, 'なんにん ですか');
+    expect(two.promptKana, 'なんにん ですか');
+    expect(one.replyCorrectKana, 'ひとりです');
+    expect(two.replyCorrectKana, 'ふたりです');
+    expect(one.replyWrongKana, isNot(contains('ふたりです')));
+    expect(two.replyWrongKana, isNot(contains('ひとりです')));
+    expect(one.requiredSeenIds, containsAll(['phrase:なんにん ですか', 'word:ひとり']));
+    expect(two.requiredSeenIds, containsAll(['phrase:なんにん ですか', 'word:ふたり']));
+  });
+
+  test('restaurant compose stays in the restaurant pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.restaurant))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(2),
+      stats: stats,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(session, hasLength(3));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.restaurant});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'なんにん ですか',
+      'なにに しますか',
+      'ほかに よろしいですか',
+    });
+    expect(session.map((d) => d.promptKana), isNot(contains('ふくろは いりますか')));
+    expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
+  });
+
+  test('ふくろは いりますか scenes split はい and いいえ', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        drill.id: drill,
+    };
+    final yes = byId['reply:fukuro-hai']!;
+    final no = byId['reply:fukuro-iie']!;
+    expect(yes.promptKana, 'ふくろは いりますか');
+    expect(no.promptKana, 'ふくろは いりますか');
+    expect(yes.replyCorrectKana, 'はい');
+    expect(no.replyCorrectKana, 'いいえ');
+    expect(yes.sceneZh, contains('沒有'));
+    expect(no.sceneZh, contains('自己帶了'));
+    expect(yes.requiredSeenIds, containsAll(['phrase:ふくろは いりますか', 'word:ふくろ']));
+  });
+
+  test('convenience compose stays in the convenience pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(2),
+      stats: stats,
+      scene: ReplySceneId.convenience,
+    );
+    expect(session, hasLength(3));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.convenience});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'ふくろは いりますか',
+      'あたためますか',
+      'これで よろしいですか',
+    });
+    expect(session.map((d) => d.promptKana), isNot(contains('なんにん ですか')));
+  });
+
+  test('restaurant unreadRequired never pulls convenience phrases', () {
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: const {},
+      scene: ReplySceneId.restaurant,
+    );
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:ふくろは いりますか')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({
+        'phrase:なんにん ですか',
+        'phrase:なにに しますか',
+        'word:ひとり',
+        'word:ごはん',
+        'word:かいけい',
+      }),
+    );
   });
 
   test('clothing unreadRequired never pulls station phrases', () {

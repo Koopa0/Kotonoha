@@ -58,6 +58,10 @@ void main() {
     expect(pools[TravelSceneId.shrine], contains('phrase:ふるい おしろが みえる'));
     expect(pools[TravelSceneId.parkQueue], contains('phrase:いりぐちで ならぶ'));
     expect(pools[TravelSceneId.parkQueue], contains('phrase:たすけて ください'));
+    expect(pools[TravelSceneId.restaurant], contains('phrase:なんにん ですか'));
+    expect(pools[TravelSceneId.restaurant], contains('phrase:かいけいを おねがい'));
+    expect(pools[TravelSceneId.convenience], contains('phrase:ふくろは いりますか'));
+    expect(pools[TravelSceneId.convenience], contains('phrase:あたためますか'));
     for (final kana in const [
       'じんじゃは どこ',
       'しずかな てらに はいる',
@@ -67,6 +71,12 @@ void main() {
       'いりぐちで ならぶ',
       'にもつは だいじょうぶ',
       'たすけて ください',
+      'なんにん ですか',
+      'ごはんを ください',
+      'かいけいを おねがい',
+      'ふくろは いりますか',
+      'あたためますか',
+      'あたためて ください',
     ]) {
       expect(kPhrases.where((p) => p.kana == kana), hasLength(1), reason: kana);
     }
@@ -320,6 +330,11 @@ void main() {
       ListeningSession.t01ProgressIds,
       isNot(contains('phrase:たすけて ください')),
     );
+    expect(ListeningSession.t01ProgressIds, isNot(contains('phrase:なんにん ですか')));
+    expect(
+      ListeningSession.t01ProgressIds,
+      isNot(contains('phrase:ふくろは いりますか')),
+    );
   });
 
   test('partial あ行・さ行 opens shrine いし, not park まつ', () {
@@ -465,4 +480,189 @@ void main() {
       isNot(equals(b.map((i) => i.progressId).toList())),
     );
   });
+
+  test('partial さ行 opens restaurant すし, not convenience ふくろ', () {
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    final restaurant = TravelScene.inspect(
+      scene: TravelSceneId.restaurant,
+      learnedChars: aSa,
+      stats: const {},
+    );
+    final convenience = TravelScene.inspect(
+      scene: TravelSceneId.convenience,
+      learnedChars: aSa,
+      stats: const {},
+    );
+    expect(restaurant.readable.map((i) => i.progressId), ['word:すし']);
+    expect(restaurant.canMeet, isTrue);
+    expect(restaurant.canRecall, isFalse);
+    expect(convenience.readable, isEmpty);
+    expect(convenience.needsKanaFirst, isTrue);
+    expect(convenience.canMeet, isFalse);
+  });
+
+  test('partial は行・か行・ら行 opens convenience ふくろ, not restaurant すし', () {
+    final haKaRa = {
+      'か',
+      'き',
+      'く',
+      'け',
+      'こ',
+      'は',
+      'ひ',
+      'ふ',
+      'へ',
+      'ほ',
+      'ら',
+      'り',
+      'る',
+      'れ',
+      'ろ',
+    };
+    final restaurant = TravelScene.inspect(
+      scene: TravelSceneId.restaurant,
+      learnedChars: haKaRa,
+      stats: const {},
+    );
+    final convenience = TravelScene.inspect(
+      scene: TravelSceneId.convenience,
+      learnedChars: haKaRa,
+      stats: const {},
+    );
+    expect(convenience.readable.map((i) => i.progressId), ['word:ふくろ']);
+    expect(convenience.canMeet, isTrue);
+    expect(restaurant.readable, isEmpty);
+    expect(restaurant.needsKanaFirst, isTrue);
+  });
+
+  test('restaurant and convenience intros stay inside the scene', () {
+    final stats = <String, WordStat>{};
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    final restaurantWords = TravelScene.composeIntroWords(
+      scene: TravelSceneId.restaurant,
+      learnedChars: aSa,
+      rng: Random(1),
+      now: now,
+      stats: stats,
+    );
+    expect(restaurantWords.map((w) => w.progressId), ['word:すし']);
+    expect(stats, isEmpty);
+
+    final haKaRa = {
+      'か',
+      'き',
+      'く',
+      'け',
+      'こ',
+      'は',
+      'ひ',
+      'ふ',
+      'へ',
+      'ほ',
+      'ら',
+      'り',
+      'る',
+      'れ',
+      'ろ',
+    };
+    final convenienceWords = TravelScene.composeIntroWords(
+      scene: TravelSceneId.convenience,
+      learnedChars: haKaRa,
+      rng: Random(1),
+      now: now,
+      stats: stats,
+    );
+    expect(convenienceWords.map((w) => w.progressId), ['word:ふくろ']);
+    expect(
+      convenienceWords.map((w) => w.progressId),
+      isNot(contains('word:すし')),
+    );
+    expect(stats, isEmpty);
+  });
+
+  test('returning restaurant learner does not unlock convenience recall', () {
+    final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+    final stats = {'word:すし': seenAt()};
+    final restaurant = TravelScene.inspect(
+      scene: TravelSceneId.restaurant,
+      learnedChars: aSa,
+      stats: stats,
+    );
+    final convenience = TravelScene.inspect(
+      scene: TravelSceneId.convenience,
+      learnedChars: aSa,
+      stats: stats,
+    );
+    expect(restaurant.canRecall, isTrue);
+    expect(restaurant.canListen, isTrue);
+    expect(restaurant.canMeet, isFalse);
+    expect(convenience.canRecall, isFalse);
+    expect(convenience.canMeet, isFalse);
+    final review = TravelScene.composeReview(
+      scene: TravelSceneId.restaurant,
+      learnedChars: aSa,
+      rng: Random(2),
+      now: now,
+      stats: stats,
+    );
+    expect(review.map((i) => i.progressId), ['word:すし']);
+    expect(review.map((i) => i.progressId), isNot(contains('word:ふくろ')));
+  });
+
+  test(
+    'spent restaurant すし pool has no more intro; leftover kana still does',
+    () {
+      final aSa = {'あ', 'い', 'う', 'え', 'お', 'さ', 'し', 'す', 'せ', 'そ'};
+      expect(
+        TravelScene.hasMoreIntro(
+          scene: TravelSceneId.restaurant,
+          learnedChars: aSa,
+          rng: Random(7),
+          now: now,
+          stats: {'word:すし': seenAt()},
+        ),
+        isFalse,
+      );
+      expect(
+        TravelScene.hasMoreIntro(
+          scene: TravelSceneId.restaurant,
+          learnedChars: allChars,
+          rng: Random(8),
+          now: now,
+          sessionLength: 1,
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'familiar restaurant still shuffles; two seeds are not a fixed face',
+    () {
+      final seen = {
+        for (final id in TravelScene.progressIds[TravelSceneId.restaurant]!)
+          id: seenAt(),
+      };
+      final a = TravelScene.composeReview(
+        scene: TravelSceneId.restaurant,
+        learnedChars: allChars,
+        rng: Random(11),
+        now: now,
+        stats: seen,
+      );
+      final b = TravelScene.composeReview(
+        scene: TravelSceneId.restaurant,
+        learnedChars: allChars,
+        rng: Random(29),
+        now: now,
+        stats: seen,
+      );
+      expect(a, isNotEmpty);
+      expect(b, isNotEmpty);
+      expect(
+        a.map((i) => i.progressId).toList(),
+        isNot(equals(b.map((i) => i.progressId).toList())),
+      );
+    },
+  );
 }

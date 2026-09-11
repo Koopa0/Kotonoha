@@ -44,12 +44,8 @@ class ReplyScreen extends StatefulWidget {
     DateTime Function()? clock,
     VoidCallback? onMore,
   }) => MaterialPageRoute<void>(
-    builder: (_) => ReplyScreen(
-      drills: drills,
-      scene: scene,
-      clock: clock,
-      onMore: onMore,
-    ),
+    builder: (_) =>
+        ReplyScreen(drills: drills, scene: scene, clock: clock, onMore: onMore),
     settings: const RouteSettings(name: 'reply-practice'),
   );
 
@@ -353,7 +349,9 @@ class _ReplyScreenState extends State<ReplyScreen> {
     final prompt = _beat == _Beat.intent
         ? switch (widget.scene) {
             ReplySceneId.station => AppStrings.replyIntentPrompt,
-            ReplySceneId.clothing => AppStrings.replyClothingIntentPrompt,
+            ReplySceneId.clothing ||
+            ReplySceneId.restaurant ||
+            ReplySceneId.convenience => AppStrings.replyClothingIntentPrompt,
           }
         : AppStrings.replyReplyPrompt;
     return Column(

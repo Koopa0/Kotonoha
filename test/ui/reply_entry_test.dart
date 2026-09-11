@@ -39,7 +39,7 @@ void main() {
     final words = await WordProgressRepository.load();
     final kanji = await KanjiReadingRepository.load();
     final analytics = InMemoryAnalyticsLog();
-    await tester.binding.setSurfaceSize(const Size(420, 2800));
+    await tester.binding.setSurfaceSize(const Size(420, 3200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MultiProvider(
@@ -100,6 +100,10 @@ void main() {
     expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
     await tester.ensureVisible(find.text(AppStrings.travelSceneParkQueue));
     expect(find.text(AppStrings.travelSceneParkQueue), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.travelSceneRestaurant));
+    expect(find.text(AppStrings.travelSceneRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneConvenience), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeRestaurant), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
 
