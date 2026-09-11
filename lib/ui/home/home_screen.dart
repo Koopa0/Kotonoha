@@ -437,6 +437,7 @@ class HomeScreen extends StatelessWidget {
         alreadyTransferredIds: excludeProgressIds,
         onAgain: () =>
             _againDaily(context, quiet: quiet, excludeProgressIds: nextExclude),
+        onFinished: _travelBoostOnFinish(context),
       ),
     );
   }
@@ -473,6 +474,7 @@ class HomeScreen extends StatelessWidget {
         alreadyTransferredIds: excludeProgressIds,
         onAgain: () =>
             _againDaily(context, quiet: quiet, excludeProgressIds: nextExclude),
+        onFinished: _travelBoostOnFinish(context),
       ),
     );
   }
@@ -752,6 +754,12 @@ class HomeScreen extends StatelessWidget {
           productName: _travelHeroProduct(step),
           onPressed: () => _openTravelHero(context, step),
         ),
+        _HeroAction(
+          action: AppStrings.travelPrepSkipAction,
+          productName: AppStrings.travelFocusEntry,
+          kind: _HeroKind.text,
+          onPressed: () => _skipTravelStep(context, step),
+        ),
         if (dailyReady) ...[
           _HeroAction(
             action: AppStrings.quietPracticeAction,
@@ -855,7 +863,6 @@ class HomeScreen extends StatelessWidget {
   void _openTravelHero(BuildContext context, GuidanceStep step) {
     switch (step.target) {
       case GuidanceTarget.daily:
-        _markTravelBoost(context);
         _startDaily(context);
       case GuidanceTarget.travelMeet:
         _startTravelMeet(context, step);
@@ -882,7 +889,7 @@ class HomeScreen extends StatelessWidget {
       context,
       scene: scene,
       clock: clock,
-      onStarted: () => _markTravelServed(context, scene),
+      onFinished: () => _markTravelServed(context, scene),
     );
   }
 
@@ -893,7 +900,7 @@ class HomeScreen extends StatelessWidget {
       context,
       scene: scene,
       clock: clock,
-      onStarted: () => _markTravelServed(context, scene),
+      onFinished: () => _markTravelServed(context, scene),
     );
   }
 
@@ -904,8 +911,31 @@ class HomeScreen extends StatelessWidget {
       context,
       scene: scene,
       clock: clock,
-      onStarted: () => _markTravelServed(context, scene),
+      onFinished: () => _markTravelServed(context, scene),
     );
+  }
+
+  VoidCallback? _travelBoostOnFinish(BuildContext context) {
+    final travel = _readTravel(context);
+    if (travel == null || !travel.plan.isActive) return null;
+    return () {
+      if (!context.mounted) return;
+      _markTravelBoost(context);
+    };
+  }
+
+  void _skipTravelStep(BuildContext context, GuidanceStep step) {
+    switch (step.target) {
+      case GuidanceTarget.daily:
+        _markTravelBoost(context);
+      case GuidanceTarget.travelMeet:
+      case GuidanceTarget.travelRecall:
+      case GuidanceTarget.travelListen:
+      case GuidanceTarget.travelLearnKana:
+        if (step.scene != null) _markTravelServed(context, step.scene!);
+      default:
+        break;
+    }
   }
 
   void _markTravelBoost(BuildContext context) {
@@ -1015,10 +1045,7 @@ class HomeScreen extends StatelessWidget {
       return Center(child: line);
     }
     final onTap = switch (step.target) {
-      GuidanceTarget.daily => () {
-        if (travelActive) _markTravelBoost(context);
-        _startDaily(context);
-      },
+      GuidanceTarget.daily => () => _startDaily(context),
       GuidanceTarget.ferry => () => _startFerry(context),
       GuidanceTarget.dictation => () => _startDictation(context),
       GuidanceTarget.sentences => () => _startSentence(

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -9,15 +10,19 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/travel_focus.dart';
 import 'package:kotonoha/domain/models/travel_scene_id.dart';
 import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
+import 'package:kotonoha/ui/reading/reading_screen.dart';
+import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:kotonoha/ui/travel/travel_focus_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:provider/provider.dart';
@@ -116,9 +121,10 @@ void main() {
   }
 
   testWidgets(
-    'partial kana: Home boost then 交通 meet, leftover rows do not block',
+    'opening boost or 交通 meet then leaving does not consume the day',
     (tester) async {
       final repos = await seedPartialTransport();
+      final kanaBefore = _kanaSeenTotal(repos.kana);
       await pumpHome(
         tester,
         kana: repos.kana,
@@ -133,14 +139,18 @@ void main() {
       await tester.tap(find.text(AppStrings.travelPrepBoostAction));
       await tester.pumpAndSettle();
       expect(find.byType(QuizScreen), findsOneWidget);
-      expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
+      expect(repos.travel.plan.kanaBoostOn, isNull);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
+      expect(find.text(AppStrings.travelPrepBoostAction), findsOneWidget);
+      expect(repos.travel.plan.kanaBoostOn, isNull);
+      expect(_kanaSeenTotal(repos.kana), kanaBefore);
 
+      await tester.tap(find.text(AppStrings.travelPrepSkipAction));
+      await tester.pumpAndSettle();
       expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
       expect(find.textContaining('接著練「交通」'), findsOneWidget);
-      expect(find.text(AppStrings.guidanceLearnMore), findsNothing);
 
       await tester.tap(find.text(AppStrings.travelPrepMeetAction));
       await tester.pumpAndSettle();
@@ -151,10 +161,18 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(
-        repos.travel.plan.servedOn[TravelSceneId.transport],
-        DateTime(2026, 9, 11),
-      );
+      expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+      expect(repos.words.seenItemCount, 0);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+      expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+      expect(repos.words.seenItemCount, 0);
+
+      final reloaded = await TravelFocusRepository.load();
+      expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+      expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
     },
   );
 
@@ -275,5 +293,229 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(QuizScreen), findsOneWidget);
     expect(repos.travel.plan.kanaBoostOn, isNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelPrepBoostAction), findsOneWidget);
+    expect(repos.travel.plan.kanaBoostOn, isNull);
   });
+
+  testWidgets('finishing a daily round consumes boost; reload stays consistent', (
+    tester,
+  ) async {
+    final repos = await seedPartialTransport();
+    await pumpHome(
+      tester,
+      kana: repos.kana,
+      words: repos.words,
+      travel: repos.travel,
+    );
+
+    await tester.tap(find.text(AppStrings.travelPrepBoostAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuizScreen), findsOneWidget);
+    expect(repos.travel.plan.kanaBoostOn, isNull);
+
+    await _finishDailyRound(tester);
+    await _popToTravelHome(tester);
+
+    expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+    expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(_kanaSeenTotal(repos.kana), greaterThan(1));
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
+  });
+
+  testWidgets(
+    'quiet success uses the same boost contract; re-entry does not skip meet',
+    (tester) async {
+      final repos = await seedPartialTransport();
+      await pumpHome(
+        tester,
+        kana: repos.kana,
+        words: repos.words,
+        travel: repos.travel,
+      );
+
+      await tester.tap(find.text(AppStrings.quietPracticeAction));
+      await tester.pumpAndSettle();
+      expect(repos.travel.plan.kanaBoostOn, isNull);
+
+      await _finishDailyRound(tester);
+      await _popToTravelHome(tester);
+
+      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+      expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
+
+      await tester.tap(find.text(AppStrings.quietPracticeAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizScreen), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+      expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    },
+  );
+
+  testWidgets('finishing 交通 meet consumes servedOn; abandon does not', (
+    tester,
+  ) async {
+    final repos = await seedPartialTransport();
+    await pumpHome(
+      tester,
+      kana: repos.kana,
+      words: repos.words,
+      travel: repos.travel,
+    );
+
+    await tester.tap(find.text(AppStrings.travelPrepSkipAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.travelPrepMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+    expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.text(AppStrings.travelPrepMeetAction));
+    await tester.pumpAndSettle();
+    await _finishFerryRound(tester);
+    expect(find.text(AppStrings.done), findsOneWidget);
+    expect(
+      repos.travel.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+    expect(repos.words.seenItemCount, greaterThan(0));
+
+    await _popToTravelHome(tester);
+    expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
+    expect(
+      repos.travel.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(
+      reloaded.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+  });
+
+  testWidgets('explicit skip consumes the step without writing mastery', (
+    tester,
+  ) async {
+    final repos = await seedPartialTransport();
+    final kanaBefore = _kanaSeenTotal(repos.kana);
+    await pumpHome(
+      tester,
+      kana: repos.kana,
+      words: repos.words,
+      travel: repos.travel,
+    );
+
+    await tester.tap(find.text(AppStrings.travelPrepSkipAction));
+    await tester.pumpAndSettle();
+    expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(_kanaSeenTotal(repos.kana), kanaBefore);
+    expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.travelPrepSkipAction));
+    await tester.pumpAndSettle();
+    expect(
+      repos.travel.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+    expect(repos.words.seenItemCount, 0);
+    expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
+  });
+}
+
+int _kanaSeenTotal(KanaProgressRepository kana) =>
+    kana.stats.values.fold<int>(0, (n, s) => n + s.seenCount);
+
+Future<void> _finishDailyRound(WidgetTester tester) async {
+  for (var i = 0; i < 24; i++) {
+    if (find.byType(QuizScreen).evaluate().isEmpty) return;
+    await _answerCurrentDaily(tester);
+  }
+  await tester.pumpAndSettle();
+  expect(
+    find.byType(QuizScreen),
+    findsNothing,
+    reason: 'daily must officially close',
+  );
+}
+
+Future<void> _answerCurrentDaily(WidgetTester tester) async {
+  if (find.text(AppStrings.iReadUnprompted).evaluate().isNotEmpty) {
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    return;
+  }
+  final quiz = tester.widget<QuizScreen>(find.byType(QuizScreen));
+  final labels = tester
+      .widgetList<AnswerOptionButton>(find.byType(AnswerOptionButton))
+      .map((b) => b.label)
+      .toList();
+  final question = quiz.items.map((item) => item.question).firstWhere((q) {
+    if (!listEquals(q.options, labels)) return false;
+    if (q.direction == QuizDirection.soundToKana) {
+      return find.text(AppStrings.chooseBySound).evaluate().isNotEmpty;
+    }
+    return find.text(q.prompt).evaluate().isNotEmpty;
+  });
+  await tester.tap(
+    find.widgetWithText(AnswerOptionButton, question.correctAnswer),
+  );
+  await tester.pump();
+  final next = find.text(AppStrings.continueLabel);
+  if (next.evaluate().isNotEmpty) {
+    await tester.tap(next);
+  } else {
+    await tester.tap(find.text(AppStrings.seeResults));
+  }
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
+Future<void> _finishFerryRound(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    if (find.text(AppStrings.done).evaluate().isNotEmpty) return;
+    expect(find.text(AppStrings.ferryShowText), findsOneWidget);
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+  }
+  expect(find.text(AppStrings.done), findsOneWidget);
+}
+
+Future<void> _popToTravelHome(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    final overlayGone =
+        find.byType(QuizScreen).evaluate().isEmpty &&
+        find.byType(QuizResultScreen).evaluate().isEmpty &&
+        find.byType(FerryScreen).evaluate().isEmpty &&
+        find.byType(ReadingScreen).evaluate().isEmpty;
+    if (overlayGone && find.byType(HomeScreen).evaluate().isNotEmpty) {
+      return;
+    }
+    if (find.byType(BackButton).evaluate().isNotEmpty) {
+      await tester.tap(find.byType(BackButton));
+    } else {
+      await tester.pageBack();
+    }
+    await tester.pumpAndSettle();
+  }
+  expect(find.byType(HomeScreen), findsOneWidget);
 }

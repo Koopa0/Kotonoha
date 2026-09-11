@@ -285,6 +285,7 @@ abstract final class AppStrings {
   static const String travelPrepRecallAction = '回想見過的';
   static const String travelPrepListenAction = '先聽再揭曉';
   static const String travelPrepLearnAction = '先補這幕假名';
+  static const String travelPrepSkipAction = '這一回先跳過';
 
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
