@@ -248,6 +248,8 @@ jobs:
       # API 29 AOSP is enough for real bootstrap / navigation.
       # Default AVD skins squeeze gojūon cells to ~49px and overflow KanaCard
       # by <1px; Pixel 6 is a phone-sized surface the grid already targets.
+      # run_android_integration.sh passes --no-enable-impeller: Impeller
+      # OpenGLES SIGSEGV's the raster thread on this SwiftShader AVD.
       - name: Android emulator integration tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
