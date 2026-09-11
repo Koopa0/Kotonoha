@@ -1,0 +1,83 @@
+// Copyright (c) 2026 Koopa
+// SPDX-License-Identifier: MIT
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
+import 'package:kotonoha/data/services/recoverable_store.dart';
+import 'package:kotonoha/domain/models/travel_focus.dart';
+import 'package:kotonoha/domain/models/travel_scene_id.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'services/fake_preferences_service.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('save then reload keeps the focuses and the daily cursor', () async {
+    SharedPreferences.setMockInitialValues({});
+    final first = await TravelFocusRepository.load();
+    await first.saveFocuses([
+      TravelFocus(scene: TravelSceneId.transport, date: DateTime(2026, 9, 18)),
+      const TravelFocus(scene: TravelSceneId.clothing),
+    ]);
+    await first.markKanaBoost(DateTime(2026, 9, 11, 18));
+    await first.markServed(TravelSceneId.transport, DateTime(2026, 9, 11, 19));
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan.focuses.map((f) => f.scene), [
+      TravelSceneId.transport,
+      TravelSceneId.clothing,
+    ]);
+    expect(reloaded.plan.focuses.first.date, DateTime(2026, 9, 18));
+    expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(
+      reloaded.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+  });
+
+  test('clear removes the plan and a later load stays empty', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await TravelFocusRepository.load();
+    await store.saveFocuses(const [TravelFocus(scene: TravelSceneId.shrine)]);
+    await store.clear();
+    expect(store.plan.isActive, isFalse);
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan, TravelFocusPlan.empty);
+  });
+
+  test('corrupt payload does not invent a plan', () async {
+    final prefs = FakePreferencesService();
+    prefs.seed('travel_focus_v1', '{not-json');
+    final store = await TravelFocusRepository.load(prefs);
+    expect(store.plan, TravelFocusPlan.empty);
+    expect(store.health, StoreHealth.recoveryRequired);
+  });
+
+  test(
+    'a failed write keeps memory; flushPending lands after recovery',
+    () async {
+      final fake = FakePreferencesService();
+      final store = await TravelFocusRepository.load(fake);
+      fake.failWrites.add('travel_focus_v1');
+      await expectLater(
+        store.saveFocuses(const [TravelFocus(scene: TravelSceneId.transport)]),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      expect(store.plan.focuses.single.scene, TravelSceneId.transport);
+
+      final afterFail = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(afterFail.plan.isActive, isFalse);
+
+      fake.failWrites.clear();
+      await store.flushPending();
+      final afterFlush = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(afterFlush.plan.focuses.single.scene, TravelSceneId.transport);
+    },
+  );
+}

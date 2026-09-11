@@ -35,6 +35,7 @@ class FerryScreen extends StatefulWidget {
     required this.title,
     this.clock,
     this.onMore,
+    this.onFinished,
     super.key,
   });
 
@@ -47,14 +48,23 @@ class FerryScreen extends StatefulWidget {
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
 
+  /// Official close (session summary) — not a mere open or pop.
+  final VoidCallback? onFinished;
+
   static Route<void> route(
     List<Word> words,
     String title, {
     VoidCallback? onMore,
+    VoidCallback? onFinished,
     DateTime Function()? clock,
   }) => MaterialPageRoute<void>(
-    builder: (_) =>
-        FerryScreen(words: words, title: title, onMore: onMore, clock: clock),
+    builder: (_) => FerryScreen(
+      words: words,
+      title: title,
+      onMore: onMore,
+      onFinished: onFinished,
+      clock: clock,
+    ),
   );
 
   @override
@@ -175,6 +185,7 @@ class _FerryScreenState extends State<FerryScreen> {
         season: Season.forMonth(now.month),
       );
       setState(() => _done = true);
+      widget.onFinished?.call();
     } else {
       setState(() {
         _index++;

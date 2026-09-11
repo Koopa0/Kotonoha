@@ -116,6 +116,23 @@ void main() {
     expect(clothing.canRecall, isFalse);
   });
 
+  test('inspect lists due already-seen items without writing stats', () {
+    final overdue = now.subtract(const Duration(days: 2));
+    final stats = {'word:えき': seenAt(overdue.millisecondsSinceEpoch)};
+    final view = TravelScene.inspect(
+      scene: TravelSceneId.transport,
+      learnedChars: aKa,
+      stats: stats,
+      now: now,
+    );
+    expect(view.dueReadable.map((i) => i.progressId), contains('word:えき'));
+    expect(
+      view.unreadReadable.map((i) => i.progressId),
+      isNot(contains('word:えき')),
+    );
+    expect(stats['word:えき']!.seenCount, 1);
+  });
+
   test('intro stays inside the scene and does not mark items seen', () {
     final stats = <String, WordStat>{};
     final words = TravelScene.composeIntroWords(

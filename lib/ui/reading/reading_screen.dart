@@ -36,6 +36,7 @@ class ReadingScreen extends StatefulWidget {
     required this.title,
     this.clock,
     this.onMore,
+    this.onFinished,
     this.quiet = false,
     this.alreadyTransferredIds = const {},
     super.key,
@@ -51,6 +52,9 @@ class ReadingScreen extends StatefulWidget {
   /// night-suppressed). Null = hidden.
   final VoidCallback? onMore;
 
+  /// Official close (session summary) — not a mere open or pop.
+  final VoidCallback? onFinished;
+
   /// Silent run: reveal must not speak, and the speaker stays hidden.
   final bool quiet;
 
@@ -62,6 +66,7 @@ class ReadingScreen extends StatefulWidget {
     List<ReadingItem> items,
     String title, {
     VoidCallback? onMore,
+    VoidCallback? onFinished,
     DateTime Function()? clock,
     bool quiet = false,
     Set<String> alreadyTransferredIds = const {},
@@ -70,6 +75,7 @@ class ReadingScreen extends StatefulWidget {
       items: items,
       title: title,
       onMore: onMore,
+      onFinished: onFinished,
       clock: clock,
       quiet: quiet,
       alreadyTransferredIds: alreadyTransferredIds,
@@ -193,6 +199,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
         season: Season.forMonth(now.month),
       );
       setState(() => _done = true);
+      widget.onFinished?.call();
     } else {
       setState(() {
         _index++;

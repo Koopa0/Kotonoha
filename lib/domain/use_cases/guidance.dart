@@ -3,11 +3,14 @@
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/travel_focus.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/scheduler.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/domain/use_cases/travel_prep.dart';
+import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 
 /// Where the ambient "next step" line takes the learner when tapped.
 enum GuidanceTarget {
@@ -29,6 +32,21 @@ enum GuidanceTarget {
   /// Kanji readings — due reviews or new teach beats (漢字の声).
   kanji,
   rest,
+
+  /// Travel-prep: meet unread readable items in the retained scene.
+  travelMeet,
+
+  /// Travel-prep: recall already-seen (usually due) items in the scene.
+  travelRecall,
+
+  /// Travel-prep: listen to already-seen items in the scene.
+  travelListen,
+
+  /// Travel-prep: the retained scene is still unreadable — learn those kana.
+  travelLearnKana,
+
+  /// Travel-prep: today's short Home steps are done. Not a completion.
+  travelHold,
 }
 
 /// A track's standing in the schedule, as plain data — the caller (the View,
@@ -103,10 +121,20 @@ class TrackDue {
 /// 繁中 copy itself lives in `AppStrings` (the UI layer), so this stays
 /// Flutter-free.
 class GuidanceStep {
-  const GuidanceStep(this.target, {this.dueCount = 0}) : isMeet = false;
+  const GuidanceStep(
+    this.target, {
+    this.dueCount = 0,
+    this.scene,
+    this.missingUnits = const [],
+  }) : isMeet = false;
 
   /// A step that sends the learner to MEET new material rather than revise.
-  const GuidanceStep.meet(this.target) : dueCount = 0, isMeet = true;
+  const GuidanceStep.meet(
+    this.target, {
+    this.scene,
+    this.missingUnits = const [],
+  }) : dueCount = 0,
+       isMeet = true;
 
   final GuidanceTarget target;
 
@@ -117,18 +145,40 @@ class GuidanceStep {
   final bool isMeet;
 
   /// Items due for review; only meaningful for the review targets ([daily] /
-  /// [dictation] / [sentences] / [kanji]-review — 0 otherwise).
+  /// [dictation] / [sentences] / [kanji]-review / [travelRecall] — 0 otherwise).
   final int dueCount;
+
+  /// Retained travel scene for the travel-prep targets; null otherwise.
+  final TravelSceneId? scene;
+
+  /// Kana still gating the retained scene. Only for [travelLearnKana].
+  final List<String> missingUnits;
 
   @override
   bool operator ==(Object other) =>
       other is GuidanceStep &&
       other.target == target &&
       other.dueCount == dueCount &&
-      other.isMeet == isMeet;
+      other.isMeet == isMeet &&
+      other.scene == scene &&
+      _sameUnits(other.missingUnits, missingUnits);
 
   @override
-  int get hashCode => Object.hash(target, dueCount, isMeet);
+  int get hashCode => Object.hash(
+    target,
+    dueCount,
+    isMeet,
+    scene,
+    Object.hashAll(missingUnits),
+  );
+
+  static bool _sameUnits(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
 
 /// Reads learning state and answers one question: what should the learner do
@@ -164,6 +214,9 @@ abstract final class Guidance {
   /// **The kana era** (unchanged — the foundation always speaks first):
   /// - **A** nothing learned yet → start the lessons (手解き).
   /// - **B** kana reviews are due → today's session (今日の稽古), with count.
+  ///   A retained travel plan spends this once per day, then continues the
+  ///   scene — leftover unlearned rows (branch C) must not block readable
+  ///   travel words.
   /// - **C** caught up but rows remain → keep learning (手解き).
   ///
   /// **The reading era** (the kana are quiet — route into the corpus). Its
@@ -200,6 +253,8 @@ abstract final class Guidance {
     TrackDue sentences = TrackDue.none,
     TrackDue kanjiSentences = TrackDue.none,
     TrackDue kanji = TrackDue.none,
+    TravelFocusPlan travelPlan = TravelFocusPlan.empty,
+    Map<TravelSceneId, TravelSceneView> travelViews = const {},
   }) {
     // A — a brand-new learner: send them to be taught, before anything is due.
     if (store.learnedUnitCount == 0) {
@@ -220,6 +275,13 @@ abstract final class Guidance {
           ),
         )
         .length;
+    final travel = _travelStep(
+      plan: travelPlan,
+      views: travelViews,
+      dueKanaCount: due,
+      now: now,
+    );
+    if (travel != null) return travel;
     if (due > 0) {
       return GuidanceStep(GuidanceTarget.daily, dueCount: due);
     }
@@ -311,5 +373,52 @@ abstract final class Guidance {
 
     // F — everything met, nothing pending: the day is theirs.
     return const GuidanceStep(GuidanceTarget.rest);
+  }
+
+  /// Travel-prep overrides the reading era and the leftover-row branch: one
+  /// necessary kana boost, then one retained scene. Unselected, this is a
+  /// no-op so general mode stays the existing recommendation.
+  static GuidanceStep? _travelStep({
+    required TravelFocusPlan plan,
+    required Map<TravelSceneId, TravelSceneView> views,
+    required int dueKanaCount,
+    required DateTime now,
+  }) {
+    if (!plan.isActive) return null;
+    if (TravelPrep.needsKanaBoost(
+      plan: plan,
+      dueKanaCount: dueKanaCount,
+      now: now,
+    )) {
+      return GuidanceStep(GuidanceTarget.daily, dueCount: dueKanaCount);
+    }
+    final scene = TravelPrep.pickScene(plan, now);
+    if (scene == null) {
+      return const GuidanceStep(GuidanceTarget.travelHold);
+    }
+    final view = views[scene];
+    if (view == null) {
+      return GuidanceStep(GuidanceTarget.travelLearnKana, scene: scene);
+    }
+    return switch (TravelPrep.kindFor(view)) {
+      TravelPrepKind.meet => GuidanceStep.meet(
+        GuidanceTarget.travelMeet,
+        scene: scene,
+      ),
+      TravelPrepKind.recall => GuidanceStep(
+        GuidanceTarget.travelRecall,
+        dueCount: view.dueReadable.length,
+        scene: scene,
+      ),
+      TravelPrepKind.listen => GuidanceStep(
+        GuidanceTarget.travelListen,
+        scene: scene,
+      ),
+      TravelPrepKind.learnKana => GuidanceStep(
+        GuidanceTarget.travelLearnKana,
+        scene: scene,
+        missingUnits: view.missingUnits,
+      ),
+    };
   }
 }
