@@ -31,7 +31,7 @@ void main() {
     (tester) async {
       final analytics = InMemoryAnalyticsLog();
       final words = await WordProgressRepository.load();
-      final now = DateTime(2026, 9, 10, 10);
+      var now = DateTime(2026, 9, 10, 10);
       await expand(tester);
       await _pumpHome(
         tester,
@@ -493,8 +493,9 @@ void main() {
     final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
     await analytics.record(
       Attempt(
-        ts: DateTime(2026, 9).millisecondsSinceEpoch,
+        ts: DateTime(2026, 9, 1).millisecondsSinceEpoch,
         itemId: ShiftSession.itemId(drill, ShiftBeat.base),
+        itemType: ItemType.shift,
         mode: PracticeMode.shift.name,
         correct: true,
         sessionId: 'old',
@@ -548,8 +549,9 @@ void main() {
     final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
     await analytics.record(
       Attempt(
-        ts: DateTime(2026, 9).millisecondsSinceEpoch,
+        ts: DateTime(2026, 9, 1).millisecondsSinceEpoch,
         itemId: ShiftSession.itemId(drill, ShiftBeat.base),
+        itemType: ItemType.shift,
         mode: PracticeMode.shift.name,
         correct: true,
         sessionId: 'old',
