@@ -17,6 +17,7 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
+import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -24,6 +25,7 @@ import 'package:kotonoha/ui/core/widgets/kana_detail_sheet.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
+import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -618,4 +620,108 @@ void main() {
     expect(tts.stopCount, greaterThan(1));
     expect(find.byType(KanaDetailSheet), findsNothing);
   });
+
+  testWidgets(
+    'Home 聞き取り More keeps new autoplay and does not re-climb after reload',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      final kana = await KanaProgressRepository.load();
+      final words = await WordProgressRepository.load();
+      await _learnAllLessons(kana);
+      await words.markIntroduced('word:えき', at: _noon());
+      await _pumpApp(
+        tester,
+        speech: speech,
+        kana: kana,
+        words: words,
+        clock: _noon,
+      );
+      expect(find.text(AppStrings.shiftAction), findsOneWidget);
+      expect(find.text(AppStrings.travelSceneAction), findsOneWidget);
+      await tester.ensureVisible(find.text(AppStrings.listenFirstAction));
+      await tester.tap(find.text(AppStrings.listenFirstAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListeningScreen), findsOneWidget);
+      await _finishFirstListeningClip(tester, tts);
+      expect(words.statForItem('word:えき').srsLevel, 1);
+      final stopsAtNagi = tts.stopCount;
+      final genAtNagi = speech.generation;
+
+      await tester.tap(find.text(AppStrings.practiceAgain));
+      await tester.pumpAndSettle();
+      final second = tester.widget<ListeningScreen>(
+        find.byType(ListeningScreen),
+      );
+      expect(second.alreadyTransferredIds, contains('word:えき'));
+      expect(tts.spoken, ['えき', 'えき']);
+      expect(find.text(AppStrings.listeningInterrupted), findsNothing);
+      expect(speech.generation, greaterThan(genAtNagi));
+      expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+      expect(tts.stopCount, stopsAtNagi + 1);
+
+      tts.completeSpeak(1, 1);
+      await tester.idle();
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.listeningReveal));
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.listeningHeard));
+      await tester.pumpAndSettle();
+      expect(words.statForItem('word:えき').srsLevel, 1);
+      await words.flushPending();
+      final reloaded = await WordProgressRepository.load();
+      expect(reloaded.statForItem('word:えき').srsLevel, 1);
+    },
+  );
+
+  testWidgets(
+    'Travel 聽力 More keeps new autoplay and does not re-climb after reload',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      final kana = await KanaProgressRepository.load();
+      final words = await WordProgressRepository.load();
+      await kana.markUnitLearned('hira_row_0');
+      await kana.markUnitLearned('hira_row_1');
+      await words.markIntroduced('word:えき', at: _noon());
+      await _pumpProviders(
+        tester,
+        speech: speech,
+        kana: kana,
+        words: words,
+        home: TravelSceneHub(scene: TravelSceneId.transport, clock: _noon),
+      );
+      await tester.tap(find.text(AppStrings.travelSceneListenAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListeningScreen), findsOneWidget);
+      await _finishFirstListeningClip(tester, tts);
+      expect(words.statForItem('word:えき').srsLevel, 1);
+      final stopsAtNagi = tts.stopCount;
+      final genAtNagi = speech.generation;
+
+      await tester.tap(find.text(AppStrings.practiceAgain));
+      await tester.pumpAndSettle();
+      final second = tester.widget<ListeningScreen>(
+        find.byType(ListeningScreen),
+      );
+      expect(second.alreadyTransferredIds, contains('word:えき'));
+      expect(tts.spoken, ['えき', 'えき']);
+      expect(find.text(AppStrings.listeningInterrupted), findsNothing);
+      expect(speech.generation, greaterThan(genAtNagi));
+      expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+      expect(tts.stopCount, stopsAtNagi + 1);
+
+      tts.completeSpeak(1, 1);
+      await tester.idle();
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.listeningReveal));
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.listeningHeard));
+      await tester.pumpAndSettle();
+      expect(words.statForItem('word:えき').srsLevel, 1);
+      await words.flushPending();
+      final reloaded = await WordProgressRepository.load();
+      expect(reloaded.statForItem('word:えき').srsLevel, 1);
+    },
+  );
 }

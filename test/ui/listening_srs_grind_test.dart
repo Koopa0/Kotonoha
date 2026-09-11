@@ -111,7 +111,7 @@ void main() {
         tester,
         kana: repos.kana,
         words: repos.words,
-        home: const HomeScreen(),
+        home: HomeScreen(clock: () => now),
       );
 
       await tester.ensureVisible(find.text(AppStrings.listenFirstAction));
