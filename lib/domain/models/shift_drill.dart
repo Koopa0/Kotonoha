@@ -78,3 +78,74 @@ class ShiftFocus {
   final String title;
   final List<ShiftDrill> drills;
 }
+
+/// How this sitting uses the curated pair. Same-session practice stays
+/// [sameDay]; [hold] / [confirm] are the optional next-day path.
+enum ShiftLane { sameDay, hold, confirm, review }
+
+/// Whether a beat's sentence has a known display — not a mastery mark.
+enum ShiftSight { unseen, seen, unknown }
+
+/// How a sentence became visible. Written to [AttemptMeta.sight].
+abstract final class ShiftSightKind {
+  static const String preview = 'preview';
+  static const String practice = 'practice';
+}
+
+/// Reading support already on screen when the sense check was graded.
+abstract final class ShiftReadSupport {
+  static const String independent = 'independent';
+  static const String prompted = 'prompted';
+}
+
+/// One sitting decided from attempts + the learner's optional hold request.
+class ShiftPlan {
+  const ShiftPlan({
+    required this.drill,
+    required this.lane,
+    required this.beats,
+    required this.baseSight,
+    required this.shiftSight,
+    required this.firstUnseen,
+    required this.holdPending,
+    required this.confirmDue,
+    required this.noUnseenVariant,
+    this.holdUntil,
+  });
+
+  final ShiftDrill drill;
+  final ShiftLane lane;
+  final List<ShiftBeat> beats;
+  final ShiftSight baseSight;
+  final ShiftSight shiftSight;
+  final bool firstUnseen;
+  final bool holdPending;
+  final bool confirmDue;
+  final bool noUnseenVariant;
+  final String? holdUntil;
+}
+
+/// One self-grade row for the look-back. Never a mastery or streak.
+class ShiftSelfGrade {
+  const ShiftSelfGrade({
+    required this.at,
+    required this.day,
+    required this.drillId,
+    required this.beat,
+    required this.check,
+    required this.prompted,
+    required this.correct,
+    this.readSupport,
+    this.lane,
+  });
+
+  final DateTime at;
+  final String day;
+  final String drillId;
+  final ShiftBeat beat;
+  final ShiftCheck check;
+  final bool prompted;
+  final bool correct;
+  final String? readSupport;
+  final ShiftLane? lane;
+}

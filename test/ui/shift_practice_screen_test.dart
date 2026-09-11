@@ -111,11 +111,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('aoi sora'), findsOneWidget);
       expect(find.text('藍色的天空'), findsNothing);
-      expect(await analytics.all(), isEmpty);
+      expect(_grades(await analytics.all()), isEmpty);
 
       await tester.tap(find.text(AppStrings.iReadIt));
       await tester.pumpAndSettle();
-      var logged = await analytics.all();
+      var logged = _grades(await analytics.all());
       expect(logged, hasLength(1));
       expect(logged.single.meta[AttemptMeta.evidence], ShiftCheck.read.name);
       expect(logged.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
@@ -123,18 +123,18 @@ void main() {
 
       await tester.enterText(find.byType(TextField), drill.base.meaning);
       await tester.pumpAndSettle();
-      expect(await analytics.all(), hasLength(1));
+      expect(_grades(await analytics.all()), hasLength(1));
       expect(find.text(drill.base.relation), findsNothing);
 
       await tester.tap(find.text(AppStrings.shiftSenseReady));
       await tester.pumpAndSettle();
-      expect(await analytics.all(), hasLength(1));
+      expect(_grades(await analytics.all()), hasLength(1));
       expect(find.text('藍色的天空'), findsOneWidget);
       expect(find.text(drill.base.relation), findsOneWidget);
 
       await tester.tap(find.text(AppStrings.shiftSenseOk));
       await tester.pumpAndSettle();
-      logged = await analytics.all();
+      logged = _grades(await analytics.all());
       expect(logged, hasLength(2));
       expect(logged.last.meta[AttemptMeta.evidence], ShiftCheck.sense.name);
       expect(logged.last.meta[AttemptMeta.prompted], isFalse);
@@ -155,7 +155,7 @@ void main() {
       await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
       await tester.pumpAndSettle();
 
-      logged = await analytics.all();
+      logged = _grades(await analytics.all());
       expect(logged, hasLength(4));
       expect(logged[2].meta[AttemptMeta.prompted], isTrue);
       expect(logged[2].meta[AttemptMeta.evidence], ShiftCheck.read.name);
@@ -349,6 +349,14 @@ void main() {
     expect(find.text('しずかな まち'), findsOneWidget);
   });
 }
+
+List<Attempt> _grades(List<Attempt> all) => [
+      for (final attempt in all)
+        if (attempt.meta[AttemptMeta.scored] != false &&
+            (attempt.meta[AttemptMeta.evidence] == ShiftCheck.read.name ||
+                attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name))
+          attempt,
+    ];
 
 Widget _harness({
   required AnalyticsLog analytics,

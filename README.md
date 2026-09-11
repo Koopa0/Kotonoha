@@ -31,7 +31,8 @@ you have already met, hides the text, then lets you reveal and hear it again.
 旅の場面 lets you pick a travel purpose — transit, clothing, shrines, or
 park queues — meet those items first, then recall or listen.
 換句 swaps a word in an original sentence so you can check the reading and
-the sense separately; that check is self-graded, not a system score.
+the sense separately, or keep the swapped line for the next day; that check
+is self-graded, not a system score.
 漢字の声 teaches and recalls readings inside the app's own words and
 sentences, not as isolated characters. Other rooms — look-alike kana, paper
 recall, a kana chart, short phrases, mixed-script sentences — open when you

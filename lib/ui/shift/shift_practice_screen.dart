@@ -12,6 +12,7 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/shift/shift_history.dart';
 import 'package:provider/provider.dart';
 
 /// Original swap-sentence practice: read first, then sense / who-modifies-whom.
@@ -23,6 +24,9 @@ class ShiftPracticeScreen extends StatefulWidget {
     this.sourceUrl,
     this.onMore,
     this.clock,
+    this.lane = ShiftLane.sameDay,
+    this.beats,
+    this.firstUnseen = false,
     super.key,
   });
 
@@ -30,14 +34,28 @@ class ShiftPracticeScreen extends StatefulWidget {
   final String? sourceUrl;
   final VoidCallback? onMore;
   final DateTime Function()? clock;
+  final ShiftLane lane;
+  final List<ShiftBeat>? beats;
+  final bool firstUnseen;
 
   static Route<void> route(
     ShiftDrill drill, {
     String? sourceUrl,
     VoidCallback? onMore,
+    DateTime Function()? clock,
+    ShiftLane lane = ShiftLane.sameDay,
+    List<ShiftBeat>? beats,
+    bool firstUnseen = false,
   }) => MaterialPageRoute<void>(
-    builder: (_) =>
-        ShiftPracticeScreen(drill: drill, sourceUrl: sourceUrl, onMore: onMore),
+    builder: (_) => ShiftPracticeScreen(
+      drill: drill,
+      sourceUrl: sourceUrl,
+      onMore: onMore,
+      clock: clock,
+      lane: lane,
+      beats: beats,
+      firstUnseen: firstUnseen,
+    ),
   );
 
   @override
@@ -51,9 +69,12 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   final TextEditingController _note = TextEditingController();
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
+  late final List<ShiftBeat> _beats;
+  late ShiftBeat _beat;
+  final Set<ShiftBeat> _exposed = <ShiftBeat>{};
+  List<ShiftSelfGrade> _history = const [];
   int? _ownedPlay;
   bool _playable = true;
-  ShiftBeat _beat = ShiftBeat.base;
   _Phase _phase = _Phase.readCommit;
   bool _readUnprompted = false;
   bool _senseUnprompted = false;
@@ -64,6 +85,21 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   ShiftSentence get _sentence => widget.drill.sentenceAt(_beat);
 
   String get _say => _sentence.kana.replaceAll(' ', '');
+
+  String? get _laneCaption {
+    switch (widget.lane) {
+      case ShiftLane.hold:
+        return AppStrings.shiftHeldUntilTomorrow;
+      case ShiftLane.confirm:
+        return widget.firstUnseen
+            ? AppStrings.shiftFirstUnseen
+            : AppStrings.shiftAlreadyShown;
+      case ShiftLane.review:
+        return AppStrings.shiftReviewOnly;
+      case ShiftLane.sameDay:
+        return null;
+    }
+  }
 
   @override
   void initState() {
@@ -76,7 +112,15 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onDetach: _abandonOwnedPlayback,
       onResume: () => _playable = true,
     );
+    _beats = List<ShiftBeat>.of(
+      widget.beats ?? const [ShiftBeat.base, ShiftBeat.shift],
+    );
+    _beat = _beats.first;
     _playable = _foreground;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reserveIfNeeded();
+      _markPracticeSight();
+    });
   }
 
   @override
@@ -115,6 +159,41 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
+  void _reserveIfNeeded() {
+    if (widget.lane != ShiftLane.hold) return;
+    context.read<AnalyticsLog>().recordObserved(
+      ShiftSession.reservation(
+        drill: widget.drill,
+        sessionId: _sessionId,
+        at: _clock(),
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  void _markPracticeSight() {
+    if (!_exposed.add(_beat)) return;
+    context.read<AnalyticsLog>().recordObserved(
+      ShiftSession.sighting(
+        drill: widget.drill,
+        beat: _beat,
+        kind: ShiftSightKind.practice,
+        sessionId: _sessionId,
+        at: _clock(),
+        lane: widget.lane,
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  Future<void> _loadHistory() async {
+    final all = await context.read<AnalyticsLog>().all();
+    if (!mounted) return;
+    setState(() {
+      _history = ShiftSession.selfGrades(all, drillId: widget.drill.id);
+    });
+  }
+
   void _gradeRead({required bool correct}) {
     _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
     setState(() => _phase = _Phase.senseCommit);
@@ -128,24 +207,35 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   void _gradeSense({required bool correct}) {
-    _record(ShiftCheck.sense, prompted: !_senseUnprompted, correct: correct);
-    if (_beat == ShiftBeat.base) {
+    _record(
+      ShiftCheck.sense,
+      prompted: !_senseUnprompted,
+      correct: correct,
+      readSupport: _readUnprompted
+          ? ShiftReadSupport.independent
+          : ShiftReadSupport.prompted,
+    );
+    final next = _beats.indexOf(_beat) + 1;
+    if (next < _beats.length) {
       _note.clear();
       setState(() {
-        _beat = ShiftBeat.shift;
+        _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
         _senseUnprompted = false;
       });
+      _markPracticeSight();
       return;
     }
     setState(() => _done = true);
+    unawaited(_loadHistory());
   }
 
   void _record(
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
+    String? readSupport,
   }) {
     context.read<AnalyticsLog>().recordObserved(
       ShiftSession.attempt(
@@ -157,6 +247,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         sessionId: _sessionId,
         at: _clock(),
         sourceUrl: widget.sourceUrl,
+        lane: widget.lane,
+        readSupport: readSupport,
       ),
     );
   }
@@ -172,11 +264,25 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
-    return SessionSummary(
-      headline: AppStrings.shiftClose,
-      note: AppStrings.shiftCloseNote,
-      onDone: () => Navigator.of(context).pop(),
-      onMore: band == ClosingBand.day ? widget.onMore : null,
+    final holdNote = widget.lane == ShiftLane.hold
+        ? '${AppStrings.shiftCloseNote}\n\n${AppStrings.shiftHeldUntilTomorrow}'
+        : AppStrings.shiftCloseNote;
+    return Column(
+      children: [
+        if (_history.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: ShiftHistoryView(grades: _history),
+          ),
+        Expanded(
+          child: SessionSummary(
+            headline: AppStrings.shiftClose,
+            note: holdNote,
+            onDone: () => Navigator.of(context).pop(),
+            onMore: band == ClosingBand.day ? widget.onMore : null,
+          ),
+        ),
+      ],
     );
   }
 
@@ -196,8 +302,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                     children: [
                       Text(
                         AppStrings.itemProgress(
-                          _beat == ShiftBeat.base ? 1 : 2,
-                          2,
+                          _beats.indexOf(_beat) + 1,
+                          _beats.length,
                         ),
                         style: const TextStyle(
                           color: AppColors.inkMuted,
@@ -216,6 +322,19 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                             ),
                           ),
                         ),
+                      if (_laneCaption != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _laneCaption!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.inkMuted,
+                              fontSize: 13,
+                              height: 1.45,
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       DecoratedBox(
                         decoration: BoxDecoration(
@@ -229,7 +348,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                             children: [
                               if (_beat == ShiftBeat.shift) ...[
                                 Text(
-                                  widget.drill.change == ShiftChange.noun
+                                  widget.lane == ShiftLane.confirm
+                                      ? AppStrings.shiftConfirmLead
+                                      : widget.drill.change == ShiftChange.noun
                                       ? AppStrings.shiftBridgeNoun
                                       : AppStrings.shiftBridgeModifier,
                                   textAlign: TextAlign.center,
