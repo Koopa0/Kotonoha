@@ -46,6 +46,7 @@ import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
+import 'package:kotonoha/ui/reply/reply_hub_screen.dart';
 import 'package:kotonoha/ui/shift/shift_focus_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
@@ -324,6 +325,16 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.travelSceneSubtitle,
                     onTap: () =>
                         Navigator.of(context).push(TravelSceneScreen.route()),
+                  ),
+                  // Isolated from #47 scene membership and #9 聞き取り self-grade.
+                  _NavCard(
+                    icon: Icons.record_voice_over_outlined,
+                    label: AppStrings.replyAction,
+                    productName: AppStrings.replyEntry,
+                    subtitle: AppStrings.replySubtitle,
+                    onTap: () =>
+                        Navigator.of(context)
+                            .push(ReplyHubScreen.route(clock: clock)),
                   ),
                 ]),
                 ..._section(AppStrings.sectionKanji, [
