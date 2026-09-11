@@ -17,13 +17,37 @@ enum SnapshotSaveOutcome {
   failed,
 }
 
-/// Native save-as (and, later, pick-file) seam. The UI never imports
-/// `file_picker` / `dart:io`; tests inject a fake so export can be proven
-/// without a platform dialog.
+/// Outcome of asking the user to open a snapshot file.
+enum SnapshotPickOutcome {
+  /// Bytes were read from the chosen file.
+  picked,
+
+  /// The user dismissed the picker. Nothing was read.
+  cancelled,
+
+  /// The picker or read threw / reported failure.
+  failed,
+}
+
+/// Result of [SnapshotFilePort.pick]. [contents] is set only for
+/// [SnapshotPickOutcome.picked].
+class SnapshotPickResult {
+  const SnapshotPickResult(this.outcome, {this.contents});
+
+  final SnapshotPickOutcome outcome;
+  final String? contents;
+}
+
+/// Native save-as / open-file seam. The UI never imports `file_picker` /
+/// `dart:io`; tests inject a fake so export and restore can be proven without
+/// a platform dialog.
 abstract class SnapshotFilePort {
   /// Offers [contents] to the system save dialog under [suggestedName].
   Future<SnapshotSaveOutcome> save({
     required String suggestedName,
     required String contents,
   });
+
+  /// Opens the system file picker for a Snapshot v2 `.json` file.
+  Future<SnapshotPickResult> pick();
 }

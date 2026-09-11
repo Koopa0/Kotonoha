@@ -8,11 +8,14 @@ import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
+import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
@@ -39,7 +42,8 @@ Future<void> main() async {
   testWidgets('capture product screenshots', (tester) async {
     await tester.binding.setSurfaceSize(const Size(393, 852));
     SharedPreferences.setMockInitialValues({});
-    final store = await KanaProgressRepository.load();
+    final prefs = await PreferencesService.create();
+    final store = await KanaProgressRepository.load(prefs);
     // Sample progress only — enough hiragana that rooms open, not mastery.
     for (final l in Lessons.fromKana(store.allKana)) {
       if (l.script == KanaScript.hiragana) await store.markUnitLearned(l.id);
@@ -57,8 +61,8 @@ Future<void> main() async {
       await store.markUnlockSeen(unlock);
     }
 
-    final kanji = await KanjiReadingRepository.load();
-    final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load(prefs);
+    final words = await WordProgressRepository.load(prefs);
     // 聞き取り only opens after a T01 item has been met.
     for (final id in ListeningSession.t01ProgressIds) {
       await words.introduce(id, at: DateTime(2026, 6));
@@ -98,6 +102,24 @@ Future<void> main() async {
           Provider<ProgressSnapshotExporter>.value(
             value: ProgressSnapshotExporter(
               snapshots: ProgressSnapshotRepository(
+                kana: store,
+                kanji: kanji,
+                words: words,
+                prefs: prefs,
+              ),
+              files: FilePickerSnapshotPort(),
+            ),
+          ),
+          Provider<ProgressSnapshotRestorer>.value(
+            value: ProgressSnapshotRestorer(
+              snapshots: ProgressSnapshotRepository(
+                kana: store,
+                kanji: kanji,
+                words: words,
+                prefs: prefs,
+              ),
+              restore: ProgressSnapshotRestoreRepository(
+                prefs: prefs,
                 kana: store,
                 kanji: kanji,
                 words: words,

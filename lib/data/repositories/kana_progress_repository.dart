@@ -256,6 +256,31 @@ class KanaProgressRepository extends ChangeNotifier {
   /// confirmed write, exactly as a mutation's flush does.
   Future<void> flushPending() => _serialized(_flushAll);
 
+  /// Replaces the three in-memory bodies after a successful restore
+  /// transaction. Primaries are already on disk; generations are marked clean.
+  void replaceFromRestore({
+    required Map<String, KanaStat> stats,
+    required Set<String> learnedUnits,
+    required Set<String> seenUnlocks,
+  }) {
+    _stats
+      ..clear()
+      ..addAll(stats);
+    _learnedUnits
+      ..clear()
+      ..addAll(learnedUnits);
+    _seenUnlocks
+      ..clear()
+      ..addAll(seenUnlocks);
+    _statsGen++;
+    _learnedGen++;
+    _unlocksGen++;
+    _statsPersistedGen = _statsGen;
+    _learnedPersistedGen = _learnedGen;
+    _unlocksPersistedGen = _unlocksGen;
+    notifyListeners();
+  }
+
   /// Clears all progress (used by tests and any future "reset" affordance).
   /// Removes exactly the keys this repository owns — primaries plus their
   /// last-known-good and quarantine copies — never a blanket clear. When a

@@ -116,6 +116,16 @@ class KanjiReadingRepository extends ChangeNotifier {
     return [for (final e in due) e.key];
   }
 
+  /// Replaces in-memory stats after a successful restore transaction.
+  void replaceFromRestore({required Map<String, ReadingStat> stats}) {
+    _stats
+      ..clear()
+      ..addAll(stats);
+    _statsGen++;
+    _statsPersistedGen = _statsGen;
+    notifyListeners();
+  }
+
   /// Clears all kanji progress (tests + any future reset affordance).
   /// Removes exactly the keys this repository owns — the primary plus its
   /// last-known-good and quarantine copies — never a blanket clear. When a

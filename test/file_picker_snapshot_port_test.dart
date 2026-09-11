@@ -24,7 +24,7 @@ void main() {
       await port.save(suggestedName: 'p.json', contents: '{}'),
       SnapshotSaveOutcome.failed,
     );
-    expect(android.calls, 1);
+    expect(android.saveCalls, 1);
   });
 
   test('Android saved / cancelled follow the SAF host, not a URI', () async {

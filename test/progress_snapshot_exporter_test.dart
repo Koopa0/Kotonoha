@@ -71,7 +71,7 @@ void main() {
     final result = await exporter.export();
 
     expect(result.status, SnapshotExportStatus.saved);
-    expect(files.calls, 1);
+    expect(files.saveCalls, 1);
     expect(files.lastName, 'kotonoha-progress-20260911T071103Z.json');
     final decoded = codec.decodeAndValidate(files.lastContents!);
     expect(decoded, isA<SnapshotDecodeSuccess>());
@@ -132,7 +132,7 @@ void main() {
     final result = await exporterFor(kana, kanji, words, files).export();
 
     expect(result.status, SnapshotExportStatus.cancelled);
-    expect(files.calls, 1);
+    expect(files.saveCalls, 1);
     expect(fake.durable, durableBefore);
   });
 
@@ -165,7 +165,7 @@ void main() {
 
     expect(result.status, SnapshotExportStatus.blocked);
     expect(result.stores, contains('kana_stats_v1'));
-    expect(files.calls, 0);
+    expect(files.saveCalls, 0);
   });
 
   test(

@@ -43,6 +43,9 @@ class FakePreferencesService implements PreferencesService {
   /// the caller sees an exception yet the data is genuinely gone. Distinct
   /// from [throwRemoves], which throws BEFORE touching durable storage.
   final Set<String> throwRemovesAfterEffect = <String>{};
+  /// 1-based write attempt indices that return `false` for [key].
+  final Map<String, Set<int>> failWriteOnAttempt = <String, Set<int>>{};
+  final Map<String, int> _writeAttemptCounts = <String, int>{};
   final Map<String, PlatformGate> writeGates = <String, PlatformGate>{};
   final Map<String, PlatformGate> removeGates = <String, PlatformGate>{};
   PlatformGate? reloadGate;
@@ -71,6 +74,9 @@ class FakePreferencesService implements PreferencesService {
     if (gate != null) await gate.pass();
     _inFlight--;
     if (throwWrites.contains(key)) throw StateError('write threw: $key');
+    final attempt = (_writeAttemptCounts[key] ?? 0) + 1;
+    _writeAttemptCounts[key] = attempt;
+    if (failWriteOnAttempt[key]?.contains(attempt) ?? false) return false;
     if (failWrites.contains(key)) return false;
     durable[key] = value;
     writeLog.add(key);

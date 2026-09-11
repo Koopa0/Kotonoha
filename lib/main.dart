@@ -6,12 +6,16 @@ import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/analytics_opener.dart';
 import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
+import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -26,11 +30,13 @@ Future<void> main() async {
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 Future<Widget> bootstrap() async {
-  final store = await KanaProgressRepository.load();
-  final kanji = await KanjiReadingRepository.load();
-  final words = await WordProgressRepository.load();
-  final checks = await PlacementCheckRepository.load();
-  final travel = await TravelFocusRepository.load();
+  final prefs = await PreferencesService.create();
+  await ProgressRestoreJournal.recoverIfNeeded(prefs);
+  final store = await KanaProgressRepository.load(prefs);
+  final kanji = await KanjiReadingRepository.load(prefs);
+  final words = await WordProgressRepository.load(prefs);
+  final checks = await PlacementCheckRepository.load(prefs);
+  final travel = await TravelFocusRepository.load(prefs);
   final speech = await FlutterTtsSpeechService.create();
   final analytics = await openAnalyticsLog();
   // The app-scoped owner of every progress-persistence future: it takes the
@@ -68,6 +74,24 @@ Future<Widget> bootstrap() async {
       Provider<ProgressSnapshotExporter>.value(
         value: ProgressSnapshotExporter(
           snapshots: ProgressSnapshotRepository(
+            kana: store,
+            kanji: kanji,
+            words: words,
+            prefs: prefs,
+          ),
+          files: FilePickerSnapshotPort(),
+        ),
+      ),
+      Provider<ProgressSnapshotRestorer>.value(
+        value: ProgressSnapshotRestorer(
+          snapshots: ProgressSnapshotRepository(
+            kana: store,
+            kanji: kanji,
+            words: words,
+            prefs: prefs,
+          ),
+          restore: ProgressSnapshotRestoreRepository(
+            prefs: prefs,
             kana: store,
             kanji: kanji,
             words: words,

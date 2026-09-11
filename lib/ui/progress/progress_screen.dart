@@ -3,8 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
+import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/use_cases/self_portrait.dart';
@@ -51,6 +53,7 @@ class ProgressScreen extends StatelessWidget {
                 _StatusBreakdown(store: store),
                 const _Observations(),
                 const _ProgressBackup(),
+                const _ProgressRestore(),
               ],
             );
           },
@@ -319,5 +322,144 @@ class _ProgressBackupState extends State<_ProgressBackup> {
     SnapshotExportStatus.failed => AppStrings.backupFailed,
     SnapshotExportStatus.unimportable => AppStrings.backupUnimportable,
     SnapshotExportStatus.cancelled => '',
+  };
+}
+
+/// Pick → preview → explicit confirm → transactional replace of the five
+/// portable bodies. Invalid or cancelled picks never touch stores.
+class _ProgressRestore extends StatefulWidget {
+  const _ProgressRestore();
+
+  @override
+  State<_ProgressRestore> createState() => _ProgressRestoreState();
+}
+
+class _ProgressRestoreState extends State<_ProgressRestore> {
+  bool _restoring = false;
+  SnapshotRestoreStatus? _status;
+
+  Future<bool> _confirm(ProgressRestorePreview preview) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.restoreConfirmTitle),
+        content: Text(AppStrings.restorePreviewBody(preview.snapshot.createdAtUtc)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.restoreConfirmNo),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.restoreConfirmYes),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _restore() async {
+    if (_restoring) return;
+    setState(() {
+      _restoring = true;
+      _status = null;
+    });
+    final result = await context.read<ProgressSnapshotRestorer>().restore(
+      confirm: _confirm,
+    );
+    if (!mounted) return;
+    setState(() {
+      _restoring = false;
+      _status = result.status == SnapshotRestoreStatus.cancelled
+          ? null
+          : result.status;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final restorer = context.read<ProgressSnapshotRestorer>();
+    final blocked = restorer.isBlocked;
+    final status = blocked ? SnapshotRestoreStatus.blocked : _status;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.hairline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              AppStrings.restoreTitle,
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              AppStrings.restoreScope,
+              style: TextStyle(
+                color: AppColors.inkMuted,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              AppStrings.restoreNotIncluded,
+              style: TextStyle(
+                color: AppColors.inkMuted,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: blocked || _restoring ? null : _restore,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  side: const BorderSide(color: AppColors.hairline),
+                  foregroundColor: AppColors.ink,
+                  disabledForegroundColor: AppColors.inkMuted,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  _restoring ? AppStrings.restoreRestoring : AppStrings.restoreAction,
+                ),
+              ),
+            ),
+            if (status != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _copyFor(status),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _copyFor(SnapshotRestoreStatus status) => switch (status) {
+    SnapshotRestoreStatus.restored => AppStrings.restoreRestored,
+    SnapshotRestoreStatus.invalid => AppStrings.restoreInvalid,
+    SnapshotRestoreStatus.failed => AppStrings.restoreFailed,
+    SnapshotRestoreStatus.blocked => AppStrings.restoreBlocked,
+    SnapshotRestoreStatus.cancelled => '',
   };
 }

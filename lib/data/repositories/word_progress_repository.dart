@@ -129,6 +129,16 @@ class WordProgressRepository extends ChangeNotifier {
     return [for (final e in due) e.key];
   }
 
+  /// Replaces in-memory stats after a successful restore transaction.
+  void replaceFromRestore({required Map<String, WordStat> stats}) {
+    _stats
+      ..clear()
+      ..addAll(stats);
+    _statsGen++;
+    _statsPersistedGen = _statsGen;
+    notifyListeners();
+  }
+
   /// Clears all 詞と句 progress. Removes exactly the keys this repository
   /// owns; on a failed removal, reconciles against a fresh platform read with
   /// full [RecoverableStore] recovery semantics (see [KanjiReadingRepository]

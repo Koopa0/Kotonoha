@@ -7,18 +7,38 @@ import 'package:kotonoha/data/services/snapshot_file_port.dart';
 /// returns — tests never pretend a platform write succeeded.
 class FakeSnapshotFilePort implements SnapshotFilePort {
   SnapshotSaveOutcome next = SnapshotSaveOutcome.saved;
+  SnapshotPickOutcome nextPick = SnapshotPickOutcome.picked;
   String? lastName;
   String? lastContents;
-  int calls = 0;
+  String? pickContents;
+  int saveCalls = 0;
+  int pickCalls = 0;
 
   @override
   Future<SnapshotSaveOutcome> save({
     required String suggestedName,
     required String contents,
   }) async {
-    calls++;
+    saveCalls++;
     lastName = suggestedName;
     lastContents = contents;
     return next;
+  }
+
+  @override
+  Future<SnapshotPickResult> pick() async {
+    pickCalls++;
+    return switch (nextPick) {
+      SnapshotPickOutcome.picked => SnapshotPickResult(
+        SnapshotPickOutcome.picked,
+        contents: pickContents,
+      ),
+      SnapshotPickOutcome.cancelled => const SnapshotPickResult(
+        SnapshotPickOutcome.cancelled,
+      ),
+      SnapshotPickOutcome.failed => const SnapshotPickResult(
+        SnapshotPickOutcome.failed,
+      ),
+    };
   }
 }
