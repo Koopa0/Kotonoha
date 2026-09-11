@@ -6,8 +6,7 @@
 
 **English** · [繁體中文](README.zh-TW.md) · [日本語](README.JP.md)
 
-[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
 
 A Japanese reading practice app for Traditional Chinese readers. Meet hiragana
 and katakana first, then step into words, short sentences, listen-first
