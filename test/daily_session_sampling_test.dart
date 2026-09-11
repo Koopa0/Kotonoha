@@ -311,6 +311,42 @@ void main() {
     },
   );
 
+  test('fifth actionable weak is not starved when five compete', () {
+    final stats = strongNotDue(pool46);
+    final now = start;
+    const weakChars = ['あ', 'い', 'う', 'え', 'お'];
+    for (var i = 0; i < weakChars.length; i++) {
+      stats[weakChars[i]] = KanaStat(
+        seenCount: 20,
+        correctCount: 20 - (i + 1),
+        wrongCount: i + 1,
+        srsLevel: 1,
+        avgLatencyMs: 1400,
+        lastReviewedAt: now.subtract(const Duration(days: 2)),
+        lastMistakeAt: now.subtract(const Duration(hours: 3)),
+        dueAt: now.add(const Duration(days: 30)),
+      );
+    }
+    var fifthCount = 0;
+    for (var seed = 0; seed < 100; seed++) {
+      final items = DailySession.compose(
+        pool: pool46,
+        stats: stats,
+        newCandidates: const [],
+        now: now,
+        rng: Random(seed),
+      );
+      if (items.any((i) => i.question.target.character == 'あ')) {
+        fifthCount++;
+      }
+    }
+    expect(
+      fifthCount,
+      greaterThan(0),
+      reason: 'あ (5th actionable) was never scheduled across 100 samples',
+    );
+  });
+
   test('shuffle is not the fix: equal-score weaks are empty, fill covers', () {
     final stats = strongNotDue(pool46);
     final items = DailySession.compose(

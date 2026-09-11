@@ -73,6 +73,7 @@ abstract final class DailySession {
         stats,
         rng,
         length - targets.length,
+        now: now,
       ),
     );
     targets.shuffle(rng);
@@ -148,16 +149,35 @@ abstract final class DailySession {
     List<Kana> candidates,
     Map<String, KanaStat> stats,
     Random rng,
-    int want,
-  ) {
+    int want, {
+    DateTime? now,
+  }) {
     if (want <= 0 || candidates.isEmpty) return const [];
+    final out = <Kana>[];
+    if (now != null) {
+      final actionable =
+          candidates
+              .where(
+                (k) => Weakness.isActionable(
+                  stats[k.id] ?? const KanaStat(),
+                  now: now,
+                ),
+              )
+              .toList()
+            ..shuffle(rng);
+      for (final k in actionable) {
+        out.add(k);
+        if (out.length >= want) return out;
+      }
+      final picked = out.map((k) => k.id).toSet();
+      candidates = candidates.where((k) => !picked.contains(k.id)).toList();
+    }
     final buckets = <int, List<Kana>>{};
     for (final k in candidates) {
       final t = stats[k.id]?.lastReviewedAt?.millisecondsSinceEpoch ?? -1;
       buckets.putIfAbsent(t, () => []).add(k);
     }
     final keys = buckets.keys.toList()..sort();
-    final out = <Kana>[];
     for (final key in keys) {
       final group = buckets[key]!..shuffle(rng);
       for (final k in group) {
