@@ -201,6 +201,127 @@ void main() {
     );
   });
 
+  test('old visual-only JSON stays listening-unknown', () {
+    final old = {
+      's': 138,
+      'c': 138,
+      'w': 0,
+      'sl': 6,
+      'al': 500,
+      'l': now.millisecondsSinceEpoch,
+    };
+    final s = KanaStat.fromJson(old);
+    expect(s.listeningUnknown, isTrue);
+    expect(s.listenSeenCount, 0);
+    expect(s.hasReliableListening(now: now), isFalse);
+    expect(s.toJson().containsKey('ls'), isFalse);
+    expect(s.toJson().containsKey('lc'), isFalse);
+  });
+
+  test('visual recordAnswer does not invent listening evidence', () {
+    var s = const KanaStat();
+    s = s.recordAnswer(correct: true, at: now, latencyMs: 400);
+    expect(s.listeningUnknown, isTrue);
+    expect(s.listenSeenCount, 0);
+    expect(s.seenCount, 1);
+  });
+
+  test('scored listening writes listen fields; a miss is not unknown', () {
+    var s = const KanaStat().recordAnswer(
+      correct: true,
+      at: now,
+      latencyMs: 400,
+      listening: true,
+    );
+    expect(s.listeningUnknown, isFalse);
+    expect(s.listenSeenCount, 1);
+    expect(s.listenCorrectCount, 1);
+    expect(s.hasReliableListening(now: now), isFalse);
+    s = s.recordAnswer(
+      correct: true,
+      at: now.add(const Duration(minutes: 1)),
+      latencyMs: 400,
+      listening: true,
+    );
+    expect(
+      s.hasReliableListening(now: now.add(const Duration(minutes: 1))),
+      isTrue,
+    );
+    final missed = s.recordAnswer(
+      correct: false,
+      at: now.add(const Duration(hours: 1)),
+      listening: true,
+    );
+    expect(missed.listeningUnrecovered, isTrue);
+    expect(
+      missed.hasReliableListening(now: now.add(const Duration(hours: 1))),
+      isFalse,
+    );
+    expect(missed.srsLevel, 0);
+  });
+
+  test('unrecovered listen miss stays unreliable after visual-only days', () {
+    var s = const KanaStat();
+    var at = now;
+    for (var i = 0; i < 8; i++) {
+      s = s.recordAnswer(correct: true, at: at, latencyMs: 400);
+      at = at.add(const Duration(minutes: 1));
+    }
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    at = at.add(const Duration(minutes: 1));
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    at = at.add(const Duration(minutes: 1));
+    s = s.recordAnswer(correct: false, at: at, listening: true);
+    expect(s.listenCorrectCount, 2);
+    expect(s.listenSeenCount, 3);
+    expect(s.lastListenAt, s.lastListenMistakeAt);
+    expect(s.listeningUnrecovered, isTrue);
+
+    at = at.add(const Duration(days: 16));
+    for (var i = 0; i < 8; i++) {
+      s = s.recordAnswer(correct: true, at: at, latencyMs: 400);
+      at = at.add(const Duration(days: 1));
+    }
+    expect(s.listenCorrectCount, 2);
+    expect(s.listenSeenCount, 3);
+    expect(s.lastListenAt, s.lastListenMistakeAt);
+    expect(s.listeningUnrecovered, isTrue);
+    expect(s.hasReliableListening(now: at), isFalse);
+    expect(s.needsListeningProbe(now: at), isTrue);
+
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    expect(s.listeningUnrecovered, isFalse);
+    expect(s.hasReliableListening(now: at), isTrue);
+  });
+
+  test('recordPromptedPractice keeps listen evidence untouched', () {
+    final heard = KanaStat(
+      listenSeenCount: 2,
+      listenCorrectCount: 2,
+      lastListenAt: now,
+    );
+    final next = heard.recordPromptedPractice(
+      at: now.add(const Duration(minutes: 1)),
+    );
+    expect(next.listenSeenCount, 2);
+    expect(next.listenCorrectCount, 2);
+    expect(next.lastListenAt, now);
+  });
+
+  test('listen fields round-trip and stay omitted at default', () {
+    final s = const KanaStat().recordAnswer(
+      correct: false,
+      at: now,
+      listening: true,
+    );
+    final back = KanaStat.fromJson(s.toJson());
+    expect(back.listenSeenCount, 1);
+    expect(back.listenWrongCount, 1);
+    expect(back.lastListenMistakeAt, now);
+    expect(const KanaStat(seenCount: 1).toJson().containsKey('ls'), isFalse);
+    expect(const KanaStat(seenCount: 1).toJson().containsKey('llm'), isFalse);
+  });
+
   test('recordPromptedPractice keeps correctCount, due, and lastMistake', () {
     final due = now.subtract(const Duration(days: 10));
     final missed = now.subtract(const Duration(days: 20));
