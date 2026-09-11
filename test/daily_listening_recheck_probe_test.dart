@@ -74,7 +74,7 @@ void main() {
   test('day 0 and day 1 stay recall; day 8 and day 40 re-sample sound', () {
     final stats = seededVerified();
     expect(
-      composeDirections(stats: stats, now: day0, seed: 0),
+      composeDirections(stats: stats, now: day0),
       everyElement(QuizDirection.kanaRecall),
     );
     expect(
@@ -156,20 +156,19 @@ void main() {
         .map((s) => s.lastListenAt!.difference(day0).inDays)
         .toSet();
 
-    expect(recall + sound, 480);
+    expect(recall, 294);
+    expect(sound, 186);
     expect(directionCounts[QuizDirection.romajiToKana] ?? 0, 0);
     expect(targetCounts.length, 46);
-    expect(recall, greaterThan(0), reason: 'recent days must not force sound');
-    expect(sound, greaterThanOrEqualTo(46));
     expect(
       soundTargetCounts.length,
       46,
       reason: 'spot checks cannot lock a few glyphs',
     );
-    expect(minSound, greaterThanOrEqualTo(1));
-    expect(maxSound, lessThanOrEqualTo(minSound + 3));
+    expect(minSound, 3);
+    expect(maxSound, 5);
     expect(lastListenDays.contains(0), isFalse);
-    expect(lastListenDays.length, greaterThan(1));
+    expect(lastListenDays, {32, 33, 34, 35, 36, 37, 38, 39, 40});
 
     for (final s in stats.values) {
       expect(s.hasReliableListening(now: day40), isTrue);
