@@ -46,8 +46,12 @@ dump_logcat() {
 trap dump_logcat EXIT
 
 set +e
+# Impeller OpenGLES SIGSEGV's 1.raster on API 29 + SwiftShader (main CI
+# 34552349702: "Connection closed before test suite loaded"). Keep the
+# real bootstrap / native plugins; only drop the emulator GPU path.
 flutter test "$suite" \
   --device-id "$serial" \
+  --no-enable-impeller \
   --reporter expanded \
   --file-reporter "json:$report"
 flutter_status=$?
