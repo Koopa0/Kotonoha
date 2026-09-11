@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:kotonoha/domain/models/false_friend.dart';
+import 'package:kotonoha/domain/models/shift_drill.dart';
 
 /// Time-of-day band for the 凪 close — its send-off softens once it's late.
 enum ClosingBand {
@@ -295,6 +296,22 @@ abstract final class AppStrings {
   static const String shiftSourceLabel = '來源連結（選填）';
   static const String shiftSourceHint = '只作備註,不會抓內容或同步帳號';
   static const String shiftStart = '開始這組';
+  static const String shiftHoldStart = '今天只練原句';
+  static const String shiftHoldContinue = '繼續原句';
+  static const String shiftHoldHint = '換句留到明天再確認。選單、結束畫面與提示都不會先出現保留句。';
+  static const String shiftHeldUntilTomorrow = '換句已保留到明天。今天重進仍是原句,不是隔日回測。';
+  static const String shiftHoldPending = '換句已保留到明天';
+  static const String shiftConfirmStart = '隔天換句確認';
+  static const String shiftConfirmDue = '保留的換句已到期。開始前不重播讀音或句意。';
+  static const String shiftConfirmLead = '這是保留到今天的換句。先自己讀,再想誰修飾誰。';
+  static const String shiftFirstUnseen = '首次未見換句';
+  static const String shiftAlreadyShown = '已展示過,不是首次未見';
+  static const String shiftSightUnknown = '這組舊紀錄的曝光不明,不當成首次未見。';
+  static const String shiftReviewStart = '舊句複習';
+  static const String shiftReviewOnly = '沒有未見變體。這是舊句複習,不是新題。可等人工核對的新句。';
+  static const String shiftHistoryTitle = '自評紀錄,不是掌握標記';
+  static const String shiftBeatBase = '原句';
+  static const String shiftBeatShift = '換句';
   static const String shiftSensePrompt = '這句是誰修飾誰?可用中文或假名寫下你的理解。';
   static const String shiftActionSensePrompt = '這句是誰把什麼帶過來?可用中文或假名寫下你的理解。';
   static const String shiftSenseHint = '看句意';
@@ -326,6 +343,53 @@ abstract final class AppStrings {
   static String shiftSourceChip(String url) => '來源備註 $url';
   static String shiftIntroProgress(int current, int total) =>
       '先介紹 $current / $total';
+
+  static String shiftHistoryDay(String calendarDay, ShiftBeat beat) {
+    final parts = calendarDay.split('-');
+    final month = parts.length == 3 ? int.parse(parts[1]) : 0;
+    final day = parts.length == 3 ? int.parse(parts[2]) : 0;
+    final which = beat == ShiftBeat.base ? shiftBeatBase : shiftBeatShift;
+    return '$month月$day日 · $which';
+  }
+
+  static String shiftReadSelfGrade({
+    required bool prompted,
+    required bool correct,
+  }) {
+    if (!correct) return '讀音：仍不會';
+    return prompted ? '讀音：提示後讀出' : '讀音：自行讀出';
+  }
+
+  static String shiftVerbSelfGrade({
+    required bool prompted,
+    required bool correct,
+  }) {
+    if (!correct) return '辭書形：仍不會';
+    return prompted ? '辭書形：看過後對上了' : '辭書形：自行判斷';
+  }
+
+  static String shiftRolesSelfGrade({
+    required bool prompted,
+    required bool correct,
+  }) {
+    if (!correct) return '誰／什麼：仍不會';
+    return prompted ? '誰／什麼：看過後對上了' : '誰／什麼：自行判斷';
+  }
+
+  static String shiftSenseSelfGrade({
+    required bool prompted,
+    required bool correct,
+    String? readSupport,
+  }) {
+    final sense = !correct ? '句意：仍不會' : (prompted ? '句意：看過後對上了' : '句意：自行判斷');
+    if (readSupport == ShiftReadSupport.prompted) {
+      return '$sense（讀音當時已提示）';
+    }
+    if (readSupport == ShiftReadSupport.independent) {
+      return '$sense（讀音自行讀出）';
+    }
+    return sense;
+  }
 
   // 短く返す — hear a station ask, pick the intent, pick a short reply.
   // Isolated from #47 scene membership and #9 聞き取り self-grade.

@@ -13,6 +13,7 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/shift/shift_history.dart';
 import 'package:provider/provider.dart';
 
 /// Original swap-sentence practice: teach new forms first, then read, then
@@ -26,7 +27,9 @@ class ShiftPracticeScreen extends StatefulWidget {
     this.sourceUrl,
     this.onMore,
     this.clock,
+    this.lane = ShiftLane.sameDay,
     this.beats,
+    this.firstUnseen = false,
     super.key,
   });
 
@@ -34,24 +37,30 @@ class ShiftPracticeScreen extends StatefulWidget {
   final String? sourceUrl;
   final VoidCallback? onMore;
   final DateTime Function()? clock;
+  final ShiftLane lane;
 
   /// Which pair beats this sitting plays. #73 supplies a reserved-shift
   /// list; same-day practice still defaults to base then shift.
   final List<ShiftBeat>? beats;
+  final bool firstUnseen;
 
   static Route<void> route(
     ShiftDrill drill, {
     String? sourceUrl,
     VoidCallback? onMore,
     DateTime Function()? clock,
+    ShiftLane lane = ShiftLane.sameDay,
     List<ShiftBeat>? beats,
+    bool firstUnseen = false,
   }) => MaterialPageRoute<void>(
     builder: (_) => ShiftPracticeScreen(
       drill: drill,
       sourceUrl: sourceUrl,
       onMore: onMore,
       clock: clock,
+      lane: lane,
       beats: beats,
+      firstUnseen: firstUnseen,
     ),
   );
 
@@ -76,13 +85,16 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   final TextEditingController _note = TextEditingController();
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
-  int? _ownedPlay;
-  bool _playable = true;
   late final List<ShiftBeat> _beats;
   late ShiftBeat _beat;
+  final Set<ShiftBeat> _exposed = <ShiftBeat>{};
+  List<ShiftSelfGrade> _history = const [];
+  int? _ownedPlay;
+  bool _playable = true;
   late _Phase _phase;
   int _introIndex = 0;
   bool _readUnprompted = false;
+  bool _readCorrect = false;
   bool _senseUnprompted = false;
   bool _verbPrompted = false;
   bool _rolesPrompted = false;
@@ -101,6 +113,21 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   List<ShiftIntroCard> get _intro => widget.drill.introduce;
 
+  String? get _laneCaption {
+    switch (widget.lane) {
+      case ShiftLane.hold:
+        return AppStrings.shiftHeldUntilTomorrow;
+      case ShiftLane.confirm:
+        return widget.firstUnseen
+            ? AppStrings.shiftFirstUnseen
+            : AppStrings.shiftAlreadyShown;
+      case ShiftLane.review:
+        return AppStrings.shiftReviewOnly;
+      case ShiftLane.sameDay:
+        return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -112,12 +139,16 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onDetach: _abandonOwnedPlayback,
       onResume: () => _playable = true,
     );
-    _playable = _foreground;
     _beats = List<ShiftBeat>.of(
       widget.beats ?? const [ShiftBeat.base, ShiftBeat.shift],
     );
     _beat = _beats.first;
+    _playable = _foreground;
     _phase = _intro.isEmpty ? _Phase.readCommit : _Phase.intro;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reserveIfNeeded();
+      _markPracticeSight();
+    });
   }
 
   @override
@@ -166,9 +197,49 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
+  void _reserveIfNeeded() {
+    if (widget.lane != ShiftLane.hold) return;
+    context.read<AnalyticsLog>().recordObserved(
+      ShiftSession.reservation(
+        drill: widget.drill,
+        sessionId: _sessionId,
+        at: _clock(),
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  void _markPracticeSight() {
+    if (!_exposed.add(_beat)) return;
+    context.read<AnalyticsLog>().recordObserved(
+      ShiftSession.sighting(
+        drill: widget.drill,
+        beat: _beat,
+        kind: ShiftSightKind.practice,
+        sessionId: _sessionId,
+        at: _clock(),
+        lane: widget.lane,
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  Future<void> _loadHistory() async {
+    final all = await context.read<AnalyticsLog>().all();
+    if (!mounted) return;
+    setState(() {
+      _history = ShiftSession.selfGrades(all, drillId: widget.drill.id);
+    });
+  }
+
   void _gradeRead({required bool correct}) {
-    _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
-    setState(() => _phase = _action ? _Phase.verbAsk : _Phase.senseCommit);
+    unawaited(
+      _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct),
+    );
+    setState(() {
+      _readCorrect = correct;
+      _phase = _action ? _Phase.verbAsk : _Phase.senseCommit;
+    });
   }
 
   void _hintVerb() {
@@ -178,7 +249,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   void _pickVerb(String choice) {
     if (_pickedVerb != null) return;
     final correct = ShiftSession.gradesVerb(choice, _sentence);
-    _record(ShiftCheck.verb, prompted: _verbPrompted, correct: correct);
+    unawaited(
+      _record(ShiftCheck.verb, prompted: _verbPrompted, correct: correct),
+    );
     setState(() {
       _pickedVerb = choice;
       _phase = _Phase.verbReveal;
@@ -212,7 +285,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       item: item,
       sentence: _sentence,
     );
-    _record(ShiftCheck.roles, prompted: _rolesPrompted, correct: correct);
+    unawaited(
+      _record(ShiftCheck.roles, prompted: _rolesPrompted, correct: correct),
+    );
     setState(() => _phase = _Phase.rolesReveal);
   }
 
@@ -220,20 +295,33 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     setState(() => _phase = _Phase.senseCommit);
   }
 
+  /// Reading support on screen when the sense check is graded — not the
+  /// pre-reveal commit alone, and not the roles Chinese gloss.
+  String _readSupportAtSenseGrade() {
+    if (_readUnprompted && _readCorrect) {
+      return ShiftReadSupport.independent;
+    }
+    return ShiftReadSupport.prompted;
+  }
+
   void _commitSense({required bool unprompted}) {
     setState(() {
-      _senseUnprompted = unprompted;
+      _senseUnprompted = unprompted && !_rolesPrompted;
       _phase = _Phase.senseGrade;
     });
   }
 
-  void _gradeSense({required bool correct}) {
-    _record(
+  Future<void> _gradeSense({required bool correct}) async {
+    await _record(
       ShiftCheck.sense,
-      prompted: !_senseUnprompted,
+      prompted: ShiftSession.sensePrompted(
+        askedSenseHint: !_senseUnprompted,
+        sawRolesGloss: _rolesPrompted,
+      ),
       correct: correct,
-      readSupport: _readUnprompted ? 'independent' : 'prompted',
+      readSupport: _readSupportAtSenseGrade(),
     );
+    if (!mounted) return;
     final next = _beats.indexOf(_beat) + 1;
     if (next < _beats.length) {
       _note.clear();
@@ -241,6 +329,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
+        _readCorrect = false;
         _senseUnprompted = false;
         _verbPrompted = false;
         _rolesPrompted = false;
@@ -248,30 +337,39 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _pickedActor = null;
         _pickedItem = null;
       });
+      _markPracticeSight();
       return;
     }
     setState(() => _done = true);
+    unawaited(_loadHistory());
   }
 
-  void _record(
+  /// Waits for the log to accept the row. A durable fault still keeps the
+  /// attempt in memory; More must read [AnalyticsLog.all], not assume persist.
+  Future<void> _record(
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
     String? readSupport,
-  }) {
-    context.read<AnalyticsLog>().recordObserved(
-      ShiftSession.attempt(
-        drill: widget.drill,
-        beat: _beat,
-        check: check,
-        prompted: prompted,
-        correct: correct,
-        sessionId: _sessionId,
-        at: _clock(),
-        sourceUrl: widget.sourceUrl,
-        readSupport: readSupport,
-      ),
-    );
+  }) async {
+    try {
+      await context.read<AnalyticsLog>().record(
+        ShiftSession.attempt(
+          drill: widget.drill,
+          beat: _beat,
+          check: check,
+          prompted: prompted,
+          correct: correct,
+          sessionId: _sessionId,
+          at: _clock(),
+          sourceUrl: widget.sourceUrl,
+          lane: widget.lane,
+          readSupport: readSupport,
+        ),
+      );
+    } on Object {
+      // Memory retains the row; [unpersistedCount] stays honest.
+    }
   }
 
   @override
@@ -285,102 +383,117 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
-    return SessionSummary(
-      headline: AppStrings.shiftClose,
-      note: AppStrings.shiftCloseNote,
-      onDone: () => Navigator.of(context).pop(),
-      onMore: band == ClosingBand.day ? widget.onMore : null,
+    final holdNote = widget.lane == ShiftLane.hold
+        ? '${AppStrings.shiftCloseNote}\n\n${AppStrings.shiftHeldUntilTomorrow}'
+        : AppStrings.shiftCloseNote;
+    return Column(
+      children: [
+        if (_history.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: ShiftHistoryView(grades: _history),
+          ),
+        Expanded(
+          child: SessionSummary(
+            headline: AppStrings.shiftClose,
+            note: holdNote,
+            onDone: () => Navigator.of(context).pop(),
+            onMore: band == ClosingBand.day ? widget.onMore : null,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _body() {
     if (_phase == _Phase.intro) return _introBody();
     final source = widget.sourceUrl?.trim();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        children: [
+          Column(
+            children: [
+              Text(
+                AppStrings.itemProgress(
+                  _beats.indexOf(_beat) + 1,
+                  _beats.length,
+                ),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (source != null && source.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    AppStrings.shiftSourceChip(source),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              if (_laneCaption != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _laneCaption!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: AppColors.hairline),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  child: Column(
                     children: [
+                      if (_beat == ShiftBeat.shift) ...[
+                        Text(
+                          widget.lane == ShiftLane.confirm
+                              ? AppStrings.shiftConfirmLead
+                              : _bridgeCopy(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       Text(
-                        AppStrings.itemProgress(
-                          _beats.indexOf(_beat) + 1,
-                          _beats.length,
-                        ),
+                        _sentence.kana,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 44,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
                         ),
                       ),
-                      if (source != null && source.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            AppStrings.shiftSourceChip(source),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.inkMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
                       const SizedBox(height: 16),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.card,
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                          child: Column(
-                            children: [
-                              if (_beat == ShiftBeat.shift &&
-                                  _beats.contains(ShiftBeat.base)) ...[
-                                Text(
-                                  _bridgeCopy(),
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.inkMuted,
-                                    height: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                              Text(
-                                _sentence.kana,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 44,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ..._phaseCopy(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      ..._phaseCopy(),
                     ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: _actions(),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
+          Padding(padding: const EdgeInsets.only(top: 16), child: _actions()),
+        ],
+      ),
     );
   }
 
@@ -606,7 +719,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.inkMuted, height: 1.5),
           ),
-          if (_rolesPrompted || _phase == _Phase.rolesReveal) ...[
+          if (_rolesPrompted) ...[
             const SizedBox(height: 8),
             Text(
               _sentence.relation,

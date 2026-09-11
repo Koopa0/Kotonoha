@@ -51,8 +51,21 @@ abstract final class AttemptMeta {
   /// Optional learner-supplied source URL (context only; never fetched).
   static const String source = 'source';
 
+  /// Shift-practice lane: [ShiftLane.name] (`sameDay`, `hold`, `confirm`,
+  /// `review`). Associates a delayed retest without a second ledger.
+  static const String lane = 'lane';
+
+  /// Local calendar date (`YYYY-MM-DD`) when a reserved shift beat is due.
+  static const String holdUntil = 'holdUntil';
+
+  /// How a shift sentence became visible: `preview` or `practice`.
+  /// Absence on a legacy row means exposure is unknown — never "unseen".
+  static const String sight = 'sight';
+
   /// Reading support already given when a shift sense check was graded
-  /// (`independent` or `prompted`). #73 owns delayed-confirm display of this.
+  /// (`independent` or `prompted`). Sense never inherits a mastery flag.
+  /// This is reading-only — a roles Chinese gloss is sense support, not
+  /// this key.
   static const String readSupport = 'readSupport';
 }
 

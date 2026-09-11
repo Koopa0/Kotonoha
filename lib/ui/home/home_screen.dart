@@ -314,7 +314,8 @@ class HomeScreen extends StatelessWidget {
                     productName: AppStrings.shiftEntry,
                     subtitle: AppStrings.shiftSubtitle,
                     onTap: () =>
-                        Navigator.of(context).push(ShiftFocusScreen.route()),
+                        Navigator.of(context)
+                            .push(ShiftFocusScreen.route(clock: clock)),
                   ),
                   // Isolated travel-purpose picker. Does not change 渡し舟 /
                   // 黙読 / 聞き取り / 換句 contracts.
