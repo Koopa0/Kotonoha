@@ -54,7 +54,7 @@ Future<void> _pumpHome(
         ),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
       ],
-      child: MaterialApp(home: HomeScreen(clock: _noon)),
+      child: const MaterialApp(home: HomeScreen(clock: _noon)),
     ),
   );
   await tester.pump();
