@@ -705,4 +705,79 @@ void main() {
       expect(tts.spoken, ['がっこう']);
     },
   );
+
+  testWidgets('Ferry last-word grade stops owned play before 名残', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context)
+                .push(FerryScreen.route(const [_haru], AppStrings.ferryTitle)),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tts.spoken, ['はる']);
+
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.ferryReadSelf));
+    await tester.pump();
+    expect(find.text(AppStrings.ferryReadback), findsOneWidget);
+    final stopsBeforeSummary = tts.stopCount;
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pump();
+    expect(find.text(AppStrings.readingSummary(1, 1)), findsOneWidget);
+    expect(tts.stopCount, greaterThan(stopsBeforeSummary));
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Reading reveal→grade stops owned play before 名残', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context).push(
+              ReadingScreen.route(const [_sora], AppStrings.sentenceTitle),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tts.spoken, isEmpty);
+
+    await tester.tap(find.text(AppStrings.recallHint));
+    await tester.pump();
+    expect(tts.spoken, ['そらがあおい']);
+    final stopsBeforeSummary = tts.stopCount;
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+
+    await tester.tap(find.text(AppStrings.iReadAfterHint));
+    await tester.pump();
+    expect(find.text(AppStrings.readingSummary(1, 1)), findsOneWidget);
+    expect(tts.stopCount, greaterThan(stopsBeforeSummary));
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -134,6 +134,7 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _recallRevealed = false;
   bool _recallUnpromptedCommit = false;
   int _playGen = 0;
+  int? _ownedPlay;
   bool _blindHeard = false;
   String? _heardItemId;
   SpeechPlaybackResult? _lastPlay;
@@ -214,9 +215,17 @@ class _QuizScreenState extends State<QuizScreen> {
     });
   }
 
+  /// Cancels this screen's in-flight playback and drops its local generation.
+  ///
+  /// [SpeechService.stop] is scoped to [_ownedPlay] so a leaving
+  /// `pushReplacement` cannot cancel the new route's utterance.
   void _abandonPlayback() {
     _playGen++;
-    unawaited(_speech.stop());
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
   }
 
   void _resetHearing() {
@@ -235,7 +244,9 @@ class _QuizScreenState extends State<QuizScreen> {
     // started only from an explicit tap while the route is still up.
     if (!alreadyAnswered && !startedAnswerable) return;
     final gen = ++_playGen;
-    final result = await _speech.play(_vm.current.target.character);
+    final pending = _speech.play(_vm.current.target.character);
+    _ownedPlay = _speech.generation;
+    final result = await pending;
     if (!mounted ||
         _vm.isFinished ||
         gen != _playGen ||

@@ -21,17 +21,34 @@ import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
+import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/ui/core/widgets/kana_detail_sheet.dart';
+import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/learn/learn_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
+import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _eki = Word(kana: 'えき', romaji: 'eki', meaning: '車站');
+const _kimi = Word(kana: 'きみ', romaji: 'kimi', meaning: '你');
 DateTime _noon() => DateTime(2026, 9, 11, 12);
+
+final _ki = kHiraganaGojuon.firstWhere((k) => k.character == 'き');
+
+SessionItem _soundKi() => SessionItem(
+  question: QuizQuestion(
+    target: _ki,
+    direction: QuizDirection.soundToKana,
+    options: [_ki.character, 'い', 'う', 'え'],
+    correctIndex: 0,
+  ),
+  mode: PracticeMode.daily,
+);
 
 /// iOS-like flutter_tts MethodChannel: stop returns 1 and does not settle
 /// a pending speak. Every speak stays open until [completeSpeak].
@@ -729,4 +746,239 @@ void main() {
       expect(reloaded.statForItem('word:えき').srsLevel, 1);
     },
   );
+
+  testWidgets(
+    'Dictation もう一回 replace keeps the new autoplay after old dispose',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      await _pumpProviders(
+        tester,
+        speech: speech,
+        home: Builder(
+          builder: (context) {
+            void start({bool replace = false}) {
+              final route = DictationScreen.route(
+                const [_kimi],
+                AppStrings.dictationTitle,
+                clock: _noon,
+                onMore: () => start(replace: true),
+              );
+              final nav = Navigator.of(context);
+              replace ? nav.pushReplacement(route) : nav.push(route);
+            }
+
+            return Scaffold(
+              body: TextButton(onPressed: start, child: const Text('open')),
+            );
+          },
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(tts.spoken, ['きみ']);
+      tts.completeSpeak(0, 1);
+      await tester.idle();
+      await tester.pump();
+      await tester.tap(find.text('き'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('み'));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.dictationNext), findsOneWidget);
+      await tester.tap(find.text(AppStrings.dictationNext));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.practiceAgain), findsOneWidget);
+      final stopsAtNagi = tts.stopCount;
+      final genAtNagi = speech.generation;
+
+      await tester.tap(find.text(AppStrings.practiceAgain));
+      await tester.pumpAndSettle();
+      expect(find.byType(DictationScreen), findsOneWidget);
+      expect(tts.spoken.last, 'きみ');
+      expect(find.text(AppStrings.dictationInterrupted), findsNothing);
+      expect(speech.generation, greaterThan(genAtNagi));
+      expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+      expect(tts.stopCount, stopsAtNagi + 1);
+
+      await tester.tap(find.byKey(const ValueKey<String>('dictation-replay')));
+      await tester.pump();
+      expect(tts.spoken.where((s) => s == 'きみ').length, greaterThan(2));
+      expect(find.text(AppStrings.dictationInterrupted), findsNothing);
+    },
+  );
+
+  testWidgets('Dictation leave still cancels the owned play', (tester) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context).push(
+              DictationScreen.route(
+                const [_kimi],
+                AppStrings.dictationTitle,
+                clock: _noon,
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tts.spoken, ['きみ']);
+    expect(tts.stopCount, 1);
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('open'), findsOneWidget);
+    expect(tts.stopCount, greaterThan(1));
+  });
+
+  testWidgets(
+    'Quiz soundToKana pushReplacement keeps the new autoplay after old dispose',
+    (tester) async {
+      final tts = await _installProductionTts(tester);
+      final speech = await FlutterTtsSpeechService.create();
+      late void Function() replaceWithNew;
+      await _pumpProviders(
+        tester,
+        speech: speech,
+        home: Builder(
+          builder: (context) {
+            replaceWithNew = () {
+              Navigator.of(context).pushReplacement(
+                QuizScreen.routeItems(
+                  items: [_soundKi()],
+                  title: AppStrings.dailySession,
+                ),
+              );
+            };
+            return Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  QuizScreen.routeItems(
+                    items: [_soundKi()],
+                    title: AppStrings.dailySession,
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(tts.spoken, ['き']);
+      final firstGen = speech.generation;
+      expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+
+      replaceWithNew();
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizScreen), findsOneWidget);
+      expect(tts.spoken, ['き', 'き']);
+      expect(find.text(AppStrings.quizSoundInterrupted), findsNothing);
+      expect(speech.generation, greaterThan(firstGen));
+      expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+      final stopsAfterReplace = tts.stopCount;
+
+      await speech.stop(generation: firstGen);
+      expect(tts.stopCount, stopsAfterReplace);
+      expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+
+      await tester.tap(find.byKey(const ValueKey<String>('quiz-replay')));
+      await tester.pump();
+      expect(tts.spoken, ['き', 'き', 'き']);
+      expect(find.text(AppStrings.quizSoundInterrupted), findsNothing);
+    },
+  );
+
+  testWidgets('Quiz soundToKana leave still cancels the owned play', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context).push(
+              QuizScreen.routeItems(
+                items: [_soundKi()],
+                title: AppStrings.dailySession,
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tts.spoken, ['き']);
+    expect(tts.stopCount, 1);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('open'), findsOneWidget);
+    expect(tts.stopCount, greaterThan(1));
+  });
+
+  testWidgets('Quiz soundToKana もう一回 via results keeps the new autoplay', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) {
+          void start({bool replace = false}) {
+            final route = QuizScreen.routeItems(
+              items: [_soundKi()],
+              title: AppStrings.dailySession,
+              onAgain: () => start(replace: true),
+            );
+            final nav = Navigator.of(context);
+            replace ? nav.pushReplacement(route) : nav.push(route);
+          }
+
+          return Scaffold(
+            body: TextButton(onPressed: start, child: const Text('open')),
+          );
+        },
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tts.spoken, ['き']);
+    tts.completeSpeak(0, 1);
+    await tester.idle();
+    await tester.pump();
+    await tester.tap(find.text('き'));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.seeResults));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.practiceAgain), findsOneWidget);
+    final stopsAtResult = tts.stopCount;
+    final genAtResult = speech.generation;
+
+    await tester.tap(find.text(AppStrings.practiceAgain));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuizScreen), findsOneWidget);
+    expect(tts.spoken.last, 'き');
+    expect(find.text(AppStrings.quizSoundInterrupted), findsNothing);
+    expect(speech.generation, greaterThan(genAtResult));
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+    expect(tts.stopCount, stopsAtResult + 1);
+  });
 }
