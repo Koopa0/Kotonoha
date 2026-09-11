@@ -389,4 +389,45 @@ void main() {
       ShiftLane.review,
     );
   });
+
+  test('plan keys on drill id so a later catalogue row can reuse hold', () {
+    final sample = ShiftSession.drillById('i-adj-aoi-noun')!;
+    final extra = ShiftDrill(
+      id: 'future-catalogue-row',
+      focusId: sample.focusId,
+      focusTitle: sample.focusTitle,
+      label: sample.label,
+      change: sample.change,
+      base: sample.base,
+      shift: sample.shift,
+    );
+    final day0 = DateTime(2026, 9, 10, 10);
+    final reserved = ShiftSession.reservation(
+      drill: extra,
+      sessionId: 'h',
+      at: day0,
+    );
+    expect(reserved.itemId, 'shift:future-catalogue-row:shift');
+    expect(
+      ShiftSession.sightOf(extra, ShiftBeat.shift, attempts: [reserved]),
+      ShiftSight.unseen,
+    );
+    final hold = ShiftSession.plan(
+      drill: extra,
+      now: day0,
+      attempts: [reserved],
+      requested: ShiftLane.hold,
+    );
+    expect(hold.lane, ShiftLane.hold);
+    expect(hold.beats, [ShiftBeat.base]);
+    expect(ShiftSession.pickerPreview(hold), extra.base.kana);
+    final confirm = ShiftSession.plan(
+      drill: extra,
+      now: DateTime(2026, 9, 11, 9),
+      attempts: [reserved],
+    );
+    expect(confirm.lane, ShiftLane.confirm);
+    expect(confirm.firstUnseen, isTrue);
+    expect(ShiftSession.pickerPreview(confirm), isNull);
+  });
 }

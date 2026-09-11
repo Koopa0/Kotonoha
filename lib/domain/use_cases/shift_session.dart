@@ -16,6 +16,10 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 /// metadata associate a reserved beat with a later sitting; they are not
 /// a second ledger and do not write word / kana SRS.
 ///
+/// Content tickets append curated [ShiftDrill] rows. Planning keys only on
+/// [ShiftDrill.id] plus [ShiftBeat] / [ShiftCheck]; it does not generate
+/// variants or read modifier / head copy. History UI stays here.
+///
 /// Pure logic: no `package:flutter/*` imports.
 abstract final class ShiftSession {
   static List<ShiftFocus> focuses({List<ShiftDrill> drills = kShiftDrills}) {
