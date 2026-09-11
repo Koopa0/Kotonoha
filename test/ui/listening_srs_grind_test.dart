@@ -20,85 +20,85 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/fake_tts_client.dart';
 
+Future<({KanaProgressRepository kana, WordProgressRepository words})>
+_loadRepos() async {
+  final kana = await KanaProgressRepository.load();
+  final words = await WordProgressRepository.load();
+  return (kana: kana, words: words);
+}
+
+Future<void> _learnAll(KanaProgressRepository kana) async {
+  for (final lesson in Lessons.fromKana(kana.allKana)) {
+    await kana.markUnitLearned(lesson.id);
+  }
+}
+
+Future<void> _pump(
+  WidgetTester tester, {
+  required KanaProgressRepository kana,
+  required WordProgressRepository words,
+  required Widget home,
+}) async {
+  final kanji = await KanjiReadingRepository.load();
+  await tester.binding.setSurfaceSize(const Size(420, 2600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+        ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+        ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: ProgressPersistenceController(
+            kanaFlush: kana.flushPending,
+            kanjiFlush: kanji.flushPending,
+            wordFlush: words.flushPending,
+          ),
+        ),
+        Provider<SpeechService>.value(
+          value: ScriptedSpeechService(const [SpeechPlaybackResult.played]),
+        ),
+        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+      ],
+      child: MaterialApp(home: home),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
+Future<void> _gradeHeard(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+  await tester.pump();
+  await tester.tap(find.text(AppStrings.listeningHeard));
+  await tester.pump();
+  await tester.pump();
+}
+
+Future<void> _gradeHeardExpecting(
+  WidgetTester tester,
+  WordProgressRepository words,
+  Set<String> already,
+) async {
+  await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
+  await tester.pump();
+  final kana = tester
+      .widget<Text>(find.byKey(const ValueKey<String>('listening-answer')))
+      .data!;
+  final id = kana.contains(' ') ? 'phrase:$kana' : 'word:$kana';
+  final before = words.statForItem(id).srsLevel;
+  await tester.tap(find.text(AppStrings.listeningHeard));
+  await tester.pump();
+  await tester.pump();
+  if (already.contains(id)) {
+    expect(words.statForItem(id).srsLevel, before);
+  } else {
+    expect(words.statForItem(id).srsLevel, before + 1);
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
-
-  Future<({KanaProgressRepository kana, WordProgressRepository words})>
-  _loadRepos() async {
-    final kana = await KanaProgressRepository.load();
-    final words = await WordProgressRepository.load();
-    return (kana: kana, words: words);
-  }
-
-  Future<void> _learnAll(KanaProgressRepository kana) async {
-    for (final lesson in Lessons.fromKana(kana.allKana)) {
-      await kana.markUnitLearned(lesson.id);
-    }
-  }
-
-  Future<void> _pump(
-    WidgetTester tester, {
-    required KanaProgressRepository kana,
-    required WordProgressRepository words,
-    required Widget home,
-  }) async {
-    final kanji = await KanjiReadingRepository.load();
-    await tester.binding.setSurfaceSize(const Size(420, 2600));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
-          ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
-          ChangeNotifierProvider<WordProgressRepository>.value(value: words),
-          ChangeNotifierProvider<ProgressPersistenceController>.value(
-            value: ProgressPersistenceController(
-              kanaFlush: kana.flushPending,
-              kanjiFlush: kanji.flushPending,
-              wordFlush: words.flushPending,
-            ),
-          ),
-          Provider<SpeechService>.value(
-            value: ScriptedSpeechService(const [SpeechPlaybackResult.played]),
-          ),
-          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
-        ],
-        child: MaterialApp(home: home),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-  }
-
-  Future<void> _gradeHeard(WidgetTester tester) async {
-    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
-    await tester.pump();
-    await tester.tap(find.text(AppStrings.listeningHeard));
-    await tester.pump();
-    await tester.pump();
-  }
-
-  Future<void> _gradeHeardExpecting(
-    WidgetTester tester,
-    WordProgressRepository words,
-    Set<String> already,
-  ) async {
-    await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
-    await tester.pump();
-    final kana = tester
-        .widget<Text>(find.byKey(const ValueKey<String>('listening-answer')))
-        .data!;
-    final id = kana.contains(' ') ? 'phrase:$kana' : 'word:$kana';
-    final before = words.statForItem(id).srsLevel;
-    await tester.tap(find.text(AppStrings.listeningHeard));
-    await tester.pump();
-    await tester.pump();
-    if (already.contains(id)) {
-      expect(words.statForItem(id).srsLevel, before);
-    } else {
-      expect(words.statForItem(id).srsLevel, before + 1);
-    }
-  }
 
   testWidgets(
     '聞き取り もう一回: first blind climb, wrap same id does not, new id still does',
