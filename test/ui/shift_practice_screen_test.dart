@@ -10,8 +10,8 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/data/shift_dataset.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
@@ -183,6 +183,8 @@ void main() {
   ) async {
     final analytics = InMemoryAnalyticsLog();
     ShiftDrill? started;
+    await tester.binding.setSurfaceSize(const Size(420, 2000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       _harness(
         analytics: analytics,
@@ -191,8 +193,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.shiftSelfGradeNote), findsWidgets);
-    await tester.tap(find.text(AppStrings.shiftStart));
-    await tester.pumpAndSettle();
+    await _tapVisible(tester, find.text(AppStrings.shiftStart));
     expect(started?.id, 'i-adj-aoi-noun');
     expect(find.text('あおい そら'), findsOneWidget);
   });
@@ -475,6 +476,44 @@ void main() {
       expect(ShiftSession.marksFocusMastered(logged), isFalse);
       expect(find.text(AppStrings.shiftClose), findsOneWidget);
       expect(words.stats, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'reserved-shift sitting still teaches first, then only the held beat',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('bring-actor-watashi-kare')!;
+      await tester.binding.setSurfaceSize(const Size(420, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            beats: const [ShiftBeat.shift],
+            clock: () => DateTime(2026, 9, 12, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftIntroLead), findsOneWidget);
+      expect(find.text('かれが かばんを もってきます'), findsNothing);
+      await _finishIntro(tester);
+      expect(find.text('かれが かばんを もってきます'), findsOneWidget);
+      expect(find.text('わたしが かばんを もってきます'), findsNothing);
+      await _completeActionBeat(tester, drill.shift, unprompted: true);
+      expect(find.text(AppStrings.shiftClose), findsOneWidget);
+      final logged = await analytics.all();
+      expect(
+        logged.every((a) => a.meta[AttemptMeta.beat] == ShiftBeat.shift.name),
+        isTrue,
+      );
+      expect(
+        logged.any((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.verb.name),
+        isTrue,
+      );
+      expect(logged.any((a) => a.meta[AttemptMeta.scored] == true), isTrue);
     },
   );
 

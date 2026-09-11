@@ -26,6 +26,7 @@ class ShiftPracticeScreen extends StatefulWidget {
     this.sourceUrl,
     this.onMore,
     this.clock,
+    this.beats,
     super.key,
   });
 
@@ -34,13 +35,24 @@ class ShiftPracticeScreen extends StatefulWidget {
   final VoidCallback? onMore;
   final DateTime Function()? clock;
 
+  /// Which pair beats this sitting plays. #73 supplies a reserved-shift
+  /// list; same-day practice still defaults to base then shift.
+  final List<ShiftBeat>? beats;
+
   static Route<void> route(
     ShiftDrill drill, {
     String? sourceUrl,
     VoidCallback? onMore,
+    DateTime Function()? clock,
+    List<ShiftBeat>? beats,
   }) => MaterialPageRoute<void>(
-    builder: (_) =>
-        ShiftPracticeScreen(drill: drill, sourceUrl: sourceUrl, onMore: onMore),
+    builder: (_) => ShiftPracticeScreen(
+      drill: drill,
+      sourceUrl: sourceUrl,
+      onMore: onMore,
+      clock: clock,
+      beats: beats,
+    ),
   );
 
   @override
@@ -66,7 +78,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  ShiftBeat _beat = ShiftBeat.base;
+  late final List<ShiftBeat> _beats;
+  late ShiftBeat _beat;
   late _Phase _phase;
   int _introIndex = 0;
   bool _readUnprompted = false;
@@ -100,6 +113,10 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onResume: () => _playable = true,
     );
     _playable = _foreground;
+    _beats = List<ShiftBeat>.of(
+      widget.beats ?? const [ShiftBeat.base, ShiftBeat.shift],
+    );
+    _beat = _beats.first;
     _phase = _intro.isEmpty ? _Phase.readCommit : _Phase.intro;
   }
 
@@ -211,11 +228,17 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   void _gradeSense({required bool correct}) {
-    _record(ShiftCheck.sense, prompted: !_senseUnprompted, correct: correct);
-    if (_beat == ShiftBeat.base) {
+    _record(
+      ShiftCheck.sense,
+      prompted: !_senseUnprompted,
+      correct: correct,
+      readSupport: _readUnprompted ? 'independent' : 'prompted',
+    );
+    final next = _beats.indexOf(_beat) + 1;
+    if (next < _beats.length) {
       _note.clear();
       setState(() {
-        _beat = ShiftBeat.shift;
+        _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
         _senseUnprompted = false;
@@ -234,6 +257,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
+    String? readSupport,
   }) {
     context.read<AnalyticsLog>().recordObserved(
       ShiftSession.attempt(
@@ -245,6 +269,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         sessionId: _sessionId,
         at: _clock(),
         sourceUrl: widget.sourceUrl,
+        readSupport: readSupport,
       ),
     );
   }
@@ -285,8 +310,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                     children: [
                       Text(
                         AppStrings.itemProgress(
-                          _beat == ShiftBeat.base ? 1 : 2,
-                          2,
+                          _beats.indexOf(_beat) + 1,
+                          _beats.length,
                         ),
                         style: const TextStyle(
                           color: AppColors.inkMuted,
@@ -316,7 +341,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                           child: Column(
                             children: [
-                              if (_beat == ShiftBeat.shift) ...[
+                              if (_beat == ShiftBeat.shift &&
+                                  _beats.contains(ShiftBeat.base)) ...[
                                 Text(
                                   _bridgeCopy(),
                                   textAlign: TextAlign.center,
@@ -760,9 +786,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       case _Phase.verbReveal:
         return FilledButton(
           onPressed: _afterVerb,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-          ),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
           child: const Text(AppStrings.shiftContinue),
         );
       case _Phase.rolesAsk:
@@ -791,9 +815,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       case _Phase.rolesReveal:
         return FilledButton(
           onPressed: _afterRoles,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-          ),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
           child: const Text(AppStrings.shiftContinue),
         );
       case _Phase.senseCommit:

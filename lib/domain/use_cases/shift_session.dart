@@ -57,6 +57,8 @@ abstract final class ShiftSession {
   static String itemId(ShiftDrill drill, ShiftBeat beat) =>
       'shift:${drill.id}:${beat.name}';
 
+  /// [readSupport] is the reading help already on screen when sense is
+  /// graded (`independent` / `prompted`). Hold / lane / sight stay on #73.
   static Attempt attempt({
     required ShiftDrill drill,
     required ShiftBeat beat,
@@ -66,8 +68,10 @@ abstract final class ShiftSession {
     required String sessionId,
     required DateTime at,
     String? sourceUrl,
+    String? readSupport,
   }) {
     final source = sourceUrl?.trim();
+    final support = readSupport?.trim();
     return Attempt(
       ts: at.millisecondsSinceEpoch,
       itemId: itemId(drill, beat),
@@ -81,6 +85,9 @@ abstract final class ShiftSession {
         AttemptMeta.beat: beat.name,
         AttemptMeta.drill: drill.id,
         AttemptMeta.focus: drill.focusId,
+        AttemptMeta.scored: true,
+        if (check == ShiftCheck.sense && support != null && support.isNotEmpty)
+          AttemptMeta.readSupport: support,
         if (source != null && source.isNotEmpty) AttemptMeta.source: source,
       },
     );

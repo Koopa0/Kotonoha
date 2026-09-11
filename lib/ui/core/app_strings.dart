@@ -296,8 +296,7 @@ abstract final class AppStrings {
   static const String shiftSourceHint = '只作備註,不會抓內容或同步帳號';
   static const String shiftStart = '開始這組';
   static const String shiftSensePrompt = '這句是誰修飾誰?可用中文或假名寫下你的理解。';
-  static const String shiftActionSensePrompt =
-      '這句是誰把什麼帶過來?可用中文或假名寫下你的理解。';
+  static const String shiftActionSensePrompt = '這句是誰把什麼帶過來?可用中文或假名寫下你的理解。';
   static const String shiftSenseHint = '看句意';
   static const String shiftSenseReady = '我想好了';
   static const String shiftSensePadHint = '寫給自己看,不會自動批改';
@@ -325,7 +324,8 @@ abstract final class AppStrings {
       '有唯一結構答案的題可以判對錯;中文理由仍是自評。'
       '這一題不會把整個文法點、章節或相關詞句標成掌握。';
   static String shiftSourceChip(String url) => '來源備註 $url';
-  static String shiftIntroProgress(int current, int total) => '先介紹 $current / $total';
+  static String shiftIntroProgress(int current, int total) =>
+      '先介紹 $current / $total';
 
   // 短く返す — hear a station ask, pick the intent, pick a short reply.
   // Isolated from #47 scene membership and #9 聞き取り self-grade.
@@ -336,8 +336,7 @@ abstract final class AppStrings {
   static const String replyClothingPurpose =
       '這一回只練購衣時聽懂店員在說什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
-  static const String replyClothingMeetHint =
-      '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
   static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
   static const String replyStartAction = '開始這一回';

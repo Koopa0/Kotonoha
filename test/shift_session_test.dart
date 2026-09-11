@@ -56,7 +56,9 @@ void main() {
           reason: sentence.kana,
         );
         final compact = sentence.romaji.replaceAll(' ', '').replaceAll("'", '');
-        final possible = possibleReadingRomaji(sentence.kana.replaceAll(' ', ''));
+        final possible = possibleReadingRomaji(
+          sentence.kana.replaceAll(' ', ''),
+        );
         expect(
           possible.any((p) => p.replaceAll("'", '') == compact),
           isTrue,
@@ -154,17 +156,16 @@ void main() {
     expect(read.itemId, 'shift:i-adj-aoi-noun:base');
     expect(read.meta[AttemptMeta.prompted], isFalse);
     expect(read.meta[AttemptMeta.evidence], ShiftCheck.read.name);
+    expect(read.meta[AttemptMeta.scored], isTrue);
     expect(read.meta.containsKey(AttemptMeta.source), isFalse);
     expect(sense.itemId, 'shift:i-adj-aoi-noun:shift');
     expect(sense.meta[AttemptMeta.prompted], isTrue);
     expect(sense.meta[AttemptMeta.evidence], ShiftCheck.sense.name);
     expect(sense.meta[AttemptMeta.source], 'https://example.test/note');
+    expect(sense.meta.containsKey(AttemptMeta.readSupport), isFalse);
     expect(ShiftSession.isTransferSense(read), isFalse);
     expect(ShiftSession.isTransferSense(sense), isTrue);
-    expect(ShiftSession.checksFor(drill), [
-      ShiftCheck.read,
-      ShiftCheck.sense,
-    ]);
+    expect(ShiftSession.checksFor(drill), [ShiftCheck.read, ShiftCheck.sense]);
   });
 
   test('action checks stay on the same itemId contract as adjective pairs', () {
@@ -212,27 +213,15 @@ void main() {
     expect(ShiftSession.gradesVerb('もってくる', past), isTrue);
     expect(ShiftSession.gradesVerb('もってきました', past), isFalse);
     expect(
-      ShiftSession.gradesRoles(
-        actor: 'わたし',
-        item: 'かばん',
-        sentence: present,
-      ),
+      ShiftSession.gradesRoles(actor: 'わたし', item: 'かばん', sentence: present),
       isTrue,
     );
     expect(
-      ShiftSession.gradesRoles(
-        actor: 'かれ',
-        item: 'かばん',
-        sentence: present,
-      ),
+      ShiftSession.gradesRoles(actor: 'かれ', item: 'かばん', sentence: present),
       isFalse,
     );
     expect(
-      ShiftSession.gradesRoles(
-        actor: 'わたし',
-        item: 'ほん',
-        sentence: present,
-      ),
+      ShiftSession.gradesRoles(actor: 'わたし', item: 'ほん', sentence: present),
       isFalse,
     );
     final adj = ShiftSession.drillById('i-adj-aoi-noun')!.base;

@@ -50,6 +50,10 @@ abstract final class AttemptMeta {
 
   /// Optional learner-supplied source URL (context only; never fetched).
   static const String source = 'source';
+
+  /// Reading support already given when a shift sense check was graded
+  /// (`independent` or `prompted`). #73 owns delayed-confirm display of this.
+  static const String readSupport = 'readSupport';
 }
 
 /// One answered item — the fine-grained event stream behind learning analytics.
