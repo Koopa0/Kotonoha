@@ -83,6 +83,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   late _Phase _phase;
   int _introIndex = 0;
   bool _readUnprompted = false;
+  bool _readCorrect = false;
   bool _senseUnprompted = false;
   bool _verbPrompted = false;
   bool _rolesPrompted = false;
@@ -168,7 +169,25 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   void _gradeRead({required bool correct}) {
     _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
-    setState(() => _phase = _action ? _Phase.verbAsk : _Phase.senseCommit);
+    setState(() {
+      _readCorrect = correct;
+      _phase = _action ? _Phase.verbAsk : _Phase.senseCommit;
+    });
+  }
+
+  /// Reading support on screen when the sense check is graded — not the
+  /// pre-reveal commit alone.
+  String _readSupportAtSenseGrade() {
+    if (_readUnprompted && _readCorrect) {
+      return ShiftReadSupport.independent;
+    }
+    return ShiftReadSupport.prompted;
+  }
+
+  /// Sense self-grade stays prompted when an earlier check already showed
+  /// Chinese semantic support for the same sentence.
+  bool _sensePromptedAtGrade() {
+    return !_senseUnprompted || _rolesPrompted;
   }
 
   void _hintVerb() {
@@ -230,9 +249,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   void _gradeSense({required bool correct}) {
     _record(
       ShiftCheck.sense,
-      prompted: !_senseUnprompted,
+      prompted: _sensePromptedAtGrade(),
       correct: correct,
-      readSupport: _readUnprompted ? 'independent' : 'prompted',
+      readSupport: _readSupportAtSenseGrade(),
     );
     final next = _beats.indexOf(_beat) + 1;
     if (next < _beats.length) {
@@ -241,6 +260,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
+        _readCorrect = false;
         _senseUnprompted = false;
         _verbPrompted = false;
         _rolesPrompted = false;

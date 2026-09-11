@@ -480,6 +480,63 @@ void main() {
   );
 
   testWidgets(
+    'roles hint carries semantic support into unprompted sense self-grade',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('bring-actor-watashi-kare')!;
+      await tester.binding.setSurfaceSize(const Size(420, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            beats: const [ShiftBeat.base],
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _finishIntro(tester);
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(drill.base.dictionaryForm));
+      await tester.pumpAndSettle();
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+
+      await _tapVisible(tester, find.text(AppStrings.shiftRolesHint));
+      expect(find.text(drill.base.relation), findsOneWidget);
+      await tester.tap(find.text(drill.base.actor));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(drill.base.item));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftRolesReady));
+      await tester.pumpAndSettle();
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      final logged = await analytics.all();
+      expect(logged, hasLength(4));
+      expect(logged[2].meta[AttemptMeta.evidence], ShiftCheck.roles.name);
+      expect(logged[2].meta[AttemptMeta.prompted], isTrue);
+      expect(logged[3].meta[AttemptMeta.evidence], ShiftCheck.sense.name);
+      expect(logged[3].meta[AttemptMeta.prompted], isTrue);
+      expect(
+        logged[3].meta[AttemptMeta.readSupport],
+        ShiftReadSupport.independent,
+      );
+    },
+  );
+
+  testWidgets(
     'reserved-shift sitting still teaches first, then only the held beat',
     (tester) async {
       final analytics = InMemoryAnalyticsLog();

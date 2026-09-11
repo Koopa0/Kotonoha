@@ -87,6 +87,12 @@ class ShiftIntroCard {
   final List<ShiftIntroLine> lines;
 }
 
+/// Reading help already on screen when a sense check is graded.
+abstract final class ShiftReadSupport {
+  static const String independent = 'independent';
+  static const String prompted = 'prompted';
+}
+
 /// What changed between the base sentence and its original variant.
 ///
 /// Adjective drills use [noun] / [modifier]. Action drills use [actor] /
