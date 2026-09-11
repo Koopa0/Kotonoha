@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/domain/data/info_drill_dataset.dart';
 import 'package:kotonoha/domain/models/reply_drill.dart';
 import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -262,6 +263,25 @@ class TravelSceneHub extends StatelessWidget {
                 productName: AppStrings.listeningEntry,
                 kind: _ActionKind.outlined,
                 onPressed: () => _startListen(context),
+              ),
+            ],
+            if (scene == TravelSceneId.hotel) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-hotel-info'),
+                label: AppStrings.infoAction,
+                productName: AppStrings.infoHotelEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  InfoHubScreen.route(
+                    clock: clock,
+                    drills: kHotelInfoDrills,
+                    title: AppStrings.travelSceneHotel,
+                    purpose: AppStrings.infoHotelPurpose,
+                    meetTitle: AppStrings.infoHotelMeetTitle,
+                    entryName: AppStrings.infoHotelEntry,
+                  ),
+                ),
               ),
             ],
             if (_replyScene != null) ...[

@@ -804,9 +804,11 @@ void main() {
     },
   );
 
-  testWidgets('hotel hub does not surface a reply door', (tester) async {
+  testWidgets('hotel hub surfaces info time door, not reply', (tester) async {
     await pumpHub(tester, scene: TravelSceneId.hotel);
     expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.infoAction), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelEntry), findsOneWidget);
     expect(find.text(AppStrings.replyAction), findsNothing);
   });
 

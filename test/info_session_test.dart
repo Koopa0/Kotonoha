@@ -93,20 +93,23 @@ void main() {
     expect(view.unreadRequired, isNotEmpty);
   });
 
-  test('compose prefers base and migration per kind when session is trimmed', () {
-    final session = InfoSession.compose(
-      learnedChars: allChars,
-      rng: Random(1),
-      stats: statsForAll(),
-      sessionLength: 6,
-    );
-    expect(session, hasLength(6));
-    for (final kind in InfoKind.values) {
-      final kindDrills = session.where((d) => d.kind == kind).toList();
-      expect(kindDrills.where((d) => !d.isMigration), hasLength(1));
-      expect(kindDrills.where((d) => d.isMigration), hasLength(1));
-    }
-  });
+  test(
+    'compose prefers base and migration per kind when session is trimmed',
+    () {
+      final session = InfoSession.compose(
+        learnedChars: allChars,
+        rng: Random(1),
+        stats: statsForAll(),
+        sessionLength: 6,
+      );
+      expect(session, hasLength(6));
+      for (final kind in InfoKind.values) {
+        final kindDrills = session.where((d) => d.kind == kind).toList();
+        expect(kindDrills.where((d) => !d.isMigration), hasLength(1));
+        expect(kindDrills.where((d) => d.isMigration), hasLength(1));
+      }
+    },
+  );
 
   test('compose returns full catalog when all nine drills are ready', () {
     final session = InfoSession.compose(
@@ -124,10 +127,7 @@ void main() {
     final partial = {'word:さん': seenAt(), 'word:えん': seenAt()};
     final view = InfoSession.inspect(learnedChars: allChars, stats: partial);
     expect(view.ready.map((d) => d.id), isNot(contains(drill.id)));
-    expect(
-      view.unreadRequired.map((i) => i.progressId),
-      contains('word:さんぜん'),
-    );
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:さんぜん'));
   });
 
   test('amount-5000 unlocks from parts without a whole ごせん word', () {
@@ -152,6 +152,65 @@ void main() {
     expect(
       view.unreadRequired.map((i) => i.progressId),
       isNot(contains('word:さんにん')),
+    );
+  });
+
+  test('hotel time drills stay out of the global catalog', () {
+    expect(
+      kInfoDrills.map((d) => d.id),
+      isNot(contains('info:hotel-breakfast-9am')),
+    );
+    expect(kHotelInfoDrills, hasLength(2));
+    for (final drill in kHotelInfoDrills) {
+      expect(drill.kind, InfoKind.time);
+      expect(drill.sceneZh, isNot(contains(drill.correctAnswer)));
+    }
+  });
+
+  test('hotel breakfast waits for scene phrase and time units', () {
+    final drill = kHotelInfoDrills.firstWhere(
+      (d) => d.id == 'info:hotel-breakfast-9am',
+    );
+    final partial = {
+      'phrase:あさごはんは ありますか': seenAt(),
+      'word:あさごはん': seenAt(),
+      'word:ごぜん': seenAt(),
+      'word:く': seenAt(),
+    };
+    final view = InfoSession.inspect(
+      learnedChars: allChars,
+      stats: partial,
+      drills: kHotelInfoDrills,
+    );
+    expect(view.ready.map((d) => d.id), isNot(contains(drill.id)));
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:じ'));
+    final ready = InfoSession.inspect(
+      learnedChars: allChars,
+      stats: {...partial, 'word:じ': seenAt()},
+      drills: kHotelInfoDrills,
+    );
+    expect(ready.ready.map((d) => d.id), contains(drill.id));
+  });
+
+  test('hotel checkout waits for tomorrow phrase and checkout word', () {
+    final drill = kHotelInfoDrills.firstWhere(
+      (d) => d.id == 'info:hotel-checkout-10am',
+    );
+    final partial = {
+      'phrase:あした でます': seenAt(),
+      'word:ごぜん': seenAt(),
+      'word:じゅう': seenAt(),
+      'word:じ': seenAt(),
+    };
+    final view = InfoSession.inspect(
+      learnedChars: allChars,
+      stats: partial,
+      drills: kHotelInfoDrills,
+    );
+    expect(view.ready.map((d) => d.id), isNot(contains(drill.id)));
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      contains('word:チェックアウト'),
     );
   });
 

@@ -73,6 +73,7 @@ void main() {
     expect(pools[TravelSceneId.hotel], contains('phrase:よやくが あります'));
     expect(pools[TravelSceneId.hotel], contains('phrase:チェックインを おねがい'));
     expect(pools[TravelSceneId.hotel], contains('word:チェックイン'));
+    expect(pools[TravelSceneId.hotel], contains('word:チェックアウト'));
     expect(pools[TravelSceneId.hotel], contains('phrase:あした でます'));
     expect(pools[TravelSceneId.hotel], isNot(contains('word:よやく')));
     expect(pools[TravelSceneId.hotel], isNot(contains('word:うけつけ')));
