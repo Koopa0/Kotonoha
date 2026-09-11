@@ -890,16 +890,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReadingScreen), findsOneWidget);
     expect(find.text('チェックインを おねがい'), findsOneWidget);
-    await tester.tap(find.text(AppStrings.recallHint));
+    await tester.ensureVisible(find.text(AppStrings.iReadUnprompted));
     await tester.pumpAndSettle();
-    expect(find.text('請辦理入住'), findsOneWidget);
-    await tester.ensureVisible(find.text('請辦理入住'));
+    expect(find.text(AppStrings.iReadUnprompted).hitTestable(), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey<String>('reading-meaning')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('請辦理入住').hitTestable(), findsOneWidget);
+    final meaning = tester.getRect(
+      find.byKey(const ValueKey<String>('reading-meaning')),
+    );
+    expect(meaning.bottom, lessThanOrEqualTo(641));
+    expect(meaning.top, greaterThanOrEqualTo(-1));
     expect(repos.words.statForItem('phrase:チェックインを おねがい').isSeen, isFalse);
-    await tester.ensureVisible(find.text(AppStrings.iReadAfterHint));
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.iReadAfterHint));
+    expect(find.text(AppStrings.iReadIt).hitTestable(), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadIt));
     await tester.pumpAndSettle();
     expect(repos.words.statForItem('phrase:チェックインを おねがい').isSeen, isTrue);
   });
