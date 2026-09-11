@@ -10,10 +10,10 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
-import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/shift/shift_history.dart';
 import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
 import 'package:provider/provider.dart';
@@ -201,11 +201,11 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   Future<void> _retryPersist() async {
     if (_retrying) return;
     setState(() => _retrying = true);
+    final log = context.read<AnalyticsLog>();
     final persist = _persistence();
     if (persist != null) {
       await persist.retry();
     }
-    final log = context.read<AnalyticsLog>();
     try {
       await log.flushPending();
     } on Object {
@@ -305,7 +305,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _readCorrect = false;
         _senseUnprompted = false;
       });
-      _markPracticeSight();
+      unawaited(_markPracticeSight());
       return;
     }
     setState(() => _done = true);

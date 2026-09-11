@@ -103,7 +103,7 @@ void main() {
       };
       final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
       final now = DateTime(2026, 9, 10, 10);
-      final sessionId = 'hold-persist';
+      const sessionId = 'hold-persist';
 
       for (final attempt in [
         ShiftSession.reservation(drill: drill, sessionId: sessionId, at: now),

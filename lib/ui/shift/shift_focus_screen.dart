@@ -9,8 +9,8 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
-import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/shift/shift_history.dart';
 import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
 import 'package:kotonoha/ui/shift/shift_practice_screen.dart';
@@ -160,11 +160,11 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
   Future<void> _retryPersist() async {
     if (_retrying) return;
     setState(() => _retrying = true);
+    final log = context.read<AnalyticsLog>();
     final persist = _persistence();
     if (persist != null) {
       await persist.retry();
     }
-    final log = context.read<AnalyticsLog>();
     try {
       await log.flushPending();
     } on Object {
@@ -330,7 +330,7 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
             ),
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: () => _start(),
+              onPressed: _start,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
               ),

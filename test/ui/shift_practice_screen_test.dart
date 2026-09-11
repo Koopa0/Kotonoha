@@ -563,7 +563,7 @@ void main() {
   });
 
   testWidgets('short history on 320x640 1x keeps 完成 hittable', (tester) async {
-    _configureView(tester, size: const Size(320, 640), textScale: 1);
+    _configureView(tester, size: const Size(320, 640));
     await tester.pumpWidget(
       _harness(
         analytics: InMemoryAnalyticsLog(),
