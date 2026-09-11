@@ -438,6 +438,131 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 
+  testWidgets('Writing grade to next kana stops the previous owned play', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    final row = kHiraganaGojuon.take(5).toList();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () =>
+                Navigator.of(context)
+                    .push(WritingScreen.route(row, AppStrings.writingTitle)),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 5'), findsOneWidget);
+    await tester.tap(find.byTooltip(AppStrings.playSound));
+    await tester.pump();
+    expect(tts.spoken, ['あ']);
+    expect(tts.stopCount, 1);
+    final firstGen = speech.generation;
+    expect(tts.pendingSpeaks.single.isCompleted, isFalse);
+
+    await tester.tap(find.text(AppStrings.revealAnswer));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.iGotIt));
+    await tester.pump();
+    expect(find.text('2 / 5'), findsOneWidget);
+    expect(find.text('i'), findsOneWidget);
+    expect(tts.stopCount, greaterThan(1));
+    expect(speech.generation, greaterThan(firstGen));
+
+    tts.completeSpeak(0, 1);
+    await tester.idle();
+    await tester.pump();
+    expect(find.text('2 / 5'), findsOneWidget);
+    expect(find.text('i'), findsOneWidget);
+    expect(tts.spoken, ['あ']);
+
+    final stopsAfterAdvance = tts.stopCount;
+    await tester.tap(find.byTooltip(AppStrings.playSound));
+    await tester.pump();
+    expect(tts.spoken, ['あ', 'い']);
+    final nextGen = speech.generation;
+    await speech.stop(generation: firstGen);
+    expect(tts.stopCount, stopsAfterAdvance + 1);
+    expect(speech.generation, nextGen);
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+  });
+
+  testWidgets('Home 手習い speaker then 寫對 stops leftover before 2/5', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    final kana = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    await _learnUnits(kana, const ['hira_row_0']);
+    await _pumpApp(tester, speech: speech, kana: kana, words: words);
+    expect(find.text(AppStrings.shiftAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.writingEntry));
+    await tester.pumpAndSettle();
+    expect(find.byType(WritingScreen), findsOneWidget);
+    expect(find.text('1 / 5'), findsOneWidget);
+    await tester.tap(find.byTooltip(AppStrings.playSound));
+    await tester.pump();
+    expect(tts.spoken, hasLength(1));
+    expect(tts.stopCount, 1);
+
+    await tester.tap(find.text(AppStrings.revealAnswer));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.iGotIt));
+    await tester.pump();
+    expect(find.text('2 / 5'), findsOneWidget);
+    expect(tts.stopCount, greaterThan(1));
+  });
+
+  testWidgets('Writing background cancel then resume still allows replay', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    await _pumpProviders(
+      tester,
+      speech: speech,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.of(context).push(
+              WritingScreen.route(
+                kHiraganaGojuon.take(2).toList(),
+                AppStrings.writingTitle,
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip(AppStrings.playSound));
+    await tester.pump();
+    expect(tts.stopCount, 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(tts.stopCount, greaterThan(1));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.tap(find.byTooltip(AppStrings.playSound));
+    await tester.pump();
+    expect(tts.spoken, ['あ', 'あ']);
+  });
+
   testWidgets('KanaDetailSheet speaker then barrier dismiss sends a stop', (
     tester,
   ) async {

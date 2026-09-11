@@ -98,6 +98,7 @@ class _WritingScreenState extends State<WritingScreen> {
       ),
     );
     if (correct) _correct++;
+    _abandonOwnedPlayback();
     if (_index + 1 >= widget.targets.length) {
       setState(() => _done = true);
     } else {
