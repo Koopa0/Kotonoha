@@ -10,7 +10,9 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/shift/shift_history.dart';
+import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
 import 'package:kotonoha/ui/shift/shift_practice_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -54,6 +56,8 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
   final Set<String> _previewed = <String>{};
   late String _selectedId;
   List<Attempt> _attempts = const [];
+  bool _unsaved = false;
+  bool _retrying = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
@@ -104,14 +108,25 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
     return List<Attempt>.of(await log.all());
   }
 
+  ProgressPersistenceController? _persistence() {
+    try {
+      return context.read<ProgressPersistenceController>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
   Future<void> _reload() async {
     final all = await _authoritativeAttempts();
     if (!mounted) return;
-    setState(() => _attempts = all);
-    _markVisiblePreviews();
+    setState(() {
+      _attempts = all;
+      _unsaved = context.read<AnalyticsLog>().unpersistedCount > 0;
+    });
+    await _markVisiblePreviews();
   }
 
-  void _markVisiblePreviews() {
+  Future<void> _markVisiblePreviews() async {
     final log = context.read<AnalyticsLog>();
     final now = _clock();
     for (final drill in _drills) {
@@ -119,7 +134,7 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
       final preview = ShiftSession.pickerPreview(plan);
       if (preview == null) continue;
       if (!_previewed.add(drill.id)) continue;
-      log.recordObserved(
+      final pending = log.record(
         ShiftSession.sighting(
           drill: drill,
           beat: ShiftBeat.base,
@@ -129,7 +144,37 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
           lane: plan.lane,
         ),
       );
+      _persistence()?.trackAnalytics(pending);
+      try {
+        await pending;
+      } on Object {
+        // Memory retains the preview; do not invent a persist.
+      }
     }
+    if (!mounted) return;
+    setState(() {
+      _unsaved = log.unpersistedCount > 0;
+    });
+  }
+
+  Future<void> _retryPersist() async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    final persist = _persistence();
+    if (persist != null) {
+      await persist.retry();
+    }
+    final log = context.read<AnalyticsLog>();
+    try {
+      await log.flushPending();
+    } on Object {
+      // Leave [unpersistedCount] honest.
+    }
+    if (!mounted) return;
+    setState(() {
+      _retrying = false;
+      _unsaved = log.unpersistedCount > 0;
+    });
   }
 
   Future<void> _start({ShiftLane requested = ShiftLane.sameDay}) async {
@@ -251,6 +296,11 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
                 ),
               const SizedBox(height: 12),
             ],
+            if (_unsaved)
+              ShiftPersistNotice(
+                retrying: _retrying,
+                onRetry: () => unawaited(_retryPersist()),
+              ),
             if (selectedPlan != null) ...[
               if (_statusCopy(selectedPlan) case final status
                   when status.isNotEmpty) ...[
@@ -325,7 +375,11 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
     if (plan.shiftSight == ShiftSight.unknown) {
       return AppStrings.shiftSightUnknown;
     }
-    if (plan.holdPending) return AppStrings.shiftHeldUntilTomorrow;
+    if (plan.holdPending) {
+      return _unsaved
+          ? AppStrings.shiftPersistFailed
+          : AppStrings.shiftHeldUntilTomorrow;
+    }
     if (plan.noUnseenVariant) return AppStrings.shiftReviewOnly;
     return '';
   }

@@ -6,13 +6,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/shift/shift_history.dart';
+import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
 import 'package:provider/provider.dart';
 
 /// Original swap-sentence practice: read first, then sense / who-modifies-whom.
@@ -80,6 +83,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   bool _readCorrect = false;
   bool _senseUnprompted = false;
   bool _done = false;
+  bool _unsaved = false;
+  bool _retrying = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
@@ -88,6 +93,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   String get _say => _sentence.kana.replaceAll(' ', '');
 
   String? get _laneCaption {
+    if (_unsaved) return AppStrings.shiftPersistFailed;
     switch (widget.lane) {
       case ShiftLane.hold:
         return AppStrings.shiftHeldUntilTomorrow;
@@ -119,8 +125,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     _beat = _beats.first;
     _playable = _foreground;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _reserveIfNeeded();
-      _markPracticeSight();
+      unawaited(_startRecords());
     });
   }
 
@@ -160,9 +165,61 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
-  void _reserveIfNeeded() {
+  Future<void> _startRecords() async {
+    await _reserveIfNeeded();
+    await _markPracticeSight();
+    if (mounted) _syncUnsaved();
+  }
+
+  ProgressPersistenceController? _persistence() {
+    try {
+      return context.read<ProgressPersistenceController>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  void _syncUnsaved() {
+    final unsaved = context.read<AnalyticsLog>().unpersistedCount > 0;
+    if (!mounted) return;
+    setState(() => _unsaved = unsaved);
+  }
+
+  Future<void> _write(Attempt attempt) async {
+    final log = context.read<AnalyticsLog>();
+    final pending = log.record(attempt);
+    _persistence()?.trackAnalytics(pending);
+    try {
+      await pending;
+    } on Object {
+      // Memory retains the row; [unpersistedCount] stays honest.
+    }
+    if (mounted) _syncUnsaved();
+  }
+
+  Future<void> _retryPersist() async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    final persist = _persistence();
+    if (persist != null) {
+      await persist.retry();
+    }
+    final log = context.read<AnalyticsLog>();
+    try {
+      await log.flushPending();
+    } on Object {
+      // Leave [unpersistedCount] honest. Do not invent a persist.
+    }
+    if (!mounted) return;
+    setState(() {
+      _retrying = false;
+      _unsaved = log.unpersistedCount > 0;
+    });
+  }
+
+  Future<void> _reserveIfNeeded() async {
     if (widget.lane != ShiftLane.hold) return;
-    context.read<AnalyticsLog>().recordObserved(
+    await _write(
       ShiftSession.reservation(
         drill: widget.drill,
         sessionId: _sessionId,
@@ -172,9 +229,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     );
   }
 
-  void _markPracticeSight() {
+  Future<void> _markPracticeSight() async {
     if (!_exposed.add(_beat)) return;
-    context.read<AnalyticsLog>().recordObserved(
+    await _write(
       ShiftSession.sighting(
         drill: widget.drill,
         beat: _beat,
@@ -249,32 +306,26 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     unawaited(_loadHistory());
   }
 
-  /// Waits for the log to accept the row. A durable fault still keeps the
-  /// attempt in memory; More must read [AnalyticsLog.all], not assume persist.
   Future<void> _record(
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
     String? readSupport,
   }) async {
-    try {
-      await context.read<AnalyticsLog>().record(
-        ShiftSession.attempt(
-          drill: widget.drill,
-          beat: _beat,
-          check: check,
-          prompted: prompted,
-          correct: correct,
-          sessionId: _sessionId,
-          at: _clock(),
-          sourceUrl: widget.sourceUrl,
-          lane: widget.lane,
-          readSupport: readSupport,
-        ),
-      );
-    } on Object {
-      // Memory retains the row; [unpersistedCount] stays honest.
-    }
+    await _write(
+      ShiftSession.attempt(
+        drill: widget.drill,
+        beat: _beat,
+        check: check,
+        prompted: prompted,
+        correct: correct,
+        sessionId: _sessionId,
+        at: _clock(),
+        sourceUrl: widget.sourceUrl,
+        lane: widget.lane,
+        readSupport: readSupport,
+      ),
+    );
   }
 
   @override
@@ -288,25 +339,37 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
-    final holdNote = widget.lane == ShiftLane.hold
+    final holdNote = widget.lane == ShiftLane.hold && !_unsaved
         ? '${AppStrings.shiftCloseNote}\n\n${AppStrings.shiftHeldUntilTomorrow}'
         : AppStrings.shiftCloseNote;
-    return Column(
-      children: [
-        if (_history.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: ShiftHistoryView(grades: _history),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              children: [
+                if (_history.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: ShiftHistoryView(grades: _history),
+                  ),
+                if (_unsaved)
+                  ShiftPersistNotice(
+                    retrying: _retrying,
+                    onRetry: () => unawaited(_retryPersist()),
+                  ),
+                SessionSummary(
+                  headline: AppStrings.shiftClose,
+                  note: holdNote,
+                  onDone: () => Navigator.of(context).pop(),
+                  onMore: band == ClosingBand.day ? widget.onMore : null,
+                ),
+              ],
+            ),
           ),
-        Expanded(
-          child: SessionSummary(
-            headline: AppStrings.shiftClose,
-            note: holdNote,
-            onDone: () => Navigator.of(context).pop(),
-            onMore: band == ClosingBand.day ? widget.onMore : null,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 

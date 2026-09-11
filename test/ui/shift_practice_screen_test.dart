@@ -432,6 +432,73 @@ void main() {
     expect(find.text('しずかな まち'), findsOneWidget);
   });
 
+  testWidgets('4-day history on 320x640 2x keeps 完成 and More reachable', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    for (var day = 1; day <= 4; day++) {
+      for (final check in ShiftCheck.values) {
+        await analytics.record(
+          ShiftSession.attempt(
+            drill: drill,
+            beat: ShiftBeat.base,
+            check: check,
+            prompted: false,
+            correct: true,
+            sessionId: 'd$day',
+            at: DateTime(2026, 9, day, 10),
+          ),
+        );
+      }
+    }
+    _configureView(tester, size: const Size(320, 640), textScale: 2);
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftPracticeScreen(
+          drill: drill,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 10, 10),
+          onMore: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _completeBeat(tester, unprompted: true);
+    expect(find.byType(Scrollable), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.done),
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text(AppStrings.done)).height, greaterThan(0));
+    expect(
+      tester.getRect(find.text(AppStrings.practiceAgain)).height,
+      greaterThan(0),
+    );
+    expect(find.text(AppStrings.shiftHistoryTitle), findsOneWidget);
+  });
+
+  testWidgets('short history on 320x640 1x keeps 完成 hittable', (tester) async {
+    _configureView(tester, size: const Size(320, 640), textScale: 1);
+    await tester.pumpWidget(
+      _harness(
+        analytics: InMemoryAnalyticsLog(),
+        child: ShiftPracticeScreen(
+          drill: ShiftSession.drillById('i-adj-aoi-noun')!,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 10, 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _completeBeat(tester, unprompted: true);
+    expect(find.text(AppStrings.done), findsOneWidget);
+    expect(tester.getRect(find.text(AppStrings.done)).height, greaterThan(0));
+  });
+
   testWidgets('320x640 2x without source keeps the sense pad operable', (
     tester,
   ) async {
@@ -497,6 +564,7 @@ Future<void> _pumpOfficialHome(
   final kana = await KanaProgressRepository.load();
   final kanji = await KanjiReadingRepository.load();
   final words = await WordProgressRepository.load();
+  final analytics = InMemoryAnalyticsLog();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -508,10 +576,11 @@ Future<void> _pumpOfficialHome(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
+            analyticsFlush: analytics.flushPending,
           ),
         ),
         Provider<SpeechService>.value(value: speech),
-        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        Provider<AnalyticsLog>.value(value: analytics),
       ],
       child: const KanaLoopApp(),
     ),

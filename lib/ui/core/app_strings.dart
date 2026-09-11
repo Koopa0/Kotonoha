@@ -325,6 +325,7 @@ abstract final class AppStrings {
   static const String shiftCloseNote =
       '無提示讀音、提示後讀音、換句後的句意是分開記下的自評。'
       '這一題不會把整個文法點、章節或相關詞句標成掌握。';
+  static const String shiftPersistFailed = '這次的換句紀錄還沒寫進裝置。跨重啟接續要等寫入成功。';
   static String shiftSourceChip(String url) => '來源備註 $url';
 
   static String shiftHistoryDay(String calendarDay, ShiftBeat beat) {

@@ -56,6 +56,7 @@ void main() {
     Future<void> Function()? kanjiFlush,
     Future<void> Function()? wordFlush,
     Future<void> Function()? placementFlush,
+    Future<void> Function()? analyticsFlush,
     List<StoreHealth> health = const [],
   }) {
     return ProgressPersistenceController(
@@ -63,6 +64,7 @@ void main() {
       kanjiFlush: kanjiFlush ?? () async {},
       wordFlush: wordFlush ?? () async {},
       placementFlush: placementFlush,
+      analyticsFlush: analyticsFlush,
       health: health,
     );
   }
@@ -319,6 +321,30 @@ void main() {
       isFalse,
     ); // a clean drain never raises the surface
   });
+
+  test(
+    'a failed analytics write is surfaced; retry only flushes the log',
+    () async {
+      var flushCalls = 0;
+      var shouldFail = true;
+      final c = owner(
+        analyticsFlush: () async {
+          flushCalls++;
+          if (shouldFail) throw fail();
+        },
+      );
+      final save = Future<void>.error(fail());
+      c.trackAnalytics(save);
+      await settled(save);
+      expect(c.hasWriteFailure, isTrue);
+      expect(flushCalls, 0);
+
+      shouldFail = false;
+      await c.retry();
+      expect(flushCalls, 1);
+      expect(c.hasWriteFailure, isFalse);
+    },
+  );
 
   test(
     'a failed placement write is surfaced; retry only flushes the draft',

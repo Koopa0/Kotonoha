@@ -665,6 +665,7 @@ Future<void> _pumpHome(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
+            analyticsFlush: analytics.flushPending,
           ),
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
