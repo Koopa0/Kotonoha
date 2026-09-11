@@ -4,8 +4,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/domain/models/travel_focus.dart';
 import 'package:kotonoha/domain/use_cases/guidance.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
+import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -311,6 +314,84 @@ void main() {
     expect(step.target, GuidanceTarget.lessons);
     expect(step.dueCount, 0);
   });
+
+  test('general mode is unchanged when no travel plan is set', () async {
+    final store = await KanaProgressRepository.load();
+    await store.markUnitLearned('hira_row_0');
+    await store.recordAnswer(
+      aRow(store).first,
+      correct: true,
+      at: now.subtract(const Duration(minutes: 1)),
+      latencyMs: 300,
+    );
+
+    final step = Guidance.nextStep(store, now: now);
+    expect(step.target, GuidanceTarget.lessons);
+  });
+
+  test('travel prep: one due kana boost then a readable scene, leftover rows do not block', () async {
+    final store = await KanaProgressRepository.load();
+    await store.markUnitLearned('hira_row_0');
+    await store.markUnitLearned('hira_row_1');
+    await store.recordAnswer(
+      aRow(store).first,
+      correct: false,
+      at: now.subtract(const Duration(hours: 1)),
+    );
+    final plan = TravelFocusPlan.empty.withFocuses(const [
+      TravelFocus(scene: TravelSceneId.transport),
+    ]);
+    final learnedChars = StudySet.learned(store)
+        .map((k) => k.character)
+        .toSet();
+    final views = {
+      TravelSceneId.transport: TravelScene.inspect(
+        scene: TravelSceneId.transport,
+        learnedChars: learnedChars,
+        stats: const {},
+        now: now,
+      ),
+    };
+
+    final boost = Guidance.nextStep(
+      store,
+      now: now,
+      travelPlan: plan,
+      travelViews: views,
+    );
+    expect(boost.target, GuidanceTarget.daily);
+    expect(boost.dueCount, greaterThan(0));
+
+    final after = Guidance.nextStep(
+      store,
+      now: now,
+      travelPlan: plan.markKanaBoost(now),
+      travelViews: views,
+    );
+    expect(after.target, GuidanceTarget.travelMeet);
+    expect(after.scene, TravelSceneId.transport);
+    expect(after.isMeet, isTrue);
+  });
+
+  test(
+    'travel prep hold is not rest-complete after both scenes ran today',
+    () async {
+      final store = await KanaProgressRepository.load();
+      await store.markUnitLearned('hira_row_0');
+      final plan = TravelFocusPlan.empty
+          .withFocuses(const [
+            TravelFocus(scene: TravelSceneId.transport),
+            TravelFocus(scene: TravelSceneId.clothing),
+          ])
+          .markKanaBoost(now)
+          .markServed(TravelSceneId.transport, now)
+          .markServed(TravelSceneId.clothing, now);
+
+      final step = Guidance.nextStep(store, now: now, travelPlan: plan);
+      expect(step.target, GuidanceTarget.travelHold);
+      expect(step.target, isNot(GuidanceTarget.rest));
+    },
+  );
 
   test('GuidanceStep has value equality', () {
     expect(

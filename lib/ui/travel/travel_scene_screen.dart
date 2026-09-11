@@ -234,10 +234,62 @@ class TravelSceneHub extends StatelessWidget {
     );
   }
 
+  static void startMeet(
+    BuildContext context, {
+    required TravelSceneId scene,
+    DateTime Function()? clock,
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+    VoidCallback? onStarted,
+  }) {
+    final hub = TravelSceneHub(scene: scene, clock: clock);
+    hub._startMeet(
+      context,
+      replace: replace,
+      excludeProgressIds: excludeProgressIds,
+      onStarted: onStarted,
+    );
+  }
+
+  static void startRecall(
+    BuildContext context, {
+    required TravelSceneId scene,
+    DateTime Function()? clock,
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+    VoidCallback? onStarted,
+  }) {
+    final hub = TravelSceneHub(scene: scene, clock: clock);
+    hub._startRecall(
+      context,
+      replace: replace,
+      excludeProgressIds: excludeProgressIds,
+      onStarted: onStarted,
+    );
+  }
+
+  static void startListen(
+    BuildContext context, {
+    required TravelSceneId scene,
+    DateTime Function()? clock,
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+    VoidCallback? onStarted,
+  }) {
+    final hub = TravelSceneHub(scene: scene, clock: clock);
+    hub._startListen(
+      context,
+      replace: replace,
+      excludeProgressIds: excludeProgressIds,
+      onStarted: onStarted,
+    );
+  }
+
   void _startMeet(
     BuildContext context, {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
+    VoidCallback? onStarted,
   }) {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
@@ -251,6 +303,7 @@ class TravelSceneHub extends StatelessWidget {
       excludeProgressIds: excludeProgressIds,
     );
     if (words.isNotEmpty) {
+      onStarted?.call();
       final nextExclude = DailyBridge.nextExclude(
         previous: excludeProgressIds,
         transfer: words,
@@ -278,6 +331,7 @@ class TravelSceneHub extends StatelessWidget {
       excludeProgressIds: excludeProgressIds,
     );
     if (phrases.isNotEmpty) {
+      onStarted?.call();
       final nextExclude = DailyBridge.nextExclude(
         previous: excludeProgressIds,
         transfer: phrases,
@@ -334,6 +388,7 @@ class TravelSceneHub extends StatelessWidget {
     BuildContext context, {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
+    VoidCallback? onStarted,
   }) {
     final items = TravelScene.composeReview(
       scene: scene,
@@ -344,6 +399,7 @@ class TravelSceneHub extends StatelessWidget {
       excludeProgressIds: excludeProgressIds,
     );
     if (items.isEmpty) return;
+    onStarted?.call();
     final nextExclude = DailyBridge.nextExclude(
       previous: excludeProgressIds,
       transfer: items,
@@ -366,6 +422,7 @@ class TravelSceneHub extends StatelessWidget {
     BuildContext context, {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
+    VoidCallback? onStarted,
   }) {
     final items = TravelScene.composeReview(
       scene: scene,
@@ -376,6 +433,7 @@ class TravelSceneHub extends StatelessWidget {
       excludeProgressIds: excludeProgressIds,
     );
     if (items.isEmpty) return;
+    onStarted?.call();
     final nextExclude = DailyBridge.nextExclude(
       previous: excludeProgressIds,
       transfer: items,

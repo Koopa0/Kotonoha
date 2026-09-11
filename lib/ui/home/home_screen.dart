@@ -6,6 +6,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
@@ -16,6 +17,7 @@ import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
+import 'package:kotonoha/domain/models/travel_focus.dart';
 import 'package:kotonoha/domain/use_cases/confusable.dart';
 import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/daily_session.dart';
@@ -25,6 +27,7 @@ import 'package:kotonoha/domain/use_cases/listening_session.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
@@ -48,6 +51,7 @@ import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/reply/reply_hub_screen.dart';
 import 'package:kotonoha/ui/shift/shift_focus_screen.dart';
+import 'package:kotonoha/ui/travel/travel_focus_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
@@ -92,7 +96,18 @@ class HomeScreen extends StatelessWidget {
               kKanjiPhrases,
               learnedChars,
             );
-            final now = DateTime.now();
+            final now = (clock ?? DateTime.now)();
+            final travelRepo = _watchTravel(context);
+            final travelPlan = travelRepo?.plan ?? TravelFocusPlan.empty;
+            final travelViews = {
+              for (final focus in travelPlan.focuses)
+                focus.scene: TravelScene.inspect(
+                  scene: focus.scene,
+                  learnedChars: learnedChars,
+                  stats: wordProgress.stats,
+                  now: now,
+                ),
+            };
             // learnedUnitCount > 0 is not enough: a lone ん is learned but
             // cannot make an MCQ. A strong-fast singleton can still open
             // Daily as kanaRecall — match what compose will actually build.
@@ -116,6 +131,8 @@ class HomeScreen extends StatelessWidget {
                 now,
               ),
               kanji: _kanjiTrackDue(kanjiProgress, now),
+              travelPlan: travelPlan,
+              travelViews: travelViews,
             );
             // A track that just opened borrows the next-step slot for one quiet
             // line until the learner acknowledges it (taps in, or 「知道了」).
@@ -201,40 +218,10 @@ class HomeScreen extends StatelessWidget {
                     coldStart: store.learnedUnitCount == 0,
                     readablePhrases: readablePhrases,
                     readableKanjiPhrases: readableKanjiPhrases,
+                    travelActive: travelPlan.isActive,
                   ),
                 const SizedBox(height: 20),
-                if (dailyReady) ...[
-                  _HeroAction(
-                    action: AppStrings.reviewKanaAction,
-                    productName: AppStrings.dailySession,
-                    onPressed: () => _startDaily(context),
-                  ),
-                  // A quiet aside under the same button — two doors to the same
-                  // 稽古. 静かに composes a silent run (no listening prompts) for
-                  // practising without sound. Per-tap, never a saved mode; it
-                  // hugs its text (like 知道了) so it reads as a subordinate
-                  // aside, not a second full-width primary action.
-                  _HeroAction(
-                    action: AppStrings.quietPracticeAction,
-                    productName: AppStrings.dailyQuiet,
-                    kind: _HeroKind.text,
-                    onPressed: () => _startDaily(context, quiet: true),
-                  ),
-                  const SizedBox(height: 12),
-                  _HeroAction(
-                    action: AppStrings.learnNewKanaAction,
-                    productName: AppStrings.continueLearning,
-                    kind: _HeroKind.outlined,
-                    onPressed: () =>
-                        Navigator.of(context).push(LessonsScreen.route()),
-                  ),
-                ] else
-                  _HeroAction(
-                    action: AppStrings.learnNewKanaAction,
-                    productName: AppStrings.continueLearning,
-                    onPressed: () =>
-                        Navigator.of(context).push(LessonsScreen.route()),
-                  ),
+                ..._buildHeroes(context, step, travelPlan, dailyReady),
                 // The home is grouped into a quiet 目次 — 假名 → 詞と句 → 漢字 →
                 // 回望. Each header appears only when its section has a card, so
                 // an empty section shows no label (feature honesty). The 今日の稽古
@@ -325,6 +312,17 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.travelSceneSubtitle,
                     onTap: () =>
                         Navigator.of(context).push(TravelSceneScreen.route()),
+                  ),
+                  _NavCard(
+                    icon: Icons.flag_outlined,
+                    label: travelPlan.isActive
+                        ? AppStrings.travelFocusEditAction
+                        : AppStrings.travelFocusAction,
+                    productName: AppStrings.travelFocusEntry,
+                    subtitle: AppStrings.travelFocusSubtitle,
+                    onTap: () =>
+                        Navigator.of(context)
+                            .push(TravelFocusScreen.route(clock: clock)),
                   ),
                   // Isolated from #47 scene membership and #9 聞き取り self-grade.
                   _NavCard(
@@ -724,6 +722,218 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  TravelFocusRepository? _watchTravel(BuildContext context) {
+    try {
+      return context.watch<TravelFocusRepository>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  TravelFocusRepository? _readTravel(BuildContext context) {
+    try {
+      return context.read<TravelFocusRepository>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  List<Widget> _buildHeroes(
+    BuildContext context,
+    GuidanceStep step,
+    TravelFocusPlan plan,
+    bool dailyReady,
+  ) {
+    final travelPrimary = plan.isActive && _isTravelHero(step);
+    if (travelPrimary) {
+      return [
+        _HeroAction(
+          action: _travelHeroAction(step),
+          productName: _travelHeroProduct(step),
+          onPressed: () => _openTravelHero(context, step),
+        ),
+        if (dailyReady) ...[
+          _HeroAction(
+            action: AppStrings.quietPracticeAction,
+            productName: AppStrings.dailyQuiet,
+            kind: _HeroKind.text,
+            onPressed: () => _startDaily(context, quiet: true),
+          ),
+          const SizedBox(height: 12),
+          _HeroAction(
+            action: AppStrings.reviewKanaAction,
+            productName: AppStrings.dailySession,
+            kind: _HeroKind.outlined,
+            onPressed: () => _startDaily(context),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (!dailyReady) const SizedBox(height: 12),
+        _HeroAction(
+          action: AppStrings.learnNewKanaAction,
+          productName: AppStrings.continueLearning,
+          kind: _HeroKind.outlined,
+          onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+        ),
+      ];
+    }
+    if (dailyReady) {
+      return [
+        _HeroAction(
+          action: AppStrings.reviewKanaAction,
+          productName: AppStrings.dailySession,
+          onPressed: () => _startDaily(context),
+        ),
+        // A quiet aside under the same button — two doors to the same
+        // 稽古. 静かに composes a silent run (no listening prompts) for
+        // practising without sound. Per-tap, never a saved mode; it
+        // hugs its text (like 知道了) so it reads as a subordinate
+        // aside, not a second full-width primary action.
+        _HeroAction(
+          action: AppStrings.quietPracticeAction,
+          productName: AppStrings.dailyQuiet,
+          kind: _HeroKind.text,
+          onPressed: () => _startDaily(context, quiet: true),
+        ),
+        const SizedBox(height: 12),
+        _HeroAction(
+          action: AppStrings.learnNewKanaAction,
+          productName: AppStrings.continueLearning,
+          kind: _HeroKind.outlined,
+          onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+        ),
+      ];
+    }
+    return [
+      _HeroAction(
+        action: AppStrings.learnNewKanaAction,
+        productName: AppStrings.continueLearning,
+        onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+      ),
+    ];
+  }
+
+  bool _isTravelHero(GuidanceStep step) {
+    return switch (step.target) {
+      GuidanceTarget.daily ||
+      GuidanceTarget.travelMeet ||
+      GuidanceTarget.travelRecall ||
+      GuidanceTarget.travelListen ||
+      GuidanceTarget.travelLearnKana => true,
+      _ => false,
+    };
+  }
+
+  String _travelHeroAction(GuidanceStep step) {
+    return switch (step.target) {
+      GuidanceTarget.daily => AppStrings.travelPrepBoostAction,
+      GuidanceTarget.travelMeet => AppStrings.travelPrepMeetAction,
+      GuidanceTarget.travelRecall => AppStrings.travelPrepRecallAction,
+      GuidanceTarget.travelListen => AppStrings.travelPrepListenAction,
+      GuidanceTarget.travelLearnKana => AppStrings.travelPrepLearnAction,
+      _ => AppStrings.travelFocusEntry,
+    };
+  }
+
+  String _travelHeroProduct(GuidanceStep step) {
+    return switch (step.target) {
+      GuidanceTarget.daily => AppStrings.dailySession,
+      GuidanceTarget.travelMeet => AppStrings.travelSceneMeetTitle(
+        _sceneLabel(step.scene),
+      ),
+      GuidanceTarget.travelRecall => AppStrings.travelSceneRecallTitle(
+        _sceneLabel(step.scene),
+      ),
+      GuidanceTarget.travelListen => AppStrings.travelSceneListenTitle(
+        _sceneLabel(step.scene),
+      ),
+      GuidanceTarget.travelLearnKana => AppStrings.continueLearning,
+      _ => AppStrings.travelFocusEntry,
+    };
+  }
+
+  void _openTravelHero(BuildContext context, GuidanceStep step) {
+    switch (step.target) {
+      case GuidanceTarget.daily:
+        _markTravelBoost(context);
+        _startDaily(context);
+      case GuidanceTarget.travelMeet:
+        _startTravelMeet(context, step);
+      case GuidanceTarget.travelRecall:
+        _startTravelRecall(context, step);
+      case GuidanceTarget.travelListen:
+        _startTravelListen(context, step);
+      case GuidanceTarget.travelLearnKana:
+        if (step.scene == null) {
+          Navigator.of(context).push(LessonsScreen.route());
+          return;
+        }
+        Navigator.of(context)
+            .push(TravelSceneHub.route(step.scene!, clock: clock));
+      default:
+        break;
+    }
+  }
+
+  void _startTravelMeet(BuildContext context, GuidanceStep step) {
+    final scene = step.scene;
+    if (scene == null) return;
+    TravelSceneHub.startMeet(
+      context,
+      scene: scene,
+      clock: clock,
+      onStarted: () => _markTravelServed(context, scene),
+    );
+  }
+
+  void _startTravelRecall(BuildContext context, GuidanceStep step) {
+    final scene = step.scene;
+    if (scene == null) return;
+    TravelSceneHub.startRecall(
+      context,
+      scene: scene,
+      clock: clock,
+      onStarted: () => _markTravelServed(context, scene),
+    );
+  }
+
+  void _startTravelListen(BuildContext context, GuidanceStep step) {
+    final scene = step.scene;
+    if (scene == null) return;
+    TravelSceneHub.startListen(
+      context,
+      scene: scene,
+      clock: clock,
+      onStarted: () => _markTravelServed(context, scene),
+    );
+  }
+
+  void _markTravelBoost(BuildContext context) {
+    final travel = _readTravel(context);
+    if (travel == null || !travel.plan.isActive) return;
+    context.read<ProgressPersistenceController>().trackTravelFocus(
+      travel.markKanaBoost((clock ?? DateTime.now)()),
+    );
+  }
+
+  void _markTravelServed(BuildContext context, TravelSceneId scene) {
+    final travel = _readTravel(context);
+    if (travel == null || !travel.plan.isActive) return;
+    context.read<ProgressPersistenceController>().trackTravelFocus(
+      travel.markServed(scene, (clock ?? DateTime.now)()),
+    );
+  }
+
+  String _sceneLabel(TravelSceneId? scene) {
+    return switch (scene) {
+      TravelSceneId.transport => AppStrings.travelSceneTransport,
+      TravelSceneId.clothing => AppStrings.travelSceneClothing,
+      TravelSceneId.shrine => AppStrings.travelSceneShrine,
+      TravelSceneId.parkQueue => AppStrings.travelSceneParkQueue,
+      null => AppStrings.travelFocusEntry,
+    };
+  }
+
   TrackDue _kanjiTrackDue(KanjiReadingRepository repo, DateTime now) {
     final dueIds = repo.dueUnitIds(now);
     final oldest = dueIds.isEmpty ? null : repo.statForUnit(dueIds.first).dueAt;
@@ -753,13 +963,17 @@ class HomeScreen extends StatelessWidget {
     required bool coldStart,
     required List<Phrase> readablePhrases,
     required List<KanjiPhrase> readableKanjiPhrases,
+    required bool travelActive,
   }) {
     final text = switch (step.target) {
       GuidanceTarget.lessons =>
         coldStart
             ? AppStrings.guidanceStartLessons
             : AppStrings.guidanceLearnMore,
-      GuidanceTarget.daily => AppStrings.guidanceReview(step.dueCount),
+      GuidanceTarget.daily =>
+        travelActive
+            ? AppStrings.guidanceTravelBoost(step.dueCount)
+            : AppStrings.guidanceReview(step.dueCount),
       GuidanceTarget.dictation => AppStrings.guidanceWordsReview(step.dueCount),
       GuidanceTarget.sentences =>
         step.dueCount > 0
@@ -775,17 +989,36 @@ class HomeScreen extends StatelessWidget {
             : AppStrings.guidanceMeetKanji,
       GuidanceTarget.ferry => AppStrings.guidanceMeetWords,
       GuidanceTarget.rest => AppStrings.guidanceCaughtUp,
+      GuidanceTarget.travelMeet => AppStrings.guidanceTravelMeet(
+        _sceneLabel(step.scene),
+      ),
+      GuidanceTarget.travelRecall => AppStrings.guidanceTravelRecall(
+        _sceneLabel(step.scene),
+        step.dueCount,
+      ),
+      GuidanceTarget.travelListen => AppStrings.guidanceTravelListen(
+        _sceneLabel(step.scene),
+      ),
+      GuidanceTarget.travelLearnKana => AppStrings.guidanceTravelLearnKana(
+        _sceneLabel(step.scene),
+        step.missingUnits.take(8).join(' '),
+      ),
+      GuidanceTarget.travelHold => AppStrings.guidanceTravelHold,
     };
     final line = Text(
       text,
       textAlign: TextAlign.center,
       style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
     );
-    if (step.target == GuidanceTarget.rest) {
+    if (step.target == GuidanceTarget.rest ||
+        step.target == GuidanceTarget.travelHold) {
       return Center(child: line);
     }
     final onTap = switch (step.target) {
-      GuidanceTarget.daily => () => _startDaily(context),
+      GuidanceTarget.daily => () {
+        if (travelActive) _markTravelBoost(context);
+        _startDaily(context);
+      },
       GuidanceTarget.ferry => () => _startFerry(context),
       GuidanceTarget.dictation => () => _startDictation(context),
       GuidanceTarget.sentences => () => _startSentence(
@@ -802,7 +1035,20 @@ class HomeScreen extends StatelessWidget {
         context,
         maxNew: step.isMeet ? KanjiSession.kDefaultMaxNew : 0,
       ),
-      GuidanceTarget.lessons || GuidanceTarget.rest => () => Navigator.of(
+      GuidanceTarget.travelMeet => () => _startTravelMeet(context, step),
+      GuidanceTarget.travelRecall => () => _startTravelRecall(context, step),
+      GuidanceTarget.travelListen => () => _startTravelListen(context, step),
+      GuidanceTarget.travelLearnKana => () {
+        if (step.scene == null) {
+          Navigator.of(context).push(LessonsScreen.route());
+          return;
+        }
+        Navigator.of(context)
+            .push(TravelSceneHub.route(step.scene!, clock: clock));
+      },
+      GuidanceTarget.lessons ||
+      GuidanceTarget.rest ||
+      GuidanceTarget.travelHold => () => Navigator.of(
         context,
       ).push(LessonsScreen.route()),
     };

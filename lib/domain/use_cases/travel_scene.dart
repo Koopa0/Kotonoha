@@ -7,15 +7,17 @@ import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/travel_scene_id.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
+export 'package:kotonoha/domain/models/travel_scene_id.dart';
+
 /// Travel-purpose rooms the learner can ask for. This ticket owns scene
 /// membership; it is not a generic content picker (#48 owns 精讀變化練習).
-enum TravelSceneId { transport, clothing, shrine, parkQueue }
 
 /// A read-only view of one scene against the learner's kana and 詞と句 stats.
 /// Inspecting never writes progress — choosing a scene cannot unlock or
@@ -28,6 +30,7 @@ class TravelSceneView {
     required this.unreadable,
     required this.unreadReadable,
     required this.seenReadable,
+    required this.dueReadable,
     required this.missingUnits,
   });
 
@@ -37,6 +40,7 @@ class TravelSceneView {
   final List<ReadingItem> unreadable;
   final List<ReadingItem> unreadReadable;
   final List<ReadingItem> seenReadable;
+  final List<ReadingItem> dueReadable;
   final List<String> missingUnits;
 
   bool get canMeet => unreadReadable.isNotEmpty;
@@ -190,6 +194,7 @@ abstract final class TravelScene {
     required TravelSceneId scene,
     required Set<String> learnedChars,
     required Map<String, WordStat> stats,
+    DateTime? now,
     List<ReadingItem>? words,
     List<ReadingItem>? phrases,
   }) {
@@ -208,6 +213,12 @@ abstract final class TravelScene {
       for (final item in readable)
         if (stats[item.progressId]?.isSeen ?? false) item,
     ];
+    final due = now == null
+        ? const <ReadingItem>[]
+        : [
+            for (final item in seen)
+              if (_isDue(stats[item.progressId], now)) item,
+          ];
     return TravelSceneView(
       scene: scene,
       all: all,
@@ -215,8 +226,14 @@ abstract final class TravelScene {
       unreadable: unreadable,
       unreadReadable: unread,
       seenReadable: seen,
+      dueReadable: due,
       missingUnits: missingUnits(unreadable, learnedChars),
     );
+  }
+
+  static bool _isDue(WordStat? stat, DateTime now) {
+    final dueAt = stat?.dueAt;
+    return dueAt != null && !dueAt.isAfter(now);
   }
 
   /// Units that still gate unreadability — a learn-first hint, not a lesson.
