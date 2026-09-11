@@ -449,6 +449,7 @@ class TravelSceneHub extends StatelessWidget {
       final route = ReadingScreen.route(
         phrases,
         AppStrings.travelSceneMeetTitle(_label),
+        clock: clock,
         alreadyTransferredIds: excludeProgressIds,
         onMore: () =>
             _continueOrFinishMeet(context, excludeProgressIds: nextExclude),
@@ -517,6 +518,7 @@ class TravelSceneHub extends StatelessWidget {
     final route = ReadingScreen.route(
       items,
       AppStrings.travelSceneRecallTitle(_label),
+      clock: clock,
       alreadyTransferredIds: excludeProgressIds,
       onMore: () =>
           _startRecall(context, replace: true, excludeProgressIds: nextExclude),

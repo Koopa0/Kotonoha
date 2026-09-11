@@ -181,6 +181,48 @@ abstract final class ReplySession {
     phrases: phrases,
   ).where((item) => item.progressId.startsWith('phrase:')).toList();
 
+  /// Same-scope unseen words, at most [ReadingSet.introLength].
+  static List<Word> composeIntroWords({
+    required Set<String> learnedChars,
+    required Map<String, WordStat> stats,
+    List<ReplyDrill>? drills,
+    ReplySceneId? scene,
+    List<ReadingItem>? words,
+    List<ReadingItem>? phrases,
+    int sessionLength = ReadingSet.introLength,
+  }) => ReadingSet.takeIntro(
+    unreadRequiredWords(
+      learnedChars: learnedChars,
+      stats: stats,
+      drills: drills,
+      scene: scene,
+      words: words,
+      phrases: phrases,
+    ),
+    length: sessionLength,
+  );
+
+  /// Same-scope unseen phrases, at most [ReadingSet.introLength].
+  static List<ReadingItem> composeIntroPhrases({
+    required Set<String> learnedChars,
+    required Map<String, WordStat> stats,
+    List<ReplyDrill>? drills,
+    ReplySceneId? scene,
+    List<ReadingItem>? words,
+    List<ReadingItem>? phrases,
+    int sessionLength = ReadingSet.introLength,
+  }) => ReadingSet.takeIntro(
+    unreadRequiredPhrases(
+      learnedChars: learnedChars,
+      stats: stats,
+      drills: drills,
+      scene: scene,
+      words: words,
+      phrases: phrases,
+    ),
+    length: sessionLength,
+  );
+
   static List<String> missingUnits(
     Iterable<ReplyDrill> drills,
     Set<String> learnedChars,
