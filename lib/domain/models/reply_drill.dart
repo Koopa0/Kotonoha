@@ -3,7 +3,15 @@
 
 /// Which travel slice a reply room draws from. Isolated from [TravelSceneId]
 /// membership — only scopes [ReplyDrill] pools and hub copy.
-enum ReplySceneId { station, clothing, shrine, parkQueue, help }
+enum ReplySceneId {
+  station,
+  clothing,
+  restaurant,
+  convenience,
+  shrine,
+  parkQueue,
+  help,
+}
 
 /// One exchange: hear the other person, name their intent, pick a short reply.
 /// Not a [ReadingItem] and not a 黙読 / travel-scene member.
@@ -24,6 +32,7 @@ class ReplyDrill {
     required this.replyCorrectMeaning,
     required this.replyWrongKana,
     required this.requiredSeenIds,
+    this.replyAlsoCorrectKana = const [],
   });
 
   /// Stable analytics id (`reply:…`). Never a corpus progress id.
@@ -50,11 +59,16 @@ class ReplyDrill {
   final String replyCorrectKana;
   final String replyCorrectRomaji;
   final String replyCorrectMeaning;
+
+  /// Other short replies that fit the same scene — scored like [replyCorrectKana].
+  final List<String> replyAlsoCorrectKana;
   final List<String> replyWrongKana;
 
   /// Existing corpus progress ids that must already have been met.
-  /// Includes the heard ask and any shipped content word whose meaning the
-  /// correct short reply depends on — never a fabricated `phrase:みぎです`.
+  /// Includes the heard ask, any shipped content word the reply depends on,
+  /// and a shipped request-function chunk when the correct reply uses
+  /// ください／おねがい — reuse an already-taught equivalent, never the
+  /// scored answer itself (`phrase:${replyCorrectKana}`).
   final List<String> requiredSeenIds;
 
   String get say => promptKana.replaceAll(' ', '');
@@ -62,10 +76,18 @@ class ReplyDrill {
   List<String> get gatingText => [
     promptKana,
     replyCorrectKana,
+    ...replyAlsoCorrectKana,
     ...replyWrongKana,
   ];
 
   List<String> get intentChoices => [intentCorrect, ...intentWrong];
 
-  List<String> get replyChoices => [replyCorrectKana, ...replyWrongKana];
+  List<String> get replyChoices => [
+    replyCorrectKana,
+    ...replyAlsoCorrectKana,
+    ...replyWrongKana,
+  ];
+
+  bool isReplyCorrect(String choice) =>
+      choice == replyCorrectKana || replyAlsoCorrectKana.contains(choice);
 }

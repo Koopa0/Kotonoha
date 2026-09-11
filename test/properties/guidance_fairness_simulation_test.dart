@@ -95,6 +95,11 @@ void main() {
         case GuidanceTarget.daily:
         case GuidanceTarget.kanji:
         case GuidanceTarget.rest:
+        case GuidanceTarget.travelMeet:
+        case GuidanceTarget.travelRecall:
+        case GuidanceTarget.travelListen:
+        case GuidanceTarget.travelLearnKana:
+        case GuidanceTarget.travelHold:
           break; // nothing to simulate for this track here
       }
     }

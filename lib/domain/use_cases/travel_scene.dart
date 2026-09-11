@@ -7,15 +7,14 @@ import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
 import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
+import 'package:kotonoha/domain/models/travel_scene_id.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/domain/use_cases/ferry_session.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
-/// Travel-purpose rooms the learner can ask for. This ticket owns scene
-/// membership; it is not a generic content picker (#48 owns 精讀變化練習).
-enum TravelSceneId { transport, clothing, shrine, parkQueue }
+export 'package:kotonoha/domain/models/travel_scene_id.dart';
 
 /// A read-only view of one scene against the learner's kana and 詞と句 stats.
 /// Inspecting never writes progress — choosing a scene cannot unlock or
@@ -28,6 +27,7 @@ class TravelSceneView {
     required this.unreadable,
     required this.unreadReadable,
     required this.seenReadable,
+    required this.dueReadable,
     required this.missingUnits,
   });
 
@@ -37,6 +37,7 @@ class TravelSceneView {
   final List<ReadingItem> unreadable;
   final List<ReadingItem> unreadReadable;
   final List<ReadingItem> seenReadable;
+  final List<ReadingItem> dueReadable;
   final List<String> missingUnits;
 
   bool get canMeet => unreadReadable.isNotEmpty;
@@ -47,7 +48,7 @@ class TravelSceneView {
 
 /// Scene-scoped選材 and learn-then-practice composition.
 ///
-/// Pools are existing corpus ids only. All four travel purposes walk the
+/// Pools are existing corpus ids only. Each travel purpose walks the
 /// same learn-then-practice gates; membership stays disjoint so one scene
 /// never pads with another.
 ///
@@ -60,6 +61,8 @@ abstract final class TravelScene {
     TravelSceneId.clothing,
     TravelSceneId.shrine,
     TravelSceneId.parkQueue,
+    TravelSceneId.restaurant,
+    TravelSceneId.convenience,
   };
 
   static const Map<TravelSceneId, List<String>> progressIds = {
@@ -89,6 +92,12 @@ abstract final class TravelScene {
     TravelSceneId.clothing: [
       'phrase:この ふくは ちいさい',
       'phrase:あかい ふくを かう',
+      'phrase:しちゃくして いいですか',
+      'phrase:しちゃくしつは どこ',
+      'phrase:げんきんは いいですか',
+      'phrase:げんきんで かいけい',
+      'phrase:カードは つかえます',
+      'phrase:カードは つかえません',
       'word:ふく',
       'word:かう',
       'word:おおきい',
@@ -97,6 +106,19 @@ abstract final class TravelScene {
       'word:たかい',
       'word:やすい',
       'word:デパート',
+      'word:しちゃく',
+      'word:しちゃくしつ',
+      'word:サイズ',
+      'word:エス',
+      'word:エム',
+      'word:エル',
+      'word:カード',
+      'word:げんきん',
+      'word:つかう',
+      'word:つかえます',
+      'word:つかえません',
+      'word:かいけい',
+      'word:いい',
     ],
     TravelSceneId.shrine: [
       'phrase:じんじゃは どこ',
@@ -166,6 +188,37 @@ abstract final class TravelScene {
       'word:もんだい',
       'word:しつもん',
     ],
+    TravelSceneId.restaurant: [
+      'phrase:なんにん ですか',
+      'phrase:なにに しますか',
+      'phrase:ほかに よろしいですか',
+      'phrase:ひとりで たべる',
+      'phrase:ふたりで たべる',
+      'phrase:ごはんを ください',
+      'phrase:かいけいを おねがい',
+      'word:ひとり',
+      'word:ふたり',
+      'word:ごはん',
+      'word:ちゅうもん',
+      'word:たべる',
+      'word:みず',
+      'word:すし',
+      'word:レストラン',
+    ],
+    TravelSceneId.convenience: [
+      'phrase:ふくろは いりますか',
+      'phrase:ふくろは いりません',
+      'phrase:あたためますか',
+      'phrase:あたためて ください',
+      'phrase:これで おねがい',
+      'phrase:これで よろしいですか',
+      'word:ふくろ',
+      'word:あたためる',
+      'word:コンビニ',
+      'word:おべんとう',
+      'word:おにぎり',
+      'word:おつり',
+    ],
   };
 
   static bool isWalkable(TravelSceneId scene) => walkable.contains(scene);
@@ -190,6 +243,7 @@ abstract final class TravelScene {
     required TravelSceneId scene,
     required Set<String> learnedChars,
     required Map<String, WordStat> stats,
+    DateTime? now,
     List<ReadingItem>? words,
     List<ReadingItem>? phrases,
   }) {
@@ -208,6 +262,12 @@ abstract final class TravelScene {
       for (final item in readable)
         if (stats[item.progressId]?.isSeen ?? false) item,
     ];
+    final due = now == null
+        ? const <ReadingItem>[]
+        : [
+            for (final item in seen)
+              if (_isDue(stats[item.progressId], now)) item,
+          ];
     return TravelSceneView(
       scene: scene,
       all: all,
@@ -215,8 +275,14 @@ abstract final class TravelScene {
       unreadable: unreadable,
       unreadReadable: unread,
       seenReadable: seen,
+      dueReadable: due,
       missingUnits: missingUnits(unreadable, learnedChars),
     );
+  }
+
+  static bool _isDue(WordStat? stat, DateTime now) {
+    final dueAt = stat?.dueAt;
+    return dueAt != null && !dueAt.isAfter(now);
   }
 
   /// Units that still gate unreadability — a learn-first hint, not a lesson.

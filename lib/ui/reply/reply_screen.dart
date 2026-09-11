@@ -44,12 +44,8 @@ class ReplyScreen extends StatefulWidget {
     DateTime Function()? clock,
     VoidCallback? onMore,
   }) => MaterialPageRoute<void>(
-    builder: (_) => ReplyScreen(
-      drills: drills,
-      scene: scene,
-      clock: clock,
-      onMore: onMore,
-    ),
+    builder: (_) =>
+        ReplyScreen(drills: drills, scene: scene, clock: clock, onMore: onMore),
     settings: const RouteSettings(name: 'reply-practice'),
   );
 
@@ -196,7 +192,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
 
   void _pickReply(String choice) {
     if (_replyPick != null || _intentPick == null) return;
-    final correct = choice == _current.replyCorrectKana;
+    final correct = _current.isReplyCorrect(choice);
     final evidence = ReplyEvidence.classify(
       heard: _heard,
       sawText: _sawText,
@@ -353,9 +349,11 @@ class _ReplyScreenState extends State<ReplyScreen> {
     final prompt = _beat == _Beat.intent
         ? switch (widget.scene) {
             ReplySceneId.station => AppStrings.replyIntentPrompt,
-            ReplySceneId.clothing => AppStrings.replyClothingIntentPrompt,
-            ReplySceneId.shrine => AppStrings.replyShrineIntentPrompt,
-            ReplySceneId.parkQueue => AppStrings.replyParkIntentPrompt,
+            ReplySceneId.clothing ||
+            ReplySceneId.restaurant ||
+            ReplySceneId.convenience ||
+            ReplySceneId.shrine ||
+            ReplySceneId.parkQueue => AppStrings.replyClothingIntentPrompt,
             ReplySceneId.help => AppStrings.replyHelpIntentPrompt,
           }
         : AppStrings.replyReplyPrompt;
@@ -456,7 +454,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
           _choiceColumn(
             options: _intentOrder,
             pick: _intentPick,
-            correct: _current.intentCorrect,
+            isCorrect: (option) => option == _current.intentCorrect,
             prefix: 'reply-intent',
             onPick: _pickIntent,
           )
@@ -464,7 +462,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
           _choiceColumn(
             options: _replyOrder,
             pick: _replyPick,
-            correct: _current.replyCorrectKana,
+            isCorrect: _current.isReplyCorrect,
             prefix: 'reply-choice',
             onPick: _pickReply,
           ),
@@ -484,7 +482,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
   Widget _choiceColumn({
     required List<String> options,
     required String? pick,
-    required String correct,
+    required bool Function(String) isCorrect,
     required String prefix,
     required void Function(String) onPick,
   }) {
@@ -496,16 +494,20 @@ class _ReplyScreenState extends State<ReplyScreen> {
             key: ValueKey<String>('$prefix-$option'),
             label: option,
             fontSize: 18,
-            state: _optionState(option, pick, correct),
+            state: _optionState(option, pick, isCorrect),
             onTap: pick == null ? () => onPick(option) : null,
           ),
       ],
     );
   }
 
-  OptionState _optionState(String option, String? pick, String correct) {
+  OptionState _optionState(
+    String option,
+    String? pick,
+    bool Function(String) isCorrect,
+  ) {
     if (pick == null) return OptionState.idle;
-    if (option == correct) {
+    if (isCorrect(option)) {
       return option == pick ? OptionState.correct : OptionState.revealed;
     }
     if (option == pick) return OptionState.wrong;

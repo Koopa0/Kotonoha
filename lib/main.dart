@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/analytics_opener.dart';
@@ -26,6 +27,7 @@ Future<Widget> bootstrap() async {
   final kanji = await KanjiReadingRepository.load();
   final words = await WordProgressRepository.load();
   final checks = await PlacementCheckRepository.load();
+  final travel = await TravelFocusRepository.load();
   final speech = await FlutterTtsSpeechService.create();
   final analytics = await openAnalyticsLog();
   // The app-scoped owner of every progress-persistence future: it takes the
@@ -36,6 +38,7 @@ Future<Widget> bootstrap() async {
     kanjiFlush: kanji.flushPending,
     wordFlush: words.flushPending,
     placementFlush: checks.flushPending,
+    travelFocusFlush: travel.flushPending,
     health: [
       store.statsHealth,
       store.learnedUnitsHealth,
@@ -43,6 +46,7 @@ Future<Widget> bootstrap() async {
       kanji.statsHealth,
       words.statsHealth,
       checks.health,
+      travel.health,
     ],
   );
   return MultiProvider(
@@ -51,6 +55,7 @@ Future<Widget> bootstrap() async {
       ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
       ChangeNotifierProvider<WordProgressRepository>.value(value: words),
       ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
+      ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
       ChangeNotifierProvider<ProgressPersistenceController>.value(
         value: persistence,
       ),

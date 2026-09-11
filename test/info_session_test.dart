@@ -19,27 +19,36 @@ void main() {
 
   Map<String, WordStat> statsForAll() => {
     for (final drill in kInfoDrills)
-      for (final id in drill.requiredSeenIds) id: seenAt(),
+      for (final id in [...drill.requiredSeenIds, ...drill.requiredPartIds])
+        id: seenAt(),
   };
 
   test('catalog reuses shipped corpus ids only', () {
     final corpus = [...kWords, ...kPhrases];
     expect(kInfoDrills.map((d) => d.id).toSet(), hasLength(kInfoDrills.length));
     for (final drill in kInfoDrills) {
-      for (final id in drill.requiredSeenIds) {
+      for (final id in [...drill.requiredSeenIds, ...drill.requiredPartIds]) {
         expect(corpus.where((item) => item.progressId == id), hasLength(1));
       }
     }
   });
 
-  test('each kind has two distinct values', () {
+  test('each kind has a base pair plus one migration combo', () {
     for (final kind in InfoKind.values) {
       final drills = infoDrillsFor(kind);
-      expect(drills, hasLength(2));
+      expect(drills, hasLength(3));
+      final base = drills.where((d) => !d.isMigration).toList();
+      final migration = drills.where((d) => d.isMigration).toList();
+      expect(base, hasLength(2));
+      expect(migration, hasLength(1));
       expect(
-        drills.map((d) => d.correctAnswer).toSet(),
+        base.map((d) => d.correctAnswer).toSet(),
         hasLength(2),
         reason: kind.name,
+      );
+      expect(
+        migration.single.correctAnswer,
+        isNot(isIn(base.map((d) => d.correctAnswer))),
       );
     }
   });
@@ -84,14 +93,28 @@ void main() {
     expect(view.unreadRequired, isNotEmpty);
   });
 
-  test('compose prefers one drill per kind when all are ready', () {
+  test('compose prefers base and migration per kind when session is trimmed', () {
+    final session = InfoSession.compose(
+      learnedChars: allChars,
+      rng: Random(1),
+      stats: statsForAll(),
+      sessionLength: 6,
+    );
+    expect(session, hasLength(6));
+    for (final kind in InfoKind.values) {
+      final kindDrills = session.where((d) => d.kind == kind).toList();
+      expect(kindDrills.where((d) => !d.isMigration), hasLength(1));
+      expect(kindDrills.where((d) => d.isMigration), hasLength(1));
+    }
+  });
+
+  test('compose returns full catalog when all nine drills are ready', () {
     final session = InfoSession.compose(
       learnedChars: allChars,
       rng: Random(1),
       stats: statsForAll(),
     );
-    expect(session, hasLength(6));
-    expect(session.map((d) => d.kind).toSet(), InfoKind.values.toSet());
+    expect(session, hasLength(9));
   });
 
   test('amount-3000 waits for さんぜん as a whole, not isolated ぜん', () {
@@ -104,6 +127,43 @@ void main() {
     expect(
       view.unreadRequired.map((i) => i.progressId),
       contains('word:さんぜん'),
+    );
+  });
+
+  test('amount-5000 unlocks from parts without a whole ごせん word', () {
+    final drill = kInfoDrills.firstWhere((d) => d.id == 'info:amount-5000');
+    expect(drill.isMigration, isTrue);
+    expect(drill.requiredPartIds, ['word:ご', 'word:せん', 'word:えん']);
+    expect(kWords.map((w) => w.kana), isNot(contains('ごせん')));
+    final stats = {
+      'word:ご': seenAt(),
+      'word:せん': seenAt(),
+      'word:えん': seenAt(),
+    };
+    final view = InfoSession.inspect(learnedChars: allChars, stats: stats);
+    expect(view.ready.map((d) => d.id), contains(drill.id));
+  });
+
+  test('person-3 unlocks from さん and にん, not ひとり/ふたり whole words', () {
+    final drill = kInfoDrills.firstWhere((d) => d.id == 'info:person-3');
+    final stats = {'word:さん': seenAt(), 'word:にん': seenAt()};
+    final view = InfoSession.inspect(learnedChars: allChars, stats: stats);
+    expect(view.ready.map((d) => d.id), contains(drill.id));
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('word:さんにん')),
+    );
+  });
+
+  test('compose can pair amount-3000 with amount-5000 in one session', () {
+    final session = InfoSession.compose(
+      learnedChars: allChars,
+      rng: Random(0),
+      stats: statsForAll(),
+    );
+    expect(
+      session.map((d) => d.id),
+      containsAll(['info:amount-3000', 'info:amount-5000']),
     );
   });
 }

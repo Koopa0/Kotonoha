@@ -237,8 +237,11 @@ const List<Phrase> kPhrases = <Phrase>[
   Phrase(kana: 'あめの おと', romaji: 'ame no oto', meaning: '雨聲'),
   Phrase(kana: 'かぜの うた', romaji: 'kaze no uta', meaning: '風之歌'),
   // 旅 — Kyoto / Osaka travel decode: shrine and castle signs, clothing
-  // size, an entrance queue, luggage, and a plain ask-for-help. Original
-  // short sentences (い／な adjectives and everyday verbs). No event dates.
+  // size / try-on / fitting-room / cash checkout, an entrance queue,
+  // luggage, and a plain ask-for-help. Original short sentences
+  // (い／な adjectives and everyday verbs). Most lines stay hiragana;
+  // the card-availability pair keeps カード as the heard shop chunk.
+  // No event dates or yen amounts.
   Phrase(kana: 'じんじゃは どこ', romaji: 'jinja wa doko', meaning: '神社在哪裡'),
   Phrase(
     kana: 'しずかな てらに はいる',
@@ -256,7 +259,48 @@ const List<Phrase> kPhrases = <Phrase>[
     meaning: '這件衣服太小',
   ),
   Phrase(kana: 'あかい ふくを かう', romaji: 'akai fuku o kau', meaning: '買紅色的衣服'),
+  Phrase(
+    kana: 'しちゃくして いいですか',
+    romaji: 'shichaku shite ii desu ka',
+    meaning: '可以試穿嗎',
+  ),
+  Phrase(
+    kana: 'しちゃくしつは どこ',
+    romaji: 'shichakushitsu wa doko',
+    meaning: '試衣間在哪裡',
+  ),
+  Phrase(
+    kana: 'げんきんは いいですか',
+    romaji: 'genkin wa ii desu ka',
+    meaning: '可以用現金嗎',
+  ),
+  Phrase(kana: 'げんきんで かいけい', romaji: 'genkin de kaikei', meaning: '用現金結帳'),
+  Phrase(kana: 'カードは つかえます', romaji: 'kaado wa tsukaemasu', meaning: '可以用卡'),
+  Phrase(kana: 'カードは つかえません', romaji: 'kaado wa tsukaemasen', meaning: '不能用卡'),
   Phrase(kana: 'いりぐちで ならぶ', romaji: 'iriguchi de narabu', meaning: '在入口排隊'),
   Phrase(kana: 'にもつは だいじょうぶ', romaji: 'nimotsu wa daijoubu', meaning: '行李沒問題'),
   Phrase(kana: 'たすけて ください', romaji: 'tasukete kudasai', meaning: '請幫幫我'),
+  // 餐廳／便利商店 — party size, order / bill, bag, heat, checkout.
+  // Original short chunks. No prices, reservations, or live menus.
+  Phrase(kana: 'なんにん ですか', romaji: 'nannin desu ka', meaning: '幾個人'),
+  Phrase(kana: 'なにに しますか', romaji: 'nani ni shimasu ka', meaning: '要點什麼'),
+  Phrase(
+    kana: 'ほかに よろしいですか',
+    romaji: 'hoka ni yoroshii desu ka',
+    meaning: '還要別的嗎',
+  ),
+  Phrase(kana: 'ひとりで たべる', romaji: 'hitori de taberu', meaning: '一個人吃'),
+  Phrase(kana: 'ふたりで たべる', romaji: 'futari de taberu', meaning: '兩個人吃'),
+  Phrase(kana: 'ごはんを ください', romaji: 'gohan o kudasai', meaning: '請給我飯'),
+  Phrase(kana: 'かいけいを おねがい', romaji: 'kaikei o onegai', meaning: '請結帳'),
+  Phrase(kana: 'ふくろは いりますか', romaji: 'fukuro wa irimasu ka', meaning: '需要袋子嗎'),
+  Phrase(kana: 'ふくろは いりません', romaji: 'fukuro wa irimasen', meaning: '不需要袋子'),
+  Phrase(kana: 'あたためますか', romaji: 'atatamemasu ka', meaning: '要加熱嗎'),
+  Phrase(kana: 'あたためて ください', romaji: 'atatamete kudasai', meaning: '請加熱'),
+  Phrase(kana: 'これで おねがい', romaji: 'kore de onegai', meaning: '就這些、請結帳'),
+  Phrase(
+    kana: 'これで よろしいですか',
+    romaji: 'kore de yoroshii desu ka',
+    meaning: '就這些可以嗎',
+  ),
 ];
