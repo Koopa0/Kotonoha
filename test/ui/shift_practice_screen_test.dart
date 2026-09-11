@@ -209,6 +209,16 @@ void main() {
         logged.last.meta[AttemptMeta.readSupport],
         ShiftReadSupport.prompted,
       );
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
       expect(
         find.text(
           AppStrings.shiftSenseSelfGrade(
