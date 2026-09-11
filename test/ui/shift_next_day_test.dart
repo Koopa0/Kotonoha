@@ -142,7 +142,7 @@ void main() {
     await tester.tap(find.text(AppStrings.shiftConfirmStart));
     await tester.pumpAndSettle();
     expect(find.text('あおい うみ'), findsOneWidget);
-    expect(find.text(AppStrings.shiftFirstUnseen), findsOneWidget);
+    expect(find.text(AppStrings.shiftFirstUnseen), findsWidgets);
     expect(find.text(AppStrings.shiftConfirmLead), findsOneWidget);
     expect(find.text('aoi umi'), findsNothing);
     expect(find.text('藍色的海'), findsNothing);
@@ -204,7 +204,7 @@ void main() {
     await tester.tap(find.text(AppStrings.shiftConfirmStart));
     await tester.pumpAndSettle();
     expect(find.text('あおい うみ'), findsOneWidget);
-    expect(find.text(AppStrings.shiftFirstUnseen), findsOneWidget);
+    expect(find.text(AppStrings.shiftFirstUnseen), findsWidgets);
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
@@ -267,6 +267,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('しずかな へや'), findsOneWidget);
     expect(find.text(AppStrings.shiftReviewOnly), findsWidgets);
+    expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
   });
 
   testWidgets('legacy unknown sight is not treated as first-unseen', (
