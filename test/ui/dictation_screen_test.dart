@@ -52,6 +52,7 @@ Future<void> pumpDictation(
   ProgressPersistenceController? persistence,
   SpeechService speech = const SilentSpeechService(),
   KanaProgressRepository? kanaRepo,
+  Set<String> alreadyTransferredIds = const {},
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -92,6 +93,7 @@ Future<void> pumpDictation(
             child: DictationScreen(
               words: words,
               title: AppStrings.dictationTitle,
+              alreadyTransferredIds: alreadyTransferredIds,
             ),
           ),
         ),
@@ -640,6 +642,104 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
       expect(stopCount, greaterThan(stopsBeforeBackground));
+    });
+  });
+
+  group('もう一回 grind gate', () {
+    const kimi = Word(kana: 'きみ', romaji: 'kimi', meaning: '你');
+
+    Future<void> assembleKimi(WidgetTester tester) async {
+      await tester.tap(find.text('き'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('み'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('wrap same id heard-correct does not climb SRS', (
+      tester,
+    ) async {
+      final words = await WordProgressRepository.load();
+      await words.introduce('word:きみ', at: DateTime(2026, 9, 11, 12));
+      expect(words.statForItem('word:きみ').srsLevel, 1);
+      await pumpDictation(
+        tester,
+        words: const [kimi],
+        wordRepo: words,
+        speech: ScriptedSpeechService(const [SpeechPlaybackResult.played]),
+        alreadyTransferredIds: {'word:きみ'},
+      );
+      await assembleKimi(tester);
+      expect(words.statForItem('word:きみ').srsLevel, 1);
+    });
+
+    testWidgets('wrap miss still resets SRS', (tester) async {
+      final words = await WordProgressRepository.load();
+      await words.introduce('word:きみ', at: DateTime(2026, 9, 11, 12));
+      await pumpDictation(
+        tester,
+        words: const [kimi],
+        wordRepo: words,
+        speech: ScriptedSpeechService(const [SpeechPlaybackResult.played]),
+        alreadyTransferredIds: {'word:きみ'},
+      );
+      await tester.tap(find.text('み'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('き'));
+      await tester.pumpAndSettle();
+      expect(words.statForItem('word:きみ').srsLevel, 0);
+    });
+
+    testWidgets('route forwards alreadyTransferredIds into the screen', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(
+              value: await KanaProgressRepository.load(),
+            ),
+            ChangeNotifierProvider<WordProgressRepository>.value(
+              value: await WordProgressRepository.load(),
+            ),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: () async {},
+                kanjiFlush: () async {},
+                wordFlush: () async {},
+              ),
+            ),
+            Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+            Provider<SpeechService>.value(
+              value: ScriptedSpeechService(const [SpeechPlaybackResult.played]),
+            ),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      DictationScreen.route(
+                        const [kimi],
+                        AppStrings.dictationTitle,
+                        alreadyTransferredIds: {'word:きみ'},
+                      ),
+                    );
+                  },
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump();
+      final screen = tester.widget<DictationScreen>(
+        find.byType(DictationScreen),
+      );
+      expect(screen.alreadyTransferredIds, {'word:きみ'});
     });
   });
 }

@@ -16,6 +16,7 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
+import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -36,6 +37,7 @@ class DictationScreen extends StatefulWidget {
     required this.title,
     this.clock,
     this.onMore,
+    this.alreadyTransferredIds = const {},
     super.key,
   });
 
@@ -48,12 +50,24 @@ class DictationScreen extends StatefulWidget {
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
 
+  /// Progress ids already covered in this 「もう一回」 grind. A wrap-around
+  /// word may be shown again but must not renew SRS.
+  final Set<String> alreadyTransferredIds;
+
   static Route<void> route(
     List<Word> words,
     String title, {
     VoidCallback? onMore,
+    DateTime Function()? clock,
+    Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
-    builder: (_) => DictationScreen(words: words, title: title, onMore: onMore),
+    builder: (_) => DictationScreen(
+      words: words,
+      title: title,
+      onMore: onMore,
+      clock: clock,
+      alreadyTransferredIds: alreadyTransferredIds,
+    ),
   );
 
   @override
@@ -230,14 +244,18 @@ class _DictationScreenState extends State<DictationScreen> {
     );
     // Only a completed play *before* assembly is unprompted dictation
     // evidence. A later success cannot backfill SRS for this item.
+    // A miss always resets. Unprompted correct climbs only the first
+    // time this grind covers the id — wrap-around practice may repeat
+    // the word but must not farm the schedule.
     if (heard) {
-      context.read<ProgressPersistenceController>().trackWord(
-        context.read<WordProgressRepository>().recordAnswer(
-          _current.progressId,
-          correct: correct,
-          at: now,
-        ),
-      );
+      final words = context.read<WordProgressRepository>();
+      final persist = context.read<ProgressPersistenceController>();
+      final id = _current.progressId;
+      if (!correct) {
+        persist.trackWord(words.recordAnswer(id, correct: false, at: now));
+      } else if (DailyBridge.shouldRenew(id, widget.alreadyTransferredIds)) {
+        persist.trackWord(words.recordAnswer(id, correct: true, at: now));
+      }
     }
     if (correct) _correct++;
     setState(() {
