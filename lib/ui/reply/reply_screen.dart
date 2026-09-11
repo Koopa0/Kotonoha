@@ -25,18 +25,31 @@ enum _Beat { intent, reply }
 /// recorded separately. A correct tap is never spoken-production evidence,
 /// and this room does not write 詞と句 SRS.
 class ReplyScreen extends StatefulWidget {
-  const ReplyScreen({required this.drills, this.clock, this.onMore, super.key});
+  const ReplyScreen({
+    required this.drills,
+    this.scene = ReplySceneId.station,
+    this.clock,
+    this.onMore,
+    super.key,
+  });
 
   final List<ReplyDrill> drills;
+  final ReplySceneId scene;
   final DateTime Function()? clock;
   final VoidCallback? onMore;
 
   static Route<void> route(
     List<ReplyDrill> drills, {
+    ReplySceneId scene = ReplySceneId.station,
     DateTime Function()? clock,
     VoidCallback? onMore,
   }) => MaterialPageRoute<void>(
-    builder: (_) => ReplyScreen(drills: drills, clock: clock, onMore: onMore),
+    builder: (_) => ReplyScreen(
+      drills: drills,
+      scene: scene,
+      clock: clock,
+      onMore: onMore,
+    ),
     settings: const RouteSettings(name: 'reply-practice'),
   );
 
@@ -338,7 +351,10 @@ class _ReplyScreenState extends State<ReplyScreen> {
 
   Widget _cardBody() {
     final prompt = _beat == _Beat.intent
-        ? AppStrings.replyIntentPrompt
+        ? switch (widget.scene) {
+            ReplySceneId.station => AppStrings.replyIntentPrompt,
+            ReplySceneId.clothing => AppStrings.replyClothingIntentPrompt,
+          }
         : AppStrings.replyReplyPrompt;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,

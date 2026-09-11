@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/domain/models/reply_drill.dart';
 import 'package:kotonoha/domain/use_cases/reply_session.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -17,18 +18,37 @@ import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/reply/reply_screen.dart';
 import 'package:provider/provider.dart';
 
-/// Learn-then-practice door for station replies. Isolated from #47
+/// Learn-then-practice door for station or clothing replies. Isolated from #47
 /// [TravelScene] membership and #48 換句.
 class ReplyHubScreen extends StatelessWidget {
-  const ReplyHubScreen({this.clock, super.key});
+  const ReplyHubScreen({this.scene = ReplySceneId.station, this.clock, super.key});
 
+  final ReplySceneId scene;
   final DateTime Function()? clock;
 
-  static Route<void> route({DateTime Function()? clock}) =>
+  static Route<void> route({
+    ReplySceneId scene = ReplySceneId.station,
+    DateTime Function()? clock,
+  }) =>
       MaterialPageRoute<void>(
-        builder: (_) => ReplyHubScreen(clock: clock),
-        settings: const RouteSettings(name: 'reply-hub'),
+        builder: (_) => ReplyHubScreen(scene: scene, clock: clock),
+        settings: RouteSettings(name: 'reply-hub-${scene.name}'),
       );
+
+  String get _purpose => switch (scene) {
+    ReplySceneId.station => AppStrings.replyPurpose,
+    ReplySceneId.clothing => AppStrings.replyClothingPurpose,
+  };
+
+  String get _meetHint => switch (scene) {
+    ReplySceneId.station => AppStrings.replyMeetHint,
+    ReplySceneId.clothing => AppStrings.replyClothingMeetHint,
+  };
+
+  String get _meetTitle => switch (scene) {
+    ReplySceneId.station => AppStrings.replyMeetTitle,
+    ReplySceneId.clothing => AppStrings.replyClothingMeetTitle,
+  };
 
   Set<String> _learnedChars(BuildContext context) =>
       StudySet.learned(context.read<KanaProgressRepository>())
@@ -39,6 +59,7 @@ class ReplyHubScreen extends StatelessWidget {
     final kana = context.watch<KanaProgressRepository>();
     final words = context.watch<WordProgressRepository>();
     return ReplySession.inspect(
+      scene: scene,
       learnedChars: StudySet.learned(kana).map((k) => k.character).toSet(),
       stats: words.stats,
     );
@@ -53,9 +74,9 @@ class ReplyHubScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            const Text(
-              AppStrings.replyPurpose,
-              style: TextStyle(
+            Text(
+              _purpose,
+              style: const TextStyle(
                 color: AppColors.ink,
                 fontSize: 16,
                 height: 1.5,
@@ -64,9 +85,7 @@ class ReplyHubScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              view.canPractice
-                  ? AppStrings.replyReadyHint
-                  : AppStrings.replyMeetHint,
+              view.canPractice ? AppStrings.replyReadyHint : _meetHint,
               style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
             ),
             if (view.needsKanaFirst || view.missingUnits.isNotEmpty) ...[
@@ -127,13 +146,14 @@ class ReplyHubScreen extends StatelessWidget {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
     final words = ReplySession.unreadRequiredWords(
+      scene: scene,
       learnedChars: learned,
       stats: stats,
     );
     if (words.isNotEmpty) {
       final route = FerryScreen.route(
         words,
-        AppStrings.replyMeetTitle,
+        _meetTitle,
         clock: clock,
         onMore: () => _continueMeet(context),
       );
@@ -145,13 +165,14 @@ class ReplyHubScreen extends StatelessWidget {
       return;
     }
     final phrases = ReplySession.unreadRequiredPhrases(
+      scene: scene,
       learnedChars: learned,
       stats: stats,
     );
     if (phrases.isNotEmpty) {
       final route = ReadingScreen.route(
         phrases,
-        AppStrings.replyMeetTitle,
+        _meetTitle,
         onMore: () => _continueMeet(context),
       );
       unawaited(
@@ -168,6 +189,7 @@ class ReplyHubScreen extends StatelessWidget {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
     final leftover = ReplySession.unreadRequired(
+      scene: scene,
       learnedChars: learned,
       stats: stats,
     );
@@ -180,6 +202,7 @@ class ReplyHubScreen extends StatelessWidget {
 
   void _startPractice(BuildContext context, {bool replace = false}) {
     final drills = ReplySession.compose(
+      scene: scene,
       learnedChars: _learnedChars(context),
       rng: Random(),
       stats: context.read<WordProgressRepository>().stats,
@@ -187,6 +210,7 @@ class ReplyHubScreen extends StatelessWidget {
     if (drills.isEmpty) return;
     final route = ReplyScreen.route(
       drills,
+      scene: scene,
       clock: clock,
       onMore: () => _startPractice(context, replace: true),
     );

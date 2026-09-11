@@ -1,13 +1,18 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-/// One station exchange: hear the other person, name their intent, pick a
-/// short reply. Not a [ReadingItem] and not a 黙読 / travel-scene member.
+/// Which travel slice a reply room draws from. Isolated from [TravelSceneId]
+/// membership — only scopes [ReplyDrill] pools and hub copy.
+enum ReplySceneId { station, clothing }
+
+/// One exchange: hear the other person, name their intent, pick a short reply.
+/// Not a [ReadingItem] and not a 黙読 / travel-scene member.
 ///
 /// Pure data: no `package:flutter/*` imports.
 class ReplyDrill {
   const ReplyDrill({
     required this.id,
+    required this.scene,
     required this.sceneZh,
     required this.promptKana,
     required this.promptRomaji,
@@ -23,6 +28,8 @@ class ReplyDrill {
 
   /// Stable analytics id (`reply:…`). Never a corpus progress id.
   final String id;
+
+  final ReplySceneId scene;
 
   /// Background facts that make one reply uniquely right. Traditional
   /// Chinese only — never the heard Japanese, romaji, gloss, or a

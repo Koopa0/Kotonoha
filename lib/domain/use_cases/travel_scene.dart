@@ -92,6 +92,7 @@ abstract final class TravelScene {
       'word:ふく',
       'word:かう',
       'word:おおきい',
+      'word:おねがい',
       'word:ちいさい',
       'word:たかい',
       'word:やすい',
