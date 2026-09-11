@@ -32,16 +32,114 @@ void main() {
     }
   });
 
-  test('each kind has two distinct values', () {
+  test('each kind has taught values and one assembled combination', () {
     for (final kind in InfoKind.values) {
       final drills = infoDrillsFor(kind);
-      expect(drills, hasLength(2));
+      expect(drills.length, greaterThanOrEqualTo(3), reason: kind.name);
       expect(
         drills.map((d) => d.correctAnswer).toSet(),
-        hasLength(2),
+        hasLength(drills.length),
+        reason: kind.name,
+      );
+      expect(
+        drills.where((d) => d.assembledFromParts),
+        isNotEmpty,
         reason: kind.name,
       );
     }
+  });
+
+  test('assembled combinations are not corpus words and wait on parts', () {
+    final corpusKana = kWords.map((w) => w.kana).toSet();
+    expect(corpusKana, isNot(contains('ぜん')));
+    expect(corpusKana, isNot(contains('よ')));
+    expect(corpusKana, isNot(contains('ごせん')));
+    expect(corpusKana, isNot(contains('さんにん')));
+    expect(corpusKana, isNot(contains('ごにん')));
+    expect(corpusKana, containsAll(['ご', 'にん', 'よにん', 'さんぜん']));
+
+    final amount = kInfoDrills.firstWhere((d) => d.id == 'info:amount-5000');
+    expect(amount.assembledFromParts, isTrue);
+    expect(amount.requiredSeenIds, ['word:ご', 'word:せん', 'word:えん']);
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {'word:ご': seenAt(), 'word:えん': seenAt()},
+      ).ready.map((d) => d.id),
+      isNot(contains(amount.id)),
+    );
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {
+          'word:ご': seenAt(),
+          'word:せん': seenAt(),
+          'word:えん': seenAt(),
+        },
+      ).ready.map((d) => d.id),
+      contains(amount.id),
+    );
+
+    final time = kInfoDrills.firstWhere((d) => d.id == 'info:time-10pm');
+    expect(time.assembledFromParts, isTrue);
+    expect(time.requiredSeenIds, ['word:ごご', 'word:じゅう', 'word:じ']);
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {
+          'word:ごご': seenAt(),
+          'word:じゅう': seenAt(),
+          'word:じ': seenAt(),
+        },
+      ).ready.map((d) => d.id),
+      contains(time.id),
+    );
+
+    final three = kInfoDrills.firstWhere((d) => d.id == 'info:person-3');
+    final five = kInfoDrills.firstWhere((d) => d.id == 'info:person-5');
+    expect(three.assembledFromParts, isTrue);
+    expect(five.assembledFromParts, isTrue);
+    expect(three.requiredSeenIds, ['word:さん', 'word:にん']);
+    expect(five.requiredSeenIds, ['word:ご', 'word:にん']);
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {'word:さん': seenAt()},
+      ).ready.map((d) => d.id),
+      isNot(contains(three.id)),
+    );
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {'word:さん': seenAt(), 'word:にん': seenAt()},
+      ).unreadRequired.map((i) => i.progressId),
+      isNot(contains('word:さんにん')),
+    );
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {'word:さん': seenAt(), 'word:にん': seenAt()},
+      ).ready.map((d) => d.id),
+      contains(three.id),
+    );
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {'word:ご': seenAt(), 'word:にん': seenAt()},
+      ).ready.map((d) => d.id),
+      contains(five.id),
+    );
+
+    final four = kInfoDrills.firstWhere((d) => d.id == 'info:person-4');
+    expect(four.assembledFromParts, isFalse);
+    expect(four.requiredSeenIds, ['word:よにん']);
+    expect(
+      InfoSession.inspect(
+        learnedChars: allChars,
+        stats: {'word:にん': seenAt()},
+      ).ready.map((d) => d.id),
+      isNot(contains(four.id)),
+    );
   });
 
   test('distractors stay within the same kind', () {
@@ -92,6 +190,10 @@ void main() {
     );
     expect(session, hasLength(6));
     expect(session.map((d) => d.kind).toSet(), InfoKind.values.toSet());
+    expect(
+      session.where((d) => d.assembledFromParts).map((d) => d.kind).toSet(),
+      InfoKind.values.toSet(),
+    );
   });
 
   test('amount-3000 waits for さんぜん as a whole, not isolated ぜん', () {

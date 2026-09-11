@@ -167,7 +167,11 @@ abstract final class InfoSession {
     if (copy.length <= sessionLength) return copy;
     final picked = <InfoDrill>[];
     final seenKind = <InfoKind>{};
-    for (final drill in copy) {
+    final ordered = [
+      ...copy.where((d) => d.assembledFromParts),
+      ...copy.where((d) => !d.assembledFromParts),
+    ];
+    for (final drill in ordered) {
       if (picked.length >= sessionLength) break;
       if (seenKind.add(drill.kind)) picked.add(drill);
     }

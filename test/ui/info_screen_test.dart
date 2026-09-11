@@ -20,7 +20,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_tts_client.dart';
 
 final _amount3k = kInfoDrills.firstWhere((d) => d.id == 'info:amount-3000');
+final _amount5k = kInfoDrills.firstWhere((d) => d.id == 'info:amount-5000');
 final _time330 = kInfoDrills.firstWhere((d) => d.id == 'info:time-330pm');
+final _time10pm = kInfoDrills.firstWhere((d) => d.id == 'info:time-10pm');
+final _person3 = kInfoDrills.firstWhere((d) => d.id == 'info:person-3');
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -121,6 +124,58 @@ void main() {
     final logged = await env.analytics.all();
     expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.hinted);
     expect(logged[0].meta[AttemptMeta.hinted], isTrue);
+    expect(logged[0].correct, isTrue);
+  });
+
+  testWidgets('assembled さんにん scores 3位 without leaking the full form', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final env = await pumpInfo(
+      tester,
+      drills: [_person3],
+      surface: const Size(320, 640),
+    );
+    expect(find.text('3位'), findsOneWidget);
+    expect(find.text('1位'), findsOneWidget);
+    expect(find.text('5位'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('info-prompt-kana')), findsNothing);
+    expect(find.text('さんにん'), findsNothing);
+    await hearThenPick(tester, answer: '3位');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[0].correct, isTrue);
+  });
+
+  testWidgets('assembled 下午10點 is a new time combination', (tester) async {
+    final env = await pumpInfo(tester, drills: [_time10pm]);
+    expect(find.text('下午10點'), findsOneWidget);
+    expect(find.text('上午10點'), findsOneWidget);
+    expect(find.textContaining('日圓'), findsNothing);
+    expect(find.textContaining('位'), findsNothing);
+    expect(find.byKey(const ValueKey<String>('info-prompt-kana')), findsNothing);
+    await hearThenPick(tester, answer: '下午10點');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[0].correct, isTrue);
+  });
+
+  testWidgets('assembled 5000日圓 stays an amount choice', (tester) async {
+    final env = await pumpInfo(tester, drills: [_amount5k]);
+    expect(find.text('5000日圓'), findsOneWidget);
+    expect(find.text('3000日圓'), findsOneWidget);
+    expect(find.textContaining('點'), findsNothing);
+    expect(find.textContaining('位'), findsNothing);
+    await hearThenPick(tester, answer: '5000日圓');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
     expect(logged[0].correct, isTrue);
   });
 }

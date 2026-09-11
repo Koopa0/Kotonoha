@@ -19,6 +19,7 @@ class InfoDrill {
     required this.correctAnswer,
     required this.wrongAnswers,
     required this.requiredSeenIds,
+    this.assembledFromParts = false,
   });
 
   /// Stable analytics id (`info:…`). Never a corpus progress id.
@@ -45,6 +46,11 @@ class InfoDrill {
 
   /// Corpus progress ids that must already have been met before a scored turn.
   final List<String> requiredSeenIds;
+
+  /// Heard value is built from already-met parts or a taught irregular.
+  /// The complete number+unit string is not itself a corpus word, so the
+  /// meet step never shows that exact answer before the scored turn.
+  final bool assembledFromParts;
 
   String get say => promptKana.replaceAll(' ', '');
 
