@@ -247,13 +247,50 @@ void main() {
   });
 
   testWidgets(
-    'per-question write failure surfaces; retry flushes without re-grading',
+    '讀得出來 reveal write failure blocks confirm; retry keeps same-visit independent',
     (tester) async {
       final app = await _pumpFormal(tester);
       await _openAoCheck(tester);
 
       app.prefs.failWrites.add('placement_check_v1');
-      await _independentCorrect(tester);
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
+      expect(app.persist.hasWriteFailure, isTrue);
+      expect(app.checks.draft.isHinted('あ'), isTrue);
+      expect(app.kana.statFor(_kanaOf(app.kana, 'あ')).correctCount, 0);
+
+      final confirm = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, AppStrings.iReadIt),
+      );
+      expect(confirm.onPressed, isNull);
+
+      app.prefs.failWrites.clear();
+      await tester.tap(find.text(AppStrings.persistRetry));
+      await tester.pumpAndSettle();
+      expect(app.persist.hasWriteFailure, isFalse);
+
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      expect(
+        app.checks.draft.records.single.outcome,
+        PlacementOutcome.independent,
+      );
+      expect(app.kana.statFor(_kanaOf(app.kana, 'あ')).correctCount, 1);
+    },
+  );
+
+  testWidgets(
+    'per-question write failure surfaces; retry flushes without re-grading',
+    (tester) async {
+      final app = await _pumpFormal(tester);
+      await _openAoCheck(tester);
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      app.prefs.failWrites.add('placement_check_v1');
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
 
       expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
       expect(app.persist.hasWriteFailure, isTrue);
