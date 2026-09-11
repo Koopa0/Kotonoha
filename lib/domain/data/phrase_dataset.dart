@@ -307,11 +307,7 @@ const List<Phrase> kPhrases = <Phrase>[
   // you leave tomorrow. Original short chunks. No booking, prices, or
   // clock times. とまる is "to stay" (JF); check-in is チェックイン.
   Phrase(kana: 'よやくが あります', romaji: 'yoyaku ga arimasu', meaning: '我有預約'),
-  Phrase(
-    kana: 'チェックインを おねがい',
-    romaji: 'chekkuin o onegai',
-    meaning: '請辦理入住',
-  ),
+  Phrase(kana: 'チェックインを おねがい', romaji: 'chekkuin o onegai', meaning: '請辦理入住'),
   Phrase(
     kana: 'あさごはんは ありますか',
     romaji: 'asagohan wa arimasu ka',

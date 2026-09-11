@@ -770,11 +770,7 @@ void main() {
     expect(stay.meaning.contains('入住'), isFalse);
     expect(
       TravelScene.progressIds[TravelSceneId.hotel],
-      containsAll([
-        'phrase:チェックインを おねがい',
-        'word:チェックイン',
-        'word:とまる',
-      ]),
+      containsAll(['phrase:チェックインを おねがい', 'word:チェックイン', 'word:とまる']),
     );
   });
 
