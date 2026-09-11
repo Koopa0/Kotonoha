@@ -66,7 +66,7 @@ Future<Widget> bootstrap() async {
             kanji: kanji,
             words: words,
           ),
-          files: const FilePickerSnapshotPort(),
+          files: FilePickerSnapshotPort(),
         ),
       ),
     ],

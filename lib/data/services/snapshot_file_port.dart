@@ -4,7 +4,9 @@
 /// Outcome of asking the user to keep a snapshot file. A cancelled pick is
 /// not a failure — no bytes were written and progress stores were not touched.
 enum SnapshotSaveOutcome {
-  /// The chosen location acknowledged the write.
+  /// The host confirmed the bytes were written. A document URI alone is
+  /// not this — Android's locked picker can return a URI after a null
+  /// output stream.
   saved,
 
   /// The user dismissed the system picker. Nothing was written.

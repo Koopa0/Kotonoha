@@ -40,12 +40,10 @@ class SnapshotExportResult {
 /// flushes, and never applies a snapshot — restore is a later PR.
 class ProgressSnapshotExporter {
   ProgressSnapshotExporter({
-    required ProgressSnapshotRepository snapshots,
-    required SnapshotFilePort files,
+    required this._snapshots,
+    required this._files,
     DateTime Function()? now,
-  }) : _snapshots = snapshots,
-       _files = files,
-       _now = now ?? DateTime.now;
+  }) : _now = now ?? DateTime.now;
 
   final ProgressSnapshotRepository _snapshots;
   final SnapshotFilePort _files;
