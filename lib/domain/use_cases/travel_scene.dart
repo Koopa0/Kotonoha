@@ -200,7 +200,6 @@ abstract final class TravelScene {
       'word:ふたり',
       'word:ごはん',
       'word:ちゅうもん',
-      'word:かいけい',
       'word:たべる',
       'word:みず',
       'word:すし',
