@@ -37,7 +37,7 @@ void main() {
     final kana = await KanaProgressRepository.load();
     final words = await WordProgressRepository.load();
     final kanji = await KanjiReadingRepository.load();
-    await tester.binding.setSurfaceSize(const Size(420, 2600));
+    await tester.binding.setSurfaceSize(const Size(420, 3200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MultiProvider(
@@ -217,8 +217,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.travelSceneShrine), findsOneWidget);
     expect(find.text(AppStrings.travelSceneParkQueue), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.travelSceneRestaurant));
+    expect(find.text(AppStrings.travelSceneRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneConvenience), findsOneWidget);
     expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
     expect(find.text(AppStrings.travelScenePurposeParkQueue), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeConvenience), findsOneWidget);
     expect(find.text('芙莉蓮'), findsNothing);
     expect(find.text('USJ'), findsNothing);
 
@@ -283,7 +288,7 @@ void main() {
     final kana = await KanaProgressRepository.load();
     final words = await WordProgressRepository.load();
     final kanji = await KanjiReadingRepository.load();
-    await tester.binding.setSurfaceSize(const Size(420, 2600));
+    await tester.binding.setSurfaceSize(const Size(420, 3200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MultiProvider(
@@ -636,6 +641,139 @@ void main() {
     expect(find.text(AppStrings.replyPurpose), findsNothing);
     expect(find.text('えきは どこ'), findsNothing);
   });
+
+  testWidgets('partial さ行: restaurant meets すし; convenience stays 先學假名', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [0, 2]);
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneRestaurant);
+    expect(find.text(AppStrings.travelScenePurposeRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneRecallAction), findsNothing);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneMeetTitle(AppStrings.travelSceneRestaurant),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('ふくろ'), findsNothing);
+    expect(find.text('えき'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneConvenience));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelScenePurposeConvenience), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+  });
+
+  testWidgets(
+    'partial か行・は行・ら行: convenience meets ふくろ; restaurant stays 先學假名',
+    (tester) async {
+      final repos = await pumpHome(tester);
+      await learnRows(repos.kana, const [1, 5, 8]);
+      await tester.pumpAndSettle();
+
+      await openScene(tester, AppStrings.travelSceneConvenience);
+      expect(
+        find.text(AppStrings.travelScenePurposeConvenience),
+        findsOneWidget,
+      );
+      expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+      await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(FerryScreen), findsOneWidget);
+      expect(
+        find.text(
+          AppStrings.travelSceneMeetTitle(AppStrings.travelSceneConvenience),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('すし'), findsNothing);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(repos.words.seenItemCount, 0);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.travelSceneRestaurant));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.travelScenePurposeRestaurant),
+        findsOneWidget,
+      );
+      expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+      expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+    },
+  );
+
+  testWidgets('returning: seen restaurant すし can recall and reuse 聞き取り', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [0, 2]);
+    await repos.words.markIntroduced('word:すし', at: DateTime(2026, 9, 10, 12));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:すし').srsLevel, 0);
+
+    await openScene(tester, AppStrings.travelSceneRestaurant);
+    expect(find.text(AppStrings.travelSceneRecallAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneListenAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneRecallAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(find.text('ふくろ'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.travelSceneListenAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ListeningScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneListenTitle(AppStrings.travelSceneRestaurant),
+      ),
+      findsOneWidget,
+    );
+    expect(repos.words.statForItem('word:すし').srsLevel, 0);
+  });
+
+  testWidgets('restaurant hub opens the scoped reply room, not clothing copy', (
+    tester,
+  ) async {
+    await pumpHub(tester, scene: TravelSceneId.restaurant);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyRestaurantPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingPurpose), findsNothing);
+    expect(find.text(AppStrings.replyPurpose), findsNothing);
+  });
+
+  testWidgets(
+    'convenience hub opens the scoped reply room, not restaurant copy',
+    (tester) async {
+      await pumpHub(tester, scene: TravelSceneId.convenience);
+      expect(find.text(AppStrings.replyAction), findsOneWidget);
+      await tester.tap(find.text(AppStrings.replyAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReplyHubScreen), findsOneWidget);
+      expect(find.text(AppStrings.replyConveniencePurpose), findsOneWidget);
+      expect(find.text(AppStrings.replyRestaurantPurpose), findsNothing);
+      expect(find.text('なんにん ですか'), findsNothing);
+    },
+  );
 
   testWidgets('travel picker surfaces info extraction entry', (tester) async {
     await pumpHome(tester);

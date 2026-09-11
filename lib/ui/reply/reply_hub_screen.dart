@@ -21,7 +21,11 @@ import 'package:provider/provider.dart';
 /// Learn-then-practice door for station or clothing replies. Isolated from #47
 /// [TravelScene] membership and #48 換句.
 class ReplyHubScreen extends StatelessWidget {
-  const ReplyHubScreen({this.scene = ReplySceneId.station, this.clock, super.key});
+  const ReplyHubScreen({
+    this.scene = ReplySceneId.station,
+    this.clock,
+    super.key,
+  });
 
   final ReplySceneId scene;
   final DateTime Function()? clock;
@@ -29,25 +33,30 @@ class ReplyHubScreen extends StatelessWidget {
   static Route<void> route({
     ReplySceneId scene = ReplySceneId.station,
     DateTime Function()? clock,
-  }) =>
-      MaterialPageRoute<void>(
-        builder: (_) => ReplyHubScreen(scene: scene, clock: clock),
-        settings: RouteSettings(name: 'reply-hub-${scene.name}'),
-      );
+  }) => MaterialPageRoute<void>(
+    builder: (_) => ReplyHubScreen(scene: scene, clock: clock),
+    settings: RouteSettings(name: 'reply-hub-${scene.name}'),
+  );
 
   String get _purpose => switch (scene) {
     ReplySceneId.station => AppStrings.replyPurpose,
     ReplySceneId.clothing => AppStrings.replyClothingPurpose,
+    ReplySceneId.restaurant => AppStrings.replyRestaurantPurpose,
+    ReplySceneId.convenience => AppStrings.replyConveniencePurpose,
   };
 
   String get _meetHint => switch (scene) {
     ReplySceneId.station => AppStrings.replyMeetHint,
     ReplySceneId.clothing => AppStrings.replyClothingMeetHint,
+    ReplySceneId.restaurant => AppStrings.replyRestaurantMeetHint,
+    ReplySceneId.convenience => AppStrings.replyConvenienceMeetHint,
   };
 
   String get _meetTitle => switch (scene) {
     ReplySceneId.station => AppStrings.replyMeetTitle,
     ReplySceneId.clothing => AppStrings.replyClothingMeetTitle,
+    ReplySceneId.restaurant => AppStrings.replyRestaurantMeetTitle,
+    ReplySceneId.convenience => AppStrings.replyConvenienceMeetTitle,
   };
 
   Set<String> _learnedChars(BuildContext context) =>

@@ -16,9 +16,6 @@ import 'package:kotonoha/domain/use_cases/reading_set.dart';
 
 export 'package:kotonoha/domain/models/travel_scene_id.dart';
 
-/// Travel-purpose rooms the learner can ask for. This ticket owns scene
-/// membership; it is not a generic content picker (#48 owns 精讀變化練習).
-
 /// A read-only view of one scene against the learner's kana and 詞と句 stats.
 /// Inspecting never writes progress — choosing a scene cannot unlock or
 /// raise mastery.
@@ -51,7 +48,7 @@ class TravelSceneView {
 
 /// Scene-scoped選材 and learn-then-practice composition.
 ///
-/// Pools are existing corpus ids only. All four travel purposes walk the
+/// Pools are existing corpus ids only. Each travel purpose walks the
 /// same learn-then-practice gates; membership stays disjoint so one scene
 /// never pads with another.
 ///
@@ -64,6 +61,8 @@ abstract final class TravelScene {
     TravelSceneId.clothing,
     TravelSceneId.shrine,
     TravelSceneId.parkQueue,
+    TravelSceneId.restaurant,
+    TravelSceneId.convenience,
   };
 
   static const Map<TravelSceneId, List<String>> progressIds = {
@@ -188,6 +187,37 @@ abstract final class TravelScene {
       'word:すぐ',
       'word:もんだい',
       'word:しつもん',
+    ],
+    TravelSceneId.restaurant: [
+      'phrase:なんにん ですか',
+      'phrase:なにに しますか',
+      'phrase:ほかに よろしいですか',
+      'phrase:ひとりで たべる',
+      'phrase:ふたりで たべる',
+      'phrase:ごはんを ください',
+      'phrase:かいけいを おねがい',
+      'word:ひとり',
+      'word:ふたり',
+      'word:ごはん',
+      'word:ちゅうもん',
+      'word:たべる',
+      'word:みず',
+      'word:すし',
+      'word:レストラン',
+    ],
+    TravelSceneId.convenience: [
+      'phrase:ふくろは いりますか',
+      'phrase:ふくろは いりません',
+      'phrase:あたためますか',
+      'phrase:あたためて ください',
+      'phrase:これで おねがい',
+      'phrase:これで よろしいですか',
+      'word:ふくろ',
+      'word:あたためる',
+      'word:コンビニ',
+      'word:おべんとう',
+      'word:おにぎり',
+      'word:おつり',
     ],
   };
 

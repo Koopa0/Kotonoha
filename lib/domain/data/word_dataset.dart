@@ -479,6 +479,7 @@ const List<Word> kWords = <Word>[
   Word(kana: 'あう', romaji: 'au', meaning: '見面'),
   Word(kana: 'かう', romaji: 'kau', meaning: '買'),
   Word(kana: 'おねがい', romaji: 'onegai', meaning: '請、麻煩你'),
+  Word(kana: 'ください', romaji: 'kudasai', meaning: '請（給我／幫我）'),
   Word(kana: 'うる', romaji: 'uru', meaning: '賣'),
   Word(kana: 'つくる', romaji: 'tsukuru', meaning: '做、製作'),
   Word(kana: 'はたらく', romaji: 'hataraku', meaning: '工作'),
@@ -1004,6 +1005,13 @@ const List<Word> kWords = <Word>[
     kana: 'かいけい',
     romaji: 'kaikei',
     meaning: '結帳',
+    theme: ContentTheme.daily,
+  ),
+  Word(kana: 'ふくろ', romaji: 'fukuro', meaning: '袋子', theme: ContentTheme.daily),
+  Word(
+    kana: 'あたためる',
+    romaji: 'atatameru',
+    meaning: '加熱',
     theme: ContentTheme.daily,
   ),
   Word(

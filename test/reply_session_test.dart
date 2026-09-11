@@ -142,6 +142,8 @@ void main() {
       '右邊',
       '左邊',
     ];
+    const restaurantLeaks = ['問來了幾個人', '問要點什麼', '問還要不要別的', '幾個人', '要點什麼'];
+    const convenienceLeaks = ['問要不要袋子', '問要不要加熱', '問可不可以結帳', '需要袋子嗎', '要加熱嗎'];
     for (final drill in kReplyDrills) {
       expect(
         drill.sceneZh,
@@ -153,9 +155,12 @@ void main() {
         isNot(contains(drill.promptMeaning)),
         reason: drill.id,
       );
-      final leaks = drill.scene == ReplySceneId.station
-          ? stationLeaks
-          : clothingLeaks;
+      final leaks = switch (drill.scene) {
+        ReplySceneId.station => stationLeaks,
+        ReplySceneId.clothing => clothingLeaks,
+        ReplySceneId.restaurant => restaurantLeaks,
+        ReplySceneId.convenience => convenienceLeaks,
+      };
       for (final leak in leaks) {
         expect(
           drill.sceneZh,
@@ -181,6 +186,10 @@ void main() {
     expect(byId['reply:card-desu-ka']!.sceneZh, contains('刷卡'));
     expect(byId['reply:card-tsukaemasu']!.sceneZh, contains('只帶了卡'));
     expect(byId['reply:card-tsukaemasen']!.sceneZh, contains('還有現金'));
+    expect(byId['reply:nannin-hitori']!.sceneZh, contains('只坐你'));
+    expect(byId['reply:nannin-futari']!.sceneZh, contains('同行入座'));
+    expect(byId['reply:fukuro-hai']!.sceneZh, contains('沒有'));
+    expect(byId['reply:atatame-iie']!.sceneZh, contains('以後'));
   });
 
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
@@ -330,6 +339,105 @@ void main() {
     expect(view.unreadRequired.map((i) => i.progressId), contains('word:おねがい'));
   });
 
+  test('restaurant gohan drills wait for ください, not ごはんを ください', () {
+    final order = {'phrase:なにに しますか': seenAt(), 'word:ごはん': seenAt()};
+    final orderView = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: order,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(orderView.ready, isEmpty);
+    expect(orderView.canPractice, isFalse);
+    expect(orderView.canMeet, isTrue);
+    expect(
+      orderView.unreadRequired.map((i) => i.progressId),
+      contains('word:ください'),
+    );
+    expect(
+      orderView.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:ごはんを ください')),
+    );
+
+    final serve = {'phrase:ほかに よろしいですか': seenAt(), 'word:ごはん': seenAt()};
+    final serveView = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: serve,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(
+      serveView.ready.map((d) => d.id),
+      isNot(contains('reply:hoka-gohan')),
+    );
+    expect(
+      serveView.unreadRequired.map((i) => i.progressId),
+      contains('word:ください'),
+    );
+    expect(
+      serveView.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:ごはんを ください')),
+    );
+
+    order['word:ください'] = seenAt();
+    final met = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: order,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(met.ready.map((d) => d.id), contains('reply:nani-gohan'));
+    expect(met.canPractice, isTrue);
+  });
+
+  test('restaurant bill drill waits for おねがい, not かいけいを おねがい', () {
+    final stats = {'phrase:ほかに よろしいですか': seenAt(), 'word:かいけい': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:おねがい'));
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:かいけいを おねがい')),
+    );
+
+    stats['word:おねがい'] = seenAt();
+    final met = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(met.ready.map((d) => d.id), contains('reply:hoka-kaikei'));
+    expect(met.canPractice, isTrue);
+  });
+
+  test('heat drills wait for ください, not あたためて ください', () {
+    final stats = {'phrase:あたためますか': seenAt(), 'word:あたためる': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.convenience,
+    );
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.canMeet, isTrue);
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:ください'));
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:あたためて ください')),
+    );
+
+    stats['word:ください'] = seenAt();
+    final met = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.convenience,
+    );
+    expect(met.ready.map((d) => d.id), contains('reply:atatame-kudasai'));
+    expect(met.canPractice, isTrue);
+  });
+
   test('clothing compose stays in the clothing pool', () {
     final stats = {
       for (final drill in replyDrillsFor(ReplySceneId.clothing))
@@ -360,6 +468,157 @@ void main() {
       ),
     );
     expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
+  });
+
+  test('なんにん ですか scenes split ひとりです and ふたりです', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.restaurant))
+        drill.id: drill,
+    };
+    final one = byId['reply:nannin-hitori']!;
+    final two = byId['reply:nannin-futari']!;
+    expect(one.promptKana, 'なんにん ですか');
+    expect(two.promptKana, 'なんにん ですか');
+    expect(one.replyCorrectKana, 'ひとりです');
+    expect(two.replyCorrectKana, 'ふたりです');
+    expect(one.replyWrongKana, isNot(contains('ふたりです')));
+    expect(two.replyWrongKana, isNot(contains('ひとりです')));
+    expect(one.requiredSeenIds, containsAll(['phrase:なんにん ですか', 'word:ひとり']));
+    expect(two.requiredSeenIds, containsAll(['phrase:なんにん ですか', 'word:ふたり']));
+    expect(
+      byId['reply:nani-gohan']!.requiredSeenIds,
+      containsAll(['phrase:なにに しますか', 'word:ごはん', 'word:ください']),
+    );
+    expect(
+      byId['reply:nani-gohan']!.requiredSeenIds,
+      isNot(contains('phrase:ごはんを ください')),
+    );
+  });
+
+  test('restaurant compose stays in the restaurant pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.restaurant))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(2),
+      stats: stats,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(session, hasLength(3));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.restaurant});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'なんにん ですか',
+      'なにに しますか',
+      'ほかに よろしいですか',
+    });
+    expect(session.map((d) => d.promptKana), isNot(contains('ふくろは いりますか')));
+    expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
+  });
+
+  test('あたためますか yes-scene accepts はい and あたためて ください', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        drill.id: drill,
+    };
+    final heat = byId['reply:atatame-kudasai']!;
+    final skip = byId['reply:atatame-iie']!;
+    expect(heat.replyAlsoCorrectKana, ['はい']);
+    expect(heat.replyWrongKana, ['いいえ']);
+    expect(heat.isReplyCorrect('あたためて ください'), isTrue);
+    expect(heat.isReplyCorrect('はい'), isTrue);
+    expect(heat.isReplyCorrect('いいえ'), isFalse);
+    expect(
+      heat.requiredSeenIds,
+      containsAll(['phrase:あたためますか', 'word:あたためる', 'word:ください']),
+    );
+    expect(heat.requiredSeenIds, isNot(contains('phrase:あたためて ください')));
+    expect(skip.requiredSeenIds, contains('word:ください'));
+    expect(skip.replyWrongKana, contains('はい'));
+    expect(skip.isReplyCorrect('はい'), isFalse);
+  });
+
+  test('ほかに よろしいですか rice scene clarifies催飯 and drops いいえ distractor', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.restaurant))
+        drill.id: drill,
+    };
+    final rice = byId['reply:hoka-gohan']!;
+    final bill = byId['reply:hoka-kaikei']!;
+    expect(rice.sceneZh, contains('還沒送上來'));
+    expect(rice.sceneZh, isNot(contains('想請')));
+    expect(rice.replyCorrectKana, 'ごはんを ください');
+    expect(rice.replyWrongKana, isNot(contains('いいえ')));
+    expect(rice.replyWrongKana, contains('かいけいを おねがい'));
+    expect(rice.requiredSeenIds, contains('word:ください'));
+    expect(rice.requiredSeenIds, isNot(contains('phrase:ごはんを ください')));
+    expect(bill.replyCorrectKana, 'かいけいを おねがい');
+    expect(bill.replyWrongKana, isNot(contains('ごはんを ください')));
+    expect(bill.requiredSeenIds, contains('word:おねがい'));
+    expect(bill.requiredSeenIds, isNot(contains('phrase:かいけいを おねがい')));
+  });
+
+  test('ふくろは いりますか scenes split はい and いいえ', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        drill.id: drill,
+    };
+    final yes = byId['reply:fukuro-hai']!;
+    final no = byId['reply:fukuro-iie']!;
+    expect(yes.promptKana, 'ふくろは いりますか');
+    expect(no.promptKana, 'ふくろは いりますか');
+    expect(yes.replyCorrectKana, 'はい');
+    expect(no.replyCorrectKana, 'いいえ');
+    expect(yes.sceneZh, contains('沒有'));
+    expect(no.sceneZh, contains('自己帶了'));
+    expect(yes.requiredSeenIds, containsAll(['phrase:ふくろは いりますか', 'word:ふくろ']));
+  });
+
+  test('convenience compose stays in the convenience pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(2),
+      stats: stats,
+      scene: ReplySceneId.convenience,
+    );
+    expect(session, hasLength(3));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.convenience});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'ふくろは いりますか',
+      'あたためますか',
+      'これで よろしいですか',
+    });
+    expect(session.map((d) => d.promptKana), isNot(contains('なんにん ですか')));
+  });
+
+  test('restaurant unreadRequired never pulls convenience phrases', () {
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: const {},
+      scene: ReplySceneId.restaurant,
+    );
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:ふくろは いりますか')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({
+        'phrase:なんにん ですか',
+        'phrase:なにに しますか',
+        'word:ひとり',
+        'word:ごはん',
+        'word:かいけい',
+        'word:ください',
+        'word:おねがい',
+      }),
+    );
   });
 
   test('clothing unreadRequired never pulls station phrases', () {
