@@ -270,14 +270,12 @@ class KanaProgressRepository extends ChangeNotifier {
   /// confirmed write, exactly as a mutation's flush does.
   Future<void> flushPending() => _serialized(_flushAll);
 
-  /// Invalidates in-flight flushes, refuses new mutations, and waits for every
-  /// previously queued flush — including one parked on a platform gate — to
-  /// finish or abort before primaries are rewritten.
+  /// Refuses new mutations, drains every queued persistence future, then bumps
+  /// the restore barrier so no stale flush can land after the drain completes.
   Future<void> prepareForRestore() async {
-    _restoreBarrier++;
     _restoreLocked = true;
-    _prefs.invalidateInFlightWrites();
     await _tail;
+    _restoreBarrier++;
   }
 
   /// Releases the restore lock after [prepareForRestore].

@@ -83,11 +83,13 @@ class ProgressSnapshotRestoreRepository {
         }
         await _journal.commit();
       } on RestoreJournalWriteFailure {
+        await _syncMemoryFromDurable();
         try {
           await _journal.abortAndRollback();
         } on RestoreJournalRollbackFailure {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
+        await _syncMemoryFromDurable();
         rethrow;
       } catch (_) {
         try {
@@ -101,6 +103,14 @@ class ProgressSnapshotRestoreRepository {
       _kanji.finishRestore();
       _words.finishRestore();
     }
+  }
+
+  Future<void> _syncMemoryFromDurable() async {
+    await Future.wait([
+      _kana.reloadFromPlatform(),
+      _kanji.reloadFromPlatform(),
+      _words.reloadFromPlatform(),
+    ]);
   }
 
   void _applyToMemory(ProgressSnapshot snapshot) {

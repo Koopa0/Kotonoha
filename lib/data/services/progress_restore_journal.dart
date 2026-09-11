@@ -57,12 +57,12 @@ class _ValidatedJournal {
   const _ValidatedJournal({
     required this.phase,
     required this.rollback,
-    required this.staging,
+    this.staging,
   });
 
   final RestoreJournalPhase phase;
   final Map<String, String?> rollback;
-  final Map<String, String> staging;
+  final Map<String, String>? staging;
 }
 
 /// `progress_restore_journal_v1` — coordinates staging, applying, rollback and
@@ -71,7 +71,7 @@ class _ValidatedJournal {
 /// Rollback captures each primary's exact raw string at transaction start (null
 /// when absent). Staging holds the encoded replacement for each body. Memory is
 /// updated only after every primary write succeeds and the journal records a
-/// durable [RestoreJournalPhase.committed] decision and cleanup succeeds.
+/// durable [RestoreJournalPhase.committed] decision.
 class ProgressRestoreJournal {
   ProgressRestoreJournal(this._prefs);
 
@@ -85,10 +85,9 @@ class ProgressRestoreJournal {
   static bool blocksExport(PreferencesService prefs) {
     final raw = prefs.readString(journalKey);
     if (raw == null) return false;
-    final validated = _parseValidated(raw);
-    if (validated == null) return true;
-    if (validated.phase == RestoreJournalPhase.committed) return false;
-    return true;
+    final parsed = _parse(raw);
+    if (parsed == null) return true;
+    return parsed.phase != RestoreJournalPhase.committed;
   }
 
   /// Before repository load: finish committed cleanup, or roll back any
@@ -97,19 +96,20 @@ class ProgressRestoreJournal {
   static Future<RestoreJournalRecoveryResult> recoverIfNeeded(
     PreferencesService prefs,
   ) async {
-    final journal = ProgressRestoreJournal(prefs);
     await prefs.reload();
-    final raw = prefs.readString(journalKey);
-    if (raw == null) return RestoreJournalRecoveryResult.ok;
-    final validated = journal._parseValidatedSync(raw);
-    if (validated == null) {
-      return const RestoreJournalRecoveryResult(needsRecovery: true);
+    final journal = ProgressRestoreJournal(prefs);
+    final parsed = journal._validated;
+    if (parsed == null) {
+      if (journal._rawPresent) {
+        return const RestoreJournalRecoveryResult(needsRecovery: true);
+      }
+      return RestoreJournalRecoveryResult.ok;
     }
-    if (validated.phase == RestoreJournalPhase.committed) {
+    if (parsed.phase == RestoreJournalPhase.committed) {
       await journal._removeJournalBestEffort();
       return RestoreJournalRecoveryResult.ok;
     }
-    final rolled = await journal._rollbackPrimaries(validated);
+    final rolled = await journal._rollbackPrimaries(parsed);
     if (!rolled) {
       return const RestoreJournalRecoveryResult(needsRecovery: true);
     }
@@ -119,25 +119,21 @@ class ProgressRestoreJournal {
     );
   }
 
-  RestoreJournalPhase? _durablePhaseSync() {
+  bool get _rawPresent => _prefs.readString(journalKey) != null;
+
+  _ValidatedJournal? get _validated => _parse(_prefs.readString(journalKey));
+
+  Map<String, dynamic>? get _document {
     final raw = _prefs.readString(journalKey);
-    return _parseValidatedSync(raw)?.phase;
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } on FormatException {
+      // Corrupt — leave the journal blocking.
+    }
+    return null;
   }
-
-  Future<RestoreJournalPhase?> _durablePhase() async {
-    await _prefs.reload();
-    return _durablePhaseSync();
-  }
-
-  _ValidatedJournal? _validatedDocumentSync() =>
-      _parseValidatedSync(_prefs.readString(journalKey));
-
-  Future<_ValidatedJournal?> _validatedDocument() async {
-    await _prefs.reload();
-    return _validatedDocumentSync();
-  }
-
-  _ValidatedJournal? _parseValidatedSync(String? raw) => _parseValidated(raw);
 
   /// Begins staging: snapshot current primaries for rollback and persist the
   /// encoded replacements. Does not touch primaries yet.
@@ -159,46 +155,54 @@ class ProgressRestoreJournal {
   Future<void> applyPrimary(String primaryKey, String encoded) async {
     await _writeJournalPhase(RestoreJournalPhase.applying);
     if (!await _prefs.writeString(primaryKey, encoded)) {
-      await _prefs.reload();
       throw RestoreJournalWriteFailure(primaryKey);
     }
   }
 
-  /// Records a durable committed decision, then best-effort journal cleanup.
-  /// Primaries already hold the new bodies; a failed remove leaves [committed]
-  /// on disk and must not be rolled back on the next launch.
+  /// Records a durable committed decision, then removes the journal. Cleanup
+  /// may fail after [committed] is already durable — that still counts as
+  /// success. Throws when the committed marker never lands on durable storage.
   Future<void> commit() async {
-    await _writeJournalPhase(RestoreJournalPhase.committed);
+    final doc = _document;
+    if (doc == null) {
+      throw RestoreJournalWriteFailure(journalKey);
+    }
+    doc['phase'] = RestoreJournalPhase.committed.name;
+    if (!await _prefs.writeString(journalKey, jsonEncode(doc))) {
+      throw RestoreJournalWriteFailure(journalKey);
+    }
     await _prefs.reload();
-    if (!await _isCommittedDurable()) {
+    if (_validated?.phase != RestoreJournalPhase.committed) {
       throw RestoreJournalWriteFailure(journalKey);
     }
     try {
-      await _removeJournalBestEffort();
-    } catch (_) {
-      // A platform reply may throw after the removal already landed. The
-      // committed phase on durable storage is the decision — do not roll back.
+      if (!await _prefs.remove(journalKey)) {
+        return; // committed durable; cleanup pending is OK
+      }
+    } on Object {
+      await _prefs.reload();
+      if (_prefs.readString(journalKey) == null) {
+        return; // native removal succeeded before the throw
+      }
+      rethrow;
     }
+    await _prefs.reload();
   }
 
   /// Rolls every primary back to the captured rollback raw. Returns false when
   /// the journal is corrupt or any platform write/remove is refused — the
   /// journal stays blocking in that case.
-  Future<bool> _rollbackPrimaries(_ValidatedJournal validated) async {
-    await _writeJournalPhase(RestoreJournalPhase.rollingBack);
+  Future<bool> _rollbackPrimaries(_ValidatedJournal parsed) async {
+    if (!await _tryWriteJournalPhase(RestoreJournalPhase.rollingBack)) {
+      return false;
+    }
 
     for (final key in RestoreJournalStores.all) {
-      final raw = validated.rollback[key];
+      final raw = parsed.rollback[key];
       if (raw is String) {
-        if (!await _prefs.writeString(key, raw)) {
-          await _prefs.reload();
-          return false;
-        }
+        if (!await _prefs.writeString(key, raw)) return false;
       } else if (raw == null) {
-        if (!await _prefs.remove(key)) {
-          await _prefs.reload();
-          return false;
-        }
+        if (!await _prefs.remove(key)) return false;
       } else {
         return false;
       }
@@ -211,39 +215,37 @@ class ProgressRestoreJournal {
   /// Never rolls back once [RestoreJournalPhase.committed] is durable.
   Future<void> abortAndRollback() async {
     await _prefs.reload();
-    if (await _isCommittedDurable()) return;
-    final validated = await _validatedDocument();
-    if (validated == null) {
+    final parsed = _validated;
+    if (parsed == null) {
       throw RestoreJournalRollbackFailure(journalKey);
     }
-    final rolled = await _rollbackPrimaries(validated);
+    if (parsed.phase == RestoreJournalPhase.committed) {
+      return;
+    }
+    final rolled = await _rollbackPrimaries(parsed);
     if (!rolled) {
       throw RestoreJournalRollbackFailure(journalKey);
     }
     if (!await _prefs.remove(journalKey)) {
-      await _prefs.reload();
       throw RestoreJournalRollbackFailure(journalKey);
     }
   }
 
   Future<void> _writeJournalPhase(RestoreJournalPhase phase) async {
-    final validated = _validatedDocumentSync();
-    if (validated == null) {
+    if (!await _tryWriteJournalPhase(phase)) {
       throw RestoreJournalWriteFailure(journalKey);
     }
-    await _writeJournal(<String, Object?>{
-      'phase': phase.name,
-      'rollback': validated.rollback,
-      'staging': validated.staging,
-    });
+  }
+
+  Future<bool> _tryWriteJournalPhase(RestoreJournalPhase phase) async {
+    final doc = _document;
+    if (doc == null) return false;
+    doc['phase'] = phase.name;
+    return await _prefs.writeString(journalKey, jsonEncode(doc));
   }
 
   Future<void> _writeJournal(Map<String, Object?> doc) async {
-    if (_parseValidated(jsonEncode(doc)) == null) {
-      throw RestoreJournalWriteFailure(journalKey);
-    }
     if (!await _prefs.writeString(journalKey, jsonEncode(doc))) {
-      await _prefs.reload();
       throw RestoreJournalWriteFailure(journalKey);
     }
   }
@@ -252,71 +254,63 @@ class ProgressRestoreJournal {
     await _prefs.remove(journalKey);
   }
 
-  Future<bool> _isCommittedDurable() async {
-    await _prefs.reload();
-    return _durablePhaseSync() == RestoreJournalPhase.committed;
-  }
-
   /// Whether a blocking journal remains on disk (unfinished transaction or
   /// corrupt payload — not a committed cleanup still pending).
   static bool needsRecovery(PreferencesService prefs) => blocksExport(prefs);
 
-  static RestoreJournalPhase? _readPhase(String? raw) {
-    final validated = _parseValidated(raw);
-    return validated?.phase;
-  }
-
-  static _ValidatedJournal? _parseValidated(String? raw) {
+  static _ValidatedJournal? _parse(String? raw) {
     if (raw == null) return null;
-    Object? decoded;
     try {
-      decoded = jsonDecode(raw);
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      final phaseName = decoded['phase'];
+      if (phaseName is! String) return null;
+      RestoreJournalPhase? phase;
+      for (final candidate in RestoreJournalPhase.values) {
+        if (candidate.name == phaseName) {
+          phase = candidate;
+          break;
+        }
+      }
+      if (phase == null) return null;
+
+      final rollbackRaw = decoded['rollback'];
+      if (rollbackRaw is! Map) return null;
+      final rollback = <String, String?>{};
+      for (final key in RestoreJournalStores.all) {
+        if (!rollbackRaw.containsKey(key)) return null;
+        final value = rollbackRaw[key];
+        if (value is String) {
+          rollback[key] = value;
+        } else if (value == null) {
+          rollback[key] = null;
+        } else {
+          return null;
+        }
+      }
+
+      Map<String, String>? staging;
+      final stagingRaw = decoded['staging'];
+      if (stagingRaw != null) {
+        if (stagingRaw is! Map) return null;
+        staging = <String, String>{};
+        for (final key in RestoreJournalStores.all) {
+          if (!stagingRaw.containsKey(key)) return null;
+          final value = stagingRaw[key];
+          if (value is! String) return null;
+          staging[key] = value;
+        }
+      }
+
+      return _ValidatedJournal(
+        phase: phase,
+        rollback: rollback,
+        staging: staging,
+      );
     } on FormatException {
       return null;
     }
-    if (decoded is! Map<String, dynamic>) return null;
-
-    final phaseName = decoded['phase'];
-    if (phaseName is! String) return null;
-    RestoreJournalPhase? phase;
-    for (final candidate in RestoreJournalPhase.values) {
-      if (candidate.name == phaseName) {
-        phase = candidate;
-        break;
-      }
-    }
-    if (phase == null) return null;
-
-    final rollbackRaw = decoded['rollback'];
-    if (rollbackRaw is! Map) return null;
-    final rollback = <String, String?>{};
-    for (final key in RestoreJournalStores.all) {
-      if (!rollbackRaw.containsKey(key)) return null;
-      final value = rollbackRaw[key];
-      if (value == null) {
-        rollback[key] = null;
-      } else if (value is String) {
-        rollback[key] = value;
-      } else {
-        return null;
-      }
-    }
-
-    final stagingRaw = decoded['staging'];
-    if (stagingRaw is! Map) return null;
-    final staging = <String, String>{};
-    for (final key in RestoreJournalStores.all) {
-      if (!stagingRaw.containsKey(key)) return null;
-      final value = stagingRaw[key];
-      if (value is! String) return null;
-      staging[key] = value;
-    }
-
-    return _ValidatedJournal(
-      phase: phase,
-      rollback: rollback,
-      staging: staging,
-    );
   }
 }
 

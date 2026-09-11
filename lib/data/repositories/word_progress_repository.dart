@@ -138,10 +138,9 @@ class WordProgressRepository extends ChangeNotifier {
   }
 
   Future<void> prepareForRestore() async {
-    _restoreBarrier++;
     _restoreLocked = true;
-    _prefs.invalidateInFlightWrites();
     await _tail;
+    _restoreBarrier++;
   }
 
   void finishRestore() {
