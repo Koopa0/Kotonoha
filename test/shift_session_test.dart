@@ -328,7 +328,6 @@ void main() {
     final legacy = Attempt(
       ts: DateTime(2026, 9).millisecondsSinceEpoch,
       itemId: ShiftSession.itemId(drill, ShiftBeat.base),
-      itemType: ItemType.shift,
       mode: PracticeMode.shift.name,
       correct: true,
       sessionId: 'old',
@@ -359,7 +358,6 @@ void main() {
     final legacy = Attempt(
       ts: DateTime(2026, 9).millisecondsSinceEpoch,
       itemId: ShiftSession.itemId(drill, ShiftBeat.base),
-      itemType: ItemType.shift,
       mode: PracticeMode.shift.name,
       correct: true,
       sessionId: 'old',

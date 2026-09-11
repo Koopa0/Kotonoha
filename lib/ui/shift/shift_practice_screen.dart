@@ -206,6 +206,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     if (persist != null) {
       await persist.retry();
     }
+    if (!mounted) return;
     try {
       await log.flushPending();
     } on Object {
@@ -246,7 +247,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final all = await context.read<AnalyticsLog>().all();
+    final log = context.read<AnalyticsLog>();
+    final all = await log.all();
     if (!mounted) return;
     setState(() {
       _history = ShiftSession.selfGrades(all, drillId: widget.drill.id);

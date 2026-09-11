@@ -165,6 +165,7 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
     if (persist != null) {
       await persist.retry();
     }
+    if (!mounted) return;
     try {
       await log.flushPending();
     } on Object {
