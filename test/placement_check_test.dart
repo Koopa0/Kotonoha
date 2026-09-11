@@ -189,4 +189,50 @@ void main() {
       PlacementOutcome.unknown,
     );
   });
+
+  test('a hinted reading cannot become a first independent correct', () {
+    expect(
+      PlacementCheck.outcomeFor(correct: true, unprompted: true, hinted: true),
+      PlacementOutcome.prompted,
+    );
+  });
+
+  group('PlacementCheck.noteHinted', () {
+    test('keeps a pending kana unanswered and records the exposure', () {
+      final started = PlacementCheck.start([ao])!;
+      final after = PlacementCheck.noteHinted(started, ao.kana.first.id);
+      expect(after.hintedKanaIds, [ao.kana.first.id]);
+      expect(after.pendingKanaIds, started.pendingKanaIds);
+      expect(after.records, isEmpty);
+    });
+
+    test('is a no-op for ids that are not pending', () {
+      final started = PlacementCheck.start([ao])!;
+      final after = PlacementCheck.noteHinted(started, ka.kana.first.id);
+      expect(after.hintedKanaIds, isEmpty);
+    });
+
+    test('record strips the hint — the grade already settled it', () {
+      var draft = PlacementCheck.start([ao])!;
+      draft = PlacementCheck.noteHinted(draft, 'あ');
+      draft = PlacementCheck.record(draft, 'あ', PlacementOutcome.prompted);
+      expect(draft.isHinted('あ'), isFalse);
+      expect(draft.records.single.outcome, PlacementOutcome.prompted);
+    });
+  });
+
+  group('PlacementDraft hinted decode', () {
+    test('keeps hinted only while the kana is still pending', () {
+      final draft = PlacementDraft.fromJson({
+        'lessons': ['hira_row_0'],
+        'pending': ['あ', 'い'],
+        'records': [
+          {'id': 'う', 'out': 'unknown'},
+        ],
+        'hinted': ['あ', 'う', 'さ'],
+      });
+      expect(draft.hintedKanaIds, ['あ']);
+      expect(draft.pendingKanaIds, ['あ', 'い']);
+    });
+  });
 }

@@ -33,15 +33,21 @@ class PlacementRecord {
 
 /// In-progress or finished explicit check. [pendingKanaIds] are unanswered;
 /// [records] are only real grades. Leaving mid-way must not invent the rest.
+///
+/// [hintedKanaIds] is exposure, not a grade: a pending kana whose reading
+/// was shown this check stays prompted-only across resume. Reloading must
+/// not mint a first independent correct from a previously revealed card.
 class PlacementDraft {
   const PlacementDraft({
     required this.lessonIds,
     required this.pendingKanaIds,
     required this.records,
+    this.hintedKanaIds = const [],
   });
 
   /// Honest decode: drop corrupt rows, never invent an outcome. If the same
-  /// id is both recorded and pending, pending wins (unanswered).
+  /// id is both recorded and pending, pending wins (unanswered). Hinted ids
+  /// that are no longer pending are dropped — a grade already settled them.
   factory PlacementDraft.fromJson(Map<String, dynamic> json) {
     final lessons = _stringList(json['lessons']);
     final pending = <String>[];
@@ -61,10 +67,17 @@ class PlacementDraft {
         records.add(parsed);
       }
     }
+    final hinted = <String>[];
+    final hintedSeen = <String>{};
+    for (final id in _stringList(json['hinted'])) {
+      if (!pendingSeen.contains(id)) continue;
+      if (hintedSeen.add(id)) hinted.add(id);
+    }
     return PlacementDraft(
       lessonIds: lessons,
       pendingKanaIds: pending,
       records: records,
+      hintedKanaIds: hinted,
     );
   }
 
@@ -83,6 +96,9 @@ class PlacementDraft {
   /// Completed grades. A kana is never both pending and recorded.
   final List<PlacementRecord> records;
 
+  /// Pending kana whose reading was shown this check. Not an outcome.
+  final List<String> hintedKanaIds;
+
   bool get hasSelection => lessonIds.isNotEmpty;
 
   bool get hasProgress => records.isNotEmpty || pendingKanaIds.isNotEmpty;
@@ -92,10 +108,13 @@ class PlacementDraft {
   bool get isComplete =>
       hasSelection && pendingKanaIds.isEmpty && records.isNotEmpty;
 
+  bool isHinted(String kanaId) => hintedKanaIds.contains(kanaId);
+
   Map<String, Object?> toJson() => <String, Object?>{
     'lessons': lessonIds,
     'pending': pendingKanaIds,
     'records': [for (final r in records) r.toJson()],
+    'hinted': hintedKanaIds,
   };
 }
 

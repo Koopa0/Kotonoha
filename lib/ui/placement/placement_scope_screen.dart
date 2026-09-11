@@ -10,6 +10,7 @@ import 'package:kotonoha/domain/models/placement_check.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/placement/placement_check_screen.dart';
 import 'package:kotonoha/ui/placement/placement_result_screen.dart';
@@ -28,74 +29,81 @@ class PlacementScopeScreen extends StatefulWidget {
 }
 
 class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
-  PlacementCheckRepository? _checks;
   final Set<String> _selected = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _open();
-  }
-
-  Future<void> _open() async {
-    final repo = await PlacementCheckRepository.load();
-    if (!mounted) {
-      repo.dispose();
-      return;
-    }
-    setState(() => _checks = repo);
-  }
-
-  @override
-  void dispose() {
-    _checks?.dispose();
-    super.dispose();
-  }
-
   Future<void> _startNew(List<Lesson> catalog) async {
-    final repo = _checks;
-    if (repo == null) return;
+    final persist = context.read<ProgressPersistenceController>();
+    if (persist.hasWriteFailure) return;
+    final repo = context.read<PlacementCheckRepository>();
     final selected = [
       for (final lesson in catalog)
         if (_selected.contains(lesson.id)) lesson,
     ];
     final draft = PlacementCheck.start(selected);
     if (draft == null) return;
-    await repo.save(draft);
+    final save = repo.save(draft);
+    persist.trackPlacement(save);
+    try {
+      await save;
+    } catch (_) {
+      // Banner owns the failure. Do not open a check whose draft is not on
+      // disk — resume from this screen after retry, never silently.
+      if (mounted) setState(() {});
+      return;
+    }
     if (!mounted) return;
     _openCheck(draft);
   }
 
   void _resume() {
-    final draft = _checks?.draft;
-    if (draft == null || !draft.hasProgress) return;
+    final persist = context.read<ProgressPersistenceController>();
+    if (persist.hasWriteFailure) return;
+    final repo = context.read<PlacementCheckRepository>();
+    final draft = repo.draft;
+    if (!draft.hasProgress) return;
     if (draft.isComplete) {
       Navigator.of(context)
-          .push(PlacementResultScreen.route(draft: draft, checks: _checks!));
+          .push(PlacementResultScreen.route(draft: draft, checks: repo));
       return;
     }
     if (draft.isInProgress) _openCheck(draft);
   }
 
   Future<void> _discardAndStay() async {
-    await _checks?.clear();
+    final persist = context.read<ProgressPersistenceController>();
+    if (persist.hasWriteFailure) return;
+    final repo = context.read<PlacementCheckRepository>();
+    final clear = repo.clear();
+    persist.trackPlacement(clear);
+    try {
+      await clear;
+    } catch (_) {
+      // In-memory is empty; retry flushes that empty draft. Stay put.
+    }
     if (mounted) setState(() {});
   }
 
   void _openCheck(PlacementDraft draft) {
-    Navigator.of(context)
-        .push(PlacementCheckScreen.route(draft: draft, checks: _checks!));
+    Navigator.of(context).push(
+      PlacementCheckScreen.route(
+        draft: draft,
+        checks: context.read<PlacementCheckRepository>(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<KanaProgressRepository>();
+    final persist = context.watch<ProgressPersistenceController>();
+    final checks = context.watch<PlacementCheckRepository>();
     final catalog = Lessons.fromKana(store.allKana);
     final hira = catalog.where((l) => l.script == KanaScript.hiragana).toList();
     final kata = catalog.where((l) => l.script == KanaScript.katakana).toList();
-    final draft = _checks?.draft;
-    final canResume = draft != null && draft.hasProgress;
-    final canStart = _selected.isNotEmpty;
+    final draft = checks.draft;
+    final blocked = persist.hasWriteFailure;
+    final canResume = draft.hasProgress;
+    final canStart = _selected.isNotEmpty && !blocked;
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.placementTitle)),
@@ -118,8 +126,8 @@ class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
                     const SizedBox(height: 16),
                     _ResumeCard(
                       finished: draft.isComplete,
-                      onResume: _resume,
-                      onDiscard: _discardAndStay,
+                      onResume: blocked ? null : _resume,
+                      onDiscard: blocked ? null : _discardAndStay,
                     ),
                   ],
                   if (hira.isNotEmpty) ...[
@@ -199,8 +207,8 @@ class _ResumeCard extends StatelessWidget {
   });
 
   final bool finished;
-  final VoidCallback onResume;
-  final VoidCallback onDiscard;
+  final VoidCallback? onResume;
+  final VoidCallback? onDiscard;
 
   @override
   Widget build(BuildContext context) {

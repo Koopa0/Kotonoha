@@ -64,11 +64,27 @@ class PlacementCheck {
   static PlacementOutcome outcomeFor({
     required bool correct,
     required bool unprompted,
+    bool hinted = false,
   }) {
     if (!correct) return PlacementOutcome.unknown;
-    return unprompted
-        ? PlacementOutcome.independent
-        : PlacementOutcome.prompted;
+    // A revealed reading this check is never a first independent recall,
+    // including after leave / process reload of the same draft.
+    if (hinted || !unprompted) return PlacementOutcome.prompted;
+    return PlacementOutcome.independent;
+  }
+
+  /// Marks that [kanaId] saw its reading this check. No grade is written.
+  /// Already-graded or not-pending ids are ignored.
+  static PlacementDraft noteHinted(PlacementDraft draft, String kanaId) {
+    if (!draft.pendingKanaIds.contains(kanaId)) return draft;
+    if (draft.records.any((r) => r.kanaId == kanaId)) return draft;
+    if (draft.isHinted(kanaId)) return draft;
+    return PlacementDraft(
+      lessonIds: draft.lessonIds,
+      pendingKanaIds: draft.pendingKanaIds,
+      records: draft.records,
+      hintedKanaIds: [...draft.hintedKanaIds, kanaId],
+    );
   }
 
   /// Records one real grade. Unknown ids, already-graded ids, and ids not
@@ -89,6 +105,10 @@ class PlacementCheck {
       records: [
         ...draft.records,
         PlacementRecord(kanaId: kanaId, outcome: outcome),
+      ],
+      hintedKanaIds: [
+        for (final id in draft.hintedKanaIds)
+          if (id != kanaId) id,
       ],
     );
   }

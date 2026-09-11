@@ -84,6 +84,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
       monotonicMs: widget.monotonicMs,
     )..addListener(_onChanged);
     _lifecycle = AppLifecycleListener(onStateChange: _onLifecycleState);
+    _syncHintedPresentation();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_vm.items.isEmpty) {
@@ -92,6 +93,16 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
       }
       _reportPresentation();
     });
+  }
+
+  bool get _currentHinted =>
+      _vm.items.isNotEmpty && _draft.isHinted(_vm.current.target.id);
+
+  void _syncHintedPresentation() {
+    if (_vm.items.isEmpty || _vm.isAnswered) return;
+    if (!_currentHinted) return;
+    _recallRevealed = true;
+    _recallUnpromptedCommit = false;
   }
 
   bool get _isVisible =>
@@ -132,14 +143,37 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
     required bool unprompted,
   }) async {
     if (_vm.isAnswered || _vm.isFinished || _vm.items.isEmpty) return;
+    final persist = context.read<ProgressPersistenceController>();
+    if (persist.hasWriteFailure) return;
     final kanaId = _vm.current.target.id;
-    _vm.gradeRecall(correct: correct, unprompted: unprompted);
+    final hinted = _draft.isHinted(kanaId);
+    // Hinted this check cannot become a first independent correct — same
+    // contract as [PlacementCheck.outcomeFor], and the same SRS write.
+    final independent = unprompted && !hinted;
+    _vm.gradeRecall(correct: correct, unprompted: independent);
     _draft = PlacementCheck.record(
       _draft,
       kanaId,
-      PlacementCheck.outcomeFor(correct: correct, unprompted: unprompted),
+      PlacementCheck.outcomeFor(
+        correct: correct,
+        unprompted: unprompted,
+        hinted: hinted,
+      ),
     );
-    await widget.checks.save(_draft);
+    persist.trackPlacement(widget.checks.save(_draft));
+  }
+
+  void _revealAsHint() {
+    if (_vm.items.isEmpty || _vm.isAnswered) return;
+    final persist = context.read<ProgressPersistenceController>();
+    if (persist.hasWriteFailure) return;
+    final kanaId = _vm.current.target.id;
+    _draft = PlacementCheck.noteHinted(_draft, kanaId);
+    persist.trackPlacement(widget.checks.save(_draft));
+    setState(() {
+      _recallUnpromptedCommit = false;
+      _recallRevealed = true;
+    });
   }
 
   void _onChanged() {
@@ -150,6 +184,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
     if (!_vm.isAnswered) {
       _recallRevealed = false;
       _recallUnpromptedCommit = false;
+      _syncHintedPresentation();
     }
     if (_vm.isFinished) {
       _goToResults();
@@ -174,6 +209,8 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final persist = context.watch<ProgressPersistenceController>();
+    final blocked = persist.hasWriteFailure;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.placementTitle)),
       body: SafeArea(
@@ -254,14 +291,14 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                   child: _vm.isAnswered
                       ? FilledButton(
-                          onPressed: _vm.advance,
+                          onPressed: blocked ? null : _vm.advance,
                           child: Text(
                             _vm.isLastQuestion
                                 ? AppStrings.seeResults
                                 : AppStrings.continueLabel,
                           ),
                         )
-                      : _actions(),
+                      : _actions(blocked: blocked),
                 ),
               ],
             );
@@ -271,9 +308,9 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
     );
   }
 
-  Widget _actions() {
+  Widget _actions({required bool blocked}) {
     if (_recallRevealed) {
-      final unprompted = _recallUnpromptedCommit;
+      final unprompted = _recallUnpromptedCommit && !_currentHinted;
       return Row(
         children: [
           Expanded(
@@ -286,8 +323,9 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: () =>
-                  _noteOutcome(correct: false, unprompted: unprompted),
+              onPressed: blocked
+                  ? null
+                  : () => _noteOutcome(correct: false, unprompted: unprompted),
               child: const Text(AppStrings.iCouldnt),
             ),
           ),
@@ -298,8 +336,9 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                 backgroundColor: AppColors.success,
                 minimumSize: const Size.fromHeight(54),
               ),
-              onPressed: () =>
-                  _noteOutcome(correct: true, unprompted: unprompted),
+              onPressed: blocked
+                  ? null
+                  : () => _noteOutcome(correct: true, unprompted: unprompted),
               child: Text(
                 unprompted ? AppStrings.iReadIt : AppStrings.iReadAfterHint,
               ),
@@ -320,10 +359,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: () => setState(() {
-                  _recallUnpromptedCommit = false;
-                  _recallRevealed = true;
-                }),
+                onPressed: blocked ? null : _revealAsHint,
                 child: const Text(AppStrings.recallHint),
               ),
             ),
@@ -333,13 +369,15 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
                 ),
-                onPressed: () {
-                  _vm.captureUnpromptedRecall();
-                  setState(() {
-                    _recallUnpromptedCommit = true;
-                    _recallRevealed = true;
-                  });
-                },
+                onPressed: blocked
+                    ? null
+                    : () {
+                        _vm.captureUnpromptedRecall();
+                        setState(() {
+                          _recallUnpromptedCommit = true;
+                          _recallRevealed = true;
+                        });
+                      },
                 child: const Text(AppStrings.iReadUnprompted),
               ),
             ),
@@ -347,13 +385,12 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
         ),
         const SizedBox(height: 10),
         TextButton(
-          onPressed: () {
-            setState(() {
-              _recallUnpromptedCommit = false;
-              _recallRevealed = true;
-            });
-            _noteOutcome(correct: false, unprompted: true);
-          },
+          onPressed: blocked
+              ? null
+              : () {
+                  _revealAsHint();
+                  _noteOutcome(correct: false, unprompted: true);
+                },
           style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
           child: const Text(AppStrings.placementUnknown),
         ),

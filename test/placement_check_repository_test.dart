@@ -50,4 +50,41 @@ void main() {
     final reloaded = await PlacementCheckRepository.load();
     expect(reloaded.draft.hasProgress, isFalse);
   });
+
+  test('hinted exposure survives save then reload', () async {
+    SharedPreferences.setMockInitialValues({});
+    final first = await PlacementCheckRepository.load();
+    var draft = PlacementCheck.start([ao])!;
+    draft = PlacementCheck.noteHinted(draft, 'あ');
+    await first.save(draft);
+
+    final reloaded = await PlacementCheckRepository.load();
+    expect(reloaded.draft.isHinted('あ'), isTrue);
+    expect(reloaded.draft.pendingKanaIds.first, 'あ');
+    expect(reloaded.draft.records, isEmpty);
+  });
+
+  test('a failed write keeps memory; flushPending lands after the platform recovers', () async {
+    final fake = FakePreferencesService();
+    final store = await PlacementCheckRepository.load(fake);
+    var draft = PlacementCheck.start([ao])!;
+    draft = PlacementCheck.noteHinted(draft, 'あ');
+    fake.failWrites.add('placement_check_v1');
+    await expectLater(store.save(draft), throwsA(isA<StoreWriteFailure>()));
+    expect(store.draft.isHinted('あ'), isTrue);
+
+    final afterFail = await PlacementCheckRepository.load(
+      FakePreferencesService.restarted(fake),
+    );
+    expect(afterFail.draft.isHinted('あ'), isFalse);
+    expect(afterFail.draft.hasProgress, isFalse);
+
+    fake.failWrites.clear();
+    await store.flushPending();
+    final recovered = await PlacementCheckRepository.load(
+      FakePreferencesService.restarted(fake),
+    );
+    expect(recovered.draft.isHinted('あ'), isTrue);
+    expect(recovered.draft.pendingKanaIds.first, 'あ');
+  });
 }

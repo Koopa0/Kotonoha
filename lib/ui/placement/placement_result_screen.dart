@@ -65,7 +65,7 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
     for (final lesson in _summary.confirmedLessons) {
       persistence.trackKana(store.markUnitLearned(lesson.id));
     }
-    await widget.checks.clear();
+    persistence.trackPlacement(widget.checks.clear());
   }
 
   void _fill(Lesson lesson) {

@@ -209,17 +209,20 @@ _pumpApp(WidgetTester tester) async {
   final kana = await KanaProgressRepository.load();
   final kanji = await KanjiReadingRepository.load();
   final words = await WordProgressRepository.load();
+  final checks = await PlacementCheckRepository.load();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
         ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+        ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
         ChangeNotifierProvider<ProgressPersistenceController>.value(
           value: ProgressPersistenceController(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
+            placementFlush: checks.flushPending,
           ),
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
