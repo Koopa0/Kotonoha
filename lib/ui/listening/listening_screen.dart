@@ -33,6 +33,7 @@ class ListeningScreen extends StatefulWidget {
     required this.title,
     this.clock,
     this.onMore,
+    this.onFinished,
     this.alreadyTransferredIds = const {},
     super.key,
   });
@@ -46,6 +47,9 @@ class ListeningScreen extends StatefulWidget {
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
 
+  /// Official close (session summary) — not a mere open or pop.
+  final VoidCallback? onFinished;
+
   /// Progress ids already covered in this 「もう一回」 grind. A wrap-around
   /// item may be shown again but must not renew SRS.
   final Set<String> alreadyTransferredIds;
@@ -54,6 +58,7 @@ class ListeningScreen extends StatefulWidget {
     List<ReadingItem> items,
     String title, {
     VoidCallback? onMore,
+    VoidCallback? onFinished,
     DateTime Function()? clock,
     Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
@@ -61,6 +66,7 @@ class ListeningScreen extends StatefulWidget {
       items: items,
       title: title,
       onMore: onMore,
+      onFinished: onFinished,
       clock: clock,
       alreadyTransferredIds: alreadyTransferredIds,
     ),
@@ -244,6 +250,7 @@ class _ListeningScreenState extends State<ListeningScreen>
       );
       _abandonPlayback();
       setState(() => _done = true);
+      widget.onFinished?.call();
       return;
     }
     _abandonPlayback();

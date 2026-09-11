@@ -294,6 +294,131 @@ void main() {
     expect(s.hasReliableListening(now: at), isTrue);
   });
 
+  test('elapsed days stale historical success without demoting', () {
+    var s = const KanaStat();
+    var at = now;
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    at = at.add(const Duration(minutes: 1));
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    final heard = at;
+    expect(s.hasReliableListening(now: heard), isTrue);
+    expect(s.hasRecentListening(now: heard), isTrue);
+    expect(s.listeningPendingRecheck(now: heard), isFalse);
+    expect(s.needsListeningProbe(now: heard), isFalse);
+
+    final day1 = heard.add(const Duration(days: 1));
+    expect(s.hasRecentListening(now: day1), isTrue);
+    expect(s.needsListeningProbe(now: day1), isFalse);
+
+    final stillRecent = heard.add(KanaStat.kListeningRecheckWindow);
+    expect(s.hasRecentListening(now: stillRecent), isTrue);
+    expect(s.listeningPendingRecheck(now: stillRecent), isFalse);
+
+    final stale = heard.add(const Duration(days: 8));
+    expect(s.hasReliableListening(now: stale), isTrue);
+    expect(s.hasRecentListening(now: stale), isFalse);
+    expect(s.listeningPendingRecheck(now: stale), isTrue);
+    expect(s.needsListeningProbe(now: stale), isTrue);
+    expect(s.listeningUnrecovered, isFalse);
+    expect(s.lastListenAt, heard);
+    expect(s.srsLevel, greaterThan(0));
+
+    final later = stale.add(const Duration(days: 32));
+    expect(s.hasReliableListening(now: later), isTrue);
+    expect(s.listeningPendingRecheck(now: later), isTrue);
+    expect(s.srsLevel, isNot(0));
+  });
+
+  test('visual and prompted answers do not refresh lastListenAt', () {
+    final heard = now;
+    var s = KanaStat(
+      seenCount: 4,
+      correctCount: 4,
+      srsLevel: 4,
+      avgLatencyMs: 400,
+      listenSeenCount: 2,
+      listenCorrectCount: 2,
+      lastListenAt: heard,
+    );
+    final later = heard.add(const Duration(days: 8));
+    s = s.recordAnswer(correct: true, at: later, latencyMs: 400);
+    expect(s.lastListenAt, heard);
+    expect(s.listenSeenCount, 2);
+    expect(s.listeningPendingRecheck(now: later), isTrue);
+
+    s = s.recordPromptedPractice(at: later.add(const Duration(minutes: 1)));
+    expect(s.lastListenAt, heard);
+    expect(s.listenCorrectCount, 2);
+    expect(s.listeningPendingRecheck(now: later), isTrue);
+  });
+
+  test('a listening miss stays unrecovered until a later scored hear', () {
+    final heard = now;
+    var s = KanaStat(
+      listenSeenCount: 2,
+      listenCorrectCount: 2,
+      lastListenAt: heard,
+    );
+    final missed = heard.add(const Duration(days: 8));
+    s = s.recordAnswer(correct: false, at: missed, listening: true);
+    expect(s.listeningUnrecovered, isTrue);
+    expect(s.hasReliableListening(now: missed), isFalse);
+    expect(s.hasRecentListening(now: missed), isFalse);
+    expect(s.listeningPendingRecheck(now: missed), isFalse);
+    expect(s.needsListeningProbe(now: missed), isTrue);
+    expect(s.srsLevel, 0);
+    expect(s.lastListenAt, missed);
+    expect(s.lastListenMistakeAt, missed);
+
+    final visualLater = missed.add(const Duration(days: 16));
+    s = s.recordAnswer(correct: true, at: visualLater, latencyMs: 400);
+    expect(s.listeningUnrecovered, isTrue);
+    expect(s.lastListenAt, missed);
+    expect(s.hasReliableListening(now: visualLater), isFalse);
+
+    s = s.recordAnswer(
+      correct: true,
+      at: visualLater,
+      latencyMs: 400,
+      listening: true,
+    );
+    expect(s.listeningUnrecovered, isFalse);
+    expect(s.hasRecentListening(now: visualLater), isTrue);
+    expect(s.lastListenAt, visualLater);
+  });
+
+  test('counts without lastListenAt stay pending, never recent', () {
+    const stored = KanaStat(listenSeenCount: 2, listenCorrectCount: 2);
+    expect(stored.hasReliableListening(now: now), isTrue);
+    expect(stored.listeningHeardRecently(now: now), isFalse);
+    expect(stored.hasRecentListening(now: now), isFalse);
+    expect(stored.listeningPendingRecheck(now: now), isTrue);
+    expect(stored.needsListeningProbe(now: now), isTrue);
+
+    final decoded = KanaStat.fromJson(<String, dynamic>{'ls': 2, 'lc': 2});
+    expect(decoded.lastListenAt, isNull);
+    expect(decoded.hasRecentListening(now: now), isFalse);
+    expect(decoded.listeningPendingRecheck(now: now), isTrue);
+  });
+
+  test('stale listen fields survive json reload without becoming recent', () {
+    final heard = now.subtract(const Duration(days: 40));
+    final s = KanaStat(
+      seenCount: 20,
+      correctCount: 20,
+      srsLevel: 6,
+      avgLatencyMs: 500,
+      listenSeenCount: 2,
+      listenCorrectCount: 2,
+      lastListenAt: heard,
+    );
+    final back = KanaStat.fromJson(s.toJson());
+    expect(back.lastListenAt, heard);
+    expect(back.hasReliableListening(now: now), isTrue);
+    expect(back.hasRecentListening(now: now), isFalse);
+    expect(back.listeningPendingRecheck(now: now), isTrue);
+  });
+
   test('recordPromptedPractice keeps listen evidence untouched', () {
     final heard = KanaStat(
       listenSeenCount: 2,

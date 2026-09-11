@@ -14,6 +14,7 @@ import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
+import 'package:kotonoha/ui/info/info_hub_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
@@ -94,6 +95,13 @@ class TravelSceneScreen extends StatelessWidget {
               onTap: () =>
                   Navigator.of(context)
                       .push(TravelSceneHub.route(TravelSceneId.convenience)),
+            ),
+            const SizedBox(height: 12),
+            _SceneCard(
+              key: const ValueKey<String>('travel-scene-info'),
+              label: AppStrings.infoAction,
+              purpose: AppStrings.infoPurpose,
+              onTap: () => Navigator.of(context).push(InfoHubScreen.route()),
             ),
           ],
         ),
@@ -260,10 +268,62 @@ class TravelSceneHub extends StatelessWidget {
     );
   }
 
+  static void startMeet(
+    BuildContext context, {
+    required TravelSceneId scene,
+    DateTime Function()? clock,
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+    VoidCallback? onFinished,
+  }) {
+    final hub = TravelSceneHub(scene: scene, clock: clock);
+    hub._startMeet(
+      context,
+      replace: replace,
+      excludeProgressIds: excludeProgressIds,
+      onFinished: onFinished,
+    );
+  }
+
+  static void startRecall(
+    BuildContext context, {
+    required TravelSceneId scene,
+    DateTime Function()? clock,
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+    VoidCallback? onFinished,
+  }) {
+    final hub = TravelSceneHub(scene: scene, clock: clock);
+    hub._startRecall(
+      context,
+      replace: replace,
+      excludeProgressIds: excludeProgressIds,
+      onFinished: onFinished,
+    );
+  }
+
+  static void startListen(
+    BuildContext context, {
+    required TravelSceneId scene,
+    DateTime Function()? clock,
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+    VoidCallback? onFinished,
+  }) {
+    final hub = TravelSceneHub(scene: scene, clock: clock);
+    hub._startListen(
+      context,
+      replace: replace,
+      excludeProgressIds: excludeProgressIds,
+      onFinished: onFinished,
+    );
+  }
+
   void _startMeet(
     BuildContext context, {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
+    VoidCallback? onFinished,
   }) {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
@@ -287,6 +347,7 @@ class TravelSceneHub extends StatelessWidget {
         clock: clock,
         onMore: () =>
             _continueOrFinishMeet(context, excludeProgressIds: nextExclude),
+        onFinished: onFinished,
       );
       unawaited(
         replace
@@ -314,6 +375,7 @@ class TravelSceneHub extends StatelessWidget {
         alreadyTransferredIds: excludeProgressIds,
         onMore: () =>
             _continueOrFinishMeet(context, excludeProgressIds: nextExclude),
+        onFinished: onFinished,
       );
       unawaited(
         replace
@@ -360,6 +422,7 @@ class TravelSceneHub extends StatelessWidget {
     BuildContext context, {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
+    VoidCallback? onFinished,
   }) {
     final items = TravelScene.composeReview(
       scene: scene,
@@ -380,6 +443,7 @@ class TravelSceneHub extends StatelessWidget {
       alreadyTransferredIds: excludeProgressIds,
       onMore: () =>
           _startRecall(context, replace: true, excludeProgressIds: nextExclude),
+      onFinished: onFinished,
     );
     unawaited(
       replace
@@ -392,6 +456,7 @@ class TravelSceneHub extends StatelessWidget {
     BuildContext context, {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
+    VoidCallback? onFinished,
   }) {
     final items = TravelScene.composeReview(
       scene: scene,
@@ -413,6 +478,7 @@ class TravelSceneHub extends StatelessWidget {
       alreadyTransferredIds: excludeProgressIds,
       onMore: () =>
           _startListen(context, replace: true, excludeProgressIds: nextExclude),
+      onFinished: onFinished,
     );
     unawaited(
       replace

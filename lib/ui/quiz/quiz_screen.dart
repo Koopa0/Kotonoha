@@ -32,6 +32,7 @@ class QuizScreen extends StatefulWidget {
     super.key,
     this.lesson,
     this.onAgain,
+    this.onFinished,
     this.transferItems,
     this.quiet = false,
     this.alreadyTransferredIds = const {},
@@ -60,6 +61,9 @@ class QuizScreen extends StatefulWidget {
   /// only). Null for lessons / one-shot pools.
   final VoidCallback? onAgain;
 
+  /// Official close (result or word transfer) — not a mere open or pop.
+  final VoidCallback? onFinished;
+
   /// Optional clock / monotonic elapsed for tests. Production leaves both
   /// null so the view-model uses [DateTime.now] and [Stopwatch].
   final DateTime Function()? clock;
@@ -72,6 +76,7 @@ class QuizScreen extends StatefulWidget {
     required PracticeMode mode,
     Lesson? lesson,
     VoidCallback? onAgain,
+    VoidCallback? onFinished,
     List<ReadingItem>? transferItems,
     bool quiet = false,
     Set<String> alreadyTransferredIds = const {},
@@ -81,6 +86,7 @@ class QuizScreen extends StatefulWidget {
       title: title,
       lesson: lesson,
       onAgain: onAgain,
+      onFinished: onFinished,
       transferItems: transferItems,
       quiet: quiet,
       alreadyTransferredIds: alreadyTransferredIds,
@@ -93,6 +99,7 @@ class QuizScreen extends StatefulWidget {
     required String title,
     Lesson? lesson,
     VoidCallback? onAgain,
+    VoidCallback? onFinished,
     List<ReadingItem>? transferItems,
     bool quiet = false,
     Set<String> alreadyTransferredIds = const {},
@@ -103,6 +110,7 @@ class QuizScreen extends StatefulWidget {
         title: title,
         lesson: lesson,
         onAgain: onAgain,
+        onFinished: onFinished,
         transferItems: transferItems,
         quiet: quiet,
         alreadyTransferredIds: alreadyTransferredIds,
@@ -381,6 +389,7 @@ class _QuizScreenState extends State<QuizScreen> {
   void _goToResults() {
     if (_navigated) return;
     _navigated = true;
+    widget.onFinished?.call();
     final transfer = widget.transferItems;
     if (transfer != null && transfer.isNotEmpty) {
       Navigator.of(context).pushReplacement(

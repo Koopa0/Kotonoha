@@ -16,6 +16,7 @@ enum PracticeMode {
   shift, // original swap-sentence: reading vs sense, base vs transferred
   placementCheck, // explicit prior-range check: answer first, then reveal
   reply, // hear a station ask, pick intent, pick a short reply (not speech)
+  info, // hear travel info, pick amount / time / headcount (not speech)
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji

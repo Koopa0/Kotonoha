@@ -204,11 +204,13 @@ abstract final class DailySession {
   /// New items stay form→sound (gentlest). Weak / still-learning reviews keep
   /// multiple-choice recognition. A strong, fast, recovered review leaves the
   /// option list and becomes unprompted [QuizDirection.kanaRecall] only when
-  /// listening is already evidenced — visual fluency must not hide an
-  /// unknown sound direction. [quiet] still forbids listening, not silent
-  /// recall, and never restuffs an easy MCQ. A singleton that cannot host a
-  /// fair sound MCQ stays [QuizDirection.kanaRecall] rather than a
-  /// forced-correct listen.
+  /// listening is recently confirmed — visual fluency must not hide an
+  /// unknown or stale sound direction. Historical success past
+  /// [KanaStat.kListeningRecheckWindow] is sampled as sound again if
+  /// this item is selected; it is not a miss and does not add a sound
+  /// quota. [quiet] still forbids listening, not silent recall, and never
+  /// restuffs an easy MCQ. A singleton that cannot host a fair sound MCQ
+  /// stays [QuizDirection.kanaRecall] rather than a forced-correct listen.
   static QuizDirection directionFor(
     Kana _, {
     required KanaStat stat,
