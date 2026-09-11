@@ -83,21 +83,31 @@ cleanup() {
 }
 trap cleanup EXIT
 
+sources=(
+  "$root/android/app/src/main/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafWrite.kt"
+  "$root/android/app/src/main/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafStore.kt"
+  "$here/stubs/android/app/Activity.kt"
+  "$here/stubs/android/content/Intent.kt"
+  "$here/stubs/android/content/ContentResolver.kt"
+  "$here/stubs/android/net/Uri.kt"
+  "$here/stubs/android/os/Handler.kt"
+  "$here/stubs/android/os/Looper.kt"
+  "$here/stubs/io/flutter/plugin/common/MethodCall.kt"
+  "$here/stubs/io/flutter/plugin/common/MethodChannel.kt"
+  "$root/android/app/src/test/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafWriteTest.kt"
+  "$here/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafStoreTest.kt"
+)
+for src in "${sources[@]}"; do
+  if [[ ! -f "$src" ]]; then
+    echo "missing source: $src" >&2
+    exit 1
+  fi
+done
+
 "$kotlinc_bin" \
   -cp "$junit_jar:$hamcrest_jar" \
   -d "$out" \
-  "$root/android/app/src/main/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafWrite.kt" \
-  "$root/android/app/src/main/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafStore.kt" \
-  "$here"/stubs/android/app/Activity.kt \
-  "$here"/stubs/android/content/Intent.kt \
-  "$here"/stubs/android/content/ContentResolver.kt \
-  "$here"/stubs/android/net/Uri.kt \
-  "$here"/stubs/android/os/Handler.kt \
-  "$here"/stubs/android/os/Looper.kt \
-  "$here"/stubs/io/flutter/plugin/common/MethodCall.kt \
-  "$here"/stubs/io/flutter/plugin/common/MethodChannel.kt \
-  "$root/android/app/src/test/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafWriteTest.kt" \
-  "$here/kotlin/com/koopa/kotonoha/snapshot/SnapshotSafStoreTest.kt"
+  "${sources[@]}"
 
 "$kotlin_bin" \
   -cp "$out:$junit_jar:$hamcrest_jar" \
