@@ -174,7 +174,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'gohan o kudasai',
     replyCorrectMeaning: '請給我飯',
     replyWrongKana: ['かいけいを おねがい', 'はい'],
-    requiredSeenIds: ['phrase:なにに しますか', 'word:ごはん'],
+    requiredSeenIds: ['phrase:なにに しますか', 'word:ごはん', 'word:ください'],
   ),
   ReplyDrill(
     id: 'reply:nani-mizu',
@@ -204,7 +204,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'kaikei o onegai',
     replyCorrectMeaning: '請結帳',
     replyWrongKana: ['ひとりです', 'ふたりです'],
-    requiredSeenIds: ['phrase:ほかに よろしいですか', 'word:かいけい'],
+    requiredSeenIds: ['phrase:ほかに よろしいですか', 'word:かいけい', 'word:おねがい'],
   ),
   ReplyDrill(
     id: 'reply:hoka-gohan',
@@ -219,7 +219,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'gohan o kudasai',
     replyCorrectMeaning: '請給我飯',
     replyWrongKana: ['ひとりです', 'かいけいを おねがい'],
-    requiredSeenIds: ['phrase:ほかに よろしいですか', 'word:ごはん'],
+    requiredSeenIds: ['phrase:ほかに よろしいですか', 'word:ごはん', 'word:ください'],
   ),
   ReplyDrill(
     id: 'reply:fukuro-hai',
@@ -265,7 +265,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectMeaning: '請加熱',
     replyAlsoCorrectKana: ['はい'],
     replyWrongKana: ['いいえ'],
-    requiredSeenIds: ['phrase:あたためますか', 'word:あたためる'],
+    requiredSeenIds: ['phrase:あたためますか', 'word:あたためる', 'word:ください'],
   ),
   ReplyDrill(
     id: 'reply:atatame-iie',

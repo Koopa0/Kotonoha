@@ -300,6 +300,45 @@ void main() {
     expect(view.unreadRequired.map((i) => i.progressId), contains('word:おねがい'));
   });
 
+  test('gohan drills wait for ください before a scored order reply', () {
+    final stats = {'phrase:なにに しますか': seenAt(), 'word:ごはん': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:ください'));
+  });
+
+  test('kaikei drill waits for おねがい before a scored bill reply', () {
+    final stats = {'phrase:ほかに よろしいですか': seenAt(), 'word:かいけい': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.restaurant,
+    );
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:おねがい'));
+  });
+
+  test('atatame yes-scene waits for ください before scored heat reply', () {
+    final stats = {'phrase:あたためますか': seenAt(), 'word:あたためる': seenAt()};
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        drill.id: drill,
+    };
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.convenience,
+    );
+    expect(byId['reply:atatame-kudasai'], isNot(isIn(view.ready)));
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:ください'));
+  });
+
   test('clothing compose stays in the clothing pool', () {
     final stats = {
       for (final drill in replyDrillsFor(ReplySceneId.clothing))
@@ -448,6 +487,8 @@ void main() {
         'word:ひとり',
         'word:ごはん',
         'word:かいけい',
+        'word:ください',
+        'word:おねがい',
       }),
     );
   });
