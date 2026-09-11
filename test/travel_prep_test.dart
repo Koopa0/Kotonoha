@@ -72,6 +72,11 @@ void main() {
     expect(TravelPrep.pickScene(plan, day), TravelSceneId.convenience);
     plan = plan.markServed(TravelSceneId.convenience, day);
     expect(TravelPrep.pickScene(plan, day), isNull);
+
+    plan = TravelFocusPlan.empty.withFocuses(const [
+      TravelFocus(scene: TravelSceneId.hotel),
+    ]);
+    expect(TravelPrep.pickScene(plan, day), TravelSceneId.hotel);
   });
 
   test(

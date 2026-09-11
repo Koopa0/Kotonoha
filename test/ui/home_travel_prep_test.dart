@@ -224,6 +224,7 @@ void main() {
     expect(find.text(AppStrings.travelSceneTransport), findsOneWidget);
     expect(find.text(AppStrings.travelSceneRestaurant), findsOneWidget);
     expect(find.text(AppStrings.travelSceneConvenience), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneHotel), findsOneWidget);
   });
 
   testWidgets('general mode stays on 手解き when no travel plan is set', (

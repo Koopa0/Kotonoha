@@ -193,6 +193,7 @@ class _FocusTile extends StatelessWidget {
     TravelSceneId.parkQueue => AppStrings.travelSceneParkQueue,
     TravelSceneId.restaurant => AppStrings.travelSceneRestaurant,
     TravelSceneId.convenience => AppStrings.travelSceneConvenience,
+    TravelSceneId.hotel => AppStrings.travelSceneHotel,
   };
 
   String get _purpose => switch (scene) {
@@ -202,6 +203,7 @@ class _FocusTile extends StatelessWidget {
     TravelSceneId.parkQueue => AppStrings.travelScenePurposeParkQueue,
     TravelSceneId.restaurant => AppStrings.travelScenePurposeRestaurant,
     TravelSceneId.convenience => AppStrings.travelScenePurposeConvenience,
+    TravelSceneId.hotel => AppStrings.travelScenePurposeHotel,
   };
 
   @override

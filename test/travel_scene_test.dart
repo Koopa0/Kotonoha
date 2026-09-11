@@ -62,6 +62,10 @@ void main() {
     expect(pools[TravelSceneId.restaurant], contains('phrase:かいけいを おねがい'));
     expect(pools[TravelSceneId.convenience], contains('phrase:ふくろは いりますか'));
     expect(pools[TravelSceneId.convenience], contains('phrase:あたためますか'));
+    expect(pools[TravelSceneId.hotel], contains('phrase:よやくが あります'));
+    expect(pools[TravelSceneId.hotel], contains('phrase:あした でます'));
+    expect(pools[TravelSceneId.hotel], isNot(contains('word:よやく')));
+    expect(pools[TravelSceneId.hotel], isNot(contains('word:うけつけ')));
     for (final kana in const [
       'じんじゃは どこ',
       'しずかな てらに はいる',
@@ -77,6 +81,10 @@ void main() {
       'ふくろは いりますか',
       'あたためますか',
       'あたためて ください',
+      'よやくが あります',
+      'うけつけで とまる',
+      'あさごはんは ありますか',
+      'あした でます',
     ]) {
       expect(kPhrases.where((p) => p.kana == kana), hasLength(1), reason: kana);
     }
@@ -682,4 +690,22 @@ void main() {
       );
     },
   );
+
+  test('partial は行・や行 opens hotel へや, not restaurant すし', () {
+    const haYa = {'は', 'ひ', 'ふ', 'へ', 'ほ', 'や', 'ゆ', 'よ'};
+    final hotel = TravelScene.inspect(
+      scene: TravelSceneId.hotel,
+      learnedChars: haYa,
+      stats: const {},
+    );
+    final restaurant = TravelScene.inspect(
+      scene: TravelSceneId.restaurant,
+      learnedChars: haYa,
+      stats: const {},
+    );
+    expect(hotel.readable.map((i) => i.progressId), ['word:へや']);
+    expect(hotel.canMeet, isTrue);
+    expect(restaurant.readable, isEmpty);
+    expect(restaurant.needsKanaFirst, isTrue);
+  });
 }

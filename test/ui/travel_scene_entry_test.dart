@@ -774,6 +774,44 @@ void main() {
     },
   );
 
+  testWidgets('hotel hub does not surface a reply door', (tester) async {
+    await pumpHub(tester, scene: TravelSceneId.hotel);
+    expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.replyAction), findsNothing);
+  });
+
+  testWidgets('partial は行・や行: hotel meets へや; restaurant stays 先學假名', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnRows(repos.kana, const [5, 7]);
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneHotel);
+    expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(AppStrings.travelSceneMeetTitle(AppStrings.travelSceneHotel)),
+      findsOneWidget,
+    );
+    expect(find.text('すし'), findsNothing);
+    expect(find.text('ふくろ'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(repos.words.seenItemCount, 0);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.travelSceneRestaurant));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelScenePurposeRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneLearnAction), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+  });
+
   testWidgets('travel picker surfaces info extraction entry', (tester) async {
     await pumpHome(tester);
     await tester.ensureVisible(find.text(AppStrings.travelSceneAction));

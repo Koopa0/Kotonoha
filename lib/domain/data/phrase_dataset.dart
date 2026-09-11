@@ -282,4 +282,14 @@ const List<Phrase> kPhrases = <Phrase>[
     romaji: 'kore de yoroshii desu ka',
     meaning: '就這些可以嗎',
   ),
+  // 旅館 — name a reservation / stay, ask about breakfast, say you leave
+  // tomorrow. Original short chunks. No booking, prices, or clock times.
+  Phrase(kana: 'よやくが あります', romaji: 'yoyaku ga arimasu', meaning: '我有預約'),
+  Phrase(kana: 'うけつけで とまる', romaji: 'uketsuke de tomaru', meaning: '在櫃檯入住'),
+  Phrase(
+    kana: 'あさごはんは ありますか',
+    romaji: 'asagohan wa arimasu ka',
+    meaning: '有早餐嗎',
+  ),
+  Phrase(kana: 'あした でます', romaji: 'ashita demasu', meaning: '明天退房離開'),
 ];

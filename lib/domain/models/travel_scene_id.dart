@@ -10,4 +10,5 @@ enum TravelSceneId {
   parkQueue,
   restaurant,
   convenience,
+  hotel,
 }

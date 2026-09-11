@@ -63,6 +63,7 @@ abstract final class TravelScene {
     TravelSceneId.parkQueue,
     TravelSceneId.restaurant,
     TravelSceneId.convenience,
+    TravelSceneId.hotel,
   };
 
   static const Map<TravelSceneId, List<String>> progressIds = {
@@ -200,6 +201,18 @@ abstract final class TravelScene {
       'word:おべんとう',
       'word:おにぎり',
       'word:おつり',
+    ],
+    TravelSceneId.hotel: [
+      'phrase:よやくが あります',
+      'phrase:うけつけで とまる',
+      'phrase:あさごはんは ありますか',
+      'phrase:あした でます',
+      'word:ホテル',
+      'word:あさごはん',
+      'word:へや',
+      'word:とまる',
+      'word:でる',
+      'word:あした',
     ],
   };
 
