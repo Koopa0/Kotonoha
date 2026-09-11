@@ -208,6 +208,7 @@ void main() {
   pumpReply(
     WidgetTester tester, {
     required List<ReplyDrill> drills,
+    ReplySceneId scene = ReplySceneId.station,
     SpeechService? speech,
     Size surface = const Size(420, 1200),
   }) async {
@@ -246,6 +247,7 @@ void main() {
         child: MaterialApp(
           home: ReplyScreen(
             drills: drills,
+            scene: scene,
             clock: () => DateTime(2026, 9, 11, 12),
           ),
         ),

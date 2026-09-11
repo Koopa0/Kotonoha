@@ -257,10 +257,11 @@ void main() {
     expect(buy.sceneZh, contains('帶走'));
     expect(bigger.replyCorrectKana, 'おおきいの おねがい');
     expect(buy.replyCorrectKana, 'かいます');
-    expect(bigger.replyWrongKana, contains('かいます'));
-    expect(buy.replyWrongKana, isNot(contains('おおきいの おねがい')));
+    expect(bigger.replyWrongKana, isNot(contains('かいます')));
     expect(bigger.replyWrongKana, isNot(contains('はい')));
+    expect(buy.replyWrongKana, isNot(contains('おおきいの おねがい')));
     expect(buy.replyWrongKana, isNot(contains('はい')));
+    expect(buy.replyWrongKana, contains('いいえ'));
   });
 
   test('takai-yasui scene makes やすいです the price reply, not はい', () {
@@ -268,7 +269,7 @@ void main() {
         .firstWhere((d) => d.id == 'reply:takai-yasui');
     expect(price.sceneZh, contains('特價'));
     expect(price.replyCorrectMeaning, '（它）便宜');
-    expect(price.replyWrongKana, isNot(contains('はい')));
+    expect(price.replyChoices, isNot(contains('はい')));
     expect(price.replyWrongKana, contains('たかいです'));
     expect(price.requiredSeenIds, containsAll(['word:たかい', 'word:やすい']));
   });
