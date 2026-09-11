@@ -16,6 +16,7 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/info/info_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
+import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
 
 /// Learn-then-practice door for travel amount / time / headcount extraction.
@@ -162,21 +163,40 @@ class InfoHubScreen extends StatelessWidget {
       stats: stats,
       drills: _drills,
     );
-    if (words.isEmpty) {
-      if (replace) Navigator.of(context).pop();
+    if (words.isNotEmpty) {
+      final route = FerryScreen.route(
+        words,
+        meetTitle,
+        clock: clock,
+        onMore: () => _continueMeet(context),
+      );
+      unawaited(
+        replace
+            ? Navigator.of(context).pushReplacement(route)
+            : Navigator.of(context).push(route),
+      );
       return;
     }
-    final route = FerryScreen.route(
-      words,
-      meetTitle,
-      clock: clock,
-      onMore: () => _continueMeet(context),
+    final phrases = InfoSession.unreadRequiredPhrases(
+      learnedChars: learned,
+      stats: stats,
+      drills: _drills,
     );
-    unawaited(
-      replace
-          ? Navigator.of(context).pushReplacement(route)
-          : Navigator.of(context).push(route),
-    );
+    if (phrases.isNotEmpty) {
+      final route = ReadingScreen.route(
+        phrases,
+        meetTitle,
+        clock: clock,
+        onMore: () => _continueMeet(context),
+      );
+      unawaited(
+        replace
+            ? Navigator.of(context).pushReplacement(route)
+            : Navigator.of(context).push(route),
+      );
+      return;
+    }
+    if (replace) Navigator.of(context).pop();
   }
 
   void _continueMeet(BuildContext context) {

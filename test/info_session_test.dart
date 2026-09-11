@@ -214,6 +214,97 @@ void main() {
     );
   });
 
+  test('hotel words seen still leave unread phrases for meet', () {
+    final wordStats = {
+      for (final drill in kHotelInfoDrills)
+        for (final id in drill.requiredSeenIds)
+          if (id.startsWith('word:')) id: seenAt(),
+    };
+    final view = InfoSession.inspect(
+      learnedChars: allChars,
+      stats: wordStats,
+      drills: kHotelInfoDrills,
+    );
+    expect(view.canPractice, isFalse);
+    expect(view.canMeet, isTrue);
+    expect(
+      InfoSession.unreadRequiredWords(
+        learnedChars: allChars,
+        stats: wordStats,
+        drills: kHotelInfoDrills,
+      ),
+      isEmpty,
+    );
+    expect(
+      InfoSession.unreadRequiredPhrases(
+        learnedChars: allChars,
+        stats: wordStats,
+        drills: kHotelInfoDrills,
+      ).map((i) => i.progressId),
+      containsAll(['phrase:あさごはんは ありますか', 'phrase:あした でます']),
+    );
+    expect(
+      kHotelInfoDrills.expand((d) => d.requiredSeenIds),
+      containsAll(['phrase:あさごはんは ありますか', 'phrase:あした でます']),
+    );
+  });
+
+  test('hotel phrases seen still leave unread words for meet', () {
+    final phraseStats = {
+      'phrase:あさごはんは ありますか': seenAt(),
+      'phrase:あした でます': seenAt(),
+    };
+    final view = InfoSession.inspect(
+      learnedChars: allChars,
+      stats: phraseStats,
+      drills: kHotelInfoDrills,
+    );
+    expect(view.canPractice, isFalse);
+    expect(view.canMeet, isTrue);
+    expect(
+      InfoSession.unreadRequiredPhrases(
+        learnedChars: allChars,
+        stats: phraseStats,
+        drills: kHotelInfoDrills,
+      ),
+      isEmpty,
+    );
+    expect(
+      InfoSession.unreadRequiredWords(
+        learnedChars: allChars,
+        stats: phraseStats,
+        drills: kHotelInfoDrills,
+      ).map((i) => i.progressId),
+      containsAll(['word:あさごはん', 'word:チェックアウト']),
+    );
+  });
+
+  test('hotel compose stays on scoped time drills after gates are met', () {
+    final stats = {
+      for (final drill in kHotelInfoDrills)
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final view = InfoSession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      drills: kHotelInfoDrills,
+    );
+    expect(view.canMeet, isFalse);
+    expect(
+      view.ready.map((d) => d.id),
+      containsAll(['info:hotel-breakfast-9am', 'info:hotel-checkout-10am']),
+    );
+    final session = InfoSession.compose(
+      learnedChars: allChars,
+      rng: Random(1),
+      stats: stats,
+      drills: kHotelInfoDrills,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.id), isNot(contains('info:amount-3000')));
+    expect(session.map((d) => d.kind).toSet(), {InfoKind.time});
+  });
+
   test('compose can pair amount-3000 with amount-5000 in one session', () {
     final session = InfoSession.compose(
       learnedChars: allChars,
