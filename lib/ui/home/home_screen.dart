@@ -46,6 +46,7 @@ import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
+import 'package:kotonoha/ui/shift/shift_focus_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -301,6 +302,16 @@ class HomeScreen extends StatelessWidget {
                       subtitle: AppStrings.sentenceSubtitle,
                       onTap: () => _startSentence(context, readablePhrases),
                     ),
+                  // #48 owns this room. #47 owns travel-scene selection and
+                  // must not reuse this card or a shared picker schema.
+                  _NavCard(
+                    icon: Icons.swap_horiz_rounded,
+                    label: AppStrings.shiftAction,
+                    productName: AppStrings.shiftEntry,
+                    subtitle: AppStrings.shiftSubtitle,
+                    onTap: () =>
+                        Navigator.of(context).push(ShiftFocusScreen.route()),
+                  ),
                 ]),
                 ..._section(AppStrings.sectionKanji, [
                   _NavCard(
