@@ -54,93 +54,101 @@ class SessionSummary extends StatelessWidget {
     // Centre when it fits; scroll when it doesn't — a long classical 余韻 with the
     // 釋 unfolded can exceed a short screen, and the close must never overflow.
     return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // The light settles in — a slow breath out.
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: const Duration(milliseconds: 1100),
-                    curve: Curves.easeOut,
-                    builder: (context, v, child) =>
-                        Opacity(opacity: v, child: child),
-                    child: Container(
-                      width: 104,
-                      height: 104,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            AppColors.komorebi.withValues(alpha: 0.30),
-                            AppColors.komorebi.withValues(alpha: 0),
-                          ],
+      builder: (context, constraints) {
+        final minHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 0.0;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // The light settles in — a slow breath out.
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 1100),
+                      curve: Curves.easeOut,
+                      builder: (context, v, child) =>
+                          Opacity(opacity: v, child: child),
+                      child: Container(
+                        width: 104,
+                        height: 104,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              AppColors.komorebi.withValues(alpha: 0.30),
+                              AppColors.komorebi.withValues(alpha: 0),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  // A classical 余韻 leads when present; else the quiet fact; else
-                  // nothing (the close line below fills in).
-                  if (hasShare)
-                    _KotenShareView(share!)
-                  else if (hasNote)
+                    const SizedBox(height: 8),
+                    // A classical 余韻 leads when present; else the quiet fact; else
+                    // nothing (the close line below fills in).
+                    if (hasShare)
+                      _KotenShareView(share!)
+                    else if (hasNote)
+                      Text(
+                        note!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          height: 1.5,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    // The score: prominent on its own, a quiet footnote under a lead.
                     Text(
-                      note!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 19,
-                        height: 1.5,
-                        color: AppColors.ink,
+                      headline,
+                      style: TextStyle(
+                        fontSize: quiet ? 14 : 22,
+                        fontWeight: quiet ? FontWeight.w500 : FontWeight.w700,
+                        color: quiet ? AppColors.inkMuted : AppColors.ink,
                       ),
                     ),
-                  const SizedBox(height: 12),
-                  // The score: prominent on its own, a quiet footnote under a lead.
-                  Text(
-                    headline,
-                    style: TextStyle(
-                      fontSize: quiet ? 14 : 22,
-                      fontWeight: quiet ? FontWeight.w500 : FontWeight.w700,
-                      color: quiet ? AppColors.inkMuted : AppColors.ink,
-                    ),
-                  ),
-                  if (!quiet) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      AppStrings.sessionCloseLine,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.inkMuted, fontSize: 14),
-                    ),
-                  ],
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: onDone,
-                      child: const Text(AppStrings.done),
-                    ),
-                  ),
-                  if (onMore != null) ...[
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: onMore,
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.inkMuted,
+                    if (!quiet) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        AppStrings.sessionCloseLine,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          fontSize: 14,
+                        ),
                       ),
-                      child: const Text(AppStrings.practiceAgain),
+                    ],
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: onDone,
+                        child: const Text(AppStrings.done),
+                      ),
                     ),
+                    if (onMore != null) ...[
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: onMore,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.inkMuted,
+                        ),
+                        child: const Text(AppStrings.practiceAgain),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

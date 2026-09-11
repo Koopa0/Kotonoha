@@ -6,12 +6,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/shift/shift_history.dart';
+import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
 import 'package:provider/provider.dart';
 
 /// Original swap-sentence practice: read first, then sense / who-modifies-whom.
@@ -23,6 +27,9 @@ class ShiftPracticeScreen extends StatefulWidget {
     this.sourceUrl,
     this.onMore,
     this.clock,
+    this.lane = ShiftLane.sameDay,
+    this.beats,
+    this.firstUnseen = false,
     super.key,
   });
 
@@ -30,14 +37,28 @@ class ShiftPracticeScreen extends StatefulWidget {
   final String? sourceUrl;
   final VoidCallback? onMore;
   final DateTime Function()? clock;
+  final ShiftLane lane;
+  final List<ShiftBeat>? beats;
+  final bool firstUnseen;
 
   static Route<void> route(
     ShiftDrill drill, {
     String? sourceUrl,
     VoidCallback? onMore,
+    DateTime Function()? clock,
+    ShiftLane lane = ShiftLane.sameDay,
+    List<ShiftBeat>? beats,
+    bool firstUnseen = false,
   }) => MaterialPageRoute<void>(
-    builder: (_) =>
-        ShiftPracticeScreen(drill: drill, sourceUrl: sourceUrl, onMore: onMore),
+    builder: (_) => ShiftPracticeScreen(
+      drill: drill,
+      sourceUrl: sourceUrl,
+      onMore: onMore,
+      clock: clock,
+      lane: lane,
+      beats: beats,
+      firstUnseen: firstUnseen,
+    ),
   );
 
   @override
@@ -51,19 +72,42 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   final TextEditingController _note = TextEditingController();
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
+  late final List<ShiftBeat> _beats;
+  late ShiftBeat _beat;
+  final Set<ShiftBeat> _exposed = <ShiftBeat>{};
+  List<ShiftSelfGrade> _history = const [];
   int? _ownedPlay;
   bool _playable = true;
-  ShiftBeat _beat = ShiftBeat.base;
   _Phase _phase = _Phase.readCommit;
   bool _readUnprompted = false;
+  bool _readCorrect = false;
   bool _senseUnprompted = false;
+  bool _senseGrading = false;
   bool _done = false;
+  bool _unsaved = false;
+  bool _retrying = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   ShiftSentence get _sentence => widget.drill.sentenceAt(_beat);
 
   String get _say => _sentence.kana.replaceAll(' ', '');
+
+  String? get _laneCaption {
+    if (_unsaved) return AppStrings.shiftPersistFailed;
+    switch (widget.lane) {
+      case ShiftLane.hold:
+        return AppStrings.shiftHeldUntilTomorrow;
+      case ShiftLane.confirm:
+        return widget.firstUnseen
+            ? AppStrings.shiftFirstUnseen
+            : AppStrings.shiftAlreadyShown;
+      case ShiftLane.review:
+        return AppStrings.shiftReviewOnly;
+      case ShiftLane.sameDay:
+        return null;
+    }
+  }
 
   @override
   void initState() {
@@ -76,7 +120,14 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onDetach: _abandonOwnedPlayback,
       onResume: () => _playable = true,
     );
+    _beats = List<ShiftBeat>.of(
+      widget.beats ?? const [ShiftBeat.base, ShiftBeat.shift],
+    );
+    _beat = _beats.first;
     _playable = _foreground;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startRecords());
+    });
   }
 
   @override
@@ -115,9 +166,115 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
+  Future<void> _startRecords() async {
+    await _reserveIfNeeded();
+    await _markPracticeSight();
+    if (mounted) _syncUnsaved();
+  }
+
+  ProgressPersistenceController? _persistence() {
+    try {
+      return context.read<ProgressPersistenceController>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  void _syncUnsaved() {
+    final unsaved = context.read<AnalyticsLog>().unpersistedCount > 0;
+    if (!mounted) return;
+    setState(() => _unsaved = unsaved);
+  }
+
+  Future<void> _write(Attempt attempt) async {
+    final log = context.read<AnalyticsLog>();
+    final pending = log.record(attempt);
+    _persistence()?.trackAnalytics(pending);
+    try {
+      await pending;
+    } on Object {
+      // Memory retains the row; [unpersistedCount] stays honest.
+    }
+    if (mounted) _syncUnsaved();
+  }
+
+  Future<void> _retryPersist() async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    final log = context.read<AnalyticsLog>();
+    final persist = _persistence();
+    if (persist != null) {
+      await persist.retry();
+    }
+    if (!mounted) return;
+    try {
+      await log.flushPending();
+    } on Object {
+      // Leave [unpersistedCount] honest. Do not invent a persist.
+    }
+    if (!mounted) return;
+    setState(() {
+      _retrying = false;
+      _unsaved = log.unpersistedCount > 0;
+    });
+  }
+
+  Future<void> _reserveIfNeeded() async {
+    if (widget.lane != ShiftLane.hold) return;
+    await _write(
+      ShiftSession.reservation(
+        drill: widget.drill,
+        sessionId: _sessionId,
+        at: _clock(),
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  Future<void> _markPracticeSight() async {
+    if (!_exposed.add(_beat)) return;
+    await _write(
+      ShiftSession.sighting(
+        drill: widget.drill,
+        beat: _beat,
+        kind: ShiftSightKind.practice,
+        sessionId: _sessionId,
+        at: _clock(),
+        lane: widget.lane,
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  Future<void> _loadHistory() async {
+    final log = context.read<AnalyticsLog>();
+    final all = await log.all();
+    if (!mounted) return;
+    setState(() {
+      _history = ShiftSession.selfGrades(all, drillId: widget.drill.id);
+    });
+  }
+
   void _gradeRead({required bool correct}) {
-    _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
-    setState(() => _phase = _Phase.senseCommit);
+    unawaited(
+      _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct),
+    );
+    setState(() {
+      _readCorrect = correct;
+      _phase = _Phase.senseCommit;
+    });
+  }
+
+  /// Support already on screen at the sense grade.
+  ///
+  /// [_readUnprompted] is the pre-reveal attempt; [_readCorrect] is the
+  /// post-reveal self-grade. Independent only when both hold. A failed
+  /// check has already revealed the reading, so the sense row is prompted.
+  String _readSupportAtSenseGrade() {
+    if (_readUnprompted && _readCorrect) {
+      return ShiftReadSupport.independent;
+    }
+    return ShiftReadSupport.prompted;
   }
 
   void _commitSense({required bool unprompted}) {
@@ -127,27 +284,43 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
-  void _gradeSense({required bool correct}) {
-    _record(ShiftCheck.sense, prompted: !_senseUnprompted, correct: correct);
-    if (_beat == ShiftBeat.base) {
+  Future<void> _gradeSense({required bool correct}) async {
+    if (_senseGrading) return;
+    _senseGrading = true;
+    if (mounted) setState(() {});
+
+    await _record(
+      ShiftCheck.sense,
+      prompted: !_senseUnprompted,
+      correct: correct,
+      readSupport: _readSupportAtSenseGrade(),
+    );
+    if (!mounted) return;
+    final next = _beats.indexOf(_beat) + 1;
+    if (next < _beats.length) {
       _note.clear();
       setState(() {
-        _beat = ShiftBeat.shift;
+        _senseGrading = false;
+        _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
+        _readCorrect = false;
         _senseUnprompted = false;
       });
+      unawaited(_markPracticeSight());
       return;
     }
     setState(() => _done = true);
+    unawaited(_loadHistory());
   }
 
-  void _record(
+  Future<void> _record(
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
-  }) {
-    context.read<AnalyticsLog>().recordObserved(
+    String? readSupport,
+  }) async {
+    await _write(
       ShiftSession.attempt(
         drill: widget.drill,
         beat: _beat,
@@ -157,6 +330,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         sessionId: _sessionId,
         at: _clock(),
         sourceUrl: widget.sourceUrl,
+        lane: widget.lane,
+        readSupport: readSupport,
       ),
     );
   }
@@ -172,102 +347,130 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
-    return SessionSummary(
-      headline: AppStrings.shiftClose,
-      note: AppStrings.shiftCloseNote,
-      onDone: () => Navigator.of(context).pop(),
-      onMore: band == ClosingBand.day ? widget.onMore : null,
-    );
-  }
-
-  Widget _body() {
-    final source = widget.sourceUrl?.trim();
+    final holdNote = widget.lane == ShiftLane.hold && !_unsaved
+        ? '${AppStrings.shiftCloseNote}\n\n${AppStrings.shiftHeldUntilTomorrow}'
+        : AppStrings.shiftCloseNote;
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    children: [
-                      Text(
-                        AppStrings.itemProgress(
-                          _beat == ShiftBeat.base ? 1 : 2,
-                          2,
-                        ),
-                        style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (source != null && source.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            AppStrings.shiftSourceChip(source),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.inkMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.card,
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                          child: Column(
-                            children: [
-                              if (_beat == ShiftBeat.shift) ...[
-                                Text(
-                                  widget.drill.change == ShiftChange.noun
-                                      ? AppStrings.shiftBridgeNoun
-                                      : AppStrings.shiftBridgeModifier,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.inkMuted,
-                                    height: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                              Text(
-                                _sentence.kana,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 44,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ..._phaseCopy(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+            child: Column(
+              children: [
+                if (_history.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: _actions(),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: ShiftHistoryView(grades: _history),
                   ),
-                ],
-              ),
+                if (_unsaved)
+                  ShiftPersistNotice(
+                    retrying: _retrying,
+                    onRetry: () => unawaited(_retryPersist()),
+                  ),
+                SessionSummary(
+                  headline: AppStrings.shiftClose,
+                  note: holdNote,
+                  onDone: () => Navigator.of(context).pop(),
+                  onMore: band == ClosingBand.day ? widget.onMore : null,
+                ),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _body() {
+    final source = widget.sourceUrl?.trim();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        children: [
+          Column(
+            children: [
+              Text(
+                AppStrings.itemProgress(
+                  _beats.indexOf(_beat) + 1,
+                  _beats.length,
+                ),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (source != null && source.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    AppStrings.shiftSourceChip(source),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              if (_laneCaption != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _laneCaption!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: AppColors.hairline),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  child: Column(
+                    children: [
+                      if (_beat == ShiftBeat.shift) ...[
+                        Text(
+                          widget.lane == ShiftLane.confirm
+                              ? AppStrings.shiftConfirmLead
+                              : widget.drill.change == ShiftChange.noun
+                              ? AppStrings.shiftBridgeNoun
+                              : AppStrings.shiftBridgeModifier,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      Text(
+                        _sentence.kana,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 44,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ..._phaseCopy(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(padding: const EdgeInsets.only(top: 16), child: _actions()),
+        ],
+      ),
     );
   }
 
@@ -391,8 +594,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
               ? AppStrings.shiftSenseOk
               : AppStrings.shiftSenseOkAfterHint,
           danger: true,
-          onOutlined: () => _gradeSense(correct: false),
-          onFilled: () => _gradeSense(correct: true),
+          enabled: !_senseGrading,
+          onOutlined: () => unawaited(_gradeSense(correct: false)),
+          onFilled: () => unawaited(_gradeSense(correct: true)),
         );
     }
   }
@@ -403,6 +607,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     required VoidCallback onOutlined,
     required VoidCallback onFilled,
     bool danger = false,
+    bool enabled = true,
   }) {
     return Row(
       children: [
@@ -416,7 +621,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: onOutlined,
+            onPressed: enabled ? onOutlined : null,
             child: Text(outlined, textAlign: TextAlign.center),
           ),
         ),
@@ -427,7 +632,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
               backgroundColor: danger ? AppColors.success : null,
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: onFilled,
+            onPressed: enabled ? onFilled : null,
             child: Text(filled, textAlign: TextAlign.center),
           ),
         ),

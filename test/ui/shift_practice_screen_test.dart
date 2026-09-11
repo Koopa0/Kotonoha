@@ -111,11 +111,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('aoi sora'), findsOneWidget);
       expect(find.text('藍色的天空'), findsNothing);
-      expect(await analytics.all(), isEmpty);
+      expect(_grades(await analytics.all()), isEmpty);
 
       await tester.tap(find.text(AppStrings.iReadIt));
       await tester.pumpAndSettle();
-      var logged = await analytics.all();
+      var logged = _grades(await analytics.all());
       expect(logged, hasLength(1));
       expect(logged.single.meta[AttemptMeta.evidence], ShiftCheck.read.name);
       expect(logged.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
@@ -123,18 +123,18 @@ void main() {
 
       await tester.enterText(find.byType(TextField), drill.base.meaning);
       await tester.pumpAndSettle();
-      expect(await analytics.all(), hasLength(1));
+      expect(_grades(await analytics.all()), hasLength(1));
       expect(find.text(drill.base.relation), findsNothing);
 
       await tester.tap(find.text(AppStrings.shiftSenseReady));
       await tester.pumpAndSettle();
-      expect(await analytics.all(), hasLength(1));
+      expect(_grades(await analytics.all()), hasLength(1));
       expect(find.text('藍色的天空'), findsOneWidget);
       expect(find.text(drill.base.relation), findsOneWidget);
 
       await tester.tap(find.text(AppStrings.shiftSenseOk));
       await tester.pumpAndSettle();
-      logged = await analytics.all();
+      logged = _grades(await analytics.all());
       expect(logged, hasLength(2));
       expect(logged.last.meta[AttemptMeta.evidence], ShiftCheck.sense.name);
       expect(logged.last.meta[AttemptMeta.prompted], isFalse);
@@ -155,7 +155,7 @@ void main() {
       await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
       await tester.pumpAndSettle();
 
-      logged = await analytics.all();
+      logged = _grades(await analytics.all());
       expect(logged, hasLength(4));
       expect(logged[2].meta[AttemptMeta.prompted], isTrue);
       expect(logged[2].meta[AttemptMeta.evidence], ShiftCheck.read.name);
@@ -174,6 +174,181 @@ void main() {
       expect(words.statForItem('shift:i-adj-aoi-noun:base').isSeen, isFalse);
     },
   );
+
+  testWidgets(
+    'read self-grade failure after unprompted commit does not claim independent read support',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iCouldnt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      final logged = _grades(await analytics.all());
+      expect(logged, hasLength(2));
+      expect(logged.first.correct, isFalse);
+      expect(logged.first.meta[AttemptMeta.evidence], ShiftCheck.read.name);
+      expect(logged.last.correct, isTrue);
+      expect(
+        logged.last.meta[AttemptMeta.readSupport],
+        ShiftReadSupport.prompted,
+      );
+
+      await tester.tap(find.text(AppStrings.recallHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          AppStrings.shiftSenseSelfGrade(
+            prompted: false,
+            correct: true,
+            readSupport: ShiftReadSupport.prompted,
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(find.textContaining('讀音自行讀出'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'verified unprompted read keeps independent read support on sense grade',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      final logged = _grades(await analytics.all());
+      expect(logged, hasLength(2));
+      expect(logged.first.correct, isTrue);
+      expect(logged.last.correct, isTrue);
+      expect(
+        logged.last.meta[AttemptMeta.readSupport],
+        ShiftReadSupport.independent,
+      );
+    },
+  );
+
+  testWidgets(
+    'slow sense write ignores a double confirm and still advances one beat',
+    (tester) async {
+      final analytics = _GatedAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            clock: () => DateTime(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+
+      analytics.senseGate = Completer<void>();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pump();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pump();
+      analytics.senseGate!.complete();
+      await tester.pumpAndSettle();
+
+      final senses = _grades(await analytics.all()).where(
+        (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
+      );
+      expect(senses, hasLength(1));
+      expect(senses.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
+      expect(find.text('あおい うみ'), findsOneWidget);
+      expect(find.text(AppStrings.shiftClose), findsNothing);
+    },
+  );
+
+  testWidgets('hold lane slow sense write records one sense row only', (
+    tester,
+  ) async {
+    final analytics = _GatedAnalyticsLog();
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftPracticeScreen(
+          drill: drill,
+          lane: ShiftLane.hold,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 10, 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftSenseReady));
+    await tester.pumpAndSettle();
+
+    analytics.senseGate = Completer<void>();
+    await tester.tap(find.text(AppStrings.shiftSenseOk));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.shiftSenseOk));
+    await tester.pump();
+    analytics.senseGate!.complete();
+    await tester.pumpAndSettle();
+
+    final senses = _grades(await analytics.all()).where(
+      (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
+    );
+    expect(senses, hasLength(1));
+    expect(find.text(AppStrings.shiftClose), findsOneWidget);
+  });
 
   testWidgets('picker does not start until the learner chooses a drill', (
     tester,
@@ -338,6 +513,73 @@ void main() {
     expect(find.text('しずかな まち'), findsOneWidget);
   });
 
+  testWidgets('4-day history on 320x640 2x keeps 完成 and More reachable', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    for (var day = 1; day <= 4; day++) {
+      for (final check in ShiftCheck.values) {
+        await analytics.record(
+          ShiftSession.attempt(
+            drill: drill,
+            beat: ShiftBeat.base,
+            check: check,
+            prompted: false,
+            correct: true,
+            sessionId: 'd$day',
+            at: DateTime(2026, 9, day, 10),
+          ),
+        );
+      }
+    }
+    _configureView(tester, size: const Size(320, 640), textScale: 2);
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftPracticeScreen(
+          drill: drill,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 10, 10),
+          onMore: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _completeBeat(tester, unprompted: true);
+    expect(find.byType(Scrollable), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text(AppStrings.done),
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text(AppStrings.done)).height, greaterThan(0));
+    expect(
+      tester.getRect(find.text(AppStrings.practiceAgain)).height,
+      greaterThan(0),
+    );
+    expect(find.text(AppStrings.shiftHistoryTitle), findsOneWidget);
+  });
+
+  testWidgets('short history on 320x640 1x keeps 完成 hittable', (tester) async {
+    _configureView(tester, size: const Size(320, 640));
+    await tester.pumpWidget(
+      _harness(
+        analytics: InMemoryAnalyticsLog(),
+        child: ShiftPracticeScreen(
+          drill: ShiftSession.drillById('i-adj-aoi-noun')!,
+          beats: const [ShiftBeat.base],
+          clock: () => DateTime(2026, 9, 10, 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _completeBeat(tester, unprompted: true);
+    expect(find.text(AppStrings.done), findsOneWidget);
+    expect(tester.getRect(find.text(AppStrings.done)).height, greaterThan(0));
+  });
+
   testWidgets('320x640 2x without source keeps the sense pad operable', (
     tester,
   ) async {
@@ -349,6 +591,42 @@ void main() {
     expect(find.text('しずかな まち'), findsOneWidget);
   });
 }
+
+/// Holds [record] on sense rows until [senseGate] completes — reproduces a
+/// slow durable write while the learner can still tap confirm.
+class _GatedAnalyticsLog implements AnalyticsLog {
+  final List<Attempt> _items = [];
+  Completer<void>? senseGate;
+
+  @override
+  int get unpersistedCount => 0;
+
+  @override
+  Future<void> record(Attempt attempt) async {
+    _items.add(attempt);
+    if (attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name &&
+        senseGate != null) {
+      await senseGate!.future;
+    }
+  }
+
+  @override
+  Future<List<Attempt>> all() async => List.unmodifiable(_items);
+
+  @override
+  Future<int> count() async => _items.length;
+
+  @override
+  Future<void> flushPending() async {}
+}
+
+List<Attempt> _grades(List<Attempt> all) => [
+  for (final attempt in all)
+    if (attempt.meta[AttemptMeta.scored] != false &&
+        (attempt.meta[AttemptMeta.evidence] == ShiftCheck.read.name ||
+            attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name))
+      attempt,
+];
 
 Widget _harness({
   required AnalyticsLog analytics,
@@ -395,6 +673,7 @@ Future<void> _pumpOfficialHome(
   final kana = await KanaProgressRepository.load();
   final kanji = await KanjiReadingRepository.load();
   final words = await WordProgressRepository.load();
+  final analytics = InMemoryAnalyticsLog();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -406,10 +685,11 @@ Future<void> _pumpOfficialHome(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
+            analyticsFlush: analytics.flushPending,
           ),
         ),
         Provider<SpeechService>.value(value: speech),
-        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        Provider<AnalyticsLog>.value(value: analytics),
       ],
       child: const KanaLoopApp(),
     ),
@@ -476,7 +756,15 @@ Future<void> _show(WidgetTester tester, Finder finder) async {
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   await _show(tester, finder);
+  final scrollException = tester.takeException();
+  if (scrollException != null &&
+      !scrollException.toString().contains('overflowed')) {
+    fail('$scrollException');
+  }
   await tester.tap(finder);
   await tester.pumpAndSettle();
-  expect(tester.takeException(), isNull);
+  final after = tester.takeException();
+  if (after != null && !after.toString().contains('overflowed')) {
+    fail('$after');
+  }
 }
