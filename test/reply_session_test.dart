@@ -140,6 +140,7 @@ void main() {
     expect(byId['reply:koko-wa-eki']!.sceneZh, contains('車站'));
     expect(byId['reply:fuku-chiisai-ookii']!.sceneZh, contains('大一號'));
     expect(byId['reply:takai-yasui']!.sceneZh, contains('特價'));
+    expect(byId['reply:fuku-chiisai-kau']!.sceneZh, contains('帶走'));
     expect(byId['reply:kau-masu-ka']!.sceneZh, contains('紅色'));
   });
 
@@ -243,20 +244,46 @@ void main() {
     expect(session.map((d) => d.replyCorrectKana), isNot(contains('ふく')));
   });
 
-  test('この ふくは ちいさい scenes split おおきい おねがい and かいます', () {
+  test('この ふくは ちいさい scenes split おおきいの おねがい and かいます', () {
     final byId = {
-      for (final drill in replyDrillsFor(ReplySceneId.clothing)) drill.id: drill,
+      for (final drill in replyDrillsFor(ReplySceneId.clothing))
+        drill.id: drill,
     };
     final bigger = byId['reply:fuku-chiisai-ookii']!;
     final buy = byId['reply:fuku-chiisai-kau']!;
     expect(bigger.promptKana, 'この ふくは ちいさい');
     expect(buy.promptKana, 'この ふくは ちいさい');
     expect(bigger.sceneZh, contains('大一號'));
-    expect(buy.sceneZh, contains('紅色'));
-    expect(bigger.replyCorrectKana, 'おおきい おねがい');
+    expect(buy.sceneZh, contains('帶走'));
+    expect(bigger.replyCorrectKana, 'おおきいの おねがい');
     expect(buy.replyCorrectKana, 'かいます');
-    expect(bigger.replyWrongKana, isNot(contains('かいます')));
-    expect(buy.replyWrongKana, isNot(contains('おおきい おねがい')));
+    expect(bigger.replyWrongKana, contains('かいます'));
+    expect(buy.replyWrongKana, isNot(contains('おおきいの おねがい')));
+    expect(bigger.replyWrongKana, isNot(contains('はい')));
+    expect(buy.replyWrongKana, isNot(contains('はい')));
+  });
+
+  test('takai-yasui scene makes やすいです the price reply, not はい', () {
+    final price = replyDrillsFor(ReplySceneId.clothing)
+        .firstWhere((d) => d.id == 'reply:takai-yasui');
+    expect(price.sceneZh, contains('特價'));
+    expect(price.replyCorrectMeaning, '（它）便宜');
+    expect(price.replyWrongKana, isNot(contains('はい')));
+    expect(price.replyWrongKana, contains('たかいです'));
+    expect(price.requiredSeenIds, containsAll(['word:たかい', 'word:やすい']));
+  });
+
+  test('ookii drill waits for おねがい before a scored size reply', () {
+    final stats = {'phrase:この ふくは ちいさい': seenAt(), 'word:おおきい': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.clothing,
+    );
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.canMeet, isTrue);
+    expect(view.unreadRequired.map((i) => i.progressId), contains('word:おねがい'));
   });
 
   test('clothing compose stays in the clothing pool', () {
@@ -297,6 +324,7 @@ void main() {
         'phrase:この ふくは ちいさい',
         'phrase:あかい ふくを かう',
         'word:おおきい',
+        'word:おねがい',
         'word:かう',
         'word:たかい',
         'word:やすい',
