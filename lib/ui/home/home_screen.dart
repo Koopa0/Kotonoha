@@ -491,7 +491,11 @@ class HomeScreen extends StatelessWidget {
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  void _startDictation(BuildContext context, {bool replace = false}) {
+  void _startDictation(
+    BuildContext context, {
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+  }) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -502,16 +506,26 @@ class HomeScreen extends StatelessWidget {
       items: kWords,
       learnedChars: learnedChars,
       rng: Random(),
-      now: DateTime.now(),
+      now: (clock ?? DateTime.now)(),
       stats: context.read<WordProgressRepository>().stats,
       maxNew: 0,
     );
     if (words.isEmpty) return; // nothing met yet — the entry is hidden anyway
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: words,
+    );
     final nav = Navigator.of(context);
     final route = DictationScreen.route(
       words,
       AppStrings.dictationTitle,
-      onMore: () => _startDictation(context, replace: true),
+      clock: clock,
+      alreadyTransferredIds: excludeProgressIds,
+      onMore: () => _startDictation(
+        context,
+        replace: true,
+        excludeProgressIds: nextExclude,
+      ),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
