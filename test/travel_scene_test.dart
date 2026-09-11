@@ -240,6 +240,49 @@ void main() {
     },
   );
 
+  test('hasMoreIntro is false on a spent あ行・か行 pool, true with leftover', () {
+    final spent = {'word:えき': seenAt(), 'word:ここ': seenAt()};
+    expect(
+      TravelScene.hasMoreIntro(
+        scene: TravelSceneId.transport,
+        learnedChars: aKa,
+        rng: Random(7),
+        now: now,
+        stats: spent,
+      ),
+      isFalse,
+    );
+    expect(
+      TravelScene.hasMoreIntro(
+        scene: TravelSceneId.transport,
+        learnedChars: allChars,
+        rng: Random(8),
+        now: now,
+        sessionLength: 1,
+      ),
+      isTrue,
+    );
+    final first = TravelScene.composeIntroWords(
+      scene: TravelSceneId.transport,
+      learnedChars: allChars,
+      rng: Random(9),
+      now: now,
+      sessionLength: 1,
+    );
+    expect(first, hasLength(1));
+    expect(
+      TravelScene.hasMoreIntro(
+        scene: TravelSceneId.transport,
+        learnedChars: allChars,
+        rng: Random(10),
+        now: now,
+        excludeProgressIds: {first.single.progressId},
+        sessionLength: 1,
+      ),
+      isTrue,
+    );
+  });
+
   test('T01 listening pool is unchanged by travel scene membership', () {
     expect(
       ListeningSession.t01ProgressIds,

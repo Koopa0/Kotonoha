@@ -277,6 +277,44 @@ abstract final class TravelScene {
     );
   }
 
+  /// True when another intro batch still exists in this scene after
+  /// [excludeProgressIds]. Used so もう一回 never stays on a finished
+  /// summary, and never pads from another scene.
+  static bool hasMoreIntro({
+    required TravelSceneId scene,
+    required Set<String> learnedChars,
+    required Random rng,
+    required DateTime now,
+    Map<String, WordStat> stats = const {},
+    Set<String> excludeProgressIds = const {},
+    List<ReadingItem>? words,
+    List<ReadingItem>? phrases,
+    int sessionLength = length,
+  }) {
+    return composeIntroWords(
+          scene: scene,
+          learnedChars: learnedChars,
+          rng: rng,
+          now: now,
+          stats: stats,
+          excludeProgressIds: excludeProgressIds,
+          words: words,
+          phrases: phrases,
+          sessionLength: sessionLength,
+        ).isNotEmpty ||
+        composeIntroPhrases(
+          scene: scene,
+          learnedChars: learnedChars,
+          rng: rng,
+          now: now,
+          stats: stats,
+          excludeProgressIds: excludeProgressIds,
+          words: words,
+          phrases: phrases,
+          sessionLength: sessionLength,
+        ).isNotEmpty;
+  }
+
   /// Already-met scene items only. Used for cold 回想 and for #9 聞き取り.
   /// Never introduces, never fills from another scene.
   static List<ReadingItem> composeReview({
