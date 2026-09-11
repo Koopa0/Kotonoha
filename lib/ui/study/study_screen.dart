@@ -12,6 +12,7 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
+import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
@@ -137,8 +138,8 @@ class _StudyScreenState extends State<StudyScreen> {
     final targets = Lessons.testTargets(widget.lesson, learned, rng);
     final questions = const QuizEngine().generateSession(
       targets: targets,
-      // Distractors stay within the lesson's own script.
-      allKana: store.kanaForScript(widget.lesson.script),
+      // Learned kana ∪ focus row only — never cold-expose unmet glyphs.
+      allKana: StudySet.lessonTestPool(store, widget.lesson),
       length: targets.length,
       random: rng,
     );

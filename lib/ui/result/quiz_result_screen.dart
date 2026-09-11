@@ -93,7 +93,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     final targets = Lessons.testTargets(lesson, learned, rng);
     final questions = const QuizEngine().generateSession(
       targets: targets,
-      allKana: store.kanaForScript(lesson.script),
+      allKana: StudySet.lessonTestPool(store, lesson),
       length: targets.length,
       random: rng,
     );

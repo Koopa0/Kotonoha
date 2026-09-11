@@ -3,6 +3,7 @@
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 
 /// Derives the *practice* kana sets from progress state — which kana the learner
@@ -29,5 +30,19 @@ class StudySet {
     return pool.isNotEmpty
         ? pool
         : store.gojuonForScript(KanaScript.hiragana).take(5).toList();
+  }
+
+  /// Distractor pool for a lesson row test: learned kana in the same script,
+  /// plus the focus row (not yet marked learned on the first attempt).
+  static List<Kana> lessonTestPool(
+    KanaProgressRepository store,
+    Lesson lesson,
+  ) {
+    final byId = <String, Kana>{
+      for (final k in learned(store))
+        if (k.script == lesson.script) k.id: k,
+      for (final k in lesson.kana) k.id: k,
+    };
+    return byId.values.toList();
   }
 }
