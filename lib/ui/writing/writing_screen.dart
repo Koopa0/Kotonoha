@@ -1,9 +1,12 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -33,12 +36,47 @@ class WritingScreen extends StatefulWidget {
 
 class _WritingScreenState extends State<WritingScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
   int _index = 0;
   bool _revealed = false;
   int _correct = 0;
   bool _done = false;
 
   Kana get _current => widget.targets[_index];
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
+    super.dispose();
+  }
+
+  void _abandonOwnedPlayback() {
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
+  }
+
+  void _speak() {
+    unawaited(_speech.speak(_current.character));
+    _ownedPlay = _speech.generation;
+  }
 
   void _grade(bool correct) {
     final now = DateTime.now();
@@ -60,6 +98,7 @@ class _WritingScreenState extends State<WritingScreen> {
       ),
     );
     if (correct) _correct++;
+    _abandonOwnedPlayback();
     if (_index + 1 >= widget.targets.length) {
       setState(() => _done = true);
     } else {
@@ -120,7 +159,11 @@ class _WritingScreenState extends State<WritingScreen> {
                       color: AppColors.accent,
                     ),
                   ),
-                  SpeakButton(text: _current.character, size: 30),
+                  SpeakButton(
+                    text: _current.character,
+                    size: 30,
+                    onPlay: _speak,
+                  ),
                   const SizedBox(height: 12),
                   if (!_revealed)
                     const Padding(

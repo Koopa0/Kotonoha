@@ -52,7 +52,10 @@ import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({this.clock, super.key});
+
+  /// Injectable clock so 凪「もう一回」 can be exercised in daytime in tests.
+  final DateTime Function()? clock;
 
   @override
   Widget build(BuildContext context) {
@@ -525,7 +528,7 @@ class HomeScreen extends StatelessWidget {
     final items = ListeningSession.compose(
       learnedChars: learnedChars,
       rng: Random(),
-      now: DateTime.now(),
+      now: (clock ?? DateTime.now)(),
       stats: context.read<WordProgressRepository>().stats,
     );
     if (items.isEmpty) return;
@@ -537,6 +540,7 @@ class HomeScreen extends StatelessWidget {
     final route = ListeningScreen.route(
       items,
       AppStrings.listeningTitle,
+      clock: clock,
       alreadyTransferredIds: excludeProgressIds,
       onMore: () => _startListening(
         context,
