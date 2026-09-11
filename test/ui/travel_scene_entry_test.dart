@@ -17,6 +17,7 @@ import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dar
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
+import 'package:kotonoha/ui/info/info_hub_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
@@ -633,6 +634,19 @@ void main() {
     expect(find.text(AppStrings.replyClothingPurpose), findsOneWidget);
     expect(find.text(AppStrings.replyPurpose), findsNothing);
     expect(find.text('えきは どこ'), findsNothing);
+  });
+
+  testWidgets('travel picker surfaces info extraction entry', (tester) async {
+    await pumpHome(tester);
+    await tester.ensureVisible(find.text(AppStrings.travelSceneAction));
+    await tester.tap(find.text(AppStrings.travelSceneAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(TravelSceneScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.infoAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(InfoHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoPurpose), findsOneWidget);
   });
 }
 

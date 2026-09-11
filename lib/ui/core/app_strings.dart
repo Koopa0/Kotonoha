@@ -336,6 +336,30 @@ abstract final class AppStrings {
   static const String replyCloseNote = '聽音、看過文字、提示後答出、獨立選回應是分開記下的。選對不是口說判定。';
   static String replyMissingKana(String units) => '還需要先認得：$units';
 
+  // 旅の情報 — hear amount / time / headcount in travel, not whole-sentence self-grade.
+  static const String infoAction = '聽懂數字資訊';
+  static const String infoEntry = '旅の情報';
+  static const String infoTitle = '旅の情報';
+  static const String infoPurpose =
+      '這一回只練旅行裡聽懂金額、時刻或人數，再選出聽到的資訊。選對不是口說錄音判定。';
+  static const String infoMeetHint =
+      '還沒見過的數字或單位，先見面；見過的才聽句子再選資訊。';
+  static const String infoReadyHint = '見過的可以聽句子再選資訊。還沒見過的仍先見面。';
+  static const String infoNeedKana =
+      '這回還有句子讀不動。先到「手解き」補假名，選對也不會當成已會辨識。';
+  static const String infoStartAction = '開始這一回';
+  static const String infoMeetTitle = '旅の情報・見面';
+  static const String infoAmountPrompt = '聽到的金額是？';
+  static const String infoTimePrompt = '聽到的時刻是？';
+  static const String infoPersonPrompt = '聽到的人數是？';
+  static const String infoHint = '看意思提示';
+  static const String infoShowText = '看日文';
+  static const String infoNotSpeaking = '選對是聽懂資訊的證據，不是口說判定。';
+  static const String infoClose = '這一回，先練到這裡。';
+  static const String infoCloseNote =
+      '聽音、看過文字、提示後答出、獨立選資訊是分開記下的。選對不是口說判定。';
+  static String infoMissingKana(String units) => '還需要先認得：$units';
+
   // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';
   static const String kanjiSubtitle = '讀出漢字的音読・訓読';
