@@ -577,4 +577,17 @@ abstract final class AppStrings {
       '這次啟動時,損壞的原始資料還沒能確認另存;歩み已先接回來了。';
   static const String persistRecoveryRecoveryRequired =
       '先前的歩み一時讀不回來,現在可能是空的;原始資料還留著,沒有被蓋掉。';
+
+  // 歩み backup — a file of the five portable bodies, never a complete
+  // learning-history claim. Analytics, unfinished rounds, and device
+  // settings stay off the file; restore is a later entrance.
+  static const String backupTitle = '保存進度';
+  static const String backupScope = '會寫入假名熟練、已學課、已見解鎖、漢字讀音、詞句進度。';
+  static const String backupNotIncluded = '不含作答紀錄、未完成的回合或裝置設定。不是完整學習歷程。';
+  static const String backupAction = '保存為檔案';
+  static const String backupSaving = '正在寫入…';
+  static const String backupSaved = '已寫進你選的位置。';
+  static const String backupBlocked = '現在的歩み還讀不完整,不能做成備份。';
+  static const String backupFailed = '這次沒能寫成檔案。';
+  static const String backupUnimportable = '這次的歩み不能做成可還原的檔案。';
 }
