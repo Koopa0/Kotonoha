@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/use_cases/self_portrait.dart';
@@ -49,6 +50,7 @@ class ProgressScreen extends StatelessWidget {
                 const SizedBox(height: 28),
                 _StatusBreakdown(store: store),
                 const _Observations(),
+                const _ProgressBackup(),
               ],
             );
           },
@@ -202,4 +204,120 @@ class _StatusRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Quiet file-save entrance. Says exactly which five bodies leave the
+/// device, and refuses to dress unresolved recovery as a complete backup.
+class _ProgressBackup extends StatefulWidget {
+  const _ProgressBackup();
+
+  @override
+  State<_ProgressBackup> createState() => _ProgressBackupState();
+}
+
+class _ProgressBackupState extends State<_ProgressBackup> {
+  bool _saving = false;
+  SnapshotExportStatus? _status;
+
+  Future<void> _export() async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _status = null;
+    });
+    final result = await context.read<ProgressSnapshotExporter>().export();
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _status = result.status == SnapshotExportStatus.cancelled
+          ? null
+          : result.status;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final exporter = context.read<ProgressSnapshotExporter>();
+    final blocked = exporter.isBlocked;
+    final status = blocked ? SnapshotExportStatus.blocked : _status;
+    return Padding(
+      padding: const EdgeInsets.only(top: 28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.hairline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              AppStrings.backupTitle,
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              AppStrings.backupScope,
+              style: TextStyle(
+                color: AppColors.inkMuted,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              AppStrings.backupNotIncluded,
+              style: TextStyle(
+                color: AppColors.inkMuted,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: blocked || _saving ? null : _export,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  side: const BorderSide(color: AppColors.hairline),
+                  foregroundColor: AppColors.ink,
+                  disabledForegroundColor: AppColors.inkMuted,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  _saving ? AppStrings.backupSaving : AppStrings.backupAction,
+                ),
+              ),
+            ),
+            if (status != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _copyFor(status),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _copyFor(SnapshotExportStatus status) => switch (status) {
+    SnapshotExportStatus.saved => AppStrings.backupSaved,
+    SnapshotExportStatus.blocked => AppStrings.backupBlocked,
+    SnapshotExportStatus.failed => AppStrings.backupFailed,
+    SnapshotExportStatus.unimportable => AppStrings.backupUnimportable,
+    SnapshotExportStatus.cancelled => '',
+  };
 }
