@@ -66,7 +66,7 @@ Future<String> _assembleCurrent(WidgetTester tester) async {
     find.byKey(const ValueKey<String>('dictation-replay')),
   );
   for (final unit in KanaTokenizer.tokenize(speak.text)) {
-    await tester.tap(find.text(unit).first);
+    await tester.tap(find.text(unit).last);
     await tester.pumpAndSettle();
   }
   expect(find.text(AppStrings.dictationNext), findsOneWidget);
