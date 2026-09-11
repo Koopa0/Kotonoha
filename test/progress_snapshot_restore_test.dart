@@ -20,6 +20,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/fake_preferences_service.dart';
 import 'services/fake_snapshot_file_port.dart';
 
+/// [FakePreferencesService] with a no-op [invalidateInFlightWrites] — the
+/// same contract as production [PreferencesService].
+class NoEpochFakePreferencesService extends FakePreferencesService {
+  @override
+  void invalidateInFlightWrites() {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final now = DateTime.utc(2026, 9, 11, 9, 13);
@@ -417,14 +424,93 @@ void main() {
     final (fake, kana, kanji, words) = await loadAll();
     fake.seed(ProgressRestoreJournal.journalKey, 'not json');
 
-    await ProgressRestoreJournal.recoverIfNeeded(fake);
+    final recovery = await ProgressRestoreJournal.recoverIfNeeded(fake);
 
+    expect(recovery.needsRecovery, isTrue);
     expect(fake.durable[ProgressRestoreJournal.journalKey], 'not json');
     expect(
       snapshotsFor(fake, kana, kanji, words).blockedStores,
       contains(ProgressRestoreJournal.journalKey),
     );
   });
+
+  test(
+    'journal missing rollback keys preserves progress and keeps blocking',
+    () async {
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+      final before = primaryRaws(fake);
+
+      fake.seed(
+        ProgressRestoreJournal.journalKey,
+        jsonEncode(<String, Object?>{
+          'phase': RestoreJournalPhase.applying.name,
+          'rollback': <String, Object?>{},
+          'staging': <String, String>{
+            for (final key in RestoreJournalStores.all) key: '{"partial":true}',
+          },
+        }),
+      );
+
+      final recovery = await ProgressRestoreJournal.recoverIfNeeded(fake);
+
+      expect(recovery.needsRecovery, isTrue);
+      expect(primaryRaws(fake), before);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNotNull);
+      expect(ProgressRestoreJournal.blocksExport(fake), isTrue);
+      expect(kana.learnedUnits, {'keep_me'});
+    },
+  );
+
+  test(
+    'failed committed marker rolls back primaries and keeps session consistent',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+      final before = primaryRaws(fake);
+
+      fake.failWriteOnAttempt[ProgressRestoreJournal.journalKey] = {7};
+      final restore = restoreFor(fake, kana, kanji, words);
+      final preview = restore.previewEncoded(backup)!;
+
+      await expectLater(
+        restore.apply(preview.snapshot),
+        throwsA(isA<RestoreJournalWriteFailure>()),
+      );
+
+      expect(primaryRaws(fake), before);
+      expect(kana.learnedUnits, {'keep_me'});
+      expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+    },
+  );
+
+  test(
+    'committed journal removal throw still publishes restored memory',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await backupWithCorrectCounts(
+        sourceFake,
+        sourceKana,
+        sourceKanji,
+        sourceWords,
+      );
+
+      final (fake, kana, kanji, words) = await loadAll();
+      fake.throwRemovesAfterEffect.add(ProgressRestoreJournal.journalKey);
+
+      final restore = restoreFor(fake, kana, kanji, words);
+      await restore.apply(restore.previewEncoded(backup)!.snapshot);
+
+      expect(correctCounts(kana, kanji, words), [3, 3, 3]);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+    },
+  );
 
   test('unfinished journal blocks export', () async {
     final (fake, kana, kanji, words) = await loadAll();
@@ -433,7 +519,9 @@ void main() {
       jsonEncode(<String, Object?>{
         'phase': RestoreJournalPhase.staging.name,
         'rollback': primaryRaws(fake),
-        'staging': <String, String>{},
+        'staging': <String, String>{
+          for (final key in RestoreJournalStores.all) key: '{"pending":true}',
+        },
       }),
     );
 
@@ -465,7 +553,10 @@ void main() {
         sourceWords,
       );
 
-      final (fake, kana, kanji, words) = await loadAll();
+      final fake = NoEpochFakePreferencesService();
+      final kana = await KanaProgressRepository.load(fake);
+      final kanji = await KanjiReadingRepository.load(fake);
+      final words = await WordProgressRepository.load(fake);
       final a = kana.allKana.first;
       final wordGate = PlatformGate();
       final kanaGate = PlatformGate();
@@ -480,23 +571,20 @@ void main() {
       await wordGate.entered;
       final kanaPending = kana.recordAnswer(a, correct: false, at: now);
       await kanaGate.entered;
-      // In-flight flushes stay parked on their gate objects; dropping the map
-      // entry lets the restore journal write primaries without waiting.
-      fake.writeGates.remove(ProgressSnapshotRepository.wordStatsStore);
-      fake.writeGates.remove(ProgressSnapshotRepository.kanaStatsStore);
 
       final restore = restoreFor(fake, kana, kanji, words);
-      await restore.apply(restore.previewEncoded(backup)!.snapshot);
-
-      expect(correctCounts(kana, kanji, words), [3, 3, 3]);
-      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      final restoreFuture = restore.apply(
+        restore.previewEncoded(backup)!.snapshot,
+      );
 
       wordGate.release();
       kanaGate.release();
       await wordPending;
       await kanaPending;
+      await restoreFuture;
 
       expect(correctCounts(kana, kanji, words), [3, 3, 3]);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
 
       final restarted = FakePreferencesService.restarted(fake);
       await ProgressRestoreJournal.recoverIfNeeded(restarted);
