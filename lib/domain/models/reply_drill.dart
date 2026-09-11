@@ -22,9 +22,9 @@ class ReplyDrill {
     required this.replyCorrectKana,
     required this.replyCorrectRomaji,
     required this.replyCorrectMeaning,
-    this.replyAlsoCorrectKana = const [],
     required this.replyWrongKana,
     required this.requiredSeenIds,
+    this.replyAlsoCorrectKana = const [],
   });
 
   /// Stable analytics id (`reply:…`). Never a corpus progress id.
