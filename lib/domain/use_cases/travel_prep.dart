@@ -40,12 +40,12 @@ abstract final class TravelPrep {
     return pending.first.scene;
   }
 
-  /// Unseen readable first, then due already-seen, then a listen on seen
-  /// items. An unreadable scene points at the missing kana — never pads
-  /// from another scene or the global pool.
+  /// Due already-seen first, then unread teach, then a listen on seen
+  /// items with no due. An unreadable scene points at the missing kana —
+  /// never pads from another scene or the global pool.
   static TravelPrepKind kindFor(TravelSceneView view) {
-    if (view.unreadReadable.isNotEmpty) return TravelPrepKind.meet;
     if (view.dueReadable.isNotEmpty) return TravelPrepKind.recall;
+    if (view.unreadReadable.isNotEmpty) return TravelPrepKind.meet;
     if (view.seenReadable.isNotEmpty) return TravelPrepKind.listen;
     return TravelPrepKind.learnKana;
   }

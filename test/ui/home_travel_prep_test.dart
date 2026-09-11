@@ -12,7 +12,8 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/travel_focus.dart';
-import 'package:kotonoha/domain/models/travel_scene_id.dart';
+import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -435,6 +436,78 @@ void main() {
     expect(repos.words.seenItemCount, 0);
     expect(find.textContaining('接著練「交通」'), findsNothing);
   });
+
+  testWidgets(
+    'due えき plus unread ここ recalls first; finish then continues',
+    (tester) async {
+      final repos = await seedPartialTransport();
+      await repos.travel.markKanaBoost(now);
+      await repos.words.introduce(
+        'word:えき',
+        at: now.subtract(const Duration(days: 2)),
+      );
+      final learnedChars = StudySet.learned(repos.kana)
+          .map((k) => k.character)
+          .toSet();
+      final view = TravelScene.inspect(
+        scene: TravelSceneId.transport,
+        learnedChars: learnedChars,
+        stats: repos.words.stats,
+        now: now,
+      );
+      expect(view.dueReadable.map((i) => i.progressId), contains('word:えき'));
+      expect(view.unreadReadable.map((i) => i.progressId), contains('word:ここ'));
+
+      await pumpHome(
+        tester,
+        kana: repos.kana,
+        words: repos.words,
+        travel: repos.travel,
+      );
+      expect(find.text(AppStrings.travelPrepRecallAction), findsOneWidget);
+      expect(find.textContaining('見過的該回想'), findsOneWidget);
+      expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
+      expect(find.textContaining('還沒見過的先見面'), findsNothing);
+
+      await tester.tap(find.text(AppStrings.travelPrepRecallAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReadingScreen), findsOneWidget);
+      expect(
+        find.text(
+          AppStrings.travelSceneRecallTitle(AppStrings.travelSceneTransport),
+        ),
+        findsOneWidget,
+      );
+      expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.travelPrepRecallAction), findsOneWidget);
+      expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+
+      await tester.tap(find.text(AppStrings.travelPrepRecallAction));
+      await tester.pumpAndSettle();
+      await _finishReadingRound(tester);
+      expect(find.text(AppStrings.done), findsOneWidget);
+      expect(
+        repos.travel.plan.servedOn[TravelSceneId.transport],
+        DateTime(2026, 9, 11),
+      );
+
+      await _popToTravelHome(tester);
+      expect(find.text(AppStrings.travelPrepRecallAction), findsNothing);
+      expect(find.textContaining('接著練「交通」'), findsNothing);
+      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+
+      final reloaded = await TravelFocusRepository.load();
+      expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+      expect(
+        reloaded.plan.servedOn[TravelSceneId.transport],
+        DateTime(2026, 9, 11),
+      );
+      expect(reloaded.plan.servedOn[TravelSceneId.clothing], isNull);
+    },
+  );
 }
 
 int _kanaSeenTotal(KanaProgressRepository kana) =>
@@ -508,6 +581,18 @@ Future<void> _answerCurrentDaily(WidgetTester tester) async {
   }
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
+}
+
+Future<void> _finishReadingRound(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    if (find.text(AppStrings.done).evaluate().isNotEmpty) return;
+    expect(find.text(AppStrings.iReadUnprompted), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+  }
+  expect(find.text(AppStrings.done), findsOneWidget);
 }
 
 Future<void> _finishFerryRound(WidgetTester tester) async {

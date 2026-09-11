@@ -62,15 +62,41 @@ void main() {
   });
 
   test(
-    'kindFor teaches unread first, then due, then listen, else learn kana',
+    'kindFor recalls due first, teaches only when nothing is due, else listen',
     () {
+      const aKa = {'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ'};
+      final now = DateTime(2026, 9, 11, 12);
       final unread = TravelScene.inspect(
         scene: TravelSceneId.transport,
-        learnedChars: const {'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ'},
+        learnedChars: aKa,
         stats: const {},
-        now: DateTime(2026, 9, 11),
+        now: now,
       );
+      expect(unread.unreadReadable, isNotEmpty);
+      expect(unread.dueReadable, isEmpty);
       expect(TravelPrep.kindFor(unread), TravelPrepKind.meet);
+
+      final mixed = TravelScene.inspect(
+        scene: TravelSceneId.transport,
+        learnedChars: aKa,
+        stats: {
+          'word:えき': WordStat.fromJson({
+            's': 1,
+            'c': 1,
+            'd': now.subtract(const Duration(days: 2)).millisecondsSinceEpoch,
+          }),
+        },
+        now: now,
+      );
+      expect(
+        mixed.dueReadable.map((i) => i.progressId),
+        contains('word:えき'),
+      );
+      expect(
+        mixed.unreadReadable.map((i) => i.progressId),
+        contains('word:ここ'),
+      );
+      expect(TravelPrep.kindFor(mixed), TravelPrepKind.recall);
 
       final newbie = TravelScene.inspect(
         scene: TravelSceneId.transport,
