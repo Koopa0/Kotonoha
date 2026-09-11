@@ -17,7 +17,7 @@ const List<ReplyDrill> kReplyDrills = [
     promptMeaning: '要去哪裡',
     intentCorrect: '問你要去哪裡',
     intentWrong: ['問車站在哪裡', '問這裡是不是車站'],
-    replyCorrectKana: '京都です',
+    replyCorrectKana: 'きょうとです',
     replyCorrectRomaji: 'kyouto desu',
     replyCorrectMeaning: '我去京都',
     replyWrongKana: ['みぎです', 'はい'],

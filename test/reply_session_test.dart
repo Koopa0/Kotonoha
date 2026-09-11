@@ -31,7 +31,7 @@ void main() {
           expect(corpus.where((item) => item.progressId == id), hasLength(1));
         }
       }
-      expect(kPhrases.where((p) => p.kana == '京都です'), isEmpty);
+      expect(kPhrases.where((p) => p.kana == 'きょうとです'), isEmpty);
       expect(kPhrases.where((p) => p.kana == 'ここは えきですか'), isEmpty);
       for (final kana in const [
         'じんじゃは どこ',

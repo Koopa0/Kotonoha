@@ -137,7 +137,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey<String>('reply-to-answer')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('京都です'));
+    await tester.tap(find.text('きょうとです'));
     await tester.pumpAndSettle();
     final logged = await env.analytics.all();
     expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.hinted);
@@ -164,7 +164,44 @@ void main() {
 
   testWidgets('leaving the route stops leftover playback', (tester) async {
     final speech = HangingSpeechService();
-    await pumpReply(tester, drills: [_ekiAsk], speech: speech);
+    final kana = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load();
+    await tester.binding.setSurfaceSize(const Size(420, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+          ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: kana.flushPending,
+              kanjiFlush: kanji.flushPending,
+              wordFlush: words.flushPending,
+            ),
+          ),
+          Provider<SpeechService>.value(value: speech),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  ReplyScreen.route([_ekiAsk]),
+                ),
+                child: const Text('open-reply'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open-reply'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     expect(speech.spoken, ['えきはどこ']);
     expect(speech.stopCount, 0);
     await tester.tap(find.byType(BackButton));
