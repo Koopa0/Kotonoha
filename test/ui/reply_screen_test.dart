@@ -453,7 +453,7 @@ void main() {
     expect(logged[1].correct, isFalse);
   });
 
-  testWidgets('budget-below scene やすいです is independent without はい', (
+  testWidgets('cheap-judgment scene やすいです is independent without はい', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 640);
@@ -470,7 +470,7 @@ void main() {
       surface: const Size(320, 640),
     );
     _expectSceneKeepsAskHidden(_priceAsk);
-    expect(find.text('吊牌價低於你的預算。'), findsOneWidget);
+    expect(find.text('你覺得這個價格很便宜。'), findsOneWidget);
     expect(find.text('はい'), findsNothing);
     await _hearThenPick(tester, intent: '問價格貴不貴', reply: 'やすいです');
     final logged = await env.analytics.all();
@@ -480,7 +480,7 @@ void main() {
     expect(find.text('（它）便宜'), findsOneWidget);
   });
 
-  testWidgets('budget-below scene たかいです contradicts premise and scores miss', (
+  testWidgets('cheap-judgment scene たかいです contradicts premise and scores miss', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 640);
@@ -497,7 +497,7 @@ void main() {
       surface: const Size(320, 640),
     );
     _expectSceneKeepsAskHidden(_priceAsk);
-    expect(find.text('吊牌價低於你的預算。'), findsOneWidget);
+    expect(find.text('你覺得這個價格很便宜。'), findsOneWidget);
     expect(find.text('はい'), findsNothing);
     await _hearThenPick(tester, intent: '問價格貴不貴', reply: 'たかいです');
     final logged = await env.analytics.all();

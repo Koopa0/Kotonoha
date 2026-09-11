@@ -139,7 +139,7 @@ void main() {
     expect(byId['reply:eki-wa-koko']!.sceneZh, contains('門口'));
     expect(byId['reply:koko-wa-eki']!.sceneZh, contains('車站'));
     expect(byId['reply:fuku-chiisai-ookii']!.sceneZh, contains('大一號'));
-    expect(byId['reply:takai-yasui']!.sceneZh, contains('預算'));
+    expect(byId['reply:takai-yasui']!.sceneZh, contains('覺得'));
     expect(byId['reply:fuku-chiisai-kau']!.sceneZh, contains('帶走'));
     expect(byId['reply:kau-masu-ka']!.sceneZh, contains('紅色'));
   });
@@ -264,13 +264,14 @@ void main() {
     expect(buy.replyWrongKana, contains('いいえ'));
   });
 
-  test('takai-yasui budget scene supports やすいです and rules out たかいです', () {
+  test('takai-yasui scene states cheap judgment and rules out たかいです', () {
     final price = replyDrillsFor(ReplySceneId.clothing)
         .firstWhere((d) => d.id == 'reply:takai-yasui');
-    expect(price.sceneZh, '吊牌價低於你的預算。');
-    expect(price.sceneZh, isNot(contains('便宜')));
+    expect(price.sceneZh, '你覺得這個價格很便宜。');
+    expect(price.sceneZh, contains('便宜'));
     expect(price.sceneZh, isNot(contains('貴不貴')));
     expect(price.sceneZh, isNot(contains(price.promptMeaning)));
+    expect(price.sceneZh, isNot(contains(price.intentCorrect)));
     expect(price.replyCorrectMeaning, '（它）便宜');
     expect(price.replyChoices, isNot(contains('はい')));
     expect(price.replyWrongKana, contains('たかいです'));
