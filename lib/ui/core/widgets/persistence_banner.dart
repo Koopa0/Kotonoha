@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
@@ -81,6 +82,18 @@ class _PersistenceBannerState extends State<PersistenceBanner> {
         // Disabled while a retry is in flight, so a second tap is visibly not a
         // live button rather than silently swallowed.
         onAction: retrying ? null : controller.retry,
+      );
+    }
+    final restoreRecovery = context.watch<ProgressRestoreRecoveryController?>();
+    if (restoreRecovery?.needsRecovery ?? false) {
+      final retrying = restoreRecovery!.isRetrying;
+      return _PersistenceSurface(
+        message: AppStrings.restoreJournalRecoveryLine,
+        detail: AppStrings.restoreJournalRecoveryDetail,
+        actionLabel: retrying
+            ? AppStrings.persistRetrying
+            : AppStrings.persistRetry,
+        onAction: retrying ? null : restoreRecovery.retry,
       );
     }
     final copy = _recoveryCopy(controller.recoveryNotice);

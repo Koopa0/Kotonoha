@@ -53,6 +53,10 @@ class FakePreferencesService implements PreferencesService {
   final List<String> writeLog = <String>[];
   bool sawOverlap = false;
   int _inFlight = 0;
+  int _writeEpoch = 0;
+
+  @override
+  void invalidateInFlightWrites() => _writeEpoch++;
 
   /// Seeds a settled pre-existing value — cache and durable agree, as if the
   /// key had been written and acknowledged before the test began.
@@ -66,12 +70,14 @@ class FakePreferencesService implements PreferencesService {
 
   @override
   Future<bool> writeString(String key, String value) async {
+    final epoch = _writeEpoch;
     cache[key] = value; // the legacy cache mutates before the verdict
     _inFlight++;
     if (_inFlight > 1) sawOverlap = true;
     await Future<void>.delayed(Duration.zero);
     final gate = writeGates[key];
     if (gate != null) await gate.pass();
+    if (epoch != _writeEpoch) return false;
     _inFlight--;
     if (throwWrites.contains(key)) throw StateError('write threw: $key');
     final attempt = (_writeAttemptCounts[key] ?? 0) + 1;

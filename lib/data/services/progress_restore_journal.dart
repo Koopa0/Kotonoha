@@ -12,6 +12,35 @@ import 'package:kotonoha/data/services/preferences_service.dart';
 /// back even when journal cleanup is still pending.
 enum RestoreJournalPhase { staging, applying, rollingBack, committed }
 
+/// Thrown when a progress mutation is refused because an unfinished restore
+/// journal still blocks normal learning writes.
+class ProgressRestoreJournalBlocked implements Exception {
+  const ProgressRestoreJournalBlocked();
+
+  @override
+  String toString() => 'ProgressRestoreJournalBlocked';
+}
+
+/// Thrown when a progress mutation is refused while a restore transaction is
+/// in flight.
+class ProgressRestoreInProgress implements Exception {
+  const ProgressRestoreInProgress();
+
+  @override
+  String toString() => 'ProgressRestoreInProgress';
+}
+
+/// Outcome of [ProgressRestoreJournal.recoverIfNeeded] at startup.
+class RestoreJournalRecoveryResult {
+  const RestoreJournalRecoveryResult({required this.needsRecovery});
+
+  /// True when a blocking journal remains after recovery — primaries may be
+  /// mixed or corrupt and normal learning writes must stay refused.
+  final bool needsRecovery;
+
+  static const ok = RestoreJournalRecoveryResult(needsRecovery: false);
+}
+
 /// Primary keys participating in a restore transaction — the same five bodies
 /// [ProgressSnapshotRepository] captures.
 abstract final class RestoreJournalStores {
@@ -49,17 +78,24 @@ class ProgressRestoreJournal {
   /// Before repository load: finish committed cleanup, or roll back any
   /// interrupted transaction so primaries never present a new/old mix as normal
   /// data. A failed rollback leaves the journal in place and keeps blocking.
-  static Future<void> recoverIfNeeded(PreferencesService prefs) async {
+  static Future<RestoreJournalRecoveryResult> recoverIfNeeded(
+    PreferencesService prefs,
+  ) async {
     final journal = ProgressRestoreJournal(prefs);
     final phase = journal._phase;
-    if (phase == null) return;
+    if (phase == null) return RestoreJournalRecoveryResult.ok;
     if (phase == RestoreJournalPhase.committed) {
       await journal._removeJournalBestEffort();
-      return;
+      return RestoreJournalRecoveryResult.ok;
     }
     final rolled = await journal._rollbackPrimaries();
-    if (!rolled) return;
+    if (!rolled) {
+      return const RestoreJournalRecoveryResult(needsRecovery: true);
+    }
     await journal._removeJournalBestEffort();
+    return RestoreJournalRecoveryResult(
+      needsRecovery: blocksExport(prefs),
+    );
   }
 
   RestoreJournalPhase? get _phase => _readPhase(_prefs.readString(journalKey));
@@ -164,6 +200,10 @@ class ProgressRestoreJournal {
   Future<void> _removeJournalBestEffort() async {
     await _prefs.remove(journalKey);
   }
+
+  /// Whether a blocking journal remains on disk (unfinished transaction or
+  /// corrupt payload — not a committed cleanup still pending).
+  static bool needsRecovery(PreferencesService prefs) => blocksExport(prefs);
 
   static RestoreJournalPhase? _readPhase(String? raw) {
     if (raw == null) return null;

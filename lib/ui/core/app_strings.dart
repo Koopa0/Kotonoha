@@ -578,6 +578,13 @@ abstract final class AppStrings {
   static const String persistRecoveryRecoveryRequired =
       '先前的歩み一時讀不回來,現在可能是空的;原始資料還留著,沒有被蓋掉。';
 
+  // Unfinished restore journal after startup recovery — blocks learning writes
+  // until [ProgressRestoreRecoveryController.retry] succeeds.
+  static const String restoreJournalRecoveryLine =
+      '上次的還原還沒處理完,學習進度暫時不能寫入。';
+  static const String restoreJournalRecoveryDetail =
+      '請再試一次把裝置上的狀態整理好。';
+
   // 歩み backup — a file of the five portable bodies, never a complete
   // learning-history claim. Analytics, unfinished rounds, and device
   // settings stay off the file; restore is a later entrance.

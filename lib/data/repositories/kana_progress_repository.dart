@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
@@ -84,6 +85,19 @@ class KanaProgressRepository extends ChangeNotifier {
   int _learnedPersistedGen = 0;
   int _unlocksGen = 0;
   int _unlocksPersistedGen = 0;
+
+  /// Invalidates in-flight flushes when a restore transaction begins.
+  int _restoreBarrier = 0;
+
+  /// True while [prepareForRestore] holds the mutation queue for a restore.
+  bool _restoreLocked = false;
+
+  /// True when startup journal recovery could not finish — normal learning
+  /// writes must stay refused until [reloadFromPlatform] clears this.
+  bool _restoreJournalBlocksWrites = false;
+
+  /// Whether an unfinished restore journal still blocks learning writes.
+  bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
   /// Loads persisted stats + learned units (or starts empty).
   static Future<KanaProgressRepository> load([
@@ -256,6 +270,52 @@ class KanaProgressRepository extends ChangeNotifier {
   /// confirmed write, exactly as a mutation's flush does.
   Future<void> flushPending() => _serialized(_flushAll);
 
+  /// Invalidates in-flight flushes and refuses new mutations while a restore
+  /// transaction writes primaries. Does not await [_tail] — a flush parked on
+  /// a platform gate must not block restore, and the barrier prevents it from
+  /// writing once it resumes.
+  Future<void> prepareForRestore() async {
+    _restoreBarrier++;
+    _restoreLocked = true;
+    _prefs.invalidateInFlightWrites();
+  }
+
+  /// Releases the restore lock after [prepareForRestore].
+  void finishRestore() {
+    _restoreLocked = false;
+  }
+
+  /// Blocks or unblocks learning writes while a restore journal needs recovery.
+  void setRestoreJournalBlocked(bool blocked) {
+    if (_restoreJournalBlocksWrites == blocked) return;
+    _restoreJournalBlocksWrites = blocked;
+    notifyListeners();
+  }
+
+  /// Reloads all three bodies from durable primaries after journal recovery.
+  Future<void> reloadFromPlatform() async {
+    await _prefs.reload();
+    final stats = await _statsStore.load();
+    final learned = await _learnedStore.load();
+    final unlocks = await _unlocksStore.load();
+    _stats
+      ..clear()
+      ..addAll(stats.value);
+    _learnedUnits
+      ..clear()
+      ..addAll(learned.value);
+    _seenUnlocks
+      ..clear()
+      ..addAll(unlocks.value);
+    _statsGen++;
+    _learnedGen++;
+    _unlocksGen++;
+    _statsPersistedGen = _statsGen;
+    _learnedPersistedGen = _learnedGen;
+    _unlocksPersistedGen = _unlocksGen;
+    notifyListeners();
+  }
+
   /// Replaces the three in-memory bodies after a successful restore
   /// transaction. Primaries are already on disk; generations are marked clean.
   void replaceFromRestore({
@@ -418,6 +478,12 @@ class KanaProgressRepository extends ChangeNotifier {
   /// future to the caller (so failures surface) while keeping the queue
   /// alive past a failed write.
   Future<void> _serialized(Future<void> Function() action) {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    if (_restoreLocked) {
+      return Future<void>.error(const ProgressRestoreInProgress());
+    }
     final run = _tail.then((_) => action());
     _tail = run.then<void>((_) {}, onError: (Object _) {});
     return run;
@@ -429,19 +495,35 @@ class KanaProgressRepository extends ChangeNotifier {
   /// the first failure so the awaiting mutation reports honestly; whatever
   /// stayed dirty is retried by the next mutation's flush.
   Future<void> _flushAll() async {
+    final barrier = _restoreBarrier;
     if (_statsGen != _statsPersistedGen) {
       final gen = _statsGen;
-      await _statsStore.write(_encodeStats());
+      if (_restoreBarrier != barrier) return;
+      await _statsStore.write(
+        _encodeStats(),
+        commitGuard: () => _restoreBarrier == barrier,
+      );
+      if (_restoreBarrier != barrier) return;
       _statsPersistedGen = gen;
     }
     if (_learnedGen != _learnedPersistedGen) {
       final gen = _learnedGen;
-      await _learnedStore.write(jsonEncode(_learnedUnits.toList()));
+      if (_restoreBarrier != barrier) return;
+      await _learnedStore.write(
+        jsonEncode(_learnedUnits.toList()),
+        commitGuard: () => _restoreBarrier == barrier,
+      );
+      if (_restoreBarrier != barrier) return;
       _learnedPersistedGen = gen;
     }
     if (_unlocksGen != _unlocksPersistedGen) {
       final gen = _unlocksGen;
-      await _unlocksStore.write(jsonEncode(_seenUnlocks.toList()));
+      if (_restoreBarrier != barrier) return;
+      await _unlocksStore.write(
+        jsonEncode(_seenUnlocks.toList()),
+        commitGuard: () => _restoreBarrier == barrier,
+      );
+      if (_restoreBarrier != barrier) return;
       _unlocksPersistedGen = gen;
     }
   }

@@ -64,27 +64,38 @@ class ProgressSnapshotRestoreRepository {
   /// Throws [RestoreJournalWriteFailure] after rolling primaries back. Validation
   /// must happen before calling — this does not re-decode.
   Future<void> apply(ProgressSnapshot snapshot) async {
-    final staging = _encodeStaging(snapshot);
+    await Future.wait([
+      _kana.prepareForRestore(),
+      _kanji.prepareForRestore(),
+      _words.prepareForRestore(),
+    ]);
     try {
-      await _journal.beginStaging(staging);
-      for (final key in RestoreJournalStores.all) {
-        await _journal.applyPrimary(key, staging[key]!);
-      }
-      for (final key in _auxiliaryKeys) {
-        if (!await _prefs.remove(key)) {
-          throw RestoreJournalWriteFailure(key);
-        }
-      }
-      await _journal.commit();
-    } on RestoreJournalWriteFailure {
+      final staging = _encodeStaging(snapshot);
       try {
-        await _journal.abortAndRollback();
-      } on RestoreJournalRollbackFailure {
-        // Journal stays blocking — primaries may still be mixed on disk.
+        await _journal.beginStaging(staging);
+        for (final key in RestoreJournalStores.all) {
+          await _journal.applyPrimary(key, staging[key]!);
+        }
+        for (final key in _auxiliaryKeys) {
+          if (!await _prefs.remove(key)) {
+            throw RestoreJournalWriteFailure(key);
+          }
+        }
+        await _journal.commit();
+      } on RestoreJournalWriteFailure {
+        try {
+          await _journal.abortAndRollback();
+        } on RestoreJournalRollbackFailure {
+          // Journal stays blocking — primaries may still be mixed on disk.
+        }
+        rethrow;
       }
-      rethrow;
+      _applyToMemory(snapshot);
+    } finally {
+      _kana.finishRestore();
+      _kanji.finishRestore();
+      _words.finishRestore();
     }
-    _applyToMemory(snapshot);
   }
 
   void _applyToMemory(ProgressSnapshot snapshot) {

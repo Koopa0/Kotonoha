@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
@@ -55,6 +56,13 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// succeeds once everything submitted before it is truly on disk.
   int _statsGen = 0;
   int _statsPersistedGen = 0;
+
+  int _restoreBarrier = 0;
+  bool _restoreLocked = false;
+  bool _restoreJournalBlocksWrites = false;
+
+  /// Whether an unfinished restore journal still blocks learning writes.
+  bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
   static Future<KanjiReadingRepository> load([
     PreferencesService? prefs,
@@ -114,6 +122,33 @@ class KanjiReadingRepository extends ChangeNotifier {
             .toList()
           ..sort((a, b) => a.value.dueAt!.compareTo(b.value.dueAt!));
     return [for (final e in due) e.key];
+  }
+
+  Future<void> prepareForRestore() async {
+    _restoreBarrier++;
+    _restoreLocked = true;
+    _prefs.invalidateInFlightWrites();
+  }
+
+  void finishRestore() {
+    _restoreLocked = false;
+  }
+
+  void setRestoreJournalBlocked(bool blocked) {
+    if (_restoreJournalBlocksWrites == blocked) return;
+    _restoreJournalBlocksWrites = blocked;
+    notifyListeners();
+  }
+
+  Future<void> reloadFromPlatform() async {
+    await _prefs.reload();
+    final loaded = await _store.load();
+    _stats
+      ..clear()
+      ..addAll(loaded.value);
+    _statsGen++;
+    _statsPersistedGen = _statsGen;
+    notifyListeners();
   }
 
   /// Replaces in-memory stats after a successful restore transaction.
@@ -206,6 +241,12 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// future to the caller (so failures surface) while keeping the queue
   /// alive past a failed write.
   Future<void> _serialized(Future<void> Function() action) {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    if (_restoreLocked) {
+      return Future<void>.error(const ProgressRestoreInProgress());
+    }
     final run = _tail.then((_) => action());
     _tail = run.then<void>((_) {}, onError: (Object _) {});
     return run;
@@ -216,8 +257,14 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// honestly; the state stays dirty and the next mutation retries.
   Future<void> _flush() async {
     if (_statsGen == _statsPersistedGen) return;
+    final barrier = _restoreBarrier;
     final gen = _statsGen;
-    await _store.write(_encodeStats());
+    if (_restoreBarrier != barrier) return;
+    await _store.write(
+      _encodeStats(),
+      commitGuard: () => _restoreBarrier == barrier,
+    );
+    if (_restoreBarrier != barrier) return;
     _statsPersistedGen = gen;
   }
 

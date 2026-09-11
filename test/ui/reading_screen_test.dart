@@ -15,6 +15,7 @@ import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/persistence_banner.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
@@ -50,6 +51,7 @@ Future<void> _pumpReading(
         ChangeNotifierProvider<ProgressPersistenceController>.value(
           value: persistence,
         ),
+        Provider<ProgressRestoreRecoveryController?>.value(value: null),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
       ],

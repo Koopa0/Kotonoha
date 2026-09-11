@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/persistence_banner.dart';
 import 'package:provider/provider.dart';
@@ -41,8 +42,13 @@ void main() {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      ChangeNotifierProvider<ProgressPersistenceController>.value(
-        value: controller,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: controller,
+          ),
+          Provider<ProgressRestoreRecoveryController?>.value(value: null),
+        ],
         child: MaterialApp(
           home: Builder(
             builder: (context) => MediaQuery(
@@ -185,8 +191,13 @@ void main() {
   testWidgets('the failure surface survives a route change', (tester) async {
     final controller = controllerWith();
     await tester.pumpWidget(
-      ChangeNotifierProvider<ProgressPersistenceController>.value(
-        value: controller,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: controller,
+          ),
+          Provider<ProgressRestoreRecoveryController?>.value(value: null),
+        ],
         // The banner lives in MaterialApp.builder, above the navigator — just
         // as production wires it — so it outlives the route that caused it.
         child: MaterialApp(
@@ -268,8 +279,13 @@ void main() {
     // Production-shaped: banner in MaterialApp.builder; the route below has its
     // own SafeArea and a top-aligned marker.
     await tester.pumpWidget(
-      ChangeNotifierProvider<ProgressPersistenceController>.value(
-        value: controller,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: controller,
+          ),
+          Provider<ProgressRestoreRecoveryController?>.value(value: null),
+        ],
         child: MaterialApp(
           builder: (context, child) =>
               PersistenceBanner(child: child ?? const SizedBox.shrink()),

@@ -166,14 +166,21 @@ class RecoverableStore<T> {
   /// now (see the class doc). Throws [StoreWriteFailure] when the platform
   /// reports a failed write; the primary is only replaced once preservation
   /// has succeeded.
-  Future<void> write(String encoded) async {
+  Future<void> write(
+    String encoded, {
+    bool Function()? commitGuard,
+  }) async {
     final current = _prefs.readString(primaryKey);
     if (current != null) {
       final verdict = _decode(current);
       final fullyValid = verdict is DecodeOk<T> && verdict.dropped == 0;
-      await _checkedWrite(fullyValid ? lastGoodKey : quarantineKey, current);
+      await _checkedWrite(
+        fullyValid ? lastGoodKey : quarantineKey,
+        current,
+        commitGuard: commitGuard,
+      );
     }
-    await _checkedWrite(primaryKey, encoded);
+    await _checkedWrite(primaryKey, encoded, commitGuard: commitGuard);
   }
 
   /// Removes exactly this store's keys (reset). Auxiliary copies go first so
@@ -184,8 +191,16 @@ class RecoverableStore<T> {
     }
   }
 
-  Future<void> _checkedWrite(String key, String value) async {
-    if (!await _prefs.writeString(key, value)) throw StoreWriteFailure(key);
+  Future<void> _checkedWrite(
+    String key,
+    String value, {
+    bool Function()? commitGuard,
+  }) async {
+    if (commitGuard != null && !commitGuard()) return;
+    if (!await _prefs.writeString(key, value)) {
+      if (commitGuard != null && !commitGuard()) return;
+      throw StoreWriteFailure(key);
+    }
   }
 
   /// Attempts to copy a damaged raw payload into quarantine, reporting

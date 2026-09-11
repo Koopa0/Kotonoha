@@ -19,6 +19,7 @@ import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:provider/provider.dart';
 
 Future<void> main() async {
@@ -31,10 +32,17 @@ Future<void> main() async {
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 Future<Widget> bootstrap() async {
   final prefs = await PreferencesService.create();
-  await ProgressRestoreJournal.recoverIfNeeded(prefs);
+  final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(prefs);
   final store = await KanaProgressRepository.load(prefs);
   final kanji = await KanjiReadingRepository.load(prefs);
   final words = await WordProgressRepository.load(prefs);
+  final restoreRecovery = ProgressRestoreRecoveryController(
+    prefs: prefs,
+    kana: store,
+    kanji: kanji,
+    words: words,
+    needsRecovery: journalRecovery.needsRecovery,
+  );
   final checks = await PlacementCheckRepository.load(prefs);
   final travel = await TravelFocusRepository.load(prefs);
   final speech = await FlutterTtsSpeechService.create();
@@ -68,6 +76,12 @@ Future<Widget> bootstrap() async {
       ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
       ChangeNotifierProvider<ProgressPersistenceController>.value(
         value: persistence,
+      ),
+      ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+        value: restoreRecovery,
+      ),
+      Provider<ProgressRestoreRecoveryController?>.value(
+        value: restoreRecovery,
       ),
       Provider<SpeechService>.value(value: speech),
       Provider<AnalyticsLog>.value(value: analytics),

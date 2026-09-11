@@ -30,4 +30,8 @@ class PreferencesService {
   /// the platform verdict, so after a failed write/remove the cache can run
   /// ahead of disk — reads are only trustworthy again after this.
   Future<void> reload() => _prefs.reload();
+
+  /// Called before a restore transaction writes primaries. In-flight platform
+  /// writes that resume after this must not commit to durable storage.
+  void invalidateInFlightWrites() {}
 }
