@@ -31,7 +31,9 @@ final _priceAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:takai-yasui');
 final _buySmall = kReplyDrills.firstWhere(
   (d) => d.id == 'reply:fuku-chiisai-kau',
 );
-final _heatYes = kReplyDrills.firstWhere((d) => d.id == 'reply:atatame-kudasai');
+final _heatYes = kReplyDrills.firstWhere(
+  (d) => d.id == 'reply:atatame-kudasai',
+);
 
 void _expectSceneKeepsAskHidden(ReplyDrill drill) {
   final widget =
@@ -411,9 +413,7 @@ void main() {
     expect(find.text('えきは どこ'), findsNothing);
   });
 
-  testWidgets('heat-scene はい is independent like あたためて ください', (
-    tester,
-  ) async {
+  testWidgets('heat-scene はい is independent like あたためて ください', (tester) async {
     final env = await pumpReply(tester, drills: [_heatYes]);
     _expectSceneKeepsAskHidden(_heatYes);
     expect(find.text('便當還是涼的，想現在吃。'), findsOneWidget);
@@ -423,6 +423,31 @@ void main() {
     expect(logged[1].meta[AttemptMeta.scored], isTrue);
     expect(logged[1].correct, isTrue);
   });
+
+  testWidgets(
+    '320×640 / 2x heat-scene はい stays independent and does not write SRS',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final env = await pumpReply(
+        tester,
+        drills: [_heatYes],
+        scene: ReplySceneId.convenience,
+        surface: const Size(320, 640),
+      );
+      _expectSceneKeepsAskHidden(_heatYes);
+      await _hearThenPick(tester, intent: '問要不要加熱', reply: 'はい');
+      final logged = await env.analytics.all();
+      expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+      expect(logged[1].meta[AttemptMeta.scored], isTrue);
+      expect(logged[1].correct, isTrue);
+      expect(env.words.statForItem('phrase:あたためますか').srsLevel, 0);
+    },
+  );
 
   testWidgets('right-scene みぎです is independent', (tester) async {
     final env = await pumpReply(tester, drills: [_ekiAsk]);
@@ -494,34 +519,35 @@ void main() {
     expect(find.text('（它）便宜'), findsOneWidget);
   });
 
-  testWidgets('cheap-judgment scene たかいです contradicts premise and scores miss', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(320, 640);
-    tester.view.devicePixelRatio = 1;
-    tester.platformDispatcher.textScaleFactorTestValue = 2;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-      tester.platformDispatcher.clearTextScaleFactorTestValue();
-    });
-    final env = await pumpReply(
-      tester,
-      drills: [_priceAsk],
-      surface: const Size(320, 640),
-    );
-    _expectSceneKeepsAskHidden(_priceAsk);
-    expect(find.text('你覺得這個價格很便宜。'), findsOneWidget);
-    expect(find.text('はい'), findsNothing);
-    await _hearThenPick(tester, intent: '問價格貴不貴', reply: 'たかいです');
-    final logged = await env.analytics.all();
-    expect(logged[0].meta[AttemptMeta.heard], isTrue);
-    expect(logged[0].meta[AttemptMeta.prompted], isFalse);
-    expect(logged[0].meta[AttemptMeta.hinted], isFalse);
-    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
-    expect(logged[1].meta[AttemptMeta.scored], isTrue);
-    expect(logged[1].correct, isFalse);
-  });
+  testWidgets(
+    'cheap-judgment scene たかいです contradicts premise and scores miss',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      final env = await pumpReply(
+        tester,
+        drills: [_priceAsk],
+        surface: const Size(320, 640),
+      );
+      _expectSceneKeepsAskHidden(_priceAsk);
+      expect(find.text('你覺得這個價格很便宜。'), findsOneWidget);
+      expect(find.text('はい'), findsNothing);
+      await _hearThenPick(tester, intent: '問價格貴不貴', reply: 'たかいです');
+      final logged = await env.analytics.all();
+      expect(logged[0].meta[AttemptMeta.heard], isTrue);
+      expect(logged[0].meta[AttemptMeta.prompted], isFalse);
+      expect(logged[0].meta[AttemptMeta.hinted], isFalse);
+      expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+      expect(logged[1].meta[AttemptMeta.scored], isTrue);
+      expect(logged[1].correct, isFalse);
+    },
+  );
 
   testWidgets('take-it-home scene いいえ is a scored miss without はい', (
     tester,

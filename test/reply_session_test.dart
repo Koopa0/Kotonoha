@@ -384,10 +384,12 @@ void main() {
     final rice = byId['reply:hoka-gohan']!;
     final bill = byId['reply:hoka-kaikei']!;
     expect(rice.sceneZh, contains('還沒送上來'));
+    expect(rice.sceneZh, isNot(contains('想請')));
     expect(rice.replyCorrectKana, 'ごはんを ください');
     expect(rice.replyWrongKana, isNot(contains('いいえ')));
     expect(rice.replyWrongKana, contains('かいけいを おねがい'));
     expect(bill.replyCorrectKana, 'かいけいを おねがい');
+    expect(bill.replyWrongKana, isNot(contains('ごはんを ください')));
   });
 
   test('ふくろは いりますか scenes split はい and いいえ', () {
