@@ -58,13 +58,19 @@ void main() {
         clock: () => DateTime(2026, 9, 10, 10),
       );
 
-      await tester.tap(find.text(AppStrings.shiftAction));
+      await _tap(tester, find.text(AppStrings.shiftAction));
+      await _waitFor(tester, find.text(AppStrings.shiftHoldStart));
+      await _tap(tester, find.text(AppStrings.shiftHoldStart));
+      await _waitFor(tester, find.text(AppStrings.iReadUnprompted));
+      await _tap(tester, find.text(AppStrings.iReadUnprompted));
+      await _waitFor(tester, find.text(AppStrings.iReadIt));
+      await _tap(tester, find.text(AppStrings.iReadIt));
+      await tester.enterText(find.byType(TextField), '自評用筆記');
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text(AppStrings.shiftHoldStart));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      await _completeBeat(tester);
+      await _tap(tester, find.text(AppStrings.shiftSenseReady));
+      await _waitFor(tester, find.text(AppStrings.shiftSenseOk));
+      await _tap(tester, find.text(AppStrings.shiftSenseOk));
+      await _waitFor(tester, find.text(AppStrings.persistRetry));
 
       expect(find.text(AppStrings.persistFailedLine), findsWidgets);
       expect(find.text(AppStrings.shiftPersistFailed), findsWidgets);
@@ -78,12 +84,10 @@ void main() {
       expect(await cold.count(), 0);
 
       analytics.debugAppend = null;
-      await tester.tap(find.text(AppStrings.persistRetry));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+      await _tap(tester, find.text(AppStrings.persistRetry));
+      await _waitFor(tester, find.text(AppStrings.shiftHeldUntilTomorrow));
 
       expect(analytics.unpersistedCount, 0);
-      expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
       expect(find.text(AppStrings.persistFailedLine), findsNothing);
       final reopened = FileAnalyticsLog.forFile(file);
       expect(await reopened.count(), 6);
@@ -120,31 +124,20 @@ Future<void> _pumpHome(
     ),
   );
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(const Duration(milliseconds: 50));
 }
 
-Future<void> _completeBeat(WidgetTester tester) async {
-  await _tapVisible(tester, find.text(AppStrings.iReadUnprompted));
-  await _tapVisible(tester, find.text(AppStrings.iReadIt));
-  await tester.enterText(find.byType(TextField), '自評用筆記');
+Future<void> _tap(WidgetTester tester, Finder finder) async {
+  expect(finder, findsWidgets);
+  await tester.tap(finder.first);
   await tester.pump();
-  await _tapVisible(tester, find.text(AppStrings.shiftSenseReady));
-  await _tapVisible(tester, find.text(AppStrings.shiftSenseOk));
-  await tester.pump(const Duration(seconds: 1));
+  await tester.pump(const Duration(milliseconds: 50));
 }
 
-Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
-  if (finder.evaluate().isEmpty) {
-    await tester.scrollUntilVisible(
-      finder,
-      280,
-      scrollable: find.byType(Scrollable).last,
-    );
-  } else {
-    await tester.ensureVisible(finder);
+Future<void> _waitFor(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 40; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+    if (finder.evaluate().isNotEmpty) return;
   }
-  await tester.pump();
-  await tester.tap(finder);
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 200));
+  fail('never found $finder');
 }
