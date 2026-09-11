@@ -11,6 +11,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/data/shift_dataset.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
@@ -64,6 +65,8 @@ void main() {
     expect(find.text('い／な形容詞修飾'), findsOneWidget);
     expect(find.text('あおい + 名詞'), findsOneWidget);
     expect(find.text('しずかな + 名詞'), findsOneWidget);
+    expect(find.text(kBringFocusTitle), findsOneWidget);
+    expect(find.text('換主角 わたし → かれ'), findsOneWidget);
 
     await tester.enterText(
       find.byType(TextField),
@@ -348,6 +351,161 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('しずかな まち'), findsOneWidget);
   });
+
+  testWidgets(
+    'action drill teaches forms first, then grades verb and roles apart',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      final drill = ShiftSession.drillById('bring-actor-watashi-kare')!;
+      await tester.binding.setSurfaceSize(const Size(420, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          words: words,
+          child: ShiftPracticeScreen(
+            drill: drill,
+            sourceUrl: 'https://example.test/note',
+            clock: () => DateTime(2026, 9, 11, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.shiftIntroLead), findsOneWidget);
+      expect(find.text('わたしが かばんを もってきます'), findsNothing);
+      expect(find.text('かれが かばんを もってきます'), findsNothing);
+      expect(find.text('藍色的天空'), findsNothing);
+      await _finishIntro(tester);
+      expect(find.text('わたしが かばんを もってきます'), findsOneWidget);
+      expect(find.text('watashi ga kaban o mottekimasu'), findsNothing);
+      expect(find.text('我把包包帶過來。'), findsNothing);
+      expect(find.text(AppStrings.shiftVerbPrompt), findsNothing);
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      expect(find.text('watashi ga kaban o mottekimasu'), findsOneWidget);
+      expect(find.text('我把包包帶過來。'), findsNothing);
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+
+      var logged = await analytics.all();
+      expect(logged, hasLength(1));
+      expect(logged.single.meta[AttemptMeta.evidence], ShiftCheck.read.name);
+      expect(logged.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
+
+      expect(find.text(AppStrings.shiftVerbPrompt), findsOneWidget);
+      expect(find.text(drill.formHint), findsNothing);
+      await tester.tap(find.text('もってきます'));
+      await tester.pumpAndSettle();
+      logged = await analytics.all();
+      expect(logged, hasLength(2));
+      expect(logged.last.meta[AttemptMeta.evidence], ShiftCheck.verb.name);
+      expect(logged.last.correct, isFalse);
+      expect(logged.last.meta[AttemptMeta.prompted], isFalse);
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+
+      expect(find.text(AppStrings.shiftRolesWho), findsOneWidget);
+      await tester.tap(find.text('かれ'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ほん'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftRolesReady));
+      await tester.pumpAndSettle();
+      logged = await analytics.all();
+      expect(logged, hasLength(3));
+      expect(logged.last.meta[AttemptMeta.evidence], ShiftCheck.roles.name);
+      expect(logged.last.correct, isFalse);
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+
+      await tester.enterText(find.byType(TextField), drill.base.meaning);
+      await tester.pumpAndSettle();
+      expect(await analytics.all(), hasLength(3));
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+      expect(find.text('我把包包帶過來。'), findsOneWidget);
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pumpAndSettle();
+
+      expect(find.text('かれが かばんを もってきます'), findsOneWidget);
+      expect(find.text(AppStrings.shiftBridgeActor), findsOneWidget);
+      expect(find.text('kare ga kaban o mottekimasu'), findsNothing);
+
+      await tester.tap(find.text(AppStrings.recallHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
+      await tester.pumpAndSettle();
+      await _tapVisible(tester, find.text(AppStrings.shiftVerbHint));
+      expect(find.text(drill.formHint), findsOneWidget);
+      await tester.tap(find.text('もってくる'));
+      await tester.pumpAndSettle();
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+      await _tapVisible(tester, find.text(AppStrings.shiftRolesHint));
+      await tester.tap(find.text('かれ').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('かばん').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftRolesReady));
+      await tester.pumpAndSettle();
+      await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+      await tester.enterText(find.byType(TextField), '他把包包帶過來。');
+      await tester.tap(find.text(AppStrings.shiftSenseHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
+      await tester.pumpAndSettle();
+
+      logged = await analytics.all();
+      expect(logged, hasLength(8));
+      expect(logged[3].meta[AttemptMeta.evidence], ShiftCheck.sense.name);
+      expect(logged[3].meta[AttemptMeta.beat], ShiftBeat.base.name);
+      expect(logged[4].meta[AttemptMeta.beat], ShiftBeat.shift.name);
+      expect(logged[4].meta[AttemptMeta.evidence], ShiftCheck.read.name);
+      expect(logged[4].meta[AttemptMeta.prompted], isTrue);
+      expect(logged[5].meta[AttemptMeta.evidence], ShiftCheck.verb.name);
+      expect(logged[5].correct, isTrue);
+      expect(logged[5].meta[AttemptMeta.prompted], isTrue);
+      expect(ShiftSession.isTransferVerb(logged[5]), isTrue);
+      expect(logged[6].meta[AttemptMeta.evidence], ShiftCheck.roles.name);
+      expect(logged[6].correct, isTrue);
+      expect(ShiftSession.isTransferRoles(logged[6]), isTrue);
+      expect(logged[7].meta[AttemptMeta.evidence], ShiftCheck.sense.name);
+      expect(logged[7].meta[AttemptMeta.source], 'https://example.test/note');
+      expect(ShiftSession.isTransferSense(logged[7]), isTrue);
+      expect(ShiftSession.marksFocusMastered(logged), isFalse);
+      expect(find.text(AppStrings.shiftClose), findsOneWidget);
+      expect(words.stats, isEmpty);
+    },
+  );
+
+  testWidgets('320x640 2x action intro stays reachable then completes a beat', (
+    tester,
+  ) async {
+    _configureView(
+      tester,
+      size: const Size(320, 640),
+      textScale: 2,
+      keyboardInset: 300,
+    );
+    final analytics = InMemoryAnalyticsLog();
+    final drill = ShiftSession.drillById('bring-item-hon-mizu')!;
+    await tester.pumpWidget(
+      _harness(
+        analytics: analytics,
+        child: ShiftPracticeScreen(
+          drill: drill,
+          clock: () => DateTime(2026, 9, 11, 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await _finishIntro(tester);
+    expect(find.text('かのじょが ほんを もってきます'), findsOneWidget);
+    await _completeActionBeat(tester, drill.base, unprompted: true);
+    expect(find.text('かのじょが みずを もってきます'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Widget _harness({
@@ -430,6 +588,49 @@ Future<void> _openShizukaFromHome(
   }
   await _tapVisible(tester, find.text(AppStrings.shiftStart));
   expect(find.text('しずかな へや'), findsOneWidget);
+}
+
+Future<void> _finishIntro(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    final label = i < 3 ? AppStrings.shiftIntroNext : AppStrings.shiftIntroDone;
+    await _tapVisible(tester, find.text(label));
+  }
+}
+
+Future<void> _completeActionBeat(
+  WidgetTester tester,
+  ShiftSentence sentence, {
+  required bool unprompted,
+}) async {
+  await _tapVisible(
+    tester,
+    find.text(unprompted ? AppStrings.iReadUnprompted : AppStrings.recallHint),
+  );
+  await _tapVisible(
+    tester,
+    find.text(unprompted ? AppStrings.iReadIt : AppStrings.iReadAfterHint),
+  );
+  await _tapVisible(tester, find.text(sentence.dictionaryForm));
+  await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+  await _tapVisible(tester, find.text(sentence.actor).last);
+  await _tapVisible(tester, find.text(sentence.item).last);
+  await _tapVisible(tester, find.text(AppStrings.shiftRolesReady));
+  await _tapVisible(tester, find.text(AppStrings.shiftContinue));
+  await _show(tester, find.byType(TextField));
+  await tester.enterText(find.byType(TextField), '自評用筆記');
+  await tester.pumpAndSettle();
+  await _tapVisible(
+    tester,
+    find.text(
+      unprompted ? AppStrings.shiftSenseReady : AppStrings.shiftSenseHint,
+    ),
+  );
+  await _tapVisible(
+    tester,
+    find.text(
+      unprompted ? AppStrings.shiftSenseOk : AppStrings.shiftSenseOkAfterHint,
+    ),
+  );
 }
 
 Future<void> _completeBeat(

@@ -296,6 +296,8 @@ abstract final class AppStrings {
   static const String shiftSourceHint = '只作備註,不會抓內容或同步帳號';
   static const String shiftStart = '開始這組';
   static const String shiftSensePrompt = '這句是誰修飾誰?可用中文或假名寫下你的理解。';
+  static const String shiftActionSensePrompt =
+      '這句是誰把什麼帶過來?可用中文或假名寫下你的理解。';
   static const String shiftSenseHint = '看句意';
   static const String shiftSenseReady = '我想好了';
   static const String shiftSensePadHint = '寫給自己看,不會自動批改';
@@ -304,11 +306,26 @@ abstract final class AppStrings {
   static const String shiftSenseMiss = '句意還對不上';
   static const String shiftBridgeNoun = '下一句換了被修飾的名詞。先自己讀,再想誰修飾誰。';
   static const String shiftBridgeModifier = '下一句換了修飾詞。先自己讀,再想誰修飾誰。';
+  static const String shiftBridgeActor = '下一句換了做這件事的人。先自己讀,再想誰把什麼帶過來。';
+  static const String shiftBridgeItem = '下一句換了帶過來的東西。先自己讀,再想誰把什麼帶過來。';
+  static const String shiftIntroLead = '先看這回會用到的詞和形式。這不是測驗,看過再讀完整句。';
+  static const String shiftIntroNext = '下一個';
+  static const String shiftIntroDone = '看過了,開始讀句';
+  static const String shiftVerbPrompt = '這句的動詞,辭書形是哪一個?';
+  static const String shiftVerbHint = '看形式對照';
+  static const String shiftRolesPrompt = '誰把什麼帶過來?';
+  static const String shiftRolesWho = '誰在做?';
+  static const String shiftRolesWhat = '帶過來的是什麼?';
+  static const String shiftRolesHint = '看誰／什麼';
+  static const String shiftRolesReady = '確認';
+  static const String shiftContinue = '繼續';
   static const String shiftClose = '這一回,先練到這裡。';
   static const String shiftCloseNote =
-      '無提示讀音、提示後讀音、換句後的句意是分開記下的自評。'
+      '讀音、動詞還原、誰做／做什麼、句意是分開記下的。'
+      '有唯一結構答案的題可以判對錯;中文理由仍是自評。'
       '這一題不會把整個文法點、章節或相關詞句標成掌握。';
   static String shiftSourceChip(String url) => '來源備註 $url';
+  static String shiftIntroProgress(int current, int total) => '先介紹 $current / $total';
 
   // 短く返す — hear a station ask, pick the intent, pick a short reply.
   // Isolated from #47 scene membership and #9 聞き取り self-grade.

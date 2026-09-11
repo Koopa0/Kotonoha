@@ -10,13 +10,16 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:provider/provider.dart';
 
-/// Original swap-sentence practice: read first, then sense / who-modifies-whom.
-/// Hints do not leak the other check. Free-text is never auto-graded. Evidence
-/// is logged per beat and check; word / phrase SRS is never touched.
+/// Original swap-sentence practice: teach new forms first, then read, then
+/// (for action drills) restore the dictionary form and name who / what,
+/// then sense. Hints do not leak another check. Free-text is never
+/// auto-graded. Evidence is logged per beat and check; word / phrase SRS
+/// is never touched.
 class ShiftPracticeScreen extends StatefulWidget {
   const ShiftPracticeScreen({
     required this.drill,
@@ -44,7 +47,17 @@ class ShiftPracticeScreen extends StatefulWidget {
   State<ShiftPracticeScreen> createState() => _ShiftPracticeScreenState();
 }
 
-enum _Phase { readCommit, readGrade, senseCommit, senseGrade }
+enum _Phase {
+  intro,
+  readCommit,
+  readGrade,
+  verbAsk,
+  verbReveal,
+  rolesAsk,
+  rolesReveal,
+  senseCommit,
+  senseGrade,
+}
 
 class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -54,9 +67,15 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   int? _ownedPlay;
   bool _playable = true;
   ShiftBeat _beat = ShiftBeat.base;
-  _Phase _phase = _Phase.readCommit;
+  late _Phase _phase;
+  int _introIndex = 0;
   bool _readUnprompted = false;
   bool _senseUnprompted = false;
+  bool _verbPrompted = false;
+  bool _rolesPrompted = false;
+  String? _pickedVerb;
+  String? _pickedActor;
+  String? _pickedItem;
   bool _done = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
@@ -64,6 +83,10 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   ShiftSentence get _sentence => widget.drill.sentenceAt(_beat);
 
   String get _say => _sentence.kana.replaceAll(' ', '');
+
+  bool get _action => widget.drill.isAction;
+
+  List<ShiftIntroCard> get _intro => widget.drill.introduce;
 
   @override
   void initState() {
@@ -77,6 +100,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onResume: () => _playable = true,
     );
     _playable = _foreground;
+    _phase = _intro.isEmpty ? _Phase.readCommit : _Phase.intro;
   }
 
   @override
@@ -101,10 +125,20 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     }
   }
 
-  void _speak() {
+  void _speakText(String kana) {
     if (!mounted || !_playable || !_foreground) return;
-    unawaited(_speech.speak(_say));
+    unawaited(_speech.speak(kana.replaceAll(' ', '')));
     _ownedPlay = _speech.generation;
+  }
+
+  void _speak() => _speakText(_say);
+
+  void _advanceIntro() {
+    if (_introIndex + 1 < _intro.length) {
+      setState(() => _introIndex += 1);
+      return;
+    }
+    setState(() => _phase = _Phase.readCommit);
   }
 
   void _commitRead({required bool unprompted}) {
@@ -117,6 +151,55 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   void _gradeRead({required bool correct}) {
     _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
+    setState(() => _phase = _action ? _Phase.verbAsk : _Phase.senseCommit);
+  }
+
+  void _hintVerb() {
+    setState(() => _verbPrompted = true);
+  }
+
+  void _pickVerb(String choice) {
+    if (_pickedVerb != null) return;
+    final correct = ShiftSession.gradesVerb(choice, _sentence);
+    _record(ShiftCheck.verb, prompted: _verbPrompted, correct: correct);
+    setState(() {
+      _pickedVerb = choice;
+      _phase = _Phase.verbReveal;
+    });
+  }
+
+  void _afterVerb() {
+    setState(() => _phase = _Phase.rolesAsk);
+  }
+
+  void _hintRoles() {
+    setState(() => _rolesPrompted = true);
+  }
+
+  void _selectActor(String choice) {
+    if (_phase != _Phase.rolesAsk) return;
+    setState(() => _pickedActor = choice);
+  }
+
+  void _selectItem(String choice) {
+    if (_phase != _Phase.rolesAsk) return;
+    setState(() => _pickedItem = choice);
+  }
+
+  void _lockRoles() {
+    final actor = _pickedActor;
+    final item = _pickedItem;
+    if (actor == null || item == null) return;
+    final correct = ShiftSession.gradesRoles(
+      actor: actor,
+      item: item,
+      sentence: _sentence,
+    );
+    _record(ShiftCheck.roles, prompted: _rolesPrompted, correct: correct);
+    setState(() => _phase = _Phase.rolesReveal);
+  }
+
+  void _afterRoles() {
     setState(() => _phase = _Phase.senseCommit);
   }
 
@@ -136,6 +219,11 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         _phase = _Phase.readCommit;
         _readUnprompted = false;
         _senseUnprompted = false;
+        _verbPrompted = false;
+        _rolesPrompted = false;
+        _pickedVerb = null;
+        _pickedActor = null;
+        _pickedItem = null;
       });
       return;
     }
@@ -181,6 +269,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   Widget _body() {
+    if (_phase == _Phase.intro) return _introBody();
     final source = widget.sourceUrl?.trim();
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -229,9 +318,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                             children: [
                               if (_beat == ShiftBeat.shift) ...[
                                 Text(
-                                  widget.drill.change == ShiftChange.noun
-                                      ? AppStrings.shiftBridgeNoun
-                                      : AppStrings.shiftBridgeModifier,
+                                  _bridgeCopy(),
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     color: AppColors.inkMuted,
@@ -271,8 +358,153 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     );
   }
 
+  Widget _introBody() {
+    final card = _intro[_introIndex];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    children: [
+                      Text(
+                        AppStrings.shiftIntroProgress(
+                          _introIndex + 1,
+                          _intro.length,
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.shiftIntroLead,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          height: 1.55,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: AppColors.hairline),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                          child: Column(
+                            children: [
+                              Text(
+                                card.title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              for (final line in card.lines) ...[
+                                Text(
+                                  line.kana,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    height: 1.2,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  line.romaji,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  line.meaning,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.ink,
+                                    height: 1.45,
+                                  ),
+                                ),
+                                if (line.note.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      line.note,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.inkMuted,
+                                        height: 1.45,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                SpeakButton(
+                                  text: line.kana.replaceAll(' ', ''),
+                                  size: 28,
+                                  onPlay: () => _speakText(line.kana),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: FilledButton(
+                      onPressed: _advanceIntro,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                      ),
+                      child: Text(
+                        _introIndex + 1 < _intro.length
+                            ? AppStrings.shiftIntroNext
+                            : AppStrings.shiftIntroDone,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _bridgeCopy() {
+    switch (widget.drill.change) {
+      case ShiftChange.noun:
+        return AppStrings.shiftBridgeNoun;
+      case ShiftChange.modifier:
+        return AppStrings.shiftBridgeModifier;
+      case ShiftChange.actor:
+        return AppStrings.shiftBridgeActor;
+      case ShiftChange.item:
+        return AppStrings.shiftBridgeItem;
+    }
+  }
+
   List<Widget> _phaseCopy() {
     switch (_phase) {
+      case _Phase.intro:
+        return const [];
       case _Phase.readCommit:
         return const [
           Text(
@@ -294,7 +526,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           ),
           SpeakButton(text: _say, size: 30, onPlay: _speak),
         ];
-      case _Phase.senseCommit:
+      case _Phase.verbAsk:
+      case _Phase.verbReveal:
         return [
           Text(
             _sentence.romaji,
@@ -306,9 +539,119 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           ),
           const SizedBox(height: 12),
           const Text(
-            AppStrings.shiftSensePrompt,
+            AppStrings.shiftVerbPrompt,
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          if (_verbPrompted || _phase == _Phase.verbReveal) ...[
+            const SizedBox(height: 8),
+            Text(
+              widget.drill.formHint,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+          ],
+          const SizedBox(height: 12),
+          for (final choice in _sentence.verbChoices)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnswerOptionButton(
+                label: choice,
+                fontSize: 22,
+                state: _verbState(choice),
+                onTap: _pickedVerb == null ? () => _pickVerb(choice) : null,
+              ),
+            ),
+        ];
+      case _Phase.rolesAsk:
+      case _Phase.rolesReveal:
+        return [
+          Text(
+            _sentence.romaji,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            AppStrings.shiftRolesPrompt,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          if (_rolesPrompted || _phase == _Phase.rolesReveal) ...[
+            const SizedBox(height: 8),
+            Text(
+              _sentence.relation,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+          ],
+          const SizedBox(height: 12),
+          const Text(
+            AppStrings.shiftRolesWho,
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          for (final choice in _sentence.actorChoices)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnswerOptionButton(
+                label: choice,
+                fontSize: 22,
+                state: _roleState(
+                  choice,
+                  picked: _pickedActor,
+                  answer: _sentence.actor,
+                  revealed: _phase == _Phase.rolesReveal,
+                ),
+                onTap: _phase == _Phase.rolesAsk
+                    ? () => _selectActor(choice)
+                    : null,
+              ),
+            ),
+          const SizedBox(height: 8),
+          const Text(
+            AppStrings.shiftRolesWhat,
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          for (final choice in _sentence.itemChoices)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnswerOptionButton(
+                label: choice,
+                fontSize: 22,
+                state: _roleState(
+                  choice,
+                  picked: _pickedItem,
+                  answer: _sentence.item,
+                  revealed: _phase == _Phase.rolesReveal,
+                ),
+                onTap: _phase == _Phase.rolesAsk
+                    ? () => _selectItem(choice)
+                    : null,
+              ),
+            ),
+        ];
+      case _Phase.senseCommit:
+        return [
+          Text(
+            _sentence.romaji,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _action
+                ? AppStrings.shiftActionSensePrompt
+                : AppStrings.shiftSensePrompt,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -358,8 +701,35 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     }
   }
 
+  OptionState _verbState(String choice) {
+    if (_pickedVerb == null) return OptionState.idle;
+    final ok = ShiftSession.gradesVerb(choice, _sentence);
+    if (choice == _pickedVerb) {
+      return ok ? OptionState.correct : OptionState.wrong;
+    }
+    return ok ? OptionState.revealed : OptionState.dimmed;
+  }
+
+  OptionState _roleState(
+    String choice, {
+    required String? picked,
+    required String answer,
+    required bool revealed,
+  }) {
+    if (!revealed) {
+      return choice == picked ? OptionState.correct : OptionState.idle;
+    }
+    if (choice == answer) {
+      return choice == picked ? OptionState.correct : OptionState.revealed;
+    }
+    if (choice == picked) return OptionState.wrong;
+    return OptionState.dimmed;
+  }
+
   Widget _actions() {
     switch (_phase) {
+      case _Phase.intro:
+        return const SizedBox.shrink();
       case _Phase.readCommit:
         return _pair(
           outlined: AppStrings.recallHint,
@@ -376,6 +746,55 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           danger: true,
           onOutlined: () => _gradeRead(correct: false),
           onFilled: () => _gradeRead(correct: true),
+        );
+      case _Phase.verbAsk:
+        return _verbPrompted
+            ? const SizedBox.shrink()
+            : OutlinedButton(
+                onPressed: _hintVerb,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                ),
+                child: const Text(AppStrings.shiftVerbHint),
+              );
+      case _Phase.verbReveal:
+        return FilledButton(
+          onPressed: _afterVerb,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(54),
+          ),
+          child: const Text(AppStrings.shiftContinue),
+        );
+      case _Phase.rolesAsk:
+        return Column(
+          children: [
+            if (!_rolesPrompted)
+              OutlinedButton(
+                onPressed: _hintRoles,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                ),
+                child: const Text(AppStrings.shiftRolesHint),
+              ),
+            if (!_rolesPrompted) const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _pickedActor != null && _pickedItem != null
+                  ? _lockRoles
+                  : null,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+              ),
+              child: const Text(AppStrings.shiftRolesReady),
+            ),
+          ],
+        );
+      case _Phase.rolesReveal:
+        return FilledButton(
+          onPressed: _afterRoles,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(54),
+          ),
+          child: const Text(AppStrings.shiftContinue),
         );
       case _Phase.senseCommit:
         return _pair(

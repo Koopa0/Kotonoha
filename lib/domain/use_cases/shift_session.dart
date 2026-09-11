@@ -5,11 +5,15 @@ import 'package:kotonoha/domain/data/shift_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 
-/// Composes the 換句 picker and the analytics shape for one self-grade.
+/// Composes the 換句 picker and the analytics shape for one judgement.
 ///
-/// Evidence stays per drill / beat / check. A correct self-grade never
-/// masters a focus, a Satori chapter, or a sibling sentence. Free-text
-/// explanations are not an input here — the screen must not send them.
+/// Evidence stays per drill / beat / check. A correct self-grade or a
+/// unique-structure hit never masters a focus, a Satori chapter, or a
+/// sibling sentence. Free-text explanations are not an input here — the
+/// screen must not send them as a grade.
+///
+/// Exposure / next-day reservation stay with #73. This type only names
+/// which checks a drill emits so history can display them.
 ///
 /// Pure logic: no `package:flutter/*` imports.
 abstract final class ShiftSession {
@@ -34,6 +38,20 @@ abstract final class ShiftSession {
       if (drill.id == id) return drill;
     }
     return null;
+  }
+
+  /// Adjective drills keep read → sense. Action drills insert verb and
+  /// roles after reading, still before free-text sense.
+  static List<ShiftCheck> checksFor(ShiftDrill drill) {
+    if (drill.isAction) {
+      return const [
+        ShiftCheck.read,
+        ShiftCheck.verb,
+        ShiftCheck.roles,
+        ShiftCheck.sense,
+      ];
+    }
+    return const [ShiftCheck.read, ShiftCheck.sense];
   }
 
   static String itemId(ShiftDrill drill, ShiftBeat beat) =>
@@ -68,6 +86,25 @@ abstract final class ShiftSession {
     );
   }
 
+  /// Unique dictionary-form answer. Teaching must have listed [picked]
+  /// on the intro cards before the screen offers it.
+  static bool gradesVerb(String picked, ShiftSentence sentence) {
+    final answer = sentence.dictionaryForm.trim();
+    return answer.isNotEmpty && picked.trim() == answer;
+  }
+
+  /// Unique who / what answer. Free Chinese is not an input.
+  static bool gradesRoles({
+    required String actor,
+    required String item,
+    required ShiftSentence sentence,
+  }) {
+    return actor.trim() == sentence.actor.trim() &&
+        item.trim() == sentence.item.trim() &&
+        sentence.actor.isNotEmpty &&
+        sentence.item.isNotEmpty;
+  }
+
   /// Transfer evidence is the sense check on the swapped sentence.
   /// Prompted and unprompted stay distinct; neither masters the focus.
   static bool isTransferSense(Attempt attempt) =>
@@ -75,8 +112,19 @@ abstract final class ShiftSession {
       attempt.meta[AttemptMeta.beat] == ShiftBeat.shift.name &&
       attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name;
 
-  /// A self-grade — even an unprompted transfer success — must never mark
-  /// the focus, a chapter, or sibling drills as mastered.
+  static bool isTransferVerb(Attempt attempt) =>
+      attempt.mode == PracticeMode.shift.name &&
+      attempt.meta[AttemptMeta.beat] == ShiftBeat.shift.name &&
+      attempt.meta[AttemptMeta.evidence] == ShiftCheck.verb.name;
+
+  static bool isTransferRoles(Attempt attempt) =>
+      attempt.mode == PracticeMode.shift.name &&
+      attempt.meta[AttemptMeta.beat] == ShiftBeat.shift.name &&
+      attempt.meta[AttemptMeta.evidence] == ShiftCheck.roles.name;
+
+  /// A self-grade or a structural hit — even an unprompted transfer
+  /// success — must never mark the focus, a chapter, or sibling drills
+  /// as mastered.
   static bool marksFocusMastered(Iterable<Attempt> attempts) {
     for (final _ in attempts) {
       return false;

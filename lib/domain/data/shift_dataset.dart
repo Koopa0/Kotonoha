@@ -6,8 +6,10 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 /// Human-checked original swap-sentence drills. These are NOT Satori lines,
 /// NOT the 黙読 / travel phrase pool, and never fetched from a source URL.
 ///
-/// This slice holds one focus — い／な adjective modification — with two
-/// drills so the learner can name today's stuck point without a Dart edit.
+/// Slice 1 — い／な adjective modification (two noun swaps).
+/// Slice 2 — 「帶過來」action sentences: actor / item / dictionary form.
+/// Meanings, particles, and role notes were checked by hand. Tests must not
+/// treat a dataset self-echo as that review.
 const List<ShiftDrill> kShiftDrills = <ShiftDrill>[
   ShiftDrill(
     id: 'i-adj-aoi-noun',
@@ -55,4 +57,257 @@ const List<ShiftDrill> kShiftDrills = <ShiftDrill>[
       relation: '「しずかな」修飾「まち」——安靜的,是在說街。',
     ),
   ),
+  ShiftDrill(
+    id: 'bring-actor-watashi-kare',
+    focusId: kBringFocusId,
+    focusTitle: kBringFocusTitle,
+    label: '換主角 わたし → かれ',
+    change: ShiftChange.actor,
+    introduce: kBringIntro,
+    formHint: kBringFormHint,
+    base: _bring(
+      actor: 'わたし',
+      item: 'かばん',
+      verbForm: 'もってきます',
+      romaji: 'watashi ga kaban o mottekimasu',
+      meaning: '我把包包帶過來。',
+      relation: '「わたし」是做的人,「かばん」是帶過來的東西。',
+      verbChoices: const ['もってきます', 'もってくる', 'もってきました'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+    shift: _bring(
+      actor: 'かれ',
+      item: 'かばん',
+      verbForm: 'もってきます',
+      romaji: 'kare ga kaban o mottekimasu',
+      meaning: '他把包包帶過來。',
+      relation: '「かれ」是做的人,「かばん」是帶過來的東西。',
+      verbChoices: const ['もってくる', 'もってきました', 'もってきます'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+  ),
+  ShiftDrill(
+    id: 'bring-item-hon-mizu',
+    focusId: kBringFocusId,
+    focusTitle: kBringFocusTitle,
+    label: '換物品 ほん → みず',
+    change: ShiftChange.item,
+    introduce: kBringIntro,
+    formHint: kBringFormHint,
+    base: _bring(
+      actor: 'かのじょ',
+      item: 'ほん',
+      verbForm: 'もってきます',
+      romaji: 'kanojo ga hon o mottekimasu',
+      meaning: '她把書帶過來。',
+      relation: '「かのじょ」是做的人,「ほん」是帶過來的東西。',
+      verbChoices: const ['もってきました', 'もってきます', 'もってくる'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+    shift: _bring(
+      actor: 'かのじょ',
+      item: 'みず',
+      verbForm: 'もってきます',
+      romaji: 'kanojo ga mizu o mottekimasu',
+      meaning: '她把水帶過來。',
+      relation: '「かのじょ」是做的人,「みず」是帶過來的東西。',
+      verbChoices: const ['もってきます', 'もってくる', 'もってきました'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+  ),
+  ShiftDrill(
+    id: 'bring-actor-kare-watashi',
+    focusId: kBringFocusId,
+    focusTitle: kBringFocusTitle,
+    label: '換主角 かれ → わたし',
+    change: ShiftChange.actor,
+    introduce: kBringIntro,
+    formHint: kBringFormHint,
+    base: _bring(
+      actor: 'かれ',
+      item: 'かさ',
+      verbForm: 'もってきます',
+      romaji: 'kare ga kasa o mottekimasu',
+      meaning: '他把傘帶過來。',
+      relation: '「かれ」是做的人,「かさ」是帶過來的東西。',
+      verbChoices: const ['もってくる', 'もってきます', 'もってきました'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+    shift: _bring(
+      actor: 'わたし',
+      item: 'かさ',
+      verbForm: 'もってきます',
+      romaji: 'watashi ga kasa o mottekimasu',
+      meaning: '我把傘帶過來。',
+      relation: '「わたし」是做的人,「かさ」是帶過來的東西。',
+      verbChoices: const ['もってきました', 'もってくる', 'もってきます'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+  ),
+  ShiftDrill(
+    id: 'bring-item-mizu-hon',
+    focusId: kBringFocusId,
+    focusTitle: kBringFocusTitle,
+    label: '換物品 みず → ほん',
+    change: ShiftChange.item,
+    introduce: kBringIntro,
+    formHint: kBringFormHint,
+    base: _bring(
+      actor: 'わたし',
+      item: 'みず',
+      verbForm: 'もってきます',
+      romaji: 'watashi ga mizu o mottekimasu',
+      meaning: '我把水帶過來。',
+      relation: '「わたし」是做的人,「みず」是帶過來的東西。',
+      verbChoices: const ['もってきます', 'もってきました', 'もってくる'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+    shift: _bring(
+      actor: 'わたし',
+      item: 'ほん',
+      verbForm: 'もってきます',
+      romaji: 'watashi ga hon o mottekimasu',
+      meaning: '我把書帶過來。',
+      relation: '「わたし」是做的人,「ほん」是帶過來的東西。',
+      verbChoices: const ['もってくる', 'もってきます', 'もってきました'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+  ),
+  ShiftDrill(
+    id: 'bring-past-actor-kanojo-kare',
+    focusId: kBringFocusId,
+    focusTitle: kBringFocusTitle,
+    label: '換主角（きました）かのじょ → かれ',
+    change: ShiftChange.actor,
+    introduce: kBringIntro,
+    formHint: kBringFormHint,
+    base: _bring(
+      actor: 'かのじょ',
+      item: 'かばん',
+      verbForm: 'もってきました',
+      romaji: 'kanojo ga kaban o mottekimashita',
+      meaning: '她把包包帶過來了。',
+      relation: '「かのじょ」是做的人,「かばん」是帶過來的東西。過去形仍還原成「もってくる」。',
+      verbChoices: const ['もってきました', 'もってくる', 'もってきます'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+    shift: _bring(
+      actor: 'かれ',
+      item: 'かばん',
+      verbForm: 'もってきました',
+      romaji: 'kare ga kaban o mottekimashita',
+      meaning: '他把包包帶過來了。',
+      relation: '「かれ」是做的人,「かばん」是帶過來的東西。過去形仍還原成「もってくる」。',
+      verbChoices: const ['もってきます', 'もってきました', 'もってくる'],
+      actorChoices: kBringActors,
+      itemChoices: kBringItems,
+    ),
+  ),
 ];
+
+const String kBringFocusId = 'bring-over';
+const String kBringFocusTitle = '帶過來：誰／什麼／辭書形';
+const String kBringFormHint =
+    '「もってきます」和「もってきました」都是活用形。辭書形是「もってくる」。';
+
+const List<String> kBringActors = <String>['わたし', 'かれ', 'かのじょ'];
+const List<String> kBringItems = <String>['かばん', 'ほん', 'みず', 'かさ'];
+
+/// Closed first-meeting cards for the bring-over focus. Word lists only —
+/// never a full practice sentence.
+const List<ShiftIntroCard> kBringIntro = <ShiftIntroCard>[
+  ShiftIntroCard(
+    title: '這回的人',
+    lines: [
+      ShiftIntroLine(kana: 'わたし', romaji: 'watashi', meaning: '我'),
+      ShiftIntroLine(kana: 'かれ', romaji: 'kare', meaning: '他'),
+      ShiftIntroLine(kana: 'かのじょ', romaji: 'kanojo', meaning: '她'),
+    ],
+  ),
+  ShiftIntroCard(
+    title: '這回會被帶過來的東西',
+    lines: [
+      ShiftIntroLine(kana: 'かばん', romaji: 'kaban', meaning: '包包'),
+      ShiftIntroLine(kana: 'ほん', romaji: 'hon', meaning: '書'),
+      ShiftIntroLine(kana: 'みず', romaji: 'mizu', meaning: '水'),
+      ShiftIntroLine(kana: 'かさ', romaji: 'kasa', meaning: '傘'),
+    ],
+  ),
+  ShiftIntroCard(
+    title: '先夠用的助詞',
+    lines: [
+      ShiftIntroLine(
+        kana: 'が',
+        romaji: 'ga',
+        meaning: '指出誰在做',
+        note: '跟在人的後面。還不是完整助詞課。',
+      ),
+      ShiftIntroLine(
+        kana: 'を',
+        romaji: 'o',
+        meaning: '指出帶過來的東西',
+        note: '跟在物品後面。還不是完整助詞課。',
+      ),
+    ],
+  ),
+  ShiftIntroCard(
+    title: '帶過來的形式',
+    lines: [
+      ShiftIntroLine(
+        kana: 'もってきます',
+        romaji: 'mottekimasu',
+        meaning: '帶過來（現在／將來的禮貌形）',
+      ),
+      ShiftIntroLine(
+        kana: 'もってきました',
+        romaji: 'mottekimashita',
+        meaning: '帶過來了（過去的禮貌形）',
+      ),
+      ShiftIntroLine(
+        kana: 'もってくる',
+        romaji: 'mottekuru',
+        meaning: '帶過來（辭書形）',
+        note: '查字典時的樣子。還原時找這個,不是句子裡的活用形。',
+      ),
+    ],
+  ),
+];
+
+/// Layout-spaced action sentence. [romaji], [meaning], and [relation] stay
+/// hand-written; this only joins already-checked slots.
+ShiftSentence _bring({
+  required String actor,
+  required String item,
+  required String verbForm,
+  required String romaji,
+  required String meaning,
+  required String relation,
+  required List<String> verbChoices,
+  required List<String> actorChoices,
+  required List<String> itemChoices,
+}) {
+  return ShiftSentence(
+    kana: '$actorが $itemを $verbForm',
+    romaji: romaji,
+    meaning: meaning,
+    modifier: '',
+    head: '',
+    relation: relation,
+    actor: actor,
+    item: item,
+    verbForm: verbForm,
+    dictionaryForm: 'もってくる',
+    verbChoices: verbChoices,
+    actorChoices: actorChoices,
+    itemChoices: itemChoices,
+  );
+}

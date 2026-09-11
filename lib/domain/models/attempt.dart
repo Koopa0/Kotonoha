@@ -39,7 +39,8 @@ abstract final class AttemptMeta {
   static const String playback = 'playback'; // SpeechPlaybackResult.name
   static const String heard = 'heard'; // true only after a completed play
   static const String scored = 'scored'; // false = exposure, not a grade
-  /// Shift-practice check: [ShiftCheck.name] (`read` or `sense`).
+  /// Shift-practice check: [ShiftCheck.name]
+  /// (`read`, `sense`, and action drills also `verb`, `roles`).
   static const String evidence = 'evidence';
 
   /// Shift-practice beat: [ShiftBeat.name] (`base` or `shift`).
