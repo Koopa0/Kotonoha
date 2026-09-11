@@ -280,7 +280,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'iie',
     replyCorrectMeaning: '不用',
     replyWrongKana: ['あたためて ください', 'はい'],
-    requiredSeenIds: ['phrase:あたためますか', 'word:あたためる'],
+    requiredSeenIds: ['phrase:あたためますか', 'word:あたためる', 'word:ください'],
   ),
   ReplyDrill(
     id: 'reply:korede-hai',

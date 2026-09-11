@@ -78,6 +78,21 @@ void main() {
     expect(find.byType(ReplyHubScreen), findsOneWidget);
   }
 
+  Future<void> openSceneReply(WidgetTester tester, String scene) async {
+    await tester.ensureVisible(find.text(AppStrings.travelSceneAction));
+    await tester.tap(find.text(AppStrings.travelSceneAction));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(scene));
+    await tester.tap(find.text(scene));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.replyAction));
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+  }
+
+  DateTime noon() => DateTime(2026, 9, 10, 12);
+
   testWidgets('home keeps 換句、旅の場面 and 短く返す', (tester) async {
     await pumpHome(tester);
     expect(find.text(AppStrings.shiftAction), findsOneWidget);
@@ -229,5 +244,117 @@ void main() {
     expect(find.byType(ReadingScreen), findsOneWidget);
     expect(find.text(AppStrings.replyMeetTitle), findsOneWidget);
     expect(find.text('ふく'), findsNothing);
+  });
+
+  testWidgets('restaurant gohan: unseen ください meets the word, then can start', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnAll(repos.kana);
+    await repos.words.markIntroduced('phrase:なにに しますか', at: noon());
+    await repos.words.markIntroduced('word:ごはん', at: noon());
+    await tester.pumpAndSettle();
+
+    await openSceneReply(tester, AppStrings.travelSceneRestaurant);
+    expect(find.text(AppStrings.replyRestaurantPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyStartAction), findsNothing);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyRestaurantMeetTitle), findsOneWidget);
+    expect(find.text('ごはんを ください'), findsNothing);
+    expect(find.text('かいけいを おねがい'), findsNothing);
+    expect(find.byType(ReplyScreen), findsNothing);
+    if (find.byType(FerryScreen).evaluate().isNotEmpty) {
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pumpAndSettle();
+      expect(find.text('ごはんを ください'), findsNothing);
+    }
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await repos.words.markIntroduced('word:ください', at: noon());
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
+    expect(find.text('問要點什麼'), findsOneWidget);
+    expect(find.text('桌上還沒有主食。'), findsOneWidget);
+    expect(repos.words.statForItem('phrase:ごはんを ください').isSeen, isFalse);
+  });
+
+  testWidgets('restaurant bill: unseen おねがい meets the word, then can start', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnAll(repos.kana);
+    await repos.words.markIntroduced('phrase:ほかに よろしいですか', at: noon());
+    await repos.words.markIntroduced('word:かいけい', at: noon());
+    await tester.pumpAndSettle();
+
+    await openSceneReply(tester, AppStrings.travelSceneRestaurant);
+    expect(find.text(AppStrings.replyStartAction), findsNothing);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyRestaurantMeetTitle), findsOneWidget);
+    expect(find.text('かいけいを おねがい'), findsNothing);
+    expect(find.byType(ReplyScreen), findsNothing);
+    if (find.byType(FerryScreen).evaluate().isNotEmpty) {
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pumpAndSettle();
+      expect(find.text('かいけいを おねがい'), findsNothing);
+    }
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await repos.words.markIntroduced('word:おねがい', at: noon());
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text('問還要不要別的'), findsOneWidget);
+    expect(find.text('吃完了，準備離開。'), findsOneWidget);
+    expect(repos.words.statForItem('phrase:かいけいを おねがい').isSeen, isFalse);
+  });
+
+  testWidgets('convenience heat: unseen ください meets the word, then can start', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnAll(repos.kana);
+    await repos.words.markIntroduced('phrase:あたためますか', at: noon());
+    await repos.words.markIntroduced('word:あたためる', at: noon());
+    await tester.pumpAndSettle();
+
+    await openSceneReply(tester, AppStrings.travelSceneConvenience);
+    expect(find.text(AppStrings.replyConveniencePurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyStartAction), findsNothing);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyConvenienceMeetTitle), findsOneWidget);
+    expect(find.text('あたためて ください'), findsNothing);
+    expect(find.byType(ReplyScreen), findsNothing);
+    if (find.byType(FerryScreen).evaluate().isNotEmpty) {
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pumpAndSettle();
+      expect(find.text('あたためて ください'), findsNothing);
+    }
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await repos.words.markIntroduced('word:ください', at: noon());
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
+    expect(find.text('問要不要加熱'), findsOneWidget);
+    expect(repos.words.statForItem('phrase:あたためて ください').isSeen, isFalse);
   });
 }
