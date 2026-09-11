@@ -30,7 +30,17 @@ void main() {
         for (final id in drill.requiredSeenIds) {
           expect(corpus.where((item) => item.progressId == id), hasLength(1));
         }
+        expect(
+          drill.requiredSeenIds,
+          isNot(contains('phrase:${drill.replyCorrectKana}')),
+        );
       }
+      expect(
+        kReplyDrills
+            .firstWhere((d) => d.id == 'reply:eki-wa-doko')
+            .requiredSeenIds,
+        containsAll(['phrase:えきは どこ', 'word:みぎ']),
+      );
       expect(kPhrases.where((p) => p.kana == 'きょうとです'), isEmpty);
       expect(kPhrases.where((p) => p.kana == 'ここは えきですか'), isEmpty);
       for (final kana in const [
@@ -78,7 +88,13 @@ void main() {
     expect(view.canMeet, isTrue);
     expect(
       view.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({'phrase:どこへ いく', 'phrase:えきは どこ', 'word:ここ', 'word:えき'}),
+      containsAll({
+        'phrase:どこへ いく',
+        'phrase:えきは どこ',
+        'word:ここ',
+        'word:えき',
+        'word:みぎ',
+      }),
     );
     expect(stats, isEmpty);
   });
@@ -100,28 +116,44 @@ void main() {
     }
   });
 
-  test('meeting えきは どこ unlocks both location scenes', () {
+  test('meeting えきは どこ still teaches みぎ／ここ before a scored location reply', () {
     final stats = {'phrase:えきは どこ': seenAt()};
     final view = ReplySession.inspect(learnedChars: allChars, stats: stats);
-    expect(view.ready.map((d) => d.id).toSet(), {
-      'reply:eki-wa-doko',
-      'reply:eki-wa-koko',
-    });
-    expect(view.canPractice, isTrue);
+    expect(view.ready, isEmpty);
+    expect(view.canPractice, isFalse);
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({'word:みぎ', 'word:ここ'}),
+    );
     expect(
       view.unreadRequired.map((i) => i.progressId),
       isNot(contains('phrase:えきは どこ')),
     );
-    final session = ReplySession.compose(
-      learnedChars: allChars,
-      rng: Random(1),
-      stats: stats,
+    expect(
+      ReplySession.compose(
+        learnedChars: allChars,
+        rng: Random(1),
+        stats: stats,
+      ),
+      isEmpty,
     );
-    expect(session.map((d) => d.id).toSet(), {
-      'reply:eki-wa-doko',
-      'reply:eki-wa-koko',
-    });
-    expect(session.map((d) => d.promptKana), isNot(contains('ふく')));
+  });
+
+  test('right-scene waits for みぎ; door-scene waits for ここ', () {
+    final right = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {'phrase:えきは どこ': seenAt(), 'word:みぎ': seenAt()},
+    );
+    expect(right.ready.map((d) => d.id), ['reply:eki-wa-doko']);
+    expect(right.unreadRequired.map((i) => i.progressId), contains('word:ここ'));
+
+    final door = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {'phrase:えきは どこ': seenAt(), 'word:ここ': seenAt()},
+    );
+    expect(door.ready.map((d) => d.id), ['reply:eki-wa-koko']);
+    expect(door.unreadRequired.map((i) => i.progressId), contains('word:みぎ'));
   });
 
   test('recombination drill waits for ここ and えき, not a new phrase id', () {

@@ -36,7 +36,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'migi desu',
     replyCorrectMeaning: '在右邊',
     replyWrongKana: ['はい', 'きょうとです'],
-    requiredSeenIds: ['phrase:えきは どこ'],
+    requiredSeenIds: ['phrase:えきは どこ', 'word:みぎ'],
   ),
   ReplyDrill(
     id: 'reply:eki-wa-koko',
@@ -50,7 +50,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'koko desu',
     replyCorrectMeaning: '就在這裡',
     replyWrongKana: ['はい', 'きょうとです'],
-    requiredSeenIds: ['phrase:えきは どこ'],
+    requiredSeenIds: ['phrase:えきは どこ', 'word:ここ'],
   ),
   ReplyDrill(
     id: 'reply:koko-wa-eki',

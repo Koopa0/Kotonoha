@@ -45,6 +45,8 @@ class ReplyDrill {
   final List<String> replyWrongKana;
 
   /// Existing corpus progress ids that must already have been met.
+  /// Includes the heard ask and any shipped content word whose meaning the
+  /// correct short reply depends on — never a fabricated `phrase:みぎです`.
   final List<String> requiredSeenIds;
 
   String get say => promptKana.replaceAll(' ', '');

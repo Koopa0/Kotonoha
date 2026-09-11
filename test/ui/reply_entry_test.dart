@@ -7,7 +7,9 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
+import 'package:kotonoha/domain/use_cases/reply_session.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -25,11 +27,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  Future<({KanaProgressRepository kana, WordProgressRepository words})>
+  Future<
+    ({
+      KanaProgressRepository kana,
+      WordProgressRepository words,
+      InMemoryAnalyticsLog analytics,
+    })
+  >
   pumpHome(WidgetTester tester) async {
     final kana = await KanaProgressRepository.load();
     final words = await WordProgressRepository.load();
     final kanji = await KanjiReadingRepository.load();
+    final analytics = InMemoryAnalyticsLog();
     await tester.binding.setSurfaceSize(const Size(420, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -46,14 +55,14 @@ void main() {
             ),
           ),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
-          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<AnalyticsLog>.value(value: analytics),
         ],
         child: const MaterialApp(home: HomeScreen()),
       ),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    return (kana: kana, words: words);
+    return (kana: kana, words: words, analytics: analytics);
   }
 
   Future<void> learnAll(KanaProgressRepository kana) async {
@@ -131,7 +140,9 @@ void main() {
     expect(repos.words.seenItemCount, 0);
   });
 
-  testWidgets('seen えきは どこ can start; clothing stays out', (tester) async {
+  testWidgets('seen えきは どこ still meets みぎ before a scored reply', (
+    tester,
+  ) async {
     final repos = await pumpHome(tester);
     await learnAll(repos.kana);
     await repos.words.markIntroduced(
@@ -139,7 +150,49 @@ void main() {
       at: DateTime(2026, 9, 10, 12),
     );
     await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:みぎ').isSeen, isFalse);
     expect(repos.words.statForItem('phrase:えきは どこ').srsLevel, 0);
+
+    await openReply(tester);
+    expect(find.text(AppStrings.replyStartAction), findsNothing);
+    expect(find.byType(ReplyScreen), findsNothing);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyMeetTitle), findsOneWidget);
+    expect(find.text('ふく'), findsNothing);
+    expect(find.text('在右邊'), findsNothing);
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    expect(find.text('みぎ'), findsOneWidget);
+    expect(find.text('右'), findsOneWidget);
+    expect(repos.words.statForItem('word:みぎ').isSeen, isFalse);
+    expect(repos.words.statForItem('phrase:えきは どこ').srsLevel, 0);
+    final logged = await repos.analytics.all();
+    expect(
+      logged.where(
+        (a) =>
+            a.mode == PracticeMode.reply.name &&
+            (a.meta[AttemptMeta.evidence] == ReplyEvidence.miss ||
+                a.meta[AttemptMeta.evidence] == ReplyEvidence.independent),
+      ),
+      isEmpty,
+    );
+  });
+
+  testWidgets('seen えきは どこ and みぎ can start the right-scene reply', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    await learnAll(repos.kana);
+    await repos.words.markIntroduced(
+      'phrase:えきは どこ',
+      at: DateTime(2026, 9, 10, 12),
+    );
+    await repos.words.markIntroduced('word:みぎ', at: DateTime(2026, 9, 10, 12));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:みぎ').srsLevel, 0);
 
     await openReply(tester);
     expect(find.text(AppStrings.replyStartAction), findsOneWidget);
@@ -148,9 +201,11 @@ void main() {
     expect(find.byType(ReplyScreen), findsOneWidget);
     expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
     expect(find.text('問車站在哪裡'), findsOneWidget);
+    expect(find.text('有人問路。改札在你右邊。'), findsOneWidget);
     expect(find.text('この ふくは ちいさい'), findsNothing);
     expect(find.text('えきは どこ'), findsNothing);
     expect(repos.words.statForItem('phrase:えきは どこ').srsLevel, 0);
+    expect(repos.words.statForItem('word:みぎ').srsLevel, 0);
   });
 
   testWidgets('unmet phrases after words still meet via 黙読, not start', (
@@ -160,6 +215,7 @@ void main() {
     await learnAll(repos.kana);
     await repos.words.markIntroduced('word:えき', at: DateTime(2026, 9, 10, 12));
     await repos.words.markIntroduced('word:ここ', at: DateTime(2026, 9, 10, 12));
+    await repos.words.markIntroduced('word:みぎ', at: DateTime(2026, 9, 10, 12));
     await tester.pumpAndSettle();
     await openReply(tester);
     expect(find.text(AppStrings.replyStartAction), findsOneWidget);
