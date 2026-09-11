@@ -34,6 +34,7 @@ class ReadingScreen extends StatefulWidget {
   const ReadingScreen({
     required this.items,
     required this.title,
+    this.clock,
     this.onMore,
     this.quiet = false,
     this.alreadyTransferredIds = const {},
@@ -42,6 +43,9 @@ class ReadingScreen extends StatefulWidget {
 
   final List<ReadingItem> items;
   final String title;
+
+  /// Injectable clock so 凪「もう一回」 and due dates stay testable by day.
+  final DateTime Function()? clock;
 
   /// Opt-in "one more" — a fresh session in place of this one (home builds it,
   /// night-suppressed). Null = hidden.
@@ -58,6 +62,7 @@ class ReadingScreen extends StatefulWidget {
     List<ReadingItem> items,
     String title, {
     VoidCallback? onMore,
+    DateTime Function()? clock,
     bool quiet = false,
     Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
@@ -65,6 +70,7 @@ class ReadingScreen extends StatefulWidget {
       items: items,
       title: title,
       onMore: onMore,
+      clock: clock,
       quiet: quiet,
       alreadyTransferredIds: alreadyTransferredIds,
     ),
@@ -91,6 +97,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
   KotenLine? _share;
 
   ReadingItem get _current => widget.items[_index];
+
+  DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   /// Speakable form — layout spaces removed.
   String get _say => _current.displayText.replaceAll(' ', '');
@@ -149,7 +157,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   void _grade({required bool correct, required bool unprompted}) {
-    final now = DateTime.now();
+    final now = _clock();
     context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -203,7 +211,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   Widget _summary() {
-    final band = ClosingBand.forHour(DateTime.now().hour);
+    final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.items.length),
       // The classical 余韻 (when picked) replaces the close note — so only

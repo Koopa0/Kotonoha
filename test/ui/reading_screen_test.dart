@@ -11,9 +11,67 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/widgets/persistence_banner.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/fake_preferences_service.dart';
+
+DateTime _noon() => DateTime(2026, 9, 11, 12);
+
+const _inu = Word(kana: 'いぬ', romaji: 'inu', meaning: '狗');
+
+Future<void> _pumpReading(
+  WidgetTester tester, {
+  required List<Word> items,
+  required WordProgressRepository words,
+  Set<String> alreadyTransferredIds = const {},
+  ProgressPersistenceController? persist,
+  bool banner = false,
+}) async {
+  final kana = await KanaProgressRepository.load();
+  final persistence =
+      persist ??
+      ProgressPersistenceController(
+        kanaFlush: kana.flushPending,
+        kanjiFlush: () async {},
+        wordFlush: words.flushPending,
+      );
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+        ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: persistence,
+        ),
+        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        Provider<SpeechService>.value(value: const SilentSpeechService()),
+      ],
+      child: MaterialApp(
+        builder: banner
+            ? (context, child) =>
+                  PersistenceBanner(child: child ?? const SizedBox.shrink())
+            : null,
+        home: ReadingScreen(
+          items: items,
+          title: AppStrings.sentenceTitle,
+          clock: _noon,
+          alreadyTransferredIds: alreadyTransferredIds,
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _confirmUnprompted(WidgetTester tester) async {
+  await tester.tap(find.text(AppStrings.iReadUnprompted));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(AppStrings.iReadIt));
+  await tester.pumpAndSettle();
+}
 
 /// Widget test for contextual reading: kana shown, reveal exposes romaji +
 /// meaning, self-grade advances, and each answer is logged as a word-level
@@ -137,5 +195,151 @@ void main() {
     expect(wordRepo.statForItem('word:いぬ').srsLevel, 1);
     final logged = await analytics.all();
     expect(logged.single.meta[AttemptMeta.prompted], isFalse);
+  });
+
+  group('もう一回 grind gate', () {
+    testWidgets('wrap same id unprompted-correct does not climb SRS', (
+      tester,
+    ) async {
+      final words = await WordProgressRepository.load();
+      await words.introduce('word:いぬ', at: _noon());
+      expect(words.statForItem('word:いぬ').srsLevel, 1);
+      await _pumpReading(
+        tester,
+        items: const [_inu],
+        words: words,
+        alreadyTransferredIds: {'word:いぬ'},
+      );
+      await _confirmUnprompted(tester);
+      expect(words.statForItem('word:いぬ').srsLevel, 1);
+      expect(words.statForItem('word:いぬ').correctCount, 1);
+    });
+
+    testWidgets('wrap miss still resets SRS', (tester) async {
+      final words = await WordProgressRepository.load();
+      await words.introduce('word:いぬ', at: _noon());
+      await _pumpReading(
+        tester,
+        items: const [_inu],
+        words: words,
+        alreadyTransferredIds: {'word:いぬ'},
+      );
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iCouldnt));
+      await tester.pumpAndSettle();
+      expect(words.statForItem('word:いぬ').srsLevel, 0);
+    });
+
+    testWidgets('prompted confirm after hint does not climb as independent', (
+      tester,
+    ) async {
+      final words = await WordProgressRepository.load();
+      await words.introduce('word:いぬ', at: _noon());
+      await _pumpReading(tester, items: const [_inu], words: words);
+      await tester.tap(find.text(AppStrings.recallHint));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
+      await tester.pumpAndSettle();
+      expect(words.statForItem('word:いぬ').srsLevel, 1);
+      expect(words.statForItem('word:いぬ').correctCount, 1);
+    });
+
+    testWidgets('uncovered new id still climbs on first unprompted confirm', (
+      tester,
+    ) async {
+      final words = await WordProgressRepository.load();
+      await words.introduce('word:いぬ', at: _noon());
+      await _pumpReading(tester, items: const [_inu], words: words);
+      await _confirmUnprompted(tester);
+      expect(words.statForItem('word:いぬ').srsLevel, 2);
+    });
+
+    testWidgets('failed save retry flushes without climbing again', (
+      tester,
+    ) async {
+      final fake = FakePreferencesService();
+      final words = await WordProgressRepository.load(fake);
+      await words.introduce('word:いぬ', at: _noon());
+      fake.failWrites.add('word_stats_v1');
+      final persist = ProgressPersistenceController(
+        kanaFlush: () async {},
+        kanjiFlush: () async {},
+        wordFlush: words.flushPending,
+      );
+      await _pumpReading(
+        tester,
+        items: const [_inu],
+        words: words,
+        persist: persist,
+        banner: true,
+      );
+      await _confirmUnprompted(tester);
+      expect(words.statForItem('word:いぬ').srsLevel, 2);
+      expect(words.statForItem('word:いぬ').correctCount, 2);
+      expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
+
+      fake.failWrites.clear();
+      await tester.tap(find.text(AppStrings.persistRetry));
+      await tester.pumpAndSettle();
+      expect(persist.hasWriteFailure, isFalse);
+      expect(words.statForItem('word:いぬ').srsLevel, 2);
+      expect(words.statForItem('word:いぬ').correctCount, 2);
+      final reloaded = await WordProgressRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(reloaded.statForItem('word:いぬ').srsLevel, 2);
+    });
+
+    testWidgets('route forwards alreadyTransferredIds into the screen', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(
+              value: await KanaProgressRepository.load(),
+            ),
+            ChangeNotifierProvider<WordProgressRepository>.value(
+              value: await WordProgressRepository.load(),
+            ),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: () async {},
+                kanjiFlush: () async {},
+                wordFlush: () async {},
+              ),
+            ),
+            Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+            Provider<SpeechService>.value(value: const SilentSpeechService()),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      ReadingScreen.route(
+                        const [_inu],
+                        AppStrings.sentenceTitle,
+                        clock: _noon,
+                        alreadyTransferredIds: {'word:いぬ'},
+                      ),
+                    );
+                  },
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump();
+      final screen = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
+      expect(screen.alreadyTransferredIds, {'word:いぬ'});
+      expect(screen.clock, isNotNull);
+    });
   });
 }
