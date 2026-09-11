@@ -59,9 +59,11 @@ void main() {
       );
 
       await tester.tap(find.text(AppStrings.shiftAction));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       await tester.tap(find.text(AppStrings.shiftHoldStart));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       await _completeBeat(tester);
 
       expect(find.text(AppStrings.persistFailedLine), findsWidgets);
@@ -77,7 +79,8 @@ void main() {
 
       analytics.debugAppend = null;
       await tester.tap(find.text(AppStrings.persistRetry));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       expect(analytics.unpersistedCount, 0);
       expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsWidgets);
@@ -116,16 +119,18 @@ Future<void> _pumpHome(
       child: MaterialApp(home: HomeScreen(clock: clock)),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
 }
 
 Future<void> _completeBeat(WidgetTester tester) async {
   await _tapVisible(tester, find.text(AppStrings.iReadUnprompted));
   await _tapVisible(tester, find.text(AppStrings.iReadIt));
   await tester.enterText(find.byType(TextField), '自評用筆記');
-  await tester.pumpAndSettle();
+  await tester.pump();
   await _tapVisible(tester, find.text(AppStrings.shiftSenseReady));
   await _tapVisible(tester, find.text(AppStrings.shiftSenseOk));
+  await tester.pump(const Duration(seconds: 1));
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -138,7 +143,8 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   } else {
     await tester.ensureVisible(finder);
   }
-  await tester.pumpAndSettle();
+  await tester.pump();
   await tester.tap(finder);
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
 }
