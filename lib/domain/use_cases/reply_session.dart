@@ -210,7 +210,22 @@ abstract final class ReplySession {
     if (ready.isEmpty) return const [];
     final copy = List<ReplyDrill>.of(ready)..shuffle(rng);
     if (copy.length <= sessionLength) return copy;
-    return copy.sublist(0, sessionLength);
+    // Prefer distinct heard prompts so a 3-turn session still covers
+    // destination / location / confirmation when all are ready. Same-prompt
+    // scene pairs stay together when that is all the learner has met.
+    final picked = <ReplyDrill>[];
+    final seenPrompt = <String>{};
+    for (final drill in copy) {
+      if (picked.length >= sessionLength) break;
+      if (seenPrompt.add(drill.promptKana)) {
+        picked.add(drill);
+      }
+    }
+    for (final drill in copy) {
+      if (picked.length >= sessionLength) break;
+      if (!picked.contains(drill)) picked.add(drill);
+    }
+    return picked;
   }
 
   static Map<String, ReadingItem> _corpus({

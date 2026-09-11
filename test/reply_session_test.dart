@@ -83,10 +83,30 @@ void main() {
     expect(stats, isEmpty);
   });
 
-  test('meeting えきは どこ only unlocks that station ask', () {
+  test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
+    final byId = {for (final drill in kReplyDrills) drill.id: drill};
+    final right = byId['reply:eki-wa-doko']!;
+    final here = byId['reply:eki-wa-koko']!;
+    expect(right.promptKana, 'えきは どこ');
+    expect(here.promptKana, 'えきは どこ');
+    expect(right.sceneZh, contains('右'));
+    expect(here.sceneZh, contains('門口'));
+    expect(right.replyCorrectKana, 'みぎです');
+    expect(here.replyCorrectKana, 'ここです');
+    expect(right.replyWrongKana, isNot(contains('ここです')));
+    expect(here.replyWrongKana, isNot(contains('みぎです')));
+    for (final drill in kReplyDrills.where((d) => d.promptKana == 'えきは どこ')) {
+      expect(drill.replyWrongKana, isNot(contains('ここです')));
+    }
+  });
+
+  test('meeting えきは どこ unlocks both location scenes', () {
     final stats = {'phrase:えきは どこ': seenAt()};
     final view = ReplySession.inspect(learnedChars: allChars, stats: stats);
-    expect(view.ready.map((d) => d.id), ['reply:eki-wa-doko']);
+    expect(view.ready.map((d) => d.id).toSet(), {
+      'reply:eki-wa-doko',
+      'reply:eki-wa-koko',
+    });
     expect(view.canPractice, isTrue);
     expect(
       view.unreadRequired.map((i) => i.progressId),
@@ -97,7 +117,10 @@ void main() {
       rng: Random(1),
       stats: stats,
     );
-    expect(session.map((d) => d.id), ['reply:eki-wa-doko']);
+    expect(session.map((d) => d.id).toSet(), {
+      'reply:eki-wa-doko',
+      'reply:eki-wa-koko',
+    });
     expect(session.map((d) => d.promptKana), isNot(contains('ふく')));
   });
 

@@ -8,6 +8,7 @@
 class ReplyDrill {
   const ReplyDrill({
     required this.id,
+    required this.sceneZh,
     required this.promptKana,
     required this.promptRomaji,
     required this.promptMeaning,
@@ -22,6 +23,10 @@ class ReplyDrill {
 
   /// Stable analytics id (`reply:…`). Never a corpus progress id.
   final String id;
+
+  /// Situation that makes one reply uniquely right. Traditional Chinese
+  /// only — never the heard Japanese, romaji, or gloss.
+  final String sceneZh;
 
   /// The other person's utterance, layout-spaced like [Phrase.kana].
   final String promptKana;

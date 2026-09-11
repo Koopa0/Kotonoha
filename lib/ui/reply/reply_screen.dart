@@ -44,12 +44,15 @@ class ReplyScreen extends StatefulWidget {
   State<ReplyScreen> createState() => _ReplyScreenState();
 }
 
-class _ReplyScreenState extends State<ReplyScreen> with WidgetsBindingObserver {
+class _ReplyScreenState extends State<ReplyScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final Random _rng = Random();
 
   late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
+  bool _playable = true;
+  bool _autoplayPending = false;
 
   int _index = 0;
   _Beat _beat = _Beat.intent;
@@ -71,28 +74,47 @@ class _ReplyScreenState extends State<ReplyScreen> with WidgetsBindingObserver {
 
   ReplyDrill get _current => widget.drills[_index];
 
+  bool get _foreground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
   @override
   void initState() {
     super.initState();
     _speech = context.read<SpeechService>();
     _shuffleChoices();
-    WidgetsBinding.instance.addObserver(this);
+    _lifecycle = AppLifecycleListener(
+      onInactive: _onBackgrounded,
+      onHide: _onBackgrounded,
+      onPause: _onBackgrounded,
+      onDetach: _onBackgrounded,
+      onResume: _onResumed,
+    );
+    _playable = _foreground;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_play());
+      if (!mounted || _done) return;
+      _scheduleAutoplay();
     });
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    _lifecycle.dispose();
     _abandonPlayback();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) return;
+  void _onBackgrounded() {
+    _playable = false;
     unawaited(_interrupt());
+  }
+
+  void _onResumed() {
+    _playable = true;
+    if (!mounted || _done || !_autoplayPending) return;
+    _autoplayPending = false;
+    unawaited(_play());
   }
 
   void _shuffleChoices() {
@@ -118,8 +140,22 @@ class _ReplyScreenState extends State<ReplyScreen> with WidgetsBindingObserver {
     });
   }
 
-  Future<void> _play() async {
+  void _scheduleAutoplay() {
     if (!mounted || _done) return;
+    if (!_playable || !_foreground) {
+      _autoplayPending = true;
+      return;
+    }
+    _autoplayPending = false;
+    unawaited(_play());
+  }
+
+  Future<void> _play({bool manual = false}) async {
+    if (!mounted || _done) return;
+    if (!_playable || !_foreground) {
+      if (!manual) _autoplayPending = true;
+      return;
+    }
     final itemId = _current.id;
     final gen = ++_playGen;
     setState(() => _playing = true);
@@ -232,7 +268,7 @@ class _ReplyScreenState extends State<ReplyScreen> with WidgetsBindingObserver {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _done) return;
-      unawaited(_play());
+      _scheduleAutoplay();
     });
   }
 
@@ -319,9 +355,21 @@ class _ReplyScreenState extends State<ReplyScreen> with WidgetsBindingObserver {
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
+        Text(
+          _current.sceneZh,
+          key: const ValueKey<String>('reply-scene'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 15,
+            height: 1.35,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
         IconButton.filled(
           key: const ValueKey<String>('reply-replay'),
-          onPressed: () => unawaited(_play()),
+          onPressed: () => unawaited(_play(manual: true)),
           iconSize: 48,
           tooltip: AppStrings.replaySound,
           style: IconButton.styleFrom(

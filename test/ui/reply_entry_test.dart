@@ -88,6 +88,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TravelSceneScreen), findsOneWidget);
     expect(find.text(AppStrings.travelSceneTransport), findsOneWidget);
+    expect(find.text(AppStrings.travelScenePurposeShrine), findsOneWidget);
+    await tester.ensureVisible(find.text(AppStrings.travelSceneParkQueue));
+    expect(find.text(AppStrings.travelSceneParkQueue), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
 

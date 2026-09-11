@@ -1,7 +1,10 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
@@ -21,7 +24,151 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_tts_client.dart';
 
 final _ekiAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:eki-wa-doko');
+final _ekiHere = kReplyDrills.firstWhere((d) => d.id == 'reply:eki-wa-koko');
 final _whereGo = kReplyDrills.firstWhere((d) => d.id == 'reply:doko-e-iku');
+
+/// iOS-like flutter_tts MethodChannel: stop returns 1 and does not settle
+/// a pending speak. Every speak stays open until [completeSpeak].
+class _IosLikeTtsChannel {
+  final List<Completer<int>> pendingSpeaks = <Completer<int>>[];
+  final List<String> spoken = <String>[];
+  int stopCount = 0;
+
+  Future<Object?> handle(MethodCall call) async {
+    switch (call.method) {
+      case 'speak':
+        final Object? args = call.arguments;
+        if (args is! String) {
+          throw StateError('expected speak text, got ${args.runtimeType}');
+        }
+        spoken.add(args);
+        final pending = Completer<int>();
+        pendingSpeaks.add(pending);
+        return pending.future;
+      case 'stop':
+        stopCount++;
+        return 1;
+      case 'getEngines':
+        return <String>['com.google.android.tts'];
+      case 'setLanguage':
+      case 'setEngine':
+        return 1;
+      default:
+        return 1;
+    }
+  }
+
+  void completeSpeak(int index, int result) {
+    final pending = pendingSpeaks[index];
+    if (pending.isCompleted) {
+      throw StateError('speak $index is not pending');
+    }
+    pending.complete(result);
+  }
+}
+
+Future<_IosLikeTtsChannel> _installProductionTts(WidgetTester tester) async {
+  final tts = _IosLikeTtsChannel();
+  const channel = MethodChannel('flutter_tts');
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    channel,
+    tts.handle,
+  );
+  addTearDown(() {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      null,
+    );
+  });
+  return tts;
+}
+
+void _resumeApp(WidgetTester tester) {
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+}
+
+/// Marks the next drawable frame inactive before post-frame callbacks.
+void _armInactiveBeforePostFrame(WidgetTester tester) {
+  var armed = true;
+  tester.binding.addPersistentFrameCallback((_) {
+    if (!armed) return;
+    armed = false;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  });
+}
+
+Future<void> _hearThenPick(
+  WidgetTester tester, {
+  required String intent,
+  required String reply,
+}) async {
+  await tester.tap(find.text(intent));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey<String>('reply-to-answer')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(reply));
+  await tester.pumpAndSettle();
+}
+
+Future<
+  ({
+    _IosLikeTtsChannel tts,
+    FlutterTtsSpeechService speech,
+    InMemoryAnalyticsLog analytics,
+  })
+>
+_pumpProductionReply(
+  WidgetTester tester, {
+  required List<ReplyDrill> drills,
+}) async {
+  final tts = await _installProductionTts(tester);
+  final speech = await FlutterTtsSpeechService.create();
+  final kana = await KanaProgressRepository.load();
+  final words = await WordProgressRepository.load();
+  final kanji = await KanjiReadingRepository.load();
+  final analytics = InMemoryAnalyticsLog();
+  await tester.binding.setSurfaceSize(const Size(420, 1200));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+        ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+        ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+        ChangeNotifierProvider<ProgressPersistenceController>.value(
+          value: ProgressPersistenceController(
+            kanaFlush: kana.flushPending,
+            kanjiFlush: kanji.flushPending,
+            wordFlush: words.flushPending,
+          ),
+        ),
+        Provider<SpeechService>.value(value: speech),
+        Provider<AnalyticsLog>.value(value: analytics),
+      ],
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                ReplyScreen.route(
+                  drills,
+                  clock: () => DateTime(2026, 9, 11, 12),
+                ),
+              ),
+              child: const Text('open-reply'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('open-reply'));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+  return (tts: tts, speech: speech, analytics: analytics);
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -37,6 +184,7 @@ void main() {
     WidgetTester tester, {
     required List<ReplyDrill> drills,
     SpeechService? speech,
+    Size surface = const Size(420, 1200),
   }) async {
     final kana = await KanaProgressRepository.load();
     final words = await WordProgressRepository.load();
@@ -52,7 +200,7 @@ void main() {
           SpeechPlaybackResult.played,
           SpeechPlaybackResult.played,
         ]);
-    await tester.binding.setSurfaceSize(const Size(420, 1200));
+    await tester.binding.setSurfaceSize(surface);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MultiProvider(
@@ -88,8 +236,11 @@ void main() {
   ) async {
     final env = await pumpReply(tester, drills: [_ekiAsk]);
     expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('reply-scene')), findsOneWidget);
+    expect(find.text('有人問路。改札在你右邊。'), findsOneWidget);
     expect(find.text('えきは どこ'), findsNothing);
     expect(find.text('車站在哪裡'), findsNothing);
+    expect(find.text('ここです'), findsNothing);
 
     await tester.tap(find.text('問車站在哪裡'));
     await tester.pumpAndSettle();
@@ -189,9 +340,8 @@ void main() {
           home: Builder(
             builder: (context) => Scaffold(
               body: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  ReplyScreen.route([_ekiAsk]),
-                ),
+                onPressed: () =>
+                    Navigator.of(context).push(ReplyScreen.route([_ekiAsk])),
                 child: const Text('open-reply'),
               ),
             ),
@@ -221,10 +371,124 @@ void main() {
       tester.view.resetDevicePixelRatio();
       tester.platformDispatcher.clearTextScaleFactorTestValue();
     });
-    await pumpReply(tester, drills: [_ekiAsk]);
+    await pumpReply(tester, drills: [_ekiAsk], surface: const Size(320, 640));
     expect(tester.takeException(), isNull);
     expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
     expect(find.text('問車站在哪裡'), findsOneWidget);
+    expect(find.text('有人問路。改札在你右邊。'), findsOneWidget);
     expect(find.text('えきは どこ'), findsNothing);
   });
+
+  testWidgets('right-scene みぎです is independent; きょうとです is a scored miss', (
+    tester,
+  ) async {
+    final hit = await pumpReply(tester, drills: [_ekiAsk]);
+    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'みぎです');
+    final hitLog = await hit.analytics.all();
+    expect(hitLog[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(hitLog[1].meta[AttemptMeta.scored], isTrue);
+    expect(hitLog[1].correct, isTrue);
+
+    final miss = await pumpReply(tester, drills: [_ekiAsk]);
+    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'きょうとです');
+    final missLog = await miss.analytics.all();
+    expect(missLog[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(missLog[1].meta[AttemptMeta.scored], isTrue);
+    expect(missLog[1].correct, isFalse);
+    expect(find.text('ここです'), findsNothing);
+  });
+
+  testWidgets('door-scene ここです is independent; はい is a scored miss', (
+    tester,
+  ) async {
+    final hit = await pumpReply(tester, drills: [_ekiHere]);
+    expect(find.text('你站在車站門口。有人問路。'), findsOneWidget);
+    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'ここです');
+    final hitLog = await hit.analytics.all();
+    expect(hitLog[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(hitLog[1].meta[AttemptMeta.scored], isTrue);
+    expect(hitLog[1].correct, isTrue);
+
+    final miss = await pumpReply(tester, drills: [_ekiHere]);
+    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'はい');
+    final missLog = await miss.analytics.all();
+    expect(missLog[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(missLog[1].meta[AttemptMeta.scored], isTrue);
+    expect(missLog[1].correct, isFalse);
+  });
+
+  testWidgets('production skip after inactive does not autoplay the next ask', (
+    tester,
+  ) async {
+    final env = await _pumpProductionReply(tester, drills: [_ekiAsk, _whereGo]);
+    expect(env.tts.spoken, ['えきはどこ']);
+    expect(find.byKey(const ValueKey<String>('reply-skip')), findsOneWidget);
+
+    _armInactiveBeforePostFrame(tester);
+    await tester.tap(find.byKey(const ValueKey<String>('reply-skip')));
+    await tester.pump();
+    expect(env.tts.spoken, ['えきはどこ']);
+    expect(tester.binding.lifecycleState, AppLifecycleState.inactive);
+    expect(find.text('檢票口有人問你要去哪裡。'), findsOneWidget);
+
+    final skipped = await env.analytics.all();
+    expect(skipped.single.meta[AttemptMeta.evidence], ReplyEvidence.unheard);
+    expect(skipped.single.meta[AttemptMeta.scored], isFalse);
+  });
+
+  testWidgets(
+    'production resume after deferred skip still autoplays the next ask',
+    (tester) async {
+      final env = await _pumpProductionReply(
+        tester,
+        drills: [_ekiAsk, _whereGo],
+      );
+      _armInactiveBeforePostFrame(tester);
+      await tester.tap(find.byKey(const ValueKey<String>('reply-skip')));
+      await tester.pump();
+      expect(env.tts.spoken, ['えきはどこ']);
+
+      _resumeApp(tester);
+      await tester.pump();
+      expect(env.tts.spoken, ['えきはどこ', 'どこへいく']);
+    },
+  );
+
+  testWidgets('production foreground skip still autoplays the next ask', (
+    tester,
+  ) async {
+    final env = await _pumpProductionReply(tester, drills: [_ekiAsk, _whereGo]);
+    expect(env.tts.spoken, ['えきはどこ']);
+    await tester.tap(find.byKey(const ValueKey<String>('reply-skip')));
+    await tester.pump();
+    expect(env.tts.spoken, ['えきはどこ', 'どこへいく']);
+  });
+
+  testWidgets(
+    'production replay after resume speaks again; stale stop keeps the new page',
+    (tester) async {
+      final env = await _pumpProductionReply(
+        tester,
+        drills: [_ekiAsk, _whereGo],
+      );
+      expect(env.tts.spoken, ['えきはどこ']);
+      final firstGeneration = env.speech.generation;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(env.tts.spoken, ['えきはどこ']);
+
+      _resumeApp(tester);
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('reply-replay')));
+      await tester.pump();
+      expect(env.tts.spoken, ['えきはどこ', 'えきはどこ']);
+      expect(env.speech.generation, isNot(firstGeneration));
+
+      await env.speech.stop(generation: firstGeneration);
+      await tester.pump();
+      expect(env.tts.spoken, ['えきはどこ', 'えきはどこ']);
+      expect(env.speech.generation, greaterThan(firstGeneration));
+    },
+  );
 }
