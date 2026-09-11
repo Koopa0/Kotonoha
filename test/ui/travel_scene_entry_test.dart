@@ -627,6 +627,35 @@ void main() {
   ) async {
     await pumpHub(tester, scene: TravelSceneId.transport);
     expect(find.text(AppStrings.replyAction), findsNothing);
+    expect(find.text(AppStrings.replyHelpAction), findsNothing);
+  });
+
+  testWidgets('shrine hub opens the scoped reply room, not station copy', (
+    tester,
+  ) async {
+    await pumpHub(tester, scene: TravelSceneId.shrine);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
+    expect(find.text(AppStrings.replyHelpAction), findsNothing);
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyShrinePurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyPurpose), findsNothing);
+    expect(find.text('えきは どこ'), findsNothing);
+  });
+
+  testWidgets('park hub opens park and help reply doors, not shrine copy', (
+    tester,
+  ) async {
+    await pumpHub(tester, scene: TravelSceneId.parkQueue);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
+    expect(find.text(AppStrings.replyHelpAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyHelpAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyHelpPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyParkPurpose), findsNothing);
+    expect(find.text('じんじゃは どこ'), findsNothing);
   });
 
   testWidgets('clothing hub opens the scoped reply room, not station copy', (

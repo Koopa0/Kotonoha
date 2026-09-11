@@ -43,6 +43,9 @@ class ReplyHubScreen extends StatelessWidget {
     ReplySceneId.clothing => AppStrings.replyClothingPurpose,
     ReplySceneId.restaurant => AppStrings.replyRestaurantPurpose,
     ReplySceneId.convenience => AppStrings.replyConveniencePurpose,
+    ReplySceneId.shrine => AppStrings.replyShrinePurpose,
+    ReplySceneId.parkQueue => AppStrings.replyParkPurpose,
+    ReplySceneId.help => AppStrings.replyHelpPurpose,
   };
 
   String get _meetHint => switch (scene) {
@@ -50,6 +53,9 @@ class ReplyHubScreen extends StatelessWidget {
     ReplySceneId.clothing => AppStrings.replyClothingMeetHint,
     ReplySceneId.restaurant => AppStrings.replyRestaurantMeetHint,
     ReplySceneId.convenience => AppStrings.replyConvenienceMeetHint,
+    ReplySceneId.shrine => AppStrings.replyShrineMeetHint,
+    ReplySceneId.parkQueue => AppStrings.replyParkMeetHint,
+    ReplySceneId.help => AppStrings.replyHelpMeetHint,
   };
 
   String get _meetTitle => switch (scene) {
@@ -57,6 +63,9 @@ class ReplyHubScreen extends StatelessWidget {
     ReplySceneId.clothing => AppStrings.replyClothingMeetTitle,
     ReplySceneId.restaurant => AppStrings.replyRestaurantMeetTitle,
     ReplySceneId.convenience => AppStrings.replyConvenienceMeetTitle,
+    ReplySceneId.shrine => AppStrings.replyShrineMeetTitle,
+    ReplySceneId.parkQueue => AppStrings.replyParkMeetTitle,
+    ReplySceneId.help => AppStrings.replyHelpMeetTitle,
   };
 
   Set<String> _learnedChars(BuildContext context) =>

@@ -31,10 +31,19 @@ void main() {
         for (final id in drill.requiredSeenIds) {
           expect(corpus.where((item) => item.progressId == id), hasLength(1));
         }
-        expect(
-          drill.requiredSeenIds,
-          isNot(contains('phrase:${drill.replyCorrectKana}')),
-        );
+        final replyPhraseId = 'phrase:${drill.replyCorrectKana}';
+        if (const {'reply:help-repeat', 'reply:help-slow'}.contains(drill.id)) {
+          expect(
+            drill.requiredSeenIds,
+            contains(replyPhraseId),
+            reason: '${drill.id} must meet shipped reply $replyPhraseId',
+          );
+        } else {
+          expect(
+            drill.requiredSeenIds,
+            isNot(contains(replyPhraseId)),
+          );
+        }
       }
       expect(
         kReplyDrills
@@ -144,6 +153,17 @@ void main() {
     ];
     const restaurantLeaks = ['問來了幾個人', '問要點什麼', '問還要不要別的', '幾個人', '要點什麼'];
     const convenienceLeaks = ['問要不要袋子', '問要不要加熱', '問可不可以結帳', '需要袋子嗎', '要加熱嗎'];
+    const shrineLeaks = ['問神社', '走進安靜', '安靜進寺', '請稍等', '在入口排隊'];
+    const parkLeaks = [
+      '在入口排隊',
+      '請稍等一下',
+      '請稍等',
+      '請你稍等',
+      '說請稍等',
+      '稍等',
+      '聽不清楚',
+    ];
+    const helpLeaks = ['聽不清楚', '說得太快', '再說一次', '說慢一點'];
     for (final drill in kReplyDrills) {
       expect(
         drill.sceneZh,
@@ -160,6 +180,9 @@ void main() {
         ReplySceneId.clothing => clothingLeaks,
         ReplySceneId.restaurant => restaurantLeaks,
         ReplySceneId.convenience => convenienceLeaks,
+        ReplySceneId.shrine => shrineLeaks,
+        ReplySceneId.parkQueue => parkLeaks,
+        ReplySceneId.help => helpLeaks,
       };
       for (final leak in leaks) {
         expect(
@@ -190,7 +213,27 @@ void main() {
     expect(byId['reply:nannin-futari']!.sceneZh, contains('同行入座'));
     expect(byId['reply:fukuro-hai']!.sceneZh, contains('沒有'));
     expect(byId['reply:atatame-iie']!.sceneZh, contains('以後'));
+    expect(byId['reply:jinjia-hidari']!.sceneZh, contains('左'));
+    expect(byId['reply:shizuka-hai']!.sceneZh, contains('寺門'));
+    expect(byId['reply:iriguchi-narabu']!.sceneZh, contains('隊'));
+    expect(byId['reply:chotto-matte']!.sceneZh, contains('動線'));
+    expect(byId['reply:help-repeat']!.sceneZh, contains('聽清楚'));
+    expect(byId['reply:help-slow']!.sceneZh, contains('語速'));
   });
+
+  test('shizuka-hai names entering a quiet temple, not quietly entering', () {
+    final drill = kReplyDrills.firstWhere((d) => d.id == 'reply:shizuka-hai');
+    expect(drill.promptKana, 'しずかな てらに はいる');
+    expect(drill.promptMeaning, '走進安靜的寺院');
+    expect(drill.intentCorrect, '說走進安靜的寺院');
+    expect(drill.intentCorrect, isNot(contains('安靜進')));
+    expect(drill.sceneZh, isNot(contains('聲音')));
+    expect(drill.sceneZh, isNot(contains('安靜')));
+    final shrineAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:jinjia-hidari');
+    expect(shrineAsk.intentWrong, contains(drill.intentCorrect));
+    expect(shrineAsk.intentWrong, isNot(contains('說要安靜進寺')));
+  });
+
 
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
     final byId = {for (final drill in kReplyDrills) drill.id: drill};
@@ -828,6 +871,180 @@ void main() {
       isNot(contains('reply:card-tsukaemasu')),
     );
   });
+
+  test('shrine compose stays in the shrine pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.shrine))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(5),
+      stats: stats,
+      scene: ReplySceneId.shrine,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.shrine});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'じんじゃは どこ',
+      'しずかな てらに はいる',
+    });
+    expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
+  });
+
+  test('park compose stays in the park pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.parkQueue))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(6),
+      stats: stats,
+      scene: ReplySceneId.parkQueue,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.parkQueue});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'いりぐちで ならぶ',
+      'ちょっと まってください',
+    });
+  });
+
+  test('help compose stays in the help pool', () {
+    final stats = {
+      for (final drill in replyDrillsFor(ReplySceneId.help))
+        for (final id in drill.requiredSeenIds) id: seenAt(),
+    };
+    final session = ReplySession.compose(
+      learnedChars: allChars,
+      rng: Random(7),
+      stats: stats,
+      scene: ReplySceneId.help,
+    );
+    expect(session, hasLength(2));
+    expect(session.map((d) => d.scene).toSet(), {ReplySceneId.help});
+    expect(session.map((d) => d.promptKana).toSet(), {
+      'これは なに',
+      'いま なんじ',
+    });
+    expect(session.map((d) => d.replyCorrectKana), isNot(contains('はい')));
+  });
+
+  test('help-slow waits for the shipped slow-request phrase, not word:ゆっくり', () {
+    final onlyAsk = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {'phrase:いま なんじ': seenAt()},
+      scene: ReplySceneId.help,
+    );
+    expect(onlyAsk.ready, isEmpty);
+    expect(onlyAsk.canPractice, isFalse);
+    expect(onlyAsk.canMeet, isTrue);
+    expect(
+      onlyAsk.unreadRequired.map((i) => i.progressId),
+      contains('phrase:ゆっくり はなしてください'),
+    );
+    expect(
+      onlyAsk.unreadRequired.map((i) => i.progressId),
+      isNot(contains('word:ゆっくり')),
+    );
+
+    final wordOnly = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {
+        'phrase:いま なんじ': seenAt(),
+        'word:ゆっくり': seenAt(),
+      },
+      scene: ReplySceneId.help,
+    );
+    expect(wordOnly.ready.map((d) => d.id), isNot(contains('reply:help-slow')));
+    expect(wordOnly.canPractice, isFalse);
+    expect(
+      wordOnly.unreadRequired.map((i) => i.progressId),
+      contains('phrase:ゆっくり はなしてください'),
+    );
+
+    final phraseMet = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {
+        'phrase:いま なんじ': seenAt(),
+        'phrase:ゆっくり はなしてください': seenAt(),
+      },
+      scene: ReplySceneId.help,
+    );
+    expect(phraseMet.ready.map((d) => d.id), contains('reply:help-slow'));
+  });
+
+  test('help intents align with prompt meaning; scenes disambiguate repeat vs slow', () {
+    final repeat = kReplyDrills.firstWhere((d) => d.id == 'reply:help-repeat');
+    final slow = kReplyDrills.firstWhere((d) => d.id == 'reply:help-slow');
+    expect(repeat.promptMeaning, '這是什麼');
+    expect(slow.promptMeaning, '現在幾點');
+    expect(repeat.intentCorrect, '聽不清楚');
+    expect(slow.intentCorrect, '說得太快');
+    expect(repeat.sceneZh, contains('聽清楚'));
+    expect(slow.sceneZh, contains('語速'));
+    expect(repeat.intentWrong, isNot(contains('說得太快')));
+    expect(slow.intentWrong, contains('聽不清楚'));
+  });
+
+  test('help replies do not mark the other listening request as wrong', () {
+    final byId = {for (final drill in replyDrillsFor(ReplySceneId.help)) drill.id: drill};
+    final repeat = byId['reply:help-repeat']!;
+    final slow = byId['reply:help-slow']!;
+    expect(repeat.replyCorrectKana, 'もういちど いってください');
+    expect(slow.replyCorrectKana, 'ゆっくり はなしてください');
+    expect(repeat.replyWrongKana, isNot(contains(slow.replyCorrectKana)));
+    expect(slow.replyWrongKana, isNot(contains(repeat.replyCorrectKana)));
+    expect(repeat.replyWrongKana, containsAll(['はい', 'ちょっと まってください']));
+    expect(slow.replyWrongKana, containsAll(['はい', 'ちょっと まってください']));
+  });
+
+  test('shrine unreadRequired never pulls station or clothing phrases', () {
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: const {},
+      scene: ReplySceneId.shrine,
+    );
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:えきは どこ')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:この ふくは ちいさい')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({
+        'phrase:じんじゃは どこ',
+        'phrase:しずかな てらに はいる',
+        'word:ひだり',
+      }),
+    );
+  });
+
+  test('park unreadRequired never pulls shrine phrases', () {
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: const {},
+      scene: ReplySceneId.parkQueue,
+    );
+    expect(view.canMeet, isTrue);
+    expect(
+      view.unreadRequired.map((i) => i.progressId),
+      isNot(contains('phrase:じんじゃは どこ')),
+    );
+    expect(
+      view.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({
+        'phrase:いりぐちで ならぶ',
+        'phrase:ちょっと まってください',
+      }),
+    );
+  });
+
 
   test('evidence keeps hear / peek / hint / independent apart', () {
     expect(

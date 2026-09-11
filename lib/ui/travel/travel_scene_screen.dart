@@ -264,6 +264,49 @@ class TravelSceneHub extends StatelessWidget {
                 ).push(ReplyHubScreen.route(scene: _replyScene!, clock: clock)),
               ),
             ],
+            if (scene == TravelSceneId.shrine) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply-shrine'),
+                label: AppStrings.replyAction,
+                productName: AppStrings.replyEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  ReplyHubScreen.route(
+                    scene: ReplySceneId.shrine,
+                    clock: clock,
+                  ),
+                ),
+              ),
+            ],
+            if (scene == TravelSceneId.parkQueue) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply-park'),
+                label: AppStrings.replyAction,
+                productName: AppStrings.replyEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  ReplyHubScreen.route(
+                    scene: ReplySceneId.parkQueue,
+                    clock: clock,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply-help'),
+                label: AppStrings.replyHelpAction,
+                productName: AppStrings.replyHelpEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  ReplyHubScreen.route(
+                    scene: ReplySceneId.help,
+                    clock: clock,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

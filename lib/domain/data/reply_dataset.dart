@@ -3,11 +3,11 @@
 
 import 'package:kotonoha/domain/models/reply_drill.dart';
 
-/// Station, clothing, restaurant, and convenience reply pools: hear a shop
-/// or station turn, name the intent, pick one short answer that fits the
-/// named situation. Original staff / passer-by turns. Reuses shipped T01
-/// phrases or already-met scene words; does not copy paid text and does
-/// not join the 黙読 / [TravelScene] pools.
+/// Station, clothing, restaurant, convenience, shrine, park, and help reply
+/// pools: hear a travel or shop turn, name the intent, pick one short answer
+/// that fits the named situation. Original staff / passer-by turns. Reuses
+/// shipped T01 phrases or already-met scene words; does not copy paid text
+/// and does not join the 黙読 / [TravelScene] pools.
 ///
 /// Pure data: no `package:flutter/*` imports.
 const List<ReplyDrill> kReplyDrills = [
@@ -406,6 +406,102 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectMeaning: '好',
     replyWrongKana: ['あたためて ください', 'いいえ'],
     requiredSeenIds: ['phrase:これで よろしいですか', 'word:おつり'],
+  ),
+  ReplyDrill(
+    id: 'reply:jinjia-hidari',
+    scene: ReplySceneId.shrine,
+    sceneZh: '參道口牌子指向左邊。',
+    promptKana: 'じんじゃは どこ',
+    promptRomaji: 'jinja wa doko',
+    promptMeaning: '神社在哪裡',
+    intentCorrect: '問神社在哪裡',
+    intentWrong: ['說走進安靜的寺院', '說在入口排隊'],
+    replyCorrectKana: 'ひだりです',
+    replyCorrectRomaji: 'hidari desu',
+    replyCorrectMeaning: '在左邊',
+    replyWrongKana: ['はい', 'ここです'],
+    requiredSeenIds: ['phrase:じんじゃは どこ', 'word:ひだり'],
+  ),
+  ReplyDrill(
+    id: 'reply:shizuka-hai',
+    scene: ReplySceneId.shrine,
+    sceneZh: '已走到寺門前。',
+    promptKana: 'しずかな てらに はいる',
+    promptRomaji: 'shizuka na tera ni hairu',
+    promptMeaning: '走進安靜的寺院',
+    intentCorrect: '說走進安靜的寺院',
+    intentWrong: ['問神社在哪裡', '說請稍等'],
+    replyCorrectKana: 'はい',
+    replyCorrectRomaji: 'hai',
+    replyCorrectMeaning: '好／是',
+    replyWrongKana: ['ひだりです', 'もういちど いってください'],
+    requiredSeenIds: ['phrase:しずかな てらに はいる'],
+  ),
+  ReplyDrill(
+    id: 'reply:iriguchi-narabu',
+    scene: ReplySceneId.parkQueue,
+    sceneZh: '已排到隊伍裡。',
+    promptKana: 'いりぐちで ならぶ',
+    promptRomaji: 'iriguchi de narabu',
+    promptMeaning: '在入口排隊',
+    intentCorrect: '說在入口排隊',
+    intentWrong: ['說請稍等', '聽不清楚'],
+    replyCorrectKana: 'はい',
+    replyCorrectRomaji: 'hai',
+    replyCorrectMeaning: '好／是',
+    replyWrongKana: ['もういちど いってください', 'ゆっくり はなしてください'],
+    requiredSeenIds: ['phrase:いりぐちで ならぶ'],
+  ),
+  ReplyDrill(
+    id: 'reply:chotto-matte',
+    scene: ReplySceneId.parkQueue,
+    sceneZh: '入口前方人手調整動線。',
+    promptKana: 'ちょっと まってください',
+    promptRomaji: 'chotto matte kudasai',
+    promptMeaning: '請稍等一下',
+    intentCorrect: '說請稍等',
+    intentWrong: ['說在入口排隊', '聽不清楚'],
+    replyCorrectKana: 'はい',
+    replyCorrectRomaji: 'hai',
+    replyCorrectMeaning: '好／是',
+    replyWrongKana: ['もういちど いってください', 'ゆっくり はなしてください'],
+    requiredSeenIds: ['phrase:ちょっと まってください'],
+  ),
+  ReplyDrill(
+    id: 'reply:help-repeat',
+    scene: ReplySceneId.help,
+    sceneZh: '對方說話你沒聽清楚。',
+    promptKana: 'これは なに',
+    promptRomaji: 'kore wa nani',
+    promptMeaning: '這是什麼',
+    intentCorrect: '聽不清楚',
+    intentWrong: ['說請稍等', '說在入口排隊'],
+    replyCorrectKana: 'もういちど いってください',
+    replyCorrectRomaji: 'mou ichido itte kudasai',
+    replyCorrectMeaning: '請再說一次',
+    replyWrongKana: ['はい', 'ちょっと まってください'],
+    requiredSeenIds: [
+      'phrase:これは なに',
+      'phrase:もういちど いってください',
+    ],
+  ),
+  ReplyDrill(
+    id: 'reply:help-slow',
+    scene: ReplySceneId.help,
+    sceneZh: '對方的語速讓你來不及跟上。',
+    promptKana: 'いま なんじ',
+    promptRomaji: 'ima nanji',
+    promptMeaning: '現在幾點',
+    intentCorrect: '說得太快',
+    intentWrong: ['聽不清楚', '說請稍等'],
+    replyCorrectKana: 'ゆっくり はなしてください',
+    replyCorrectRomaji: 'yukkuri hanashite kudasai',
+    replyCorrectMeaning: '請說慢一點',
+    replyWrongKana: ['はい', 'ちょっと まってください'],
+    requiredSeenIds: [
+      'phrase:いま なんじ',
+      'phrase:ゆっくり はなしてください',
+    ],
   ),
 ];
 

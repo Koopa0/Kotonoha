@@ -351,7 +351,10 @@ class _ReplyScreenState extends State<ReplyScreen> {
             ReplySceneId.station => AppStrings.replyIntentPrompt,
             ReplySceneId.clothing ||
             ReplySceneId.restaurant ||
-            ReplySceneId.convenience => AppStrings.replyClothingIntentPrompt,
+            ReplySceneId.convenience ||
+            ReplySceneId.shrine ||
+            ReplySceneId.parkQueue => AppStrings.replyClothingIntentPrompt,
+            ReplySceneId.help => AppStrings.replyHelpIntentPrompt,
           }
         : AppStrings.replyReplyPrompt;
     return Column(
