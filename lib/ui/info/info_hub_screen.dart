@@ -7,6 +7,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/domain/data/info_drill_dataset.dart';
+import 'package:kotonoha/domain/models/info_drill.dart';
 import 'package:kotonoha/domain/use_cases/info_session.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -14,19 +16,50 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/info/info_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
+import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
 
 /// Learn-then-practice door for travel amount / time / headcount extraction.
 class InfoHubScreen extends StatelessWidget {
-  const InfoHubScreen({this.clock, super.key});
+  const InfoHubScreen({
+    this.clock,
+    this.drills,
+    this.title = AppStrings.infoTitle,
+    this.purpose = AppStrings.infoPurpose,
+    this.meetTitle = AppStrings.infoMeetTitle,
+    this.entryName = AppStrings.infoEntry,
+    super.key,
+  });
 
   final DateTime Function()? clock;
+  final List<InfoDrill>? drills;
+  final String title;
+  final String purpose;
+  final String meetTitle;
+  final String entryName;
 
-  static Route<void> route({DateTime Function()? clock}) =>
-      MaterialPageRoute<void>(
-        builder: (_) => InfoHubScreen(clock: clock),
-        settings: const RouteSettings(name: 'info-hub'),
-      );
+  List<InfoDrill> get _drills => drills ?? kInfoDrills;
+
+  static Route<void> route({
+    DateTime Function()? clock,
+    List<InfoDrill>? drills,
+    String? title,
+    String? purpose,
+    String? meetTitle,
+    String? entryName,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => InfoHubScreen(
+      clock: clock,
+      drills: drills,
+      title: title ?? AppStrings.infoTitle,
+      purpose: purpose ?? AppStrings.infoPurpose,
+      meetTitle: meetTitle ?? AppStrings.infoMeetTitle,
+      entryName: entryName ?? AppStrings.infoEntry,
+    ),
+    settings: RouteSettings(
+      name: drills == null ? 'info-hub' : 'info-hub-${drills.first.id}',
+    ),
+  );
 
   Set<String> _learnedChars(BuildContext context) =>
       StudySet.learned(context.read<KanaProgressRepository>())
@@ -39,6 +72,7 @@ class InfoHubScreen extends StatelessWidget {
     return InfoSession.inspect(
       learnedChars: StudySet.learned(kana).map((k) => k.character).toSet(),
       stats: words.stats,
+      drills: _drills,
     );
   }
 
@@ -46,14 +80,14 @@ class InfoHubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final view = _view(context);
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.infoTitle)),
+      appBar: AppBar(title: Text(title)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            const Text(
-              AppStrings.infoPurpose,
-              style: TextStyle(
+            Text(
+              purpose,
+              style: const TextStyle(
                 color: AppColors.ink,
                 fontSize: 16,
                 height: 1.5,
@@ -62,7 +96,9 @@ class InfoHubScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              view.canPractice ? AppStrings.infoReadyHint : AppStrings.infoMeetHint,
+              view.canPractice
+                  ? AppStrings.infoReadyHint
+                  : AppStrings.infoMeetHint,
               style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
             ),
             if (view.needsKanaFirst || view.missingUnits.isNotEmpty) ...[
@@ -108,7 +144,7 @@ class InfoHubScreen extends StatelessWidget {
               _ActionButton(
                 key: const ValueKey<String>('info-start'),
                 label: AppStrings.infoStartAction,
-                productName: AppStrings.infoEntry,
+                productName: entryName,
                 kind: _ActionKind.outlined,
                 onPressed: () => _startPractice(context),
               ),
@@ -125,22 +161,42 @@ class InfoHubScreen extends StatelessWidget {
     final words = InfoSession.unreadRequiredWords(
       learnedChars: learned,
       stats: stats,
+      drills: _drills,
     );
-    if (words.isEmpty) {
-      if (replace) Navigator.of(context).pop();
+    if (words.isNotEmpty) {
+      final route = FerryScreen.route(
+        words,
+        meetTitle,
+        clock: clock,
+        onMore: () => _continueMeet(context),
+      );
+      unawaited(
+        replace
+            ? Navigator.of(context).pushReplacement(route)
+            : Navigator.of(context).push(route),
+      );
       return;
     }
-    final route = FerryScreen.route(
-      words,
-      AppStrings.infoMeetTitle,
-      clock: clock,
-      onMore: () => _continueMeet(context),
+    final phrases = InfoSession.unreadRequiredPhrases(
+      learnedChars: learned,
+      stats: stats,
+      drills: _drills,
     );
-    unawaited(
-      replace
-          ? Navigator.of(context).pushReplacement(route)
-          : Navigator.of(context).push(route),
-    );
+    if (phrases.isNotEmpty) {
+      final route = ReadingScreen.route(
+        phrases,
+        meetTitle,
+        clock: clock,
+        onMore: () => _continueMeet(context),
+      );
+      unawaited(
+        replace
+            ? Navigator.of(context).pushReplacement(route)
+            : Navigator.of(context).push(route),
+      );
+      return;
+    }
+    if (replace) Navigator.of(context).pop();
   }
 
   void _continueMeet(BuildContext context) {
@@ -149,6 +205,7 @@ class InfoHubScreen extends StatelessWidget {
     final leftover = InfoSession.unreadRequired(
       learnedChars: learned,
       stats: stats,
+      drills: _drills,
     );
     if (leftover.isNotEmpty) {
       _startMeet(context, replace: true);
@@ -162,6 +219,7 @@ class InfoHubScreen extends StatelessWidget {
       learnedChars: _learnedChars(context),
       rng: Random(),
       stats: context.read<WordProgressRepository>().stats,
+      drills: _drills,
     );
     if (drills.isEmpty) return;
     final route = InfoScreen.route(

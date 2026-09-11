@@ -126,6 +126,20 @@ abstract final class InfoSession {
     phrases: phrases,
   ).whereType<Word>().toList();
 
+  static List<ReadingItem> unreadRequiredPhrases({
+    required Set<String> learnedChars,
+    required Map<String, WordStat> stats,
+    List<InfoDrill>? drills,
+    List<ReadingItem>? words,
+    List<ReadingItem>? phrases,
+  }) => unreadRequired(
+    learnedChars: learnedChars,
+    stats: stats,
+    drills: drills,
+    words: words,
+    phrases: phrases,
+  ).where((item) => item.progressId.startsWith('phrase:')).toList();
+
   static List<String> missingUnits(
     Iterable<InfoDrill> drills,
     Set<String> learnedChars,

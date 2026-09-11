@@ -262,7 +262,7 @@ abstract final class AppStrings {
   static const String travelScenePurposeConvenience =
       '這一回只練袋子、加熱與結帳時的基本意思。不定即時價格。';
   static const String travelScenePurposeHotel =
-      '這一回只練表明預約、請辦理入住、確認有無早餐、以及明天離開。不定訂房或真實付款。';
+      '這一回只練表明預約、請辦理入住、確認早餐與退房時間、以及明天離開。不定訂房或真實付款。';
   static const String travelSceneMeetAction = '先見面';
   static const String travelSceneRecallAction = '回想';
   static const String travelSceneListenAction = '先聽再揭曉';
@@ -510,6 +510,9 @@ abstract final class AppStrings {
   static const String infoClose = '這一回，先練到這裡。';
   static const String infoCloseNote = '聽音、看過文字、提示後答出、獨立選資訊是分開記下的。選對不是口說判定。';
   static String infoMissingKana(String units) => '還需要先認得：$units';
+  static const String infoHotelPurpose = '這一回只練聽懂早餐與退房時間，再選出聽到的時刻。選對不是口說錄音判定。';
+  static const String infoHotelMeetTitle = '旅館・聽懂時刻・見面';
+  static const String infoHotelEntry = '旅館時刻';
 
   // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';

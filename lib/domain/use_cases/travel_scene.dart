@@ -227,6 +227,7 @@ abstract final class TravelScene {
       'phrase:あした でます',
       'word:ホテル',
       'word:チェックイン',
+      'word:チェックアウト',
       'word:あさごはん',
       'word:へや',
       'word:とまる',

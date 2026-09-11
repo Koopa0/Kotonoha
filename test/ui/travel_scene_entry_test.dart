@@ -8,6 +8,8 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/data/info_drill_dataset.dart';
+import 'package:kotonoha/domain/models/info_drill.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/travel_scene.dart';
@@ -18,6 +20,7 @@ import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/info/info_hub_screen.dart';
+import 'package:kotonoha/ui/info/info_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
@@ -804,9 +807,11 @@ void main() {
     },
   );
 
-  testWidgets('hotel hub does not surface a reply door', (tester) async {
+  testWidgets('hotel hub surfaces info time door, not reply', (tester) async {
     await pumpHub(tester, scene: TravelSceneId.hotel);
     expect(find.text(AppStrings.travelScenePurposeHotel), findsOneWidget);
+    expect(find.text(AppStrings.infoAction), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelEntry), findsOneWidget);
     expect(find.text(AppStrings.replyAction), findsNothing);
   });
 
@@ -1125,6 +1130,188 @@ void main() {
     await tester.tap(find.text(AppStrings.iReadIt));
     await tester.pumpAndSettle();
     expect(repos.words.statForItem('word:つかえません').isSeen, isTrue);
+  });
+
+  Future<void> learnAllKana(KanaProgressRepository kana) async {
+    for (final lesson in Lessons.fromKana(kana.allKana)) {
+      await kana.markUnitLearned(lesson.id);
+    }
+  }
+
+  Future<void> markHotelInfoWordsSeen(WordProgressRepository words) async {
+    final ids = {
+      for (final drill in kHotelInfoDrills)
+        for (final id in drill.requiredSeenIds)
+          if (id.startsWith('word:')) id,
+    };
+    for (final id in ids) {
+      await words.markIntroduced(id, at: noon());
+    }
+  }
+
+  Future<void> markHotelInfoPhrasesSeen(WordProgressRepository words) async {
+    for (final id in const ['phrase:あさごはんは ありますか', 'phrase:あした でます']) {
+      await words.markIntroduced(id, at: noon());
+    }
+  }
+
+  Future<void> openHotelInfo(WidgetTester tester) async {
+    final door = find.byKey(const ValueKey<String>('travel-hotel-info'));
+    await tester.ensureVisible(door);
+    await tester.tap(door);
+    await tester.pumpAndSettle();
+    expect(find.byType(InfoHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelPurpose), findsOneWidget);
+    expect(find.text(AppStrings.infoPurpose), findsNothing);
+  }
+
+  Future<void> finishReadingItem(WidgetTester tester) async {
+    await tester.ensureVisible(find.text(AppStrings.iReadUnprompted));
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Home→旅行→旅館→聽懂數字資訊：只缺 phrase 先見面 Reading 介紹後可開始', (tester) async {
+    final repos = await pumpHome(tester);
+    await learnAllKana(repos.kana);
+    await markHotelInfoWordsSeen(repos.words);
+    await tester.pumpAndSettle();
+
+    await openScene(tester, AppStrings.travelSceneHotel);
+    await openHotelInfo(tester);
+    expect(find.text(AppStrings.infoStartAction), findsNothing);
+    expect(find.byKey(const ValueKey<String>('info-meet')), findsOneWidget);
+    expect(find.byType(ReadingScreen), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey<String>('info-meet')));
+    await tester.pumpAndSettle();
+    expect(find.byType(InfoHubScreen, skipOffstage: false), findsOneWidget);
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelMeetTitle), findsOneWidget);
+    final reading = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
+    expect(
+      reading.items.map((i) => i.progressId),
+      containsAll(['phrase:あさごはんは ありますか', 'phrase:あした でます']),
+    );
+    expect(reading.items, hasLength(2));
+    expect(find.byType(FerryScreen), findsNothing);
+
+    await finishReadingItem(tester);
+    await finishReadingItem(tester);
+    expect(repos.words.statForItem('phrase:あさごはんは ありますか').isSeen, isTrue);
+    expect(repos.words.statForItem('phrase:あした でます').isSeen, isTrue);
+    await tester.tap(find.text(AppStrings.done));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsNothing);
+    expect(find.byType(InfoHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelPurpose), findsOneWidget);
+    expect(find.text(AppStrings.infoStartAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.infoStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(InfoScreen), findsOneWidget);
+    final practice = tester.widget<InfoScreen>(find.byType(InfoScreen));
+    expect(practice.drills, hasLength(2));
+    expect(
+      practice.drills.map((d) => d.id),
+      containsAll(['info:hotel-breakfast-9am', 'info:hotel-checkout-10am']),
+    );
+    expect(find.text('3000日圓'), findsNothing);
+  });
+
+  testWidgets('旅館時刻 words 已教時先見面走 Ferry，不是空轉', (tester) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.hotel);
+    await learnAllKana(repos.kana);
+    await markHotelInfoPhrasesSeen(repos.words);
+    await tester.pumpAndSettle();
+
+    await openHotelInfo(tester);
+    expect(find.text(AppStrings.infoStartAction), findsNothing);
+    expect(find.byKey(const ValueKey<String>('info-meet')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('info-meet')));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelMeetTitle), findsOneWidget);
+    expect(find.byType(ReadingScreen), findsNothing);
+    final ferry = tester.widget<FerryScreen>(find.byType(FerryScreen));
+    expect(
+      ferry.words.map((w) => w.progressId),
+      containsAll(['word:あさごはん', 'word:チェックアウト']),
+    );
+    expect(find.text('さんぜん'), findsNothing);
+  });
+
+  testWidgets('旅館時刻 gates 都見過可開始，もう一回仍是兩題時刻', (tester) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.hotel);
+    await learnAllKana(repos.kana);
+    await markHotelInfoWordsSeen(repos.words);
+    await markHotelInfoPhrasesSeen(repos.words);
+    await tester.pumpAndSettle();
+
+    await openHotelInfo(tester);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsNothing);
+    expect(find.text(AppStrings.infoStartAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.infoStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(InfoScreen), findsOneWidget);
+    var practice = tester.widget<InfoScreen>(find.byType(InfoScreen));
+    expect(practice.drills, hasLength(2));
+    expect(practice.drills.every((d) => d.kind == InfoKind.time), isTrue);
+
+    await tester.tap(find.byKey(const ValueKey<String>('info-skip')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('info-skip')));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.practiceAgain), findsOneWidget);
+    await tester.tap(find.text(AppStrings.practiceAgain));
+    await tester.pumpAndSettle();
+    expect(find.byType(InfoScreen), findsOneWidget);
+    practice = tester.widget<InfoScreen>(find.byType(InfoScreen));
+    expect(practice.drills, hasLength(2));
+    expect(
+      practice.drills.map((d) => d.id),
+      containsAll(['info:hotel-breakfast-9am', 'info:hotel-checkout-10am']),
+    );
+    expect(find.text('3000日圓'), findsNothing);
+    expect(find.text('1位'), findsNothing);
+  });
+
+  testWidgets('旅館時刻先見面 leftover：word 後 もう一回接 phrase，不掉全域', (tester) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.hotel);
+    await learnAllKana(repos.kana);
+    for (final id in {
+      for (final drill in kHotelInfoDrills)
+        for (final gate in drill.requiredSeenIds)
+          if (gate.startsWith('word:') && gate != 'word:チェックアウト') gate,
+    }) {
+      await repos.words.markIntroduced(id, at: noon());
+    }
+    await tester.pumpAndSettle();
+
+    await openHotelInfo(tester);
+    await tester.tap(find.byKey(const ValueKey<String>('info-meet')));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    final ferry = tester.widget<FerryScreen>(find.byType(FerryScreen));
+    expect(ferry.words.map((w) => w.progressId), ['word:チェックアウト']);
+    await finishFerryWord(tester);
+    expect(repos.words.statForItem('word:チェックアウト').isSeen, isTrue);
+
+    await tester.tap(find.text(AppStrings.practiceAgain));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(find.text(AppStrings.infoHotelMeetTitle), findsOneWidget);
+    expect(find.byType(InfoHubScreen, skipOffstage: false), findsOneWidget);
+    final reading = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
+    expect(
+      reading.items.map((i) => i.progressId),
+      containsAll(['phrase:あさごはんは ありますか', 'phrase:あした でます']),
+    );
+    expect(find.text('さんぜん'), findsNothing);
+    expect(find.text(AppStrings.infoPurpose), findsNothing);
   });
 }
 
