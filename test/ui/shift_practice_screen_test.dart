@@ -210,13 +210,13 @@ void main() {
         ShiftReadSupport.prompted,
       );
 
-      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.tap(find.text(AppStrings.recallHint));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.tap(find.text(AppStrings.shiftSenseHint));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.tap(find.text(AppStrings.shiftSenseOkAfterHint));
       await tester.pumpAndSettle();
 
       expect(
