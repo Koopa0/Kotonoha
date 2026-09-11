@@ -201,7 +201,7 @@ void main() {
     expect(find.byType(ReplyScreen), findsOneWidget);
     expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
     expect(find.text('問車站在哪裡'), findsOneWidget);
-    expect(find.text('有人問路。改札在你右邊。'), findsOneWidget);
+    expect(find.text('改札在你右邊。'), findsOneWidget);
     expect(find.text('この ふくは ちいさい'), findsNothing);
     expect(find.text('えきは どこ'), findsNothing);
     expect(repos.words.statForItem('phrase:えきは どこ').srsLevel, 0);

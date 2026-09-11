@@ -26,6 +26,22 @@ import '../helpers/fake_tts_client.dart';
 final _ekiAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:eki-wa-doko');
 final _ekiHere = kReplyDrills.firstWhere((d) => d.id == 'reply:eki-wa-koko');
 final _whereGo = kReplyDrills.firstWhere((d) => d.id == 'reply:doko-e-iku');
+final _confirmEki = kReplyDrills.firstWhere((d) => d.id == 'reply:koko-wa-eki');
+
+void _expectSceneKeepsAskHidden(ReplyDrill drill) {
+  final widget =
+      find.byKey(const ValueKey<String>('reply-scene')).evaluate().single.widget
+          as Text;
+  final scene = widget.data ?? '';
+  expect(scene, drill.sceneZh);
+  expect(scene, isNot(contains(drill.intentCorrect)));
+  expect(scene, isNot(contains(drill.promptMeaning)));
+  expect(scene, isNot(contains('問路')));
+  expect(scene, isNot(contains('問你')));
+  expect(scene, isNot(contains('要去哪')));
+  expect(scene, isNot(contains('是不是車站')));
+  expect(scene, isNot(contains('車站在哪')));
+}
 
 /// iOS-like flutter_tts MethodChannel: stop returns 1 and does not settle
 /// a pending speak. Every speak stays open until [completeSpeak].
@@ -237,7 +253,8 @@ void main() {
     final env = await pumpReply(tester, drills: [_ekiAsk]);
     expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
     expect(find.byKey(const ValueKey<String>('reply-scene')), findsOneWidget);
-    expect(find.text('有人問路。改札在你右邊。'), findsOneWidget);
+    expect(find.text('改札在你右邊。'), findsOneWidget);
+    _expectSceneKeepsAskHidden(_ekiAsk);
     expect(find.text('えきは どこ'), findsNothing);
     expect(find.text('車站在哪裡'), findsNothing);
     expect(find.text('ここです'), findsNothing);
@@ -281,6 +298,8 @@ void main() {
     tester,
   ) async {
     final env = await pumpReply(tester, drills: [_whereGo]);
+    _expectSceneKeepsAskHidden(_whereGo);
+    expect(find.text('要去哪裡'), findsNothing);
     await tester.tap(find.byKey(const ValueKey<String>('reply-hint')));
     await tester.pumpAndSettle();
     expect(find.text('要去哪裡'), findsOneWidget);
@@ -375,12 +394,14 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text(AppStrings.replyIntentPrompt), findsOneWidget);
     expect(find.text('問車站在哪裡'), findsOneWidget);
-    expect(find.text('有人問路。改札在你右邊。'), findsOneWidget);
+    expect(find.text('改札在你右邊。'), findsOneWidget);
+    _expectSceneKeepsAskHidden(_ekiAsk);
     expect(find.text('えきは どこ'), findsNothing);
   });
 
   testWidgets('right-scene みぎです is independent', (tester) async {
     final env = await pumpReply(tester, drills: [_ekiAsk]);
+    _expectSceneKeepsAskHidden(_ekiAsk);
     await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'みぎです');
     final logged = await env.analytics.all();
     expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
@@ -403,7 +424,8 @@ void main() {
 
   testWidgets('door-scene ここです is independent', (tester) async {
     final env = await pumpReply(tester, drills: [_ekiHere]);
-    expect(find.text('你站在車站門口。有人問路。'), findsOneWidget);
+    expect(find.text('你站在車站門口。'), findsOneWidget);
+    _expectSceneKeepsAskHidden(_ekiHere);
     await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'ここです');
     final logged = await env.analytics.all();
     expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
@@ -420,6 +442,54 @@ void main() {
     expect(logged[1].correct, isFalse);
   });
 
+  testWidgets(
+    'destination scene does not leak intent; hear stays independent',
+    (tester) async {
+      final env = await pumpReply(tester, drills: [_whereGo]);
+      _expectSceneKeepsAskHidden(_whereGo);
+      expect(find.text('要去哪裡'), findsNothing);
+      await _hearThenPick(tester, intent: '問你要去哪裡', reply: 'きょうとです');
+      final logged = await env.analytics.all();
+      expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+      expect(logged[0].meta[AttemptMeta.heard], isTrue);
+      expect(logged[0].meta[AttemptMeta.prompted], isFalse);
+      expect(logged[0].meta[AttemptMeta.hinted], isFalse);
+      expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    },
+  );
+
+  testWidgets(
+    'station-confirm scene does not leak intent; hear stays independent',
+    (tester) async {
+      final env = await pumpReply(tester, drills: [_confirmEki]);
+      _expectSceneKeepsAskHidden(_confirmEki);
+      expect(find.text('這裡是車站嗎'), findsNothing);
+      await _hearThenPick(tester, intent: '問這裡是不是車站', reply: 'はい');
+      final logged = await env.analytics.all();
+      expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+      expect(logged[0].meta[AttemptMeta.heard], isTrue);
+      expect(logged[0].meta[AttemptMeta.prompted], isFalse);
+      expect(logged[0].meta[AttemptMeta.hinted], isFalse);
+      expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    },
+  );
+
+  testWidgets('hinted station-confirm is not independent hearing', (
+    tester,
+  ) async {
+    final env = await pumpReply(tester, drills: [_confirmEki]);
+    _expectSceneKeepsAskHidden(_confirmEki);
+    await tester.tap(find.byKey(const ValueKey<String>('reply-hint')));
+    await tester.pumpAndSettle();
+    expect(find.text('這裡是車站嗎'), findsOneWidget);
+    await tester.tap(find.text('問這裡是不是車站'));
+    await tester.pumpAndSettle();
+    final logged = await env.analytics.all();
+    expect(logged.single.meta[AttemptMeta.evidence], ReplyEvidence.hinted);
+    expect(logged.single.meta[AttemptMeta.hinted], isTrue);
+    expect(logged.single.correct, isTrue);
+  });
+
   testWidgets('production skip after inactive does not autoplay the next ask', (
     tester,
   ) async {
@@ -432,7 +502,8 @@ void main() {
     await tester.pump();
     expect(env.tts.spoken, ['えきはどこ']);
     expect(tester.binding.lifecycleState, AppLifecycleState.inactive);
-    expect(find.text('檢票口有人問你要去哪裡。'), findsOneWidget);
+    expect(find.text('檢票口。此行前往京都。'), findsOneWidget);
+    _expectSceneKeepsAskHidden(_whereGo);
 
     final skipped = await env.analytics.all();
     expect(skipped.single.meta[AttemptMeta.evidence], ReplyEvidence.unheard);

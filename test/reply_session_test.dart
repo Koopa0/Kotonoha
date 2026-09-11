@@ -99,6 +99,34 @@ void main() {
     expect(stats, isEmpty);
   });
 
+  test('scene text is background only and does not translate the ask', () {
+    const leaks = ['問你', '要去哪', '問路', '車站在哪', '是不是車站', '這裡是車站嗎'];
+    for (final drill in kReplyDrills) {
+      expect(
+        drill.sceneZh,
+        isNot(contains(drill.intentCorrect)),
+        reason: drill.id,
+      );
+      expect(
+        drill.sceneZh,
+        isNot(contains(drill.promptMeaning)),
+        reason: drill.id,
+      );
+      for (final leak in leaks) {
+        expect(
+          drill.sceneZh,
+          isNot(contains(leak)),
+          reason: '${drill.id} $leak',
+        );
+      }
+    }
+    final byId = {for (final drill in kReplyDrills) drill.id: drill};
+    expect(byId['reply:doko-e-iku']!.sceneZh, contains('京都'));
+    expect(byId['reply:eki-wa-doko']!.sceneZh, contains('右'));
+    expect(byId['reply:eki-wa-koko']!.sceneZh, contains('門口'));
+    expect(byId['reply:koko-wa-eki']!.sceneZh, contains('車站'));
+  });
+
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
     final byId = {for (final drill in kReplyDrills) drill.id: drill};
     final right = byId['reply:eki-wa-doko']!;

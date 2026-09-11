@@ -24,8 +24,9 @@ class ReplyDrill {
   /// Stable analytics id (`reply:…`). Never a corpus progress id.
   final String id;
 
-  /// Situation that makes one reply uniquely right. Traditional Chinese
-  /// only — never the heard Japanese, romaji, or gloss.
+  /// Background facts that make one reply uniquely right. Traditional
+  /// Chinese only — never the heard Japanese, romaji, gloss, or a
+  /// translation of the asker's intent.
   final String sceneZh;
 
   /// The other person's utterance, layout-spaced like [Phrase.kana].
