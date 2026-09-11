@@ -35,7 +35,8 @@ park queues — meet those items first, then recall or listen.
 You can keep one or two travel focuses; Home then runs one needed kana
 boost and continues the chosen scene, without waiting for every kana row.
 換句 swaps a word in an original sentence so you can check the reading and
-the sense separately; that check is self-graded, not a system score.
+the sense separately, or keep the swapped line for the next day; that check
+is self-graded, not a system score.
 漢字の声 teaches and recalls readings inside the app's own words and
 sentences, not as isolated characters. Other rooms — look-alike kana, paper
 recall, a kana chart, short phrases, mixed-script sentences — open when you

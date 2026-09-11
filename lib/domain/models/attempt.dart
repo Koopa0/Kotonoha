@@ -50,6 +50,23 @@ abstract final class AttemptMeta {
 
   /// Optional learner-supplied source URL (context only; never fetched).
   static const String source = 'source';
+
+  /// Shift-practice lane: [ShiftLane.name] (`sameDay`, `hold`, `confirm`,
+  /// `review`). Associates a delayed retest without a second ledger.
+  static const String lane = 'lane';
+
+  /// Local calendar date (`YYYY-MM-DD`) when a reserved shift beat is due.
+  static const String holdUntil = 'holdUntil';
+
+  /// How a shift sentence became visible: `preview` or `practice`.
+  /// Absence on a legacy row means exposure is unknown — never "unseen".
+  static const String sight = 'sight';
+
+  /// Reading support already given when the sense check was graded
+  /// (`independent` or `prompted`). Independent requires a correct
+  /// unprompted read after reveal, not the pre-reveal commit alone.
+  /// Sense never inherits a mastery flag.
+  static const String readSupport = 'readSupport';
 }
 
 /// One answered item — the fine-grained event stream behind learning analytics.
