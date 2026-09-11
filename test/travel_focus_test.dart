@@ -64,4 +64,23 @@ void main() {
     expect(copy.focuses.single.date, DateTime(2026, 9, 18));
     expect(copy.kanaBoostOn, DateTime(2026, 9, 11));
   });
+
+  test('restaurant and convenience ids persist and are not dropped', () {
+    final original = TravelFocusPlan.empty.withFocuses(const [
+      TravelFocus(scene: TravelSceneId.restaurant),
+      TravelFocus(scene: TravelSceneId.convenience),
+    ]);
+    final copy = TravelFocusPlan.fromJson(
+      Map<String, dynamic>.from(original.toJson()),
+    );
+    expect(copy.focuses.map((f) => f.scene), [
+      TravelSceneId.restaurant,
+      TravelSceneId.convenience,
+    ]);
+    expect(TravelFocusPlan.sceneNamed('restaurant'), TravelSceneId.restaurant);
+    expect(
+      TravelFocusPlan.sceneNamed('convenience'),
+      TravelSceneId.convenience,
+    );
+  });
 }

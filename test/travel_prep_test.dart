@@ -61,6 +61,19 @@ void main() {
     expect(TravelPrep.pickScene(plan, day2), TravelSceneId.transport);
   });
 
+  test('pickScene serves restaurant and convenience like the older rooms', () {
+    var plan = TravelFocusPlan.empty.withFocuses(const [
+      TravelFocus(scene: TravelSceneId.restaurant),
+      TravelFocus(scene: TravelSceneId.convenience),
+    ]);
+    final day = DateTime(2026, 9, 11, 12);
+    expect(TravelPrep.pickScene(plan, day), TravelSceneId.restaurant);
+    plan = plan.markServed(TravelSceneId.restaurant, day);
+    expect(TravelPrep.pickScene(plan, day), TravelSceneId.convenience);
+    plan = plan.markServed(TravelSceneId.convenience, day);
+    expect(TravelPrep.pickScene(plan, day), isNull);
+  });
+
   test(
     'kindFor recalls due first, teaches only when nothing is due, else listen',
     () {
@@ -88,10 +101,7 @@ void main() {
         },
         now: now,
       );
-      expect(
-        mixed.dueReadable.map((i) => i.progressId),
-        contains('word:えき'),
-      );
+      expect(mixed.dueReadable.map((i) => i.progressId), contains('word:えき'));
       expect(
         mixed.unreadReadable.map((i) => i.progressId),
         contains('word:ここ'),

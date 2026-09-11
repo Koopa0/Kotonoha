@@ -149,7 +149,9 @@ class TravelSceneHub extends StatelessWidget {
     TravelSceneId.clothing => ReplySceneId.clothing,
     TravelSceneId.restaurant => ReplySceneId.restaurant,
     TravelSceneId.convenience => ReplySceneId.convenience,
-    _ => null,
+    TravelSceneId.transport ||
+    TravelSceneId.shrine ||
+    TravelSceneId.parkQueue => null,
   };
 
   Set<String> _learnedChars(BuildContext context) =>
