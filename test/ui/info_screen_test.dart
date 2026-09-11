@@ -20,6 +20,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_tts_client.dart';
 
 final _amount3k = kInfoDrills.firstWhere((d) => d.id == 'info:amount-3000');
+final _amount5k = kInfoDrills.firstWhere((d) => d.id == 'info:amount-5000');
+final _person3 = kInfoDrills.firstWhere((d) => d.id == 'info:person-3');
 final _time330 = kInfoDrills.firstWhere((d) => d.id == 'info:time-330pm');
 
 void main() {
@@ -122,5 +124,37 @@ void main() {
     expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.hinted);
     expect(logged[0].meta[AttemptMeta.hinted], isTrue);
     expect(logged[0].correct, isTrue);
+  });
+
+  testWidgets('migration amount-5000日圓 is independent at 320×640 / 2x', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final env = await pumpInfo(
+      tester,
+      drills: [_amount5k],
+      surface: const Size(320, 640),
+    );
+    expect(find.text('5000日圓'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('info-prompt-kana')), findsNothing);
+    await hearThenPick(tester, answer: '5000日圓');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[0].correct, isTrue);
+  });
+
+  testWidgets('migration person-3位 scores miss on 2位', (tester) async {
+    final env = await pumpInfo(tester, drills: [_person3]);
+    await hearThenPick(tester, answer: '2位');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[0].correct, isFalse);
   });
 }

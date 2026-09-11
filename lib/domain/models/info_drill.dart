@@ -19,6 +19,7 @@ class InfoDrill {
     required this.correctAnswer,
     required this.wrongAnswers,
     required this.requiredSeenIds,
+    this.requiredPartIds = const [],
   });
 
   /// Stable analytics id (`info:…`). Never a corpus progress id.
@@ -45,6 +46,15 @@ class InfoDrill {
 
   /// Corpus progress ids that must already have been met before a scored turn.
   final List<String> requiredSeenIds;
+
+  /// Part ids for migration drills: learner met each piece separately, not as
+  /// one pre-taught whole combo in the same session contract.
+  final List<String> requiredPartIds;
+
+  bool get isMigration => requiredPartIds.isNotEmpty;
+
+  List<String> get gateIds =>
+      isMigration ? requiredPartIds : requiredSeenIds;
 
   String get say => promptKana.replaceAll(' ', '');
 
