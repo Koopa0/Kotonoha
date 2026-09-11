@@ -222,7 +222,7 @@ abstract final class TravelScene {
     ],
     TravelSceneId.hotel: [
       'phrase:よやくが あります',
-      'phrase:うけつけで とまる',
+      'phrase:チェックインを おねがい',
       'phrase:あさごはんは ありますか',
       'phrase:あした でます',
       'word:ホテル',
