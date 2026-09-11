@@ -237,17 +237,13 @@ void main() {
     });
   });
 
-  test(
-    'PracticeMode keeps shift and placementCheck by name, append-only',
-    () {
-      expect(PracticeMode.listening.name, 'listening');
-      expect(PracticeMode.shift.name, 'shift');
-      expect(PracticeMode.placementCheck.name, 'placementCheck');
-      expect(PracticeMode.values.map((m) => m.name), containsAllInOrder([
-        'listening',
-        'shift',
-        'placementCheck',
-      ]));
-    },
-  );
+  test('PracticeMode keeps shift and placementCheck by name, append-only', () {
+    expect(PracticeMode.listening.name, 'listening');
+    expect(PracticeMode.shift.name, 'shift');
+    expect(PracticeMode.placementCheck.name, 'placementCheck');
+    expect(
+      PracticeMode.values.map((m) => m.name),
+      containsAllInOrder(['listening', 'shift', 'placementCheck']),
+    );
+  });
 }
