@@ -78,8 +78,10 @@ void main() {
       expect(find.text(AppStrings.shiftPersistFailed), findsWidgets);
       expect(find.text(AppStrings.persistRetry), findsWidgets);
       expect(find.text(AppStrings.shiftHeldUntilTomorrow), findsNothing);
-      expect(analytics.cache.length, 6);
-      expect(analytics.unpersistedCount, 6);
+      // Seven picker previews (two adjective + five bring-over) plus one
+      // hold sitting: reservation, practice sight, read, sense.
+      expect(analytics.cache.length, 11);
+      expect(analytics.unpersistedCount, 11);
       expect(words.stats, isEmpty);
 
       analytics.allowWrites = true;
