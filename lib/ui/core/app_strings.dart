@@ -66,6 +66,17 @@ abstract final class AppStrings {
   static const String guidanceMeetSentences = '詞都見過了 —— 到「黙読」,讀新的句子。';
   static const String guidanceMeetKanji = '到「漢字の声」看看 —— 還有新的讀音等著見面。';
   static const String guidanceCaughtUp = '該複習的都熟了 —— 今天想讀什麼都好。';
+  static String guidanceTravelBoost(int n) => '旅行準備先做一回「今日の稽古」—— 有 $n 個假名該補強。';
+  static String guidanceTravelMeet(String scene) => '接著練「$scene」—— 還沒見過的先見面。';
+  static String guidanceTravelRecall(String scene, int n) =>
+      '接著練「$scene」—— 有 $n 個見過的該回想。';
+  static String guidanceTravelListen(String scene) =>
+      '接著練「$scene」—— 先聽再揭曉已經見過的。';
+  static String guidanceTravelLearnKana(String scene, String units) =>
+      units.isEmpty
+      ? '「$scene」還有詞句讀不動。先到「手解き」補假名。'
+      : '「$scene」還有詞句讀不動。先補：$units';
+  static const String guidanceTravelHold = '今天的旅行準備先到這裡。明天還能接著練。';
   static const String sectionKana = '假名';
   static const String sectionWords = '詞と句';
   static const String sectionKanji = '漢字';
@@ -239,7 +250,7 @@ abstract final class AppStrings {
   static const String travelSceneShrine = '神社古城';
   static const String travelSceneParkQueue = '一般入園／排隊／求助';
   static const String travelScenePurposeTransport = '這一回只練車站、電車、轉乘與行李。';
-  static const String travelScenePurposeClothing = '這一回只練衣服尺寸、價錢與購買。';
+  static const String travelScenePurposeClothing = '這一回只練試穿、尺寸、試衣間、價錢、購買與付款方式。';
   static const String travelScenePurposeShrine = '這一回只練神社、寺院與古城的方向、進出與風景。';
   static const String travelScenePurposeParkQueue =
       '這一回只練一般遊樂園的入口、排隊與當場求助。不定活動檔期。';
@@ -254,6 +265,28 @@ abstract final class AppStrings {
   static String travelSceneMeetTitle(String scene) => '$scene・見面';
   static String travelSceneRecallTitle(String scene) => '$scene・回想';
   static String travelSceneListenTitle(String scene) => '$scene・聞き取り';
+
+  // Travel focuses — a retained 1–2 scene plan for Home's daily next step.
+  // Isolated from #47's one-off scene picker; choosing or cancelling never
+  // writes mastery.
+  static const String travelFocusAction = '設定旅行重點';
+  static const String travelFocusEditAction = '改旅行重點';
+  static const String travelFocusEntry = '旅行準備';
+  static const String travelFocusSubtitle = '留下一到兩個場景，每天接著練';
+  static const String travelFocusTitle = '旅行重點';
+  static const String travelFocusHint = '選一到兩個現在要準備的場景。日期可寫可改，不會倒數，也不會自動說學完。';
+  static const String travelFocusLimit = '最多兩個重點。要換場景，先取消其中一個。';
+  static const String travelFocusDateLabel = '打算去的日子（可改）';
+  static const String travelFocusDateUnset = '還沒指定';
+  static const String travelFocusDateClear = '去掉日期';
+  static const String travelFocusSave = '記住這些重點';
+  static const String travelFocusClear = '取消旅行重點';
+  static const String travelPrepBoostAction = '先補強假名';
+  static const String travelPrepMeetAction = '繼續見面';
+  static const String travelPrepRecallAction = '回想見過的';
+  static const String travelPrepListenAction = '先聽再揭曉';
+  static const String travelPrepLearnAction = '先補這幕假名';
+  static const String travelPrepSkipAction = '這一回先跳過';
 
   // 渡し舟 The Ferry (hear → see → read back)
   static const String ferryEntry = '渡し舟';
@@ -367,7 +400,8 @@ abstract final class AppStrings {
   static const String replyTitle = '短く返す';
   static const String replyPurpose = '這一回只練車站裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyClothingPurpose =
-      '這一回只練購衣時聽懂店員在說什麼,再選一句短回應。選對不是口說錄音判定。';
+      '這一回只練購衣時聽懂店員在說試穿、尺寸、試衣間或付款,再選一句短回應。'
+      '選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
   static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
@@ -384,6 +418,30 @@ abstract final class AppStrings {
   static const String replyClose = '這一回,先練到這裡。';
   static const String replyCloseNote = '聽音、看過文字、提示後答出、獨立選回應是分開記下的。選對不是口說判定。';
   static String replyMissingKana(String units) => '還需要先認得：$units';
+
+  // 旅の情報 — hear amount / time / headcount in travel, not whole-sentence self-grade.
+  static const String infoAction = '聽懂數字資訊';
+  static const String infoEntry = '旅の情報';
+  static const String infoTitle = '旅の情報';
+  static const String infoPurpose =
+      '這一回只練旅行裡聽懂金額、時刻或人數，再選出聽到的資訊。選對不是口說錄音判定。';
+  static const String infoMeetHint =
+      '還沒見過的數字或單位，先見面；見過的才聽句子再選資訊。';
+  static const String infoReadyHint = '見過的可以聽句子再選資訊。還沒見過的仍先見面。';
+  static const String infoNeedKana =
+      '這回還有句子讀不動。先到「手解き」補假名，選對也不會當成已會辨識。';
+  static const String infoStartAction = '開始這一回';
+  static const String infoMeetTitle = '旅の情報・見面';
+  static const String infoAmountPrompt = '聽到的金額是？';
+  static const String infoTimePrompt = '聽到的時刻是？';
+  static const String infoPersonPrompt = '聽到的人數是？';
+  static const String infoHint = '看意思提示';
+  static const String infoShowText = '看日文';
+  static const String infoNotSpeaking = '選對是聽懂資訊的證據，不是口說判定。';
+  static const String infoClose = '這一回，先練到這裡。';
+  static const String infoCloseNote =
+      '聽音、看過文字、提示後答出、獨立選資訊是分開記下的。選對不是口說判定。';
+  static String infoMissingKana(String units) => '還需要先認得：$units';
 
   // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';

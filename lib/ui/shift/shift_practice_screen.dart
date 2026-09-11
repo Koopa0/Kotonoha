@@ -82,6 +82,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   bool _readUnprompted = false;
   bool _readCorrect = false;
   bool _senseUnprompted = false;
+  bool _senseGrading = false;
   bool _done = false;
   bool _unsaved = false;
   bool _retrying = false;
@@ -282,6 +283,10 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   Future<void> _gradeSense({required bool correct}) async {
+    if (_senseGrading) return;
+    _senseGrading = true;
+    if (mounted) setState(() {});
+
     await _record(
       ShiftCheck.sense,
       prompted: !_senseUnprompted,
@@ -293,6 +298,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     if (next < _beats.length) {
       _note.clear();
       setState(() {
+        _senseGrading = false;
         _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
@@ -586,8 +592,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
               ? AppStrings.shiftSenseOk
               : AppStrings.shiftSenseOkAfterHint,
           danger: true,
-          onOutlined: () => _gradeSense(correct: false),
-          onFilled: () => _gradeSense(correct: true),
+          enabled: !_senseGrading,
+          onOutlined: () => unawaited(_gradeSense(correct: false)),
+          onFilled: () => unawaited(_gradeSense(correct: true)),
         );
     }
   }
@@ -598,6 +605,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     required VoidCallback onOutlined,
     required VoidCallback onFilled,
     bool danger = false,
+    bool enabled = true,
   }) {
     return Row(
       children: [
@@ -611,7 +619,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: onOutlined,
+            onPressed: enabled ? onOutlined : null,
             child: Text(outlined, textAlign: TextAlign.center),
           ),
         ),
@@ -622,7 +630,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
               backgroundColor: danger ? AppColors.success : null,
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: onFilled,
+            onPressed: enabled ? onFilled : null,
             child: Text(filled, textAlign: TextAlign.center),
           ),
         ),

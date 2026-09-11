@@ -54,6 +54,14 @@ void main() {
     expect(pools[TravelSceneId.transport], contains('phrase:にもつは だいじょうぶ'));
     expect(pools[TravelSceneId.clothing], contains('phrase:この ふくは ちいさい'));
     expect(pools[TravelSceneId.clothing], contains('phrase:あかい ふくを かう'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:しちゃくして いいですか'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:しちゃくしつは どこ'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:げんきんは いいですか'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:カードは つかえます'));
+    expect(pools[TravelSceneId.clothing], contains('phrase:カードは つかえません'));
+    expect(pools[TravelSceneId.clothing], contains('word:サイズ'));
+    expect(pools[TravelSceneId.clothing], contains('word:カード'));
+    expect(pools[TravelSceneId.clothing], contains('word:デパート'));
     expect(pools[TravelSceneId.shrine], contains('phrase:じんじゃは どこ'));
     expect(pools[TravelSceneId.shrine], contains('phrase:ふるい おしろが みえる'));
     expect(pools[TravelSceneId.parkQueue], contains('phrase:いりぐちで ならぶ'));
@@ -64,6 +72,12 @@ void main() {
       'ふるい おしろが みえる',
       'この ふくは ちいさい',
       'あかい ふくを かう',
+      'しちゃくして いいですか',
+      'しちゃくしつは どこ',
+      'げんきんは いいですか',
+      'げんきんで かいけい',
+      'カードは つかえます',
+      'カードは つかえません',
       'いりぐちで ならぶ',
       'にもつは だいじょうぶ',
       'たすけて ください',
@@ -114,6 +128,23 @@ void main() {
     expect(clothing.canMeet, isTrue);
     expect(transport.canRecall, isFalse);
     expect(clothing.canRecall, isFalse);
+  });
+
+  test('inspect lists due already-seen items without writing stats', () {
+    final overdue = now.subtract(const Duration(days: 2));
+    final stats = {'word:えき': seenAt(overdue.millisecondsSinceEpoch)};
+    final view = TravelScene.inspect(
+      scene: TravelSceneId.transport,
+      learnedChars: aKa,
+      stats: stats,
+      now: now,
+    );
+    expect(view.dueReadable.map((i) => i.progressId), contains('word:えき'));
+    expect(
+      view.unreadReadable.map((i) => i.progressId),
+      isNot(contains('word:えき')),
+    );
+    expect(stats['word:えき']!.seenCount, 1);
   });
 
   test('intro stays inside the scene and does not mark items seen', () {
@@ -313,6 +344,14 @@ void main() {
     );
     expect(
       ListeningSession.t01ProgressIds,
+      isNot(contains('phrase:しちゃくして いいですか')),
+    );
+    expect(
+      ListeningSession.t01ProgressIds,
+      isNot(contains('phrase:げんきんで かいけい')),
+    );
+    expect(
+      ListeningSession.t01ProgressIds,
       isNot(contains('phrase:にもつは だいじょうぶ')),
     );
     expect(ListeningSession.t01ProgressIds, isNot(contains('phrase:じんじゃは どこ')));
@@ -437,6 +476,47 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('clothing try-on and pay items stay in-scene and write nothing', () {
+    final stats = <String, WordStat>{};
+    final clothing = TravelScene.inspect(
+      scene: TravelSceneId.clothing,
+      learnedChars: allChars,
+      stats: stats,
+    );
+    expect(
+      clothing.all.map((i) => i.progressId),
+      containsAll([
+        'phrase:この ふくは ちいさい',
+        'phrase:しちゃくして いいですか',
+        'phrase:しちゃくしつは どこ',
+        'phrase:げんきんは いいですか',
+        'phrase:カードは つかえます',
+        'phrase:カードは つかえません',
+        'word:サイズ',
+        'word:エル',
+        'word:カード',
+        'word:げんきん',
+        'word:つかえます',
+        'word:つかえません',
+        'word:デパート',
+      ]),
+    );
+    expect(clothing.all.map((i) => i.progressId), isNot(contains('word:えき')));
+    final intro = TravelScene.composeIntroWords(
+      scene: TravelSceneId.clothing,
+      learnedChars: allChars,
+      rng: Random(1),
+      now: now,
+      stats: stats,
+    );
+    expect(intro, isNotEmpty);
+    expect(
+      intro.map((w) => w.progressId).toSet(),
+      everyElement(isIn(TravelScene.progressIds[TravelSceneId.clothing]!)),
+    );
+    expect(stats, isEmpty);
   });
 
   test('familiar shrine still shuffles; two seeds are not a fixed face', () {
