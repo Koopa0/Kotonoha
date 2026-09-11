@@ -582,12 +582,13 @@ class HomeScreen extends StatelessWidget {
     List<Phrase> readable, {
     bool replace = false,
     int maxNew = 3,
+    Set<String> excludeProgressIds = const {},
   }) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
         .toSet();
-    final now = DateTime.now();
+    final now = (clock ?? DateTime.now)();
     final picked = ReadingSet.session(
       items: readable,
       learnedChars: learnedChars,
@@ -597,12 +598,23 @@ class HomeScreen extends StatelessWidget {
       season: Season.forMonth(now.month),
       maxNew: maxNew,
     );
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: picked,
+    );
     final nav = Navigator.of(context);
     final route = ReadingScreen.route(
       picked,
       AppStrings.sentenceTitle,
-      onMore: () =>
-          _startSentence(context, readable, replace: true, maxNew: maxNew),
+      clock: clock,
+      alreadyTransferredIds: excludeProgressIds,
+      onMore: () => _startSentence(
+        context,
+        readable,
+        replace: true,
+        maxNew: maxNew,
+        excludeProgressIds: nextExclude,
+      ),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
