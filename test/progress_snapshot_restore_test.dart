@@ -190,6 +190,89 @@ void main() {
     expect(kana.learnedUnits, {'keep_me'});
   });
 
+  test(
+    'rollback write failure keeps journal blocking and mixed durable state',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+      final before = primaryRaws(fake);
+
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
+        1,
+      };
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
+        3,
+      };
+      final restore = restoreFor(fake, kana, kanji, words);
+      final preview = restore.previewEncoded(backup)!;
+
+      await expectLater(
+        restore.apply(preview.snapshot),
+        throwsA(isA<RestoreJournalWriteFailure>()),
+      );
+
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNotNull);
+      expect(
+        snapshotsFor(fake, kana, kanji, words).blockedStores,
+        contains(ProgressRestoreJournal.journalKey),
+      );
+      expect(
+        fake.durable[ProgressSnapshotRepository.learnedUnitsStore],
+        isNot(before[ProgressSnapshotRepository.learnedUnitsStore]),
+      );
+      expect(kana.learnedUnits, {'keep_me'});
+
+      final restarted = FakePreferencesService.restarted(fake);
+      await ProgressRestoreJournal.recoverIfNeeded(restarted);
+      final reloaded = await KanaProgressRepository.load(restarted);
+      expect(
+        restarted.durable[ProgressRestoreJournal.journalKey],
+        isNull,
+      );
+      expect(reloaded.learnedUnits, {'keep_me'});
+    },
+  );
+
+  test(
+    'committed phase survives journal cleanup failure and restart keeps restore',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      fake.failRemoves.add(ProgressRestoreJournal.journalKey);
+
+      final restore = restoreFor(fake, kana, kanji, words);
+      await restore.apply(restore.previewEncoded(backup)!.snapshot);
+
+      expect(kana.stats.length, 1);
+      expect(
+        snapshotsFor(fake, kana, kanji, words).blockedStores,
+        isEmpty,
+      );
+      final journalRaw = fake.durable[ProgressRestoreJournal.journalKey];
+      expect(journalRaw, isNotNull);
+      expect(
+        jsonDecode(journalRaw!)['phase'],
+        RestoreJournalPhase.committed.name,
+      );
+
+      final restarted = FakePreferencesService.restarted(fake);
+      await ProgressRestoreJournal.recoverIfNeeded(restarted);
+      expect(restarted.durable[ProgressRestoreJournal.journalKey], isNull);
+
+      final reloadedKana = await KanaProgressRepository.load(restarted);
+      final reloadedKanji = await KanjiReadingRepository.load(restarted);
+      final reloadedWords = await WordProgressRepository.load(restarted);
+      expect(reloadedKana.stats.length, 1);
+      expect(reloadedKanji.stats.keys, contains(jinReading));
+      expect(reloadedWords.stats['word:いぬ']!.seenCount, 1);
+    },
+  );
+
   test('recoverIfNeeded rolls back interrupted applying journal on restart', () async {
     final (fake, kana, kanji, words) = await loadAll();
     await kana.markUnitLearned('local_only');
@@ -211,6 +294,19 @@ void main() {
 
     expect(primaryRaws(fake), before);
     expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+  });
+
+  test('corrupt journal is not cleared and keeps blocking export', () async {
+    final (fake, kana, kanji, words) = await loadAll();
+    fake.seed(ProgressRestoreJournal.journalKey, 'not json');
+
+    await ProgressRestoreJournal.recoverIfNeeded(fake);
+
+    expect(fake.durable[ProgressRestoreJournal.journalKey], 'not json');
+    expect(
+      snapshotsFor(fake, kana, kanji, words).blockedStores,
+      contains(ProgressRestoreJournal.journalKey),
+    );
   });
 
   test('unfinished journal blocks export', () async {

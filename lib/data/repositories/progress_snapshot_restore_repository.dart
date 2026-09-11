@@ -71,11 +71,17 @@ class ProgressSnapshotRestoreRepository {
         await _journal.applyPrimary(key, staging[key]!);
       }
       for (final key in _auxiliaryKeys) {
-        await _prefs.remove(key);
+        if (!await _prefs.remove(key)) {
+          throw RestoreJournalWriteFailure(key);
+        }
       }
       await _journal.commit();
     } on RestoreJournalWriteFailure {
-      await _journal.abortAndRollback();
+      try {
+        await _journal.abortAndRollback();
+      } on RestoreJournalRollbackFailure {
+        // Journal stays blocking — primaries may still be mixed on disk.
+      }
       rethrow;
     }
     _applyToMemory(snapshot);

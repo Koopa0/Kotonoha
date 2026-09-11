@@ -6,9 +6,10 @@ import 'dart:convert';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 
-/// Phases of an in-flight progress restore. Only [committed] is finished;
-/// anything else on the next [recoverIfNeeded] must roll back primaries and
-/// clear the journal before normal load or export.
+/// Phases of an in-flight progress restore. Only [committed] (or a cleared
+/// journal after it) is finished. Anything else on the next [recoverIfNeeded]
+/// must roll back primaries — except [committed], which must never be rolled
+/// back even when journal cleanup is still pending.
 enum RestoreJournalPhase {
   staging,
   applying,
@@ -28,18 +29,13 @@ abstract final class RestoreJournalStores {
   ];
 }
 
-/// Typed reason a restore journal blocks export or needs recovery.
-enum RestoreJournalBlockReason {
-  /// A restore transaction was interrupted before [RestoreJournalPhase.committed].
-  interrupted,
-}
-
 /// `progress_restore_journal_v1` — coordinates staging, applying, rollback and
 /// startup recovery for the five canonical progress primaries.
 ///
 /// Rollback captures each primary's exact raw string at transaction start (null
 /// when absent). Staging holds the encoded replacement for each body. Memory is
-/// updated only after every primary write succeeds and the journal is cleared.
+/// updated only after every primary write succeeds and the journal records a
+/// durable [RestoreJournalPhase.committed] decision.
 class ProgressRestoreJournal {
   ProgressRestoreJournal(this._prefs);
 
@@ -47,26 +43,28 @@ class ProgressRestoreJournal {
 
   final PreferencesService _prefs;
 
-  /// True when an unfinished journal is on disk — export must refuse until
-  /// [recoverIfNeeded] clears it.
+  /// True when an unfinished, non-committed journal is on disk. A [committed]
+  /// journal awaiting cleanup does not block — the restore decision is durable.
   static bool blocksExport(PreferencesService prefs) {
     final phase = _readPhase(prefs.readString(journalKey));
-    return phase != null && phase != RestoreJournalPhase.committed;
+    if (phase == null || phase == RestoreJournalPhase.committed) return false;
+    return true;
   }
 
-  /// Before repository load: roll back any interrupted transaction so primaries
-  /// never present a new/old mix as normal data.
+  /// Before repository load: finish committed cleanup, or roll back any
+  /// interrupted transaction so primaries never present a new/old mix as normal
+  /// data. A failed rollback leaves the journal in place and keeps blocking.
   static Future<void> recoverIfNeeded(PreferencesService prefs) async {
     final journal = ProgressRestoreJournal(prefs);
     final phase = journal._phase;
-    if (phase == null || phase == RestoreJournalPhase.committed) {
-      if (phase == RestoreJournalPhase.committed) {
-        await journal._clearJournal();
-      }
+    if (phase == null) return;
+    if (phase == RestoreJournalPhase.committed) {
+      await journal._removeJournalBestEffort();
       return;
     }
-    await journal._rollbackPrimaries();
-    await journal._clearJournal();
+    final rolled = await journal._rollbackPrimaries();
+    if (!rolled) return;
+    await journal._removeJournalBestEffort();
   }
 
   RestoreJournalPhase? get _phase => _readPhase(_prefs.readString(journalKey));
@@ -78,7 +76,7 @@ class ProgressRestoreJournal {
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) return decoded;
     } on FormatException {
-      // Treat a corrupt journal like an interrupted apply — rollback what we can.
+      // Corrupt — no rollback map; leave the journal blocking.
     }
     return null;
   }
@@ -107,34 +105,45 @@ class ProgressRestoreJournal {
     }
   }
 
-  /// Successful end — remove the journal. Primaries already hold the new bodies.
+  /// Records a durable committed decision, then best-effort journal cleanup.
+  /// Primaries already hold the new bodies; a failed remove leaves [committed]
+  /// on disk and must not be rolled back on the next launch.
   Future<void> commit() async {
-    await _clearJournal();
+    await _writeJournalPhase(RestoreJournalPhase.committed);
+    await _removeJournalBestEffort();
   }
 
-  Future<void> _rollbackPrimaries() async {
+  /// Rolls every primary back to the captured rollback raw. Returns false when
+  /// the journal is corrupt or any platform write/remove is refused — the
+  /// journal stays blocking in that case.
+  Future<bool> _rollbackPrimaries() async {
     final doc = _document;
-    if (doc == null) {
-      await _clearJournal();
-      return;
-    }
+    if (doc == null) return false;
+
     await _writeJournalPhase(RestoreJournalPhase.rollingBack);
     final rollback = doc['rollback'];
-    if (rollback is Map) {
-      for (final key in RestoreJournalStores.all) {
-        final raw = rollback[key];
-        if (raw is String) {
-          await _prefs.writeString(key, raw);
-        } else if (raw == null) {
-          await _prefs.remove(key);
-        }
+    if (rollback is! Map) return false;
+
+    for (final key in RestoreJournalStores.all) {
+      final raw = rollback[key];
+      if (raw is String) {
+        if (!await _prefs.writeString(key, raw)) return false;
+      } else if (raw == null) {
+        if (!await _prefs.remove(key)) return false;
       }
     }
+    return true;
   }
 
+  /// Aborts an in-flight transaction. Throws [RestoreJournalRollbackFailure]
+  /// when rollback cannot be confirmed on disk — the journal is left blocking.
   Future<void> abortAndRollback() async {
-    await _rollbackPrimaries();
-    await _clearJournal();
+    if (_phase == RestoreJournalPhase.committed) return;
+    final rolled = await _rollbackPrimaries();
+    if (!rolled) {
+      throw RestoreJournalRollbackFailure(journalKey);
+    }
+    await _removeJournalBestEffort();
   }
 
   Future<void> _writeJournalPhase(RestoreJournalPhase phase) async {
@@ -152,7 +161,7 @@ class ProgressRestoreJournal {
     }
   }
 
-  Future<void> _clearJournal() async {
+  Future<void> _removeJournalBestEffort() async {
     await _prefs.remove(journalKey);
   }
 
@@ -173,7 +182,8 @@ class ProgressRestoreJournal {
   }
 }
 
-/// A platform write during restore failed — caller must [ProgressRestoreJournal.abortAndRollback].
+/// A platform write during restore failed before commit — caller must attempt
+/// [ProgressRestoreJournal.abortAndRollback].
 class RestoreJournalWriteFailure implements Exception {
   RestoreJournalWriteFailure(this.key);
 
@@ -181,4 +191,15 @@ class RestoreJournalWriteFailure implements Exception {
 
   @override
   String toString() => 'RestoreJournalWriteFailure(key: $key)';
+}
+
+/// Rollback could not be confirmed on durable storage — the journal stays
+/// blocking until [ProgressRestoreJournal.recoverIfNeeded] succeeds.
+class RestoreJournalRollbackFailure implements Exception {
+  RestoreJournalRollbackFailure(this.key);
+
+  final String key;
+
+  @override
+  String toString() => 'RestoreJournalRollbackFailure(key: $key)';
 }
