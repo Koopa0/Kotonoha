@@ -10,7 +10,7 @@ import 'package:kotonoha/data/services/recoverable_store.dart';
 /// tracked per repository, not per store, because a repository flushes ALL of
 /// its dirty stores together — so one confirmed write clears the whole
 /// repository's backlog.
-enum _Repo { kana, kanji, word, placement, travelFocus }
+enum _Repo { kana, kanji, word, placement, analytics, travelFocus }
 
 /// The startup recovery notice, coalesced most-severe-wins across every store.
 /// Ordered by how much it should worry the reader ([none] < [salvaged] <
@@ -59,6 +59,7 @@ class ProgressPersistenceController extends ChangeNotifier {
     required Future<void> Function() kanjiFlush,
     required Future<void> Function() wordFlush,
     Future<void> Function()? placementFlush,
+    Future<void> Function()? analyticsFlush,
     Future<void> Function()? travelFocusFlush,
     Iterable<StoreHealth> health = const [],
   }) : _flush = {
@@ -66,6 +67,7 @@ class ProgressPersistenceController extends ChangeNotifier {
          _Repo.kanji: kanjiFlush,
          _Repo.word: wordFlush,
          _Repo.placement: placementFlush ?? () async {},
+         _Repo.analytics: analyticsFlush ?? () async {},
          _Repo.travelFocus: travelFocusFlush ?? () async {},
        },
        _recovery = _noticeFor(health);
@@ -126,6 +128,10 @@ class ProgressPersistenceController extends ChangeNotifier {
   /// independent correct. Production always passes [placementFlush]; the
   /// no-op default is for tests that never touch this store.
   void trackPlacement(Future<void> save) => _track(_Repo.placement, save);
+
+  /// Observes an analytics-log write. Retry / drain only [AnalyticsLog.flushPending]
+  /// — they never replay a reservation, sighting, or self-grade.
+  void trackAnalytics(Future<void> save) => _track(_Repo.analytics, save);
 
   /// Observes a travel-focus plan write. Retry / drain flush the plan only —
   /// they never touch kana or 詞と句 mastery. Production always passes

@@ -40,7 +40,8 @@ abstract final class AttemptMeta {
   static const String playback = 'playback'; // SpeechPlaybackResult.name
   static const String heard = 'heard'; // true only after a completed play
   static const String scored = 'scored'; // false = exposure, not a grade
-  /// Shift-practice check: [ShiftCheck.name] (`read` or `sense`).
+  /// Shift-practice check: [ShiftCheck.name]
+  /// (`read`, `sense`, and action drills also `verb`, `roles`).
   static const String evidence = 'evidence';
 
   /// Shift-practice beat: [ShiftBeat.name] (`base` or `shift`).
@@ -50,6 +51,24 @@ abstract final class AttemptMeta {
 
   /// Optional learner-supplied source URL (context only; never fetched).
   static const String source = 'source';
+
+  /// Shift-practice lane: [ShiftLane.name] (`sameDay`, `hold`, `confirm`,
+  /// `review`). Associates a delayed retest without a second ledger.
+  static const String lane = 'lane';
+
+  /// Local calendar date (`YYYY-MM-DD`) when a reserved shift beat is due.
+  static const String holdUntil = 'holdUntil';
+
+  /// How a shift sentence became visible: `preview` or `practice`.
+  /// Absence on a legacy row means exposure is unknown — never "unseen".
+  static const String sight = 'sight';
+
+  /// Reading support already given when a shift sense check was graded
+  /// (`independent` or `prompted`). Independent requires a correct
+  /// unprompted read after reveal, not the pre-reveal commit alone.
+  /// Sense never inherits a mastery flag. This is reading-only — a roles
+  /// Chinese gloss is sense support, not this key.
+  static const String readSupport = 'readSupport';
 }
 
 /// One answered item — the fine-grained event stream behind learning analytics.

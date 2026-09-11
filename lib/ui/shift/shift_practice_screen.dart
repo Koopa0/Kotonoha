@@ -6,23 +6,33 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/shift/shift_history.dart';
+import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
 import 'package:provider/provider.dart';
 
-/// Original swap-sentence practice: read first, then sense / who-modifies-whom.
-/// Hints do not leak the other check. Free-text is never auto-graded. Evidence
-/// is logged per beat and check; word / phrase SRS is never touched.
+/// Original swap-sentence practice: teach new forms first, then read, then
+/// (for action drills) restore the dictionary form and name who / what,
+/// then sense. Hints do not leak another check. Free-text is never
+/// auto-graded. Evidence is logged per beat and check; word / phrase SRS
+/// is never touched.
 class ShiftPracticeScreen extends StatefulWidget {
   const ShiftPracticeScreen({
     required this.drill,
     this.sourceUrl,
     this.onMore,
     this.clock,
+    this.lane = ShiftLane.sameDay,
+    this.beats,
+    this.firstUnseen = false,
     super.key,
   });
 
@@ -30,40 +40,101 @@ class ShiftPracticeScreen extends StatefulWidget {
   final String? sourceUrl;
   final VoidCallback? onMore;
   final DateTime Function()? clock;
+  final ShiftLane lane;
+
+  /// Which pair beats this sitting plays. #73 supplies a reserved-shift
+  /// list; same-day practice still defaults to base then shift.
+  final List<ShiftBeat>? beats;
+  final bool firstUnseen;
 
   static Route<void> route(
     ShiftDrill drill, {
     String? sourceUrl,
     VoidCallback? onMore,
+    DateTime Function()? clock,
+    ShiftLane lane = ShiftLane.sameDay,
+    List<ShiftBeat>? beats,
+    bool firstUnseen = false,
   }) => MaterialPageRoute<void>(
-    builder: (_) =>
-        ShiftPracticeScreen(drill: drill, sourceUrl: sourceUrl, onMore: onMore),
+    builder: (_) => ShiftPracticeScreen(
+      drill: drill,
+      sourceUrl: sourceUrl,
+      onMore: onMore,
+      clock: clock,
+      lane: lane,
+      beats: beats,
+      firstUnseen: firstUnseen,
+    ),
   );
 
   @override
   State<ShiftPracticeScreen> createState() => _ShiftPracticeScreenState();
 }
 
-enum _Phase { readCommit, readGrade, senseCommit, senseGrade }
+enum _Phase {
+  intro,
+  readCommit,
+  readGrade,
+  verbAsk,
+  verbReveal,
+  rolesAsk,
+  rolesReveal,
+  senseCommit,
+  senseGrade,
+}
 
 class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final TextEditingController _note = TextEditingController();
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
+  late final List<ShiftBeat> _beats;
+  late ShiftBeat _beat;
+  final Set<ShiftBeat> _exposed = <ShiftBeat>{};
+  List<ShiftSelfGrade> _history = const [];
   int? _ownedPlay;
   bool _playable = true;
-  ShiftBeat _beat = ShiftBeat.base;
-  _Phase _phase = _Phase.readCommit;
+  late _Phase _phase;
+  int _introIndex = 0;
   bool _readUnprompted = false;
+  bool _readCorrect = false;
   bool _senseUnprompted = false;
+  bool _verbPrompted = false;
+  bool _rolesPrompted = false;
+  bool _rolesRevealedAnswer = false;
+  String? _pickedVerb;
+  String? _pickedActor;
+  String? _pickedItem;
+  bool _senseGrading = false;
   bool _done = false;
+  bool _unsaved = false;
+  bool _retrying = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   ShiftSentence get _sentence => widget.drill.sentenceAt(_beat);
 
   String get _say => _sentence.kana.replaceAll(' ', '');
+
+  bool get _action => widget.drill.isAction;
+
+  List<ShiftIntroCard> get _intro => widget.drill.introduce;
+
+  String? get _laneCaption {
+    if (_unsaved) return AppStrings.shiftPersistFailed;
+    switch (widget.lane) {
+      case ShiftLane.hold:
+        return AppStrings.shiftHeldUntilTomorrow;
+      case ShiftLane.confirm:
+        return widget.firstUnseen
+            ? AppStrings.shiftFirstUnseen
+            : AppStrings.shiftAlreadyShown;
+      case ShiftLane.review:
+        return AppStrings.shiftReviewOnly;
+      case ShiftLane.sameDay:
+        return null;
+    }
+  }
 
   @override
   void initState() {
@@ -76,7 +147,15 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onDetach: _abandonOwnedPlayback,
       onResume: () => _playable = true,
     );
+    _beats = List<ShiftBeat>.of(
+      widget.beats ?? const [ShiftBeat.base, ShiftBeat.shift],
+    );
+    _beat = _beats.first;
     _playable = _foreground;
+    _phase = _intro.isEmpty ? _Phase.readCommit : _Phase.intro;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startRecords());
+    });
   }
 
   @override
@@ -101,10 +180,20 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     }
   }
 
-  void _speak() {
+  void _speakText(String kana) {
     if (!mounted || !_playable || !_foreground) return;
-    unawaited(_speech.speak(_say));
+    unawaited(_speech.speak(kana.replaceAll(' ', '')));
     _ownedPlay = _speech.generation;
+  }
+
+  void _speak() => _speakText(_say);
+
+  void _advanceIntro() {
+    if (_introIndex + 1 < _intro.length) {
+      setState(() => _introIndex += 1);
+      return;
+    }
+    setState(() => _phase = _Phase.readCommit);
   }
 
   void _commitRead({required bool unprompted}) {
@@ -115,39 +204,225 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
+  Future<void> _startRecords() async {
+    await _reserveIfNeeded();
+    await _markPracticeSight();
+    if (mounted) _syncUnsaved();
+  }
+
+  ProgressPersistenceController? _persistence() {
+    try {
+      return context.read<ProgressPersistenceController>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  void _syncUnsaved() {
+    final unsaved = context.read<AnalyticsLog>().unpersistedCount > 0;
+    if (!mounted) return;
+    setState(() => _unsaved = unsaved);
+  }
+
+  Future<void> _write(Attempt attempt) async {
+    final log = context.read<AnalyticsLog>();
+    final pending = log.record(attempt);
+    _persistence()?.trackAnalytics(pending);
+    try {
+      await pending;
+    } on Object {
+      // Memory retains the row; [unpersistedCount] stays honest.
+    }
+    if (mounted) _syncUnsaved();
+  }
+
+  Future<void> _retryPersist() async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    final log = context.read<AnalyticsLog>();
+    final persist = _persistence();
+    if (persist != null) {
+      await persist.retry();
+    }
+    if (!mounted) return;
+    try {
+      await log.flushPending();
+    } on Object {
+      // Leave [unpersistedCount] honest. Do not invent a persist.
+    }
+    if (!mounted) return;
+    setState(() {
+      _retrying = false;
+      _unsaved = log.unpersistedCount > 0;
+    });
+  }
+
+  Future<void> _reserveIfNeeded() async {
+    if (widget.lane != ShiftLane.hold) return;
+    await _write(
+      ShiftSession.reservation(
+        drill: widget.drill,
+        sessionId: _sessionId,
+        at: _clock(),
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  Future<void> _markPracticeSight() async {
+    if (!_exposed.add(_beat)) return;
+    await _write(
+      ShiftSession.sighting(
+        drill: widget.drill,
+        beat: _beat,
+        kind: ShiftSightKind.practice,
+        sessionId: _sessionId,
+        at: _clock(),
+        lane: widget.lane,
+        sourceUrl: widget.sourceUrl,
+      ),
+    );
+  }
+
+  Future<void> _loadHistory() async {
+    final all = await context.read<AnalyticsLog>().all();
+    if (!mounted) return;
+    setState(() {
+      _history = ShiftSession.selfGrades(all, drillId: widget.drill.id);
+    });
+  }
+
   void _gradeRead({required bool correct}) {
-    _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
+    unawaited(
+      _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct),
+    );
+    setState(() {
+      _readCorrect = correct;
+      _phase = _action ? _Phase.verbAsk : _Phase.senseCommit;
+    });
+  }
+
+  void _hintVerb() {
+    setState(() => _verbPrompted = true);
+  }
+
+  void _pickVerb(String choice) {
+    if (_pickedVerb != null) return;
+    final correct = ShiftSession.gradesVerb(choice, _sentence);
+    unawaited(
+      _record(ShiftCheck.verb, prompted: _verbPrompted, correct: correct),
+    );
+    setState(() {
+      _pickedVerb = choice;
+      _phase = _Phase.verbReveal;
+    });
+  }
+
+  void _afterVerb() {
+    setState(() => _phase = _Phase.rolesAsk);
+  }
+
+  void _hintRoles() {
+    setState(() => _rolesPrompted = true);
+  }
+
+  void _selectActor(String choice) {
+    if (_phase != _Phase.rolesAsk) return;
+    setState(() => _pickedActor = choice);
+  }
+
+  void _selectItem(String choice) {
+    if (_phase != _Phase.rolesAsk) return;
+    setState(() => _pickedItem = choice);
+  }
+
+  void _lockRoles() {
+    final actor = _pickedActor;
+    final item = _pickedItem;
+    if (actor == null || item == null) return;
+    final correct = ShiftSession.gradesRoles(
+      actor: actor,
+      item: item,
+      sentence: _sentence,
+    );
+    unawaited(
+      _record(ShiftCheck.roles, prompted: _rolesPrompted, correct: correct),
+    );
+    setState(() {
+      _rolesRevealedAnswer = !correct;
+      _phase = _Phase.rolesReveal;
+    });
+  }
+
+  void _afterRoles() {
     setState(() => _phase = _Phase.senseCommit);
   }
 
+  /// Reading support on screen when the sense check is graded — not the
+  /// pre-reveal commit alone, and not the roles Chinese gloss.
+  String _readSupportAtSenseGrade() {
+    if (_readUnprompted && _readCorrect) {
+      return ShiftReadSupport.independent;
+    }
+    return ShiftReadSupport.prompted;
+  }
+
+  bool get _rolesSenseSupport => _rolesPrompted || _rolesRevealedAnswer;
+
   void _commitSense({required bool unprompted}) {
     setState(() {
-      _senseUnprompted = unprompted;
+      _senseUnprompted = unprompted && !_rolesSenseSupport;
       _phase = _Phase.senseGrade;
     });
   }
 
-  void _gradeSense({required bool correct}) {
-    _record(ShiftCheck.sense, prompted: !_senseUnprompted, correct: correct);
-    if (_beat == ShiftBeat.base) {
+  Future<void> _gradeSense({required bool correct}) async {
+    if (_senseGrading) return;
+    _senseGrading = true;
+    if (mounted) setState(() {});
+
+    await _record(
+      ShiftCheck.sense,
+      prompted: ShiftSession.sensePrompted(
+        askedSenseHint: !_senseUnprompted,
+        sawRolesGloss: _rolesPrompted,
+        sawRolesReveal: _rolesRevealedAnswer,
+      ),
+      correct: correct,
+      readSupport: _readSupportAtSenseGrade(),
+    );
+    if (!mounted) return;
+    final next = _beats.indexOf(_beat) + 1;
+    if (next < _beats.length) {
       _note.clear();
       setState(() {
-        _beat = ShiftBeat.shift;
+        _senseGrading = false;
+        _beat = _beats[next];
         _phase = _Phase.readCommit;
         _readUnprompted = false;
+        _readCorrect = false;
         _senseUnprompted = false;
+        _verbPrompted = false;
+        _rolesPrompted = false;
+        _rolesRevealedAnswer = false;
+        _pickedVerb = null;
+        _pickedActor = null;
+        _pickedItem = null;
       });
+      unawaited(_markPracticeSight());
       return;
     }
     setState(() => _done = true);
+    unawaited(_loadHistory());
   }
 
-  void _record(
+  Future<void> _record(
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
-  }) {
-    context.read<AnalyticsLog>().recordObserved(
+    String? readSupport,
+  }) async {
+    await _write(
       ShiftSession.attempt(
         drill: widget.drill,
         beat: _beat,
@@ -157,6 +432,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
         sessionId: _sessionId,
         at: _clock(),
         sourceUrl: widget.sourceUrl,
+        lane: widget.lane,
+        readSupport: readSupport,
       ),
     );
   }
@@ -172,16 +449,134 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
-    return SessionSummary(
-      headline: AppStrings.shiftClose,
-      note: AppStrings.shiftCloseNote,
-      onDone: () => Navigator.of(context).pop(),
-      onMore: band == ClosingBand.day ? widget.onMore : null,
+    final holdNote = widget.lane == ShiftLane.hold && !_unsaved
+        ? '${AppStrings.shiftCloseNote}\n\n${AppStrings.shiftHeldUntilTomorrow}'
+        : AppStrings.shiftCloseNote;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              children: [
+                if (_history.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: ShiftHistoryView(grades: _history),
+                  ),
+                if (_unsaved)
+                  ShiftPersistNotice(
+                    retrying: _retrying,
+                    onRetry: () => unawaited(_retryPersist()),
+                  ),
+                SessionSummary(
+                  headline: AppStrings.shiftClose,
+                  note: holdNote,
+                  onDone: () => Navigator.of(context).pop(),
+                  onMore: band == ClosingBand.day ? widget.onMore : null,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _body() {
+    if (_phase == _Phase.intro) return _introBody();
     final source = widget.sourceUrl?.trim();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        children: [
+          Column(
+            children: [
+              Text(
+                AppStrings.itemProgress(
+                  _beats.indexOf(_beat) + 1,
+                  _beats.length,
+                ),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (source != null && source.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    AppStrings.shiftSourceChip(source),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              if (_laneCaption != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _laneCaption!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: AppColors.hairline),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  child: Column(
+                    children: [
+                      if (_beat == ShiftBeat.shift) ...[
+                        Text(
+                          widget.lane == ShiftLane.confirm
+                              ? AppStrings.shiftConfirmLead
+                              : _bridgeCopy(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      Text(
+                        _sentence.kana,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 44,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ..._phaseCopy(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(padding: const EdgeInsets.only(top: 16), child: _actions()),
+        ],
+      ),
+    );
+  }
+
+  Widget _introBody() {
+    final card = _intro[_introIndex];
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -195,27 +590,24 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                   Column(
                     children: [
                       Text(
-                        AppStrings.itemProgress(
-                          _beat == ShiftBeat.base ? 1 : 2,
-                          2,
+                        AppStrings.shiftIntroProgress(
+                          _introIndex + 1,
+                          _intro.length,
                         ),
                         style: const TextStyle(
                           color: AppColors.inkMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (source != null && source.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            AppStrings.shiftSourceChip(source),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.inkMuted,
-                              fontSize: 12,
-                            ),
-                          ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        AppStrings.shiftIntroLead,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          height: 1.55,
                         ),
+                      ),
                       const SizedBox(height: 16),
                       DecoratedBox(
                         decoration: BoxDecoration(
@@ -227,31 +619,63 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                           child: Column(
                             children: [
-                              if (_beat == ShiftBeat.shift) ...[
-                                Text(
-                                  widget.drill.change == ShiftChange.noun
-                                      ? AppStrings.shiftBridgeNoun
-                                      : AppStrings.shiftBridgeModifier,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.inkMuted,
-                                    height: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
                               Text(
-                                _sentence.kana,
+                                card.title,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  fontSize: 44,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.ink,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              ..._phaseCopy(),
+                              for (final line in card.lines) ...[
+                                Text(
+                                  line.kana,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    height: 1.2,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  line.romaji,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  line.meaning,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.ink,
+                                    height: 1.45,
+                                  ),
+                                ),
+                                if (line.note.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      line.note,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.inkMuted,
+                                        height: 1.45,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                SpeakButton(
+                                  text: line.kana.replaceAll(' ', ''),
+                                  size: 28,
+                                  onPlay: () => _speakText(line.kana),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                             ],
                           ),
                         ),
@@ -260,7 +684,17 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
-                    child: _actions(),
+                    child: FilledButton(
+                      onPressed: _advanceIntro,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                      ),
+                      child: Text(
+                        _introIndex + 1 < _intro.length
+                            ? AppStrings.shiftIntroNext
+                            : AppStrings.shiftIntroDone,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -271,8 +705,23 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     );
   }
 
+  String _bridgeCopy() {
+    switch (widget.drill.change) {
+      case ShiftChange.noun:
+        return AppStrings.shiftBridgeNoun;
+      case ShiftChange.modifier:
+        return AppStrings.shiftBridgeModifier;
+      case ShiftChange.actor:
+        return AppStrings.shiftBridgeActor;
+      case ShiftChange.item:
+        return AppStrings.shiftBridgeItem;
+    }
+  }
+
   List<Widget> _phaseCopy() {
     switch (_phase) {
+      case _Phase.intro:
+        return const [];
       case _Phase.readCommit:
         return const [
           Text(
@@ -294,7 +743,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           ),
           SpeakButton(text: _say, size: 30, onPlay: _speak),
         ];
-      case _Phase.senseCommit:
+      case _Phase.verbAsk:
+      case _Phase.verbReveal:
         return [
           Text(
             _sentence.romaji,
@@ -306,9 +756,119 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           ),
           const SizedBox(height: 12),
           const Text(
-            AppStrings.shiftSensePrompt,
+            AppStrings.shiftVerbPrompt,
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          if (_verbPrompted || _phase == _Phase.verbReveal) ...[
+            const SizedBox(height: 8),
+            Text(
+              widget.drill.formHint,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+          ],
+          const SizedBox(height: 12),
+          for (final choice in _sentence.verbChoices)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnswerOptionButton(
+                label: choice,
+                fontSize: 22,
+                state: _verbState(choice),
+                onTap: _pickedVerb == null ? () => _pickVerb(choice) : null,
+              ),
+            ),
+        ];
+      case _Phase.rolesAsk:
+      case _Phase.rolesReveal:
+        return [
+          Text(
+            _sentence.romaji,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            AppStrings.shiftRolesPrompt,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          if (_rolesPrompted) ...[
+            const SizedBox(height: 8),
+            Text(
+              _sentence.relation,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+          ],
+          const SizedBox(height: 12),
+          const Text(
+            AppStrings.shiftRolesWho,
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          for (final choice in _sentence.actorChoices)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnswerOptionButton(
+                label: choice,
+                fontSize: 22,
+                state: _roleState(
+                  choice,
+                  picked: _pickedActor,
+                  answer: _sentence.actor,
+                  revealed: _phase == _Phase.rolesReveal,
+                ),
+                onTap: _phase == _Phase.rolesAsk
+                    ? () => _selectActor(choice)
+                    : null,
+              ),
+            ),
+          const SizedBox(height: 8),
+          const Text(
+            AppStrings.shiftRolesWhat,
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          for (final choice in _sentence.itemChoices)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnswerOptionButton(
+                label: choice,
+                fontSize: 22,
+                state: _roleState(
+                  choice,
+                  picked: _pickedItem,
+                  answer: _sentence.item,
+                  revealed: _phase == _Phase.rolesReveal,
+                ),
+                onTap: _phase == _Phase.rolesAsk
+                    ? () => _selectItem(choice)
+                    : null,
+              ),
+            ),
+        ];
+      case _Phase.senseCommit:
+        return [
+          Text(
+            _sentence.romaji,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _action
+                ? AppStrings.shiftActionSensePrompt
+                : AppStrings.shiftSensePrompt,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -358,8 +918,35 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     }
   }
 
+  OptionState _verbState(String choice) {
+    if (_pickedVerb == null) return OptionState.idle;
+    final ok = ShiftSession.gradesVerb(choice, _sentence);
+    if (choice == _pickedVerb) {
+      return ok ? OptionState.correct : OptionState.wrong;
+    }
+    return ok ? OptionState.revealed : OptionState.dimmed;
+  }
+
+  OptionState _roleState(
+    String choice, {
+    required String? picked,
+    required String answer,
+    required bool revealed,
+  }) {
+    if (!revealed) {
+      return choice == picked ? OptionState.correct : OptionState.idle;
+    }
+    if (choice == answer) {
+      return choice == picked ? OptionState.correct : OptionState.revealed;
+    }
+    if (choice == picked) return OptionState.wrong;
+    return OptionState.dimmed;
+  }
+
   Widget _actions() {
     switch (_phase) {
+      case _Phase.intro:
+        return const SizedBox.shrink();
       case _Phase.readCommit:
         return _pair(
           outlined: AppStrings.recallHint,
@@ -377,6 +964,51 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           onOutlined: () => _gradeRead(correct: false),
           onFilled: () => _gradeRead(correct: true),
         );
+      case _Phase.verbAsk:
+        return _verbPrompted
+            ? const SizedBox.shrink()
+            : OutlinedButton(
+                onPressed: _hintVerb,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                ),
+                child: const Text(AppStrings.shiftVerbHint),
+              );
+      case _Phase.verbReveal:
+        return FilledButton(
+          onPressed: _afterVerb,
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+          child: const Text(AppStrings.shiftContinue),
+        );
+      case _Phase.rolesAsk:
+        return Column(
+          children: [
+            if (!_rolesPrompted)
+              OutlinedButton(
+                onPressed: _hintRoles,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                ),
+                child: const Text(AppStrings.shiftRolesHint),
+              ),
+            if (!_rolesPrompted) const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _pickedActor != null && _pickedItem != null
+                  ? _lockRoles
+                  : null,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+              ),
+              child: const Text(AppStrings.shiftRolesReady),
+            ),
+          ],
+        );
+      case _Phase.rolesReveal:
+        return FilledButton(
+          onPressed: _afterRoles,
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+          child: const Text(AppStrings.shiftContinue),
+        );
       case _Phase.senseCommit:
         return _pair(
           outlined: AppStrings.shiftSenseHint,
@@ -391,8 +1023,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
               ? AppStrings.shiftSenseOk
               : AppStrings.shiftSenseOkAfterHint,
           danger: true,
-          onOutlined: () => _gradeSense(correct: false),
-          onFilled: () => _gradeSense(correct: true),
+          enabled: !_senseGrading,
+          onOutlined: () => unawaited(_gradeSense(correct: false)),
+          onFilled: () => unawaited(_gradeSense(correct: true)),
         );
     }
   }
@@ -403,6 +1036,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     required VoidCallback onOutlined,
     required VoidCallback onFilled,
     bool danger = false,
+    bool enabled = true,
   }) {
     return Row(
       children: [
@@ -416,7 +1050,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: onOutlined,
+            onPressed: enabled ? onOutlined : null,
             child: Text(outlined, textAlign: TextAlign.center),
           ),
         ),
@@ -427,7 +1061,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
               backgroundColor: danger ? AppColors.success : null,
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: onFilled,
+            onPressed: enabled ? onFilled : null,
             child: Text(filled, textAlign: TextAlign.center),
           ),
         ),

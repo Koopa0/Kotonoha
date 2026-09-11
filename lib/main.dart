@@ -41,6 +41,7 @@ Future<Widget> bootstrap() async {
     kanjiFlush: kanji.flushPending,
     wordFlush: words.flushPending,
     placementFlush: checks.flushPending,
+    analyticsFlush: analytics.flushPending,
     travelFocusFlush: travel.flushPending,
     health: [
       store.statsHealth,
