@@ -58,16 +58,22 @@ class TravelSceneScreen extends StatelessWidget {
                       .push(TravelSceneHub.route(TravelSceneId.clothing)),
             ),
             const SizedBox(height: 12),
-            const _SceneCard(
-              key: ValueKey<String>('travel-scene-shrine'),
+            _SceneCard(
+              key: const ValueKey<String>('travel-scene-shrine'),
               label: AppStrings.travelSceneShrine,
-              purpose: AppStrings.travelSceneLater,
+              purpose: AppStrings.travelScenePurposeShrine,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(TravelSceneHub.route(TravelSceneId.shrine)),
             ),
             const SizedBox(height: 12),
-            const _SceneCard(
-              key: ValueKey<String>('travel-scene-park'),
+            _SceneCard(
+              key: const ValueKey<String>('travel-scene-park'),
               label: AppStrings.travelSceneParkQueue,
-              purpose: AppStrings.travelSceneLater,
+              purpose: AppStrings.travelScenePurposeParkQueue,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(TravelSceneHub.route(TravelSceneId.parkQueue)),
             ),
           ],
         ),
@@ -103,8 +109,8 @@ class TravelSceneHub extends StatelessWidget {
   String get _purpose => switch (scene) {
     TravelSceneId.transport => AppStrings.travelScenePurposeTransport,
     TravelSceneId.clothing => AppStrings.travelScenePurposeClothing,
-    TravelSceneId.shrine ||
-    TravelSceneId.parkQueue => AppStrings.travelSceneLater,
+    TravelSceneId.shrine => AppStrings.travelScenePurposeShrine,
+    TravelSceneId.parkQueue => AppStrings.travelScenePurposeParkQueue,
   };
 
   Set<String> _learnedChars(BuildContext context) =>
