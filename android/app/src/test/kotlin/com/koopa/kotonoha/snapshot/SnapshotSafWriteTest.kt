@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
 
+/// Pure JVM write verdicts. No Android types — safe for standard `src/test`.
 class SnapshotSafWriteTest {
     private val payload = byteArrayOf(1, 2, 3, 4)
 

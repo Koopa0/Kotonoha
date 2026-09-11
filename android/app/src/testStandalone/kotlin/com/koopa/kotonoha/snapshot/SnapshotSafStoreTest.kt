@@ -17,8 +17,12 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 
-/// Official [SnapshotSafStore] routing with Activity / Channel stubs.
-/// Does not claim a device injection.
+/// Official [SnapshotSafStore] routing compiled against the host
+/// Activity / Channel stubs in `testStandalone/stubs`.
+///
+/// This is a host compile, not `testDebugUnitTest` and not a device
+/// injection. Android's mockable `android.jar` would throw on
+/// `Uri.parse` / `Intent` here — keep this class out of `src/test`.
 class SnapshotSafStoreTest {
     private val payload = byteArrayOf(9, 8, 7)
     private val testUri = Uri.parse("content://downloads/kotonoha-progress.json")
