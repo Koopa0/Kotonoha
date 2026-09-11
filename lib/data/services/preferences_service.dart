@@ -10,6 +10,7 @@ class PreferencesService {
   PreferencesService(this._prefs);
 
   final SharedPreferences _prefs;
+  int _writeEpoch = 0;
 
   static Future<PreferencesService> create() async =>
       PreferencesService(await SharedPreferences.getInstance());
@@ -19,8 +20,12 @@ class PreferencesService {
   /// True when the platform store accepted the write. shared_preferences
   /// reports failure as a `false` return, not an exception, so callers must
   /// check the result (see `RecoverableStore`).
-  Future<bool> writeString(String key, String value) =>
-      _prefs.setString(key, value);
+  Future<bool> writeString(String key, String value) async {
+    final epoch = _writeEpoch;
+    final accepted = await _prefs.setString(key, value);
+    if (epoch != _writeEpoch) return false;
+    return accepted;
+  }
 
   /// True when the platform store accepted the removal.
   Future<bool> remove(String key) => _prefs.remove(key);
@@ -33,5 +38,5 @@ class PreferencesService {
 
   /// Called before a restore transaction writes primaries. In-flight platform
   /// writes that resume after this must not commit to durable storage.
-  void invalidateInFlightWrites() {}
+  void invalidateInFlightWrites() => _writeEpoch++;
 }

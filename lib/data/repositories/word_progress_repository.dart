@@ -141,6 +141,7 @@ class WordProgressRepository extends ChangeNotifier {
     _restoreBarrier++;
     _restoreLocked = true;
     _prefs.invalidateInFlightWrites();
+    await _tail;
   }
 
   void finishRestore() {

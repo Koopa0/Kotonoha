@@ -89,6 +89,11 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         rethrow;
+      } catch (_) {
+        try {
+          await _journal.abortAndRollback();
+        } on RestoreJournalRollbackFailure {}
+        rethrow;
       }
       _applyToMemory(snapshot);
     } finally {

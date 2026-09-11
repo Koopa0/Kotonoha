@@ -201,6 +201,7 @@ class RecoverableStore<T> {
       if (commitGuard != null && !commitGuard()) return;
       throw StoreWriteFailure(key);
     }
+    if (commitGuard != null && !commitGuard()) return;
   }
 
   /// Attempts to copy a damaged raw payload into quarantine, reporting
