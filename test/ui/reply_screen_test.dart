@@ -379,42 +379,45 @@ void main() {
     expect(find.text('えきは どこ'), findsNothing);
   });
 
-  testWidgets('right-scene みぎです is independent; きょうとです is a scored miss', (
+  testWidgets('right-scene みぎです is independent', (tester) async {
+    final env = await pumpReply(tester, drills: [_ekiAsk]);
+    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'みぎです');
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isTrue);
+  });
+
+  testWidgets('right-scene きょうとです is a scored miss, not ここです-as-wrong', (
     tester,
   ) async {
-    final hit = await pumpReply(tester, drills: [_ekiAsk]);
-    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'みぎです');
-    final hitLog = await hit.analytics.all();
-    expect(hitLog[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
-    expect(hitLog[1].meta[AttemptMeta.scored], isTrue);
-    expect(hitLog[1].correct, isTrue);
-
-    final miss = await pumpReply(tester, drills: [_ekiAsk]);
+    final env = await pumpReply(tester, drills: [_ekiAsk]);
+    expect(find.text('ここです'), findsNothing);
     await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'きょうとです');
-    final missLog = await miss.analytics.all();
-    expect(missLog[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
-    expect(missLog[1].meta[AttemptMeta.scored], isTrue);
-    expect(missLog[1].correct, isFalse);
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isFalse);
     expect(find.text('ここです'), findsNothing);
   });
 
-  testWidgets('door-scene ここです is independent; はい is a scored miss', (
-    tester,
-  ) async {
-    final hit = await pumpReply(tester, drills: [_ekiHere]);
+  testWidgets('door-scene ここです is independent', (tester) async {
+    final env = await pumpReply(tester, drills: [_ekiHere]);
     expect(find.text('你站在車站門口。有人問路。'), findsOneWidget);
     await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'ここです');
-    final hitLog = await hit.analytics.all();
-    expect(hitLog[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
-    expect(hitLog[1].meta[AttemptMeta.scored], isTrue);
-    expect(hitLog[1].correct, isTrue);
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isTrue);
+  });
 
-    final miss = await pumpReply(tester, drills: [_ekiHere]);
+  testWidgets('door-scene はい is a scored miss', (tester) async {
+    final env = await pumpReply(tester, drills: [_ekiHere]);
     await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'はい');
-    final missLog = await miss.analytics.all();
-    expect(missLog[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
-    expect(missLog[1].meta[AttemptMeta.scored], isTrue);
-    expect(missLog[1].correct, isFalse);
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isFalse);
   });
 
   testWidgets('production skip after inactive does not autoplay the next ask', (
@@ -437,7 +440,7 @@ void main() {
   });
 
   testWidgets(
-    'production resume after deferred skip still autoplays the next ask',
+    'production resume after deferred skip stays silent until manual replay',
     (tester) async {
       final env = await _pumpProductionReply(
         tester,
@@ -447,8 +450,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey<String>('reply-skip')));
       await tester.pump();
       expect(env.tts.spoken, ['えきはどこ']);
+      expect(tester.binding.lifecycleState, AppLifecycleState.inactive);
 
       _resumeApp(tester);
+      await tester.pump();
+      expect(env.tts.spoken, ['えきはどこ']);
+      await tester.tap(find.byKey(const ValueKey<String>('reply-replay')));
       await tester.pump();
       expect(env.tts.spoken, ['えきはどこ', 'どこへいく']);
     },
@@ -491,4 +498,102 @@ void main() {
       expect(env.speech.generation, greaterThan(firstGeneration));
     },
   );
+
+  testWidgets('production interrupt is unheard and does not score a success', (
+    tester,
+  ) async {
+    final env = await _pumpProductionReply(tester, drills: [_ekiAsk]);
+    expect(env.tts.spoken, ['えきはどこ']);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(find.text(AppStrings.listeningInterrupted), findsOneWidget);
+
+    _resumeApp(tester);
+    await tester.pump();
+    await tester.tap(find.text('問車站在哪裡'));
+    await tester.pumpAndSettle();
+    final logged = await env.analytics.all();
+    expect(logged.single.meta[AttemptMeta.evidence], ReplyEvidence.unheard);
+    expect(logged.single.meta[AttemptMeta.scored], isFalse);
+    expect(logged.single.correct, isFalse);
+  });
+
+  testWidgets('reply もう一回 replace keeps the new autoplay after old dispose', (
+    tester,
+  ) async {
+    final tts = await _installProductionTts(tester);
+    final speech = await FlutterTtsSpeechService.create();
+    final kana = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load();
+    await tester.binding.setSurfaceSize(const Size(420, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+          ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: kana.flushPending,
+              kanjiFlush: kanji.flushPending,
+              wordFlush: words.flushPending,
+            ),
+          ),
+          Provider<SpeechService>.value(value: speech),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              void start({bool replace = false}) {
+                final route = ReplyScreen.route(
+                  [_ekiAsk],
+                  clock: () => DateTime(2026, 9, 11, 12),
+                  onMore: () => start(replace: true),
+                );
+                final nav = Navigator.of(context);
+                replace ? nav.pushReplacement(route) : nav.push(route);
+              }
+
+              return Scaffold(
+                body: TextButton(
+                  onPressed: start,
+                  child: const Text('open-reply'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open-reply'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tts.spoken, ['えきはどこ']);
+    tts.completeSpeak(0, 1);
+    await tester.idle();
+    await tester.pump();
+    final genAfterFirst = speech.generation;
+
+    await tester.tap(find.text('問車站在哪裡'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('reply-to-answer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('みぎです'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('reply-next')));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyClose), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.practiceAgain));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(tts.spoken, ['えきはどこ', 'えきはどこ']);
+    expect(find.text(AppStrings.listeningInterrupted), findsNothing);
+    expect(speech.generation, greaterThan(genAfterFirst));
+    expect(tts.pendingSpeaks.last.isCompleted, isFalse);
+  });
 }

@@ -52,7 +52,6 @@ class _ReplyScreenState extends State<ReplyScreen> {
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  bool _autoplayPending = false;
 
   int _index = 0;
   _Beat _beat = _Beat.intent;
@@ -112,9 +111,6 @@ class _ReplyScreenState extends State<ReplyScreen> {
 
   void _onResumed() {
     _playable = true;
-    if (!mounted || _done || !_autoplayPending) return;
-    _autoplayPending = false;
-    unawaited(_play());
   }
 
   void _shuffleChoices() {
@@ -142,20 +138,13 @@ class _ReplyScreenState extends State<ReplyScreen> {
 
   void _scheduleAutoplay() {
     if (!mounted || _done) return;
-    if (!_playable || !_foreground) {
-      _autoplayPending = true;
-      return;
-    }
-    _autoplayPending = false;
+    if (!_playable || !_foreground) return;
     unawaited(_play());
   }
 
-  Future<void> _play({bool manual = false}) async {
+  Future<void> _play() async {
     if (!mounted || _done) return;
-    if (!_playable || !_foreground) {
-      if (!manual) _autoplayPending = true;
-      return;
-    }
+    if (!_playable || !_foreground) return;
     final itemId = _current.id;
     final gen = ++_playGen;
     setState(() => _playing = true);
@@ -369,7 +358,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
         const SizedBox(height: 12),
         IconButton.filled(
           key: const ValueKey<String>('reply-replay'),
-          onPressed: () => unawaited(_play(manual: true)),
+          onPressed: () => unawaited(_play()),
           iconSize: 48,
           tooltip: AppStrings.replaySound,
           style: IconButton.styleFrom(
