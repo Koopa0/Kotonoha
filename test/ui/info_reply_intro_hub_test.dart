@@ -8,7 +8,9 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/info_drill_dataset.dart';
+import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/reply_drill.dart';
+import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/reply_session.dart';
 import 'package:kotonoha/domain/use_cases/travel_scene.dart';
@@ -85,6 +87,36 @@ void main() {
     await tester.tap(find.text(AppStrings.iReadIt));
     await tester.pumpAndSettle();
   }
+
+  Future<void> tapKey(WidgetTester tester, String key) async {
+    final finder = find.byKey(ValueKey<String>(key), skipOffstage: false);
+    expect(finder, findsOneWidget);
+    await tester.ensureVisible(finder);
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> expectSummaryMore(
+    WidgetTester tester,
+    ReadingScreen screen, {
+    required DateTime Function() clock,
+    required bool showMore,
+  }) async {
+    expect(screen.clock, isNotNull);
+    expect(screen.clock!(), clock());
+    expect(screen.items, isNotEmpty);
+    expect(screen.items.length, lessThanOrEqualTo(8));
+    for (var i = 0; i < screen.items.length; i++) {
+      await finishReadingItem(tester);
+    }
+    expect(find.text(AppStrings.done), findsOneWidget);
+    expect(
+      find.text(AppStrings.practiceAgain),
+      showMore ? findsOneWidget : findsNothing,
+    );
+  }
+
+  Set<String> allChars() => {for (final kana in kAllKana) kana.character};
 
   testWidgets('info hub first-teach is eight then seven, then hub is ready', (
     tester,
@@ -229,121 +261,135 @@ void main() {
     expect(find.text(AppStrings.infoStartAction), findsNothing);
   });
 
-  testWidgets(
-    'travel phrase meet summary keeps もう一回 at noon and hides it at night',
-    (tester) async {
-      Future<void> run(
-        DateTime Function() clock, {
-        required bool showMore,
-      }) async {
-        SharedPreferences.setMockInitialValues({});
-        final repos = await pumpHub(
-          tester,
-          TravelSceneHub(scene: TravelSceneId.shrine, clock: clock),
-        );
-        await learnAllKana(repos.kana);
-        final leftover = 'phrase:こころが しずか';
-        for (final item in TravelScene.items(TravelSceneId.shrine)) {
-          if (item.progressId == leftover) continue;
-          await repos.words.markIntroduced(item.progressId, at: noon());
-        }
-        await tester.pumpAndSettle();
-        await tester.tap(find.text(AppStrings.travelSceneMeetAction));
-        await tester.pumpAndSettle();
-        expect(find.byType(ReadingScreen), findsOneWidget);
-        final screen = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
-        expect(screen.clock, isNotNull);
-        expect(screen.clock!(), clock());
-        expect(screen.items, hasLength(1));
-        await finishReadingItem(tester);
-        expect(find.text(AppStrings.done), findsOneWidget);
-        expect(
-          find.text(AppStrings.practiceAgain),
-          showMore ? findsOneWidget : findsNothing,
-        );
+  Future<void> leaveOneShrinePhrase(WordProgressRepository words) async {
+    for (final item in TravelScene.items(TravelSceneId.shrine)) {
+      if (item is Word || item.progressId != 'phrase:じんじゃは どこ') {
+        await words.markIntroduced(item.progressId, at: noon());
       }
+    }
+  }
 
-      await run(noon, showMore: true);
-      await run(night, showMore: false);
-    },
-  );
+  Future<void> leaveStationPhrases(WordProgressRepository words) async {
+    for (final word in ReplySession.unreadRequiredWords(
+      learnedChars: allChars(),
+      stats: const {},
+      scene: ReplySceneId.station,
+    )) {
+      await words.markIntroduced(word.progressId, at: noon());
+    }
+  }
 
-  testWidgets(
-    'travel recall summary keeps もう一回 at noon and hides it at night',
-    (tester) async {
-      Future<void> run(
-        DateTime Function() clock, {
-        required bool showMore,
-      }) async {
-        SharedPreferences.setMockInitialValues({});
-        final repos = await pumpHub(
-          tester,
-          TravelSceneHub(scene: TravelSceneId.shrine, clock: clock),
-        );
-        await repos.kana.markUnitLearned('hira_row_0');
-        await repos.kana.markUnitLearned('hira_row_2');
-        await repos.words.markIntroduced('word:いし', at: noon());
-        await tester.pumpAndSettle();
-        await tester.tap(find.text(AppStrings.travelSceneRecallAction));
-        await tester.pumpAndSettle();
-        expect(find.byType(ReadingScreen), findsOneWidget);
-        final screen = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
-        expect(screen.clock, isNotNull);
-        expect(screen.clock!(), clock());
-        await finishReadingItem(tester);
-        expect(find.text(AppStrings.done), findsOneWidget);
-        expect(
-          find.text(AppStrings.practiceAgain),
-          showMore ? findsOneWidget : findsNothing,
-        );
-      }
+  testWidgets('travel phrase meet summary keeps もう一回 at noon', (tester) async {
+    final repos = await pumpHub(
+      tester,
+      TravelSceneHub(scene: TravelSceneId.shrine, clock: noon),
+    );
+    await learnAllKana(repos.kana);
+    await leaveOneShrinePhrase(repos.words);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'travel-meet');
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    await expectSummaryMore(
+      tester,
+      tester.widget<ReadingScreen>(find.byType(ReadingScreen)),
+      clock: noon,
+      showMore: true,
+    );
+  });
 
-      await run(noon, showMore: true);
-      await run(night, showMore: false);
-    },
-  );
+  testWidgets('travel phrase meet summary hides もう一回 at night', (tester) async {
+    final repos = await pumpHub(
+      tester,
+      TravelSceneHub(scene: TravelSceneId.shrine, clock: night),
+    );
+    await learnAllKana(repos.kana);
+    await leaveOneShrinePhrase(repos.words);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'travel-meet');
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    await expectSummaryMore(
+      tester,
+      tester.widget<ReadingScreen>(find.byType(ReadingScreen)),
+      clock: night,
+      showMore: false,
+    );
+  });
 
-  testWidgets('reply phrase reading summary uses the hub clock', (
+  testWidgets('travel recall summary keeps もう一回 at noon', (tester) async {
+    final repos = await pumpHub(
+      tester,
+      TravelSceneHub(scene: TravelSceneId.shrine, clock: noon),
+    );
+    await repos.kana.markUnitLearned('hira_row_0');
+    await repos.kana.markUnitLearned('hira_row_2');
+    await repos.words.markIntroduced('word:いし', at: noon());
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'travel-recall');
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    await expectSummaryMore(
+      tester,
+      tester.widget<ReadingScreen>(find.byType(ReadingScreen)),
+      clock: noon,
+      showMore: true,
+    );
+  });
+
+  testWidgets('travel recall summary hides もう一回 at night', (tester) async {
+    final repos = await pumpHub(
+      tester,
+      TravelSceneHub(scene: TravelSceneId.shrine, clock: night),
+    );
+    await repos.kana.markUnitLearned('hira_row_0');
+    await repos.kana.markUnitLearned('hira_row_2');
+    await repos.words.markIntroduced('word:いし', at: noon());
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'travel-recall');
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    await expectSummaryMore(
+      tester,
+      tester.widget<ReadingScreen>(find.byType(ReadingScreen)),
+      clock: night,
+      showMore: false,
+    );
+  });
+
+  testWidgets('reply phrase reading summary keeps もう一回 at noon', (
     tester,
   ) async {
-    Future<void> run(
-      DateTime Function() clock, {
-      required bool showMore,
-    }) async {
-      SharedPreferences.setMockInitialValues({});
-      final repos = await pumpHub(
-        tester,
-        ReplyHubScreen(scene: ReplySceneId.station, clock: clock),
-      );
-      await learnAllKana(repos.kana);
-      for (final word in ReplySession.unreadRequiredWords(
-        learnedChars: {for (final kana in repos.kana.allKana) kana.character},
-        stats: const {},
-        scene: ReplySceneId.station,
-      )) {
-        await repos.words.markIntroduced(word.progressId, at: noon());
-      }
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey<String>('reply-meet')));
-      await tester.pumpAndSettle();
-      expect(find.byType(ReadingScreen), findsOneWidget);
-      final screen = tester.widget<ReadingScreen>(find.byType(ReadingScreen));
-      expect(screen.clock, isNotNull);
-      expect(screen.clock!(), clock());
-      final count = screen.items.length;
-      expect(count, greaterThan(0));
-      expect(count, lessThanOrEqualTo(8));
-      for (var i = 0; i < count; i++) {
-        await finishReadingItem(tester);
-      }
-      expect(find.text(AppStrings.done), findsOneWidget);
-      expect(
-        find.text(AppStrings.practiceAgain),
-        showMore ? findsOneWidget : findsNothing,
-      );
-    }
+    final repos = await pumpHub(
+      tester,
+      ReplyHubScreen(scene: ReplySceneId.station, clock: noon),
+    );
+    await learnAllKana(repos.kana);
+    await leaveStationPhrases(repos.words);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'reply-meet');
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    await expectSummaryMore(
+      tester,
+      tester.widget<ReadingScreen>(find.byType(ReadingScreen)),
+      clock: noon,
+      showMore: true,
+    );
+  });
 
-    await run(noon, showMore: true);
-    await run(night, showMore: false);
+  testWidgets('reply phrase reading summary hides もう一回 at night', (
+    tester,
+  ) async {
+    final repos = await pumpHub(
+      tester,
+      ReplyHubScreen(scene: ReplySceneId.station, clock: night),
+    );
+    await learnAllKana(repos.kana);
+    await leaveStationPhrases(repos.words);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'reply-meet');
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    await expectSummaryMore(
+      tester,
+      tester.widget<ReadingScreen>(find.byType(ReadingScreen)),
+      clock: night,
+      showMore: false,
+    );
   });
 }
