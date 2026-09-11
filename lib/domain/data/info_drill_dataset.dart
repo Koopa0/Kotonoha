@@ -15,7 +15,7 @@ const List<InfoDrill> kInfoDrills = [
     promptMeaning: '（價格是）三千日圓',
     correctAnswer: '3000日圓',
     wrongAnswers: ['6000日圓', '300日圓'],
-    requiredSeenIds: ['word:さん', 'word:ぜん', 'word:えん'],
+    requiredSeenIds: ['word:さんぜん', 'word:えん'],
   ),
   InfoDrill(
     id: 'info:amount-6000',

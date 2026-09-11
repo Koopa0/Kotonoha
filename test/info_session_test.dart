@@ -94,14 +94,16 @@ void main() {
     expect(session.map((d) => d.kind).toSet(), InfoKind.values.toSet());
   });
 
-  test('amount drill waits for さん／ぜん／えん before practice', () {
+  test('amount-3000 waits for さんぜん as a whole, not isolated ぜん', () {
     final drill = kInfoDrills.firstWhere((d) => d.id == 'info:amount-3000');
-    final partial = {'word:さん': seenAt(), 'word:ぜん': seenAt()};
+    expect(drill.requiredSeenIds, ['word:さんぜん', 'word:えん']);
+    expect(kWords.map((w) => w.kana), isNot(contains('ぜん')));
+    final partial = {'word:さん': seenAt(), 'word:えん': seenAt()};
     final view = InfoSession.inspect(learnedChars: allChars, stats: partial);
     expect(view.ready.map((d) => d.id), isNot(contains(drill.id)));
     expect(
       view.unreadRequired.map((i) => i.progressId),
-      contains('word:えん'),
+      contains('word:さんぜん'),
     );
   });
 }

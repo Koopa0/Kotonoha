@@ -79,7 +79,7 @@ const List<Word> kWords = <Word>[
   Word(kana: 'れきし', romaji: 'rekishi', meaning: '歷史'),
   Word(kana: 'ろく', romaji: 'roku', meaning: '六'),
   Word(kana: 'さん', romaji: 'san', meaning: '三'),
-  Word(kana: 'ぜん', romaji: 'zen', meaning: '千'),
+  Word(kana: 'さんぜん', romaji: 'sanzen', meaning: '三千'),
   Word(kana: 'せん', romaji: 'sen', meaning: '千'),
   Word(kana: 'えん', romaji: 'en', meaning: '日圓'),
   Word(kana: 'いくら', romaji: 'ikura', meaning: '多少錢'),
