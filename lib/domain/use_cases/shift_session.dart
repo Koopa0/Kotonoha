@@ -20,6 +20,9 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 /// [ShiftDrill.id] plus [ShiftBeat] / [ShiftCheck]; it does not generate
 /// variants or read modifier / head copy. History UI stays here.
 ///
+/// [sightOf] keeps legacy unknown unless *that beat* has hold / exposure
+/// history. A sibling preview or lane cannot prove the other beat is new.
+///
 /// Pure logic: no `package:flutter/*` imports.
 abstract final class ShiftSession {
   static List<ShiftFocus> focuses({List<ShiftDrill> drills = kShiftDrills}) {
@@ -198,6 +201,11 @@ abstract final class ShiftSession {
 
   /// Known display of this beat. Missing grades on legacy rows are
   /// [ShiftSight.unknown], not unseen.
+  ///
+  /// [ShiftSight.unseen] needs an empty drill, this beat's own hold /
+  /// exposure rows, a reservation for the shift beat, or protocol-era
+  /// history with no leftover unknown rows. Another beat's preview is
+  /// not enough to call this beat new.
   static ShiftSight sightOf(
     ShiftDrill drill,
     ShiftBeat beat, {
@@ -219,6 +227,7 @@ abstract final class ShiftSession {
     }
     if (sawBeat) return ShiftSight.seen;
     if (mine.isEmpty) return ShiftSight.unseen;
+    // Sibling preview / lane cannot prove this beat is new.
     if (hasLegacy && !beatProtocol) return ShiftSight.unknown;
     if (beatProtocol || anyProtocol) return ShiftSight.unseen;
     return ShiftSight.unknown;

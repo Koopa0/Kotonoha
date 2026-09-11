@@ -383,6 +383,10 @@ void main() {
       ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: [legacy, preview]),
       ShiftSight.unknown,
     );
+    expect(
+      ShiftSession.sightOf(drill, ShiftBeat.base, attempts: [legacy, preview]),
+      ShiftSight.seen,
+    );
     final plan = ShiftSession.plan(
       drill: drill,
       now: DateTime(2026, 9, 11),
@@ -391,6 +395,39 @@ void main() {
     expect(plan.lane, ShiftLane.review);
     expect(plan.firstUnseen, isFalse);
     expect(plan.noUnseenVariant, isTrue);
+    expect(plan.shiftSight, ShiftSight.unknown);
+    expect(
+      ShiftSession.plan(
+        drill: drill,
+        now: DateTime(2026, 9, 11),
+        attempts: [legacy, preview],
+        requested: ShiftLane.hold,
+      ).lane,
+      ShiftLane.review,
+    );
+  });
+
+  test('protocol-only preview still leaves the reserved beat unseen', () {
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    final preview = ShiftSession.sighting(
+      drill: drill,
+      beat: ShiftBeat.base,
+      kind: ShiftSightKind.preview,
+      sessionId: 'p',
+      at: DateTime(2026, 9, 10),
+    );
+    expect(
+      ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: [preview]),
+      ShiftSight.unseen,
+    );
+    final hold = ShiftSession.plan(
+      drill: drill,
+      now: DateTime(2026, 9, 10),
+      attempts: [preview],
+      requested: ShiftLane.hold,
+    );
+    expect(hold.lane, ShiftLane.hold);
+    expect(hold.shiftSight, ShiftSight.unseen);
   });
 
   test('seen pair is an old-sentence review, not a new item', () {

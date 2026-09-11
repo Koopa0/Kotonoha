@@ -92,9 +92,20 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
     super.dispose();
   }
 
-  Future<void> _reload() async {
+  /// Memory after a flush. Unpersisted rows stay in [AnalyticsLog.all];
+  /// a failed durable write must not add a second "already saved" flag.
+  Future<List<Attempt>> _authoritativeAttempts() async {
     final log = context.read<AnalyticsLog>();
-    final all = await log.all();
+    try {
+      await log.flushPending();
+    } on Object {
+      // [unpersistedCount] stays honest. Do not invent a persisted row.
+    }
+    return List<Attempt>.of(await log.all());
+  }
+
+  Future<void> _reload() async {
+    final all = await _authoritativeAttempts();
     if (!mounted) return;
     setState(() => _attempts = all);
     _markVisiblePreviews();
@@ -146,16 +157,12 @@ class _ShiftFocusScreenState extends State<ShiftFocusScreen> {
     String sourceUrl,
     ShiftLane requested,
   ) async {
-    final log = context.read<AnalyticsLog>();
-    if (log.unpersistedCount > 0) {
-      await log.flushPending().catchError((_) {});
-    }
-    final all = await log.all();
+    final all = await _authoritativeAttempts();
     if (!mounted) return;
     setState(() => _attempts = all);
     final plan = _plan(drill, requested: requested);
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
+    await Navigator.of(context).pushReplacement(
       ShiftPracticeScreen.route(
         drill,
         sourceUrl: sourceUrl.isEmpty ? null : sourceUrl,

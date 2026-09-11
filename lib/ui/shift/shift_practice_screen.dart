@@ -196,7 +196,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   void _gradeRead({required bool correct}) {
-    _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct);
+    unawaited(
+      _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct),
+    );
     setState(() {
       _readCorrect = correct;
       _phase = _Phase.senseCommit;
@@ -219,13 +221,14 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     });
   }
 
-  void _gradeSense({required bool correct}) {
-    _record(
+  Future<void> _gradeSense({required bool correct}) async {
+    await _record(
       ShiftCheck.sense,
       prompted: !_senseUnprompted,
       correct: correct,
       readSupport: _readSupportAtSenseGrade(),
     );
+    if (!mounted) return;
     final next = _beats.indexOf(_beat) + 1;
     if (next < _beats.length) {
       _note.clear();
@@ -243,26 +246,32 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     unawaited(_loadHistory());
   }
 
-  void _record(
+  /// Waits for the log to accept the row. A durable fault still keeps the
+  /// attempt in memory; More must read [AnalyticsLog.all], not assume persist.
+  Future<void> _record(
     ShiftCheck check, {
     required bool prompted,
     required bool correct,
     String? readSupport,
-  }) {
-    context.read<AnalyticsLog>().recordObserved(
-      ShiftSession.attempt(
-        drill: widget.drill,
-        beat: _beat,
-        check: check,
-        prompted: prompted,
-        correct: correct,
-        sessionId: _sessionId,
-        at: _clock(),
-        sourceUrl: widget.sourceUrl,
-        lane: widget.lane,
-        readSupport: readSupport,
-      ),
-    );
+  }) async {
+    try {
+      await context.read<AnalyticsLog>().record(
+        ShiftSession.attempt(
+          drill: widget.drill,
+          beat: _beat,
+          check: check,
+          prompted: prompted,
+          correct: correct,
+          sessionId: _sessionId,
+          at: _clock(),
+          sourceUrl: widget.sourceUrl,
+          lane: widget.lane,
+          readSupport: readSupport,
+        ),
+      );
+    } on Object {
+      // Memory retains the row; [unpersistedCount] stays honest.
+    }
   }
 
   @override

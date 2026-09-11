@@ -302,6 +302,139 @@ void main() {
     expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
   });
 
+  testWidgets(
+    'day 1 first confirm then More is already-seen review, not first-unseen',
+    (tester) async {
+      final analytics = InMemoryAnalyticsLog();
+      final words = await WordProgressRepository.load();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      var now = DateTime(2026, 9, 10, 10);
+      await analytics.record(
+        ShiftSession.reservation(drill: drill, sessionId: 'h', at: now),
+      );
+      await analytics.record(
+        ShiftSession.attempt(
+          drill: drill,
+          beat: ShiftBeat.base,
+          check: ShiftCheck.read,
+          prompted: false,
+          correct: true,
+          sessionId: 'h',
+          at: now,
+          lane: ShiftLane.hold,
+        ),
+      );
+      await analytics.record(
+        ShiftSession.attempt(
+          drill: drill,
+          beat: ShiftBeat.base,
+          check: ShiftCheck.sense,
+          prompted: true,
+          correct: true,
+          sessionId: 'h',
+          at: now,
+          lane: ShiftLane.hold,
+          readSupport: ShiftReadSupport.independent,
+        ),
+      );
+
+      now = DateTime(2026, 9, 11, 9);
+      await expand(tester);
+      await _pumpHome(
+        tester,
+        analytics: analytics,
+        words: words,
+        clock: () => now,
+      );
+      await tester.tap(find.text(AppStrings.shiftAction));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftConfirmStart), findsOneWidget);
+      await tester.tap(find.text(AppStrings.shiftConfirmStart));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftFirstUnseen), findsWidgets);
+      await _completeBeat(tester, unprompted: true);
+      expect(find.text(AppStrings.practiceAgain), findsOneWidget);
+
+      final afterConfirm = await analytics.all();
+      expect(
+        ShiftSession.sightOf(drill, ShiftBeat.shift, attempts: afterConfirm),
+        ShiftSight.seen,
+      );
+      expect(
+        afterConfirm.where(
+          (a) =>
+              a.meta[AttemptMeta.beat] == ShiftBeat.shift.name &&
+              a.meta[AttemptMeta.scored] == true,
+        ),
+        hasLength(2),
+      );
+
+      await tester.tap(find.text(AppStrings.practiceAgain));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
+      expect(find.text(AppStrings.shiftReviewOnly), findsWidgets);
+      expect(find.text('あおい そら'), findsOneWidget);
+      expect(words.stats, isEmpty);
+    },
+  );
+
+  testWidgets('legacy base-only stays unknown across two Home picker visits', (
+    tester,
+  ) async {
+    final analytics = InMemoryAnalyticsLog();
+    final words = await WordProgressRepository.load();
+    final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+    await analytics.record(
+      Attempt(
+        ts: DateTime(2026, 9, 1).millisecondsSinceEpoch,
+        itemId: ShiftSession.itemId(drill, ShiftBeat.base),
+        itemType: ItemType.shift,
+        mode: PracticeMode.shift.name,
+        correct: true,
+        sessionId: 'old',
+        meta: const {
+          AttemptMeta.prompted: true,
+          AttemptMeta.evidence: 'read',
+          AttemptMeta.beat: 'base',
+          AttemptMeta.drill: 'i-adj-aoi-noun',
+          AttemptMeta.focus: 'adj-mod',
+        },
+      ),
+    );
+    final now = DateTime(2026, 9, 11, 10);
+    await expand(tester);
+    await _pumpHome(
+      tester,
+      analytics: analytics,
+      words: words,
+      clock: () => now,
+    );
+
+    await tester.tap(find.text(AppStrings.shiftAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.shiftSightUnknown), findsWidgets);
+    expect(find.text(AppStrings.shiftReviewStart), findsOneWidget);
+    expect(find.text(AppStrings.shiftHoldStart), findsNothing);
+    expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.shiftAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.shiftSightUnknown), findsWidgets);
+    expect(find.text(AppStrings.shiftReviewStart), findsOneWidget);
+    expect(find.text(AppStrings.shiftHoldStart), findsNothing);
+    expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
+    expect(
+      ShiftSession.sightOf(
+        drill,
+        ShiftBeat.shift,
+        attempts: await analytics.all(),
+      ),
+      ShiftSight.unknown,
+    );
+  });
+
   testWidgets('legacy unknown sight is not treated as first-unseen', (
     tester,
   ) async {
@@ -388,7 +521,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
     expect(find.text(AppStrings.shiftReviewOnly), findsWidgets);
-    expect(find.text('あおい うみ'), findsOneWidget);
+    expect(find.text('あおい そら'), findsOneWidget);
   });
 }
 
