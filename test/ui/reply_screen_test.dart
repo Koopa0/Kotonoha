@@ -34,6 +34,12 @@ final _buySmall = kReplyDrills.firstWhere(
 final _heatYes = kReplyDrills.firstWhere(
   (d) => d.id == 'reply:atatame-kudasai',
 );
+final _cardUsable = kReplyDrills.firstWhere(
+  (d) => d.id == 'reply:card-tsukaemasu',
+);
+final _cardUnusable = kReplyDrills.firstWhere(
+  (d) => d.id == 'reply:card-tsukaemasen',
+);
 
 void _expectSceneKeepsAskHidden(ReplyDrill drill) {
   final widget =
@@ -608,6 +614,38 @@ void main() {
       expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
     },
   );
+
+  testWidgets('usable-card scene カードで おねがい is independent', (tester) async {
+    final env = await pumpReply(tester, drills: [_cardUsable]);
+    _expectSceneKeepsAskHidden(_cardUsable);
+    expect(find.text('可以用卡'), findsNothing);
+    await _hearThenPick(tester, intent: '說可以用卡', reply: 'カードで おねがい');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.heard], isTrue);
+    expect(logged[0].meta[AttemptMeta.prompted], isFalse);
+    expect(logged[0].meta[AttemptMeta.hinted], isFalse);
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isTrue);
+  });
+
+  testWidgets('unusable-card scene げんきんです is independent without scene negation', (
+    tester,
+  ) async {
+    final env = await pumpReply(tester, drills: [_cardUnusable]);
+    _expectSceneKeepsAskHidden(_cardUnusable);
+    expect(find.text('不能用卡'), findsNothing);
+    expect(find.text('搖頭'), findsNothing);
+    expect(find.text('收銀箱'), findsNothing);
+    await _hearThenPick(tester, intent: '說不能用卡', reply: 'げんきんです');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.heard], isTrue);
+    expect(logged[0].meta[AttemptMeta.prompted], isFalse);
+    expect(logged[0].meta[AttemptMeta.hinted], isFalse);
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isTrue);
+  });
 
   testWidgets('hinted station-confirm is not independent hearing', (
     tester,

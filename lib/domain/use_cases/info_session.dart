@@ -39,7 +39,7 @@ class InfoSessionView {
 /// Reuses shipped corpus ids for teach gates. Does not retune [ListeningSession]
 /// or [TravelScene]. Pure logic: no Flutter imports.
 abstract final class InfoSession {
-  static const int length = 6;
+  static const int length = 9;
 
   static List<InfoDrill> catalog({List<InfoDrill>? drills}) =>
       List<InfoDrill>.unmodifiable(drills ?? kInfoDrills);
@@ -79,7 +79,12 @@ abstract final class InfoSession {
       drill.gatingText.every((t) => KanaTokenizer.isReadable(t, learnedChars));
 
   static bool _isMet(InfoDrill drill, Map<String, WordStat> stats) =>
-      drill.requiredSeenIds.every((id) => stats[id]?.isSeen ?? false);
+      drill.gateIds.every((id) => stats[id]?.isSeen ?? false);
+
+  static Iterable<String> _gateIdsFor(InfoDrill drill) sync* {
+    yield* drill.requiredSeenIds;
+    yield* drill.requiredPartIds;
+  }
 
   static List<ReadingItem> unreadRequired({
     required Set<String> learnedChars,
@@ -93,7 +98,7 @@ abstract final class InfoSession {
     final items = <ReadingItem>[];
     for (final drill in catalog(drills: drills)) {
       if (!_isReadable(drill, learnedChars)) continue;
-      for (final id in drill.requiredSeenIds) {
+      for (final id in _gateIdsFor(drill)) {
         if (stats[id]?.isSeen ?? false) continue;
         if (!seen.add(id)) continue;
         final item = byId[id];
@@ -150,7 +155,7 @@ abstract final class InfoSession {
     return missing;
   }
 
-  /// Ready drills only. Prefer one per [InfoKind], then fill to [length].
+  /// Ready drills only. Prefer one base and one migration per [InfoKind].
   static List<InfoDrill> compose({
     required Set<String> learnedChars,
     required Random rng,
@@ -166,10 +171,22 @@ abstract final class InfoSession {
     final copy = List<InfoDrill>.of(ready)..shuffle(rng);
     if (copy.length <= sessionLength) return copy;
     final picked = <InfoDrill>[];
-    final seenKind = <InfoKind>{};
-    for (final drill in copy) {
+    for (final kind in InfoKind.values) {
       if (picked.length >= sessionLength) break;
-      if (seenKind.add(drill.kind)) picked.add(drill);
+      final base = copy.firstWhere(
+        (d) => d.kind == kind && !d.isMigration,
+        orElse: () => copy.firstWhere((d) => d.kind == kind),
+      );
+      picked.add(base);
+    }
+    for (final kind in InfoKind.values) {
+      if (picked.length >= sessionLength) break;
+      final migration = copy.where((d) => d.kind == kind && d.isMigration);
+      for (final drill in migration) {
+        if (picked.contains(drill)) continue;
+        picked.add(drill);
+        break;
+      }
     }
     for (final drill in copy) {
       if (picked.length >= sessionLength) break;
