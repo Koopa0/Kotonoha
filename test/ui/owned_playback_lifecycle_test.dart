@@ -113,7 +113,9 @@ Future<void> _pumpProviders(
 }) async {
   await tester.binding.setSurfaceSize(const Size(420, 2400));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  SharedPreferences.setMockInitialValues({});
+  if (kana == null && words == null) {
+    SharedPreferences.setMockInitialValues({});
+  }
   final resolvedKana = kana ?? await KanaProgressRepository.load();
   final kanji = await KanjiReadingRepository.load();
   final resolvedWords = words ?? await WordProgressRepository.load();
