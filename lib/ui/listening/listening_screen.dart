@@ -48,8 +48,14 @@ class ListeningScreen extends StatefulWidget {
     List<ReadingItem> items,
     String title, {
     VoidCallback? onMore,
+    DateTime Function()? clock,
   }) => MaterialPageRoute<void>(
-    builder: (_) => ListeningScreen(items: items, title: title, onMore: onMore),
+    builder: (_) => ListeningScreen(
+      items: items,
+      title: title,
+      onMore: onMore,
+      clock: clock,
+    ),
   );
 
   @override
@@ -62,6 +68,7 @@ class _ListeningScreenState extends State<ListeningScreen>
   final Random _rng = Random();
 
   late final SpeechService _speech;
+  int? _ownedPlay;
 
   int _index = 0;
   bool _revealed = false;
@@ -105,14 +112,21 @@ class _ListeningScreenState extends State<ListeningScreen>
     unawaited(_interrupt());
   }
 
-  /// Cancels in-flight playback and drops its generation immediately.
+  /// Cancels this screen's in-flight playback and drops its local generation.
   ///
   /// Item switches must not wait for the next frame's [_play]: a late
   /// completion in that gap would still match [_playGen] and read the
   /// next item's `_revealed == false`.
+  ///
+  /// [SpeechService.stop] is scoped to [_ownedPlay] so a leaving
+  /// `pushReplacement` cannot cancel the new route's utterance.
   void _abandonPlayback() {
     _playGen++;
-    unawaited(_speech.stop());
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
   }
 
   Future<void> _interrupt() async {
@@ -130,7 +144,9 @@ class _ListeningScreenState extends State<ListeningScreen>
     final startedBlind = !_revealed;
     final gen = ++_playGen;
     setState(() => _playing = true);
-    final result = await _speech.play(_say);
+    final pending = _speech.play(_say);
+    _ownedPlay = _speech.generation;
+    final result = await pending;
     if (!mounted || _done || gen != _playGen || _current.progressId != itemId) {
       return;
     }

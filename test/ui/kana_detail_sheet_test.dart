@@ -3,10 +3,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/widgets/kana_detail_sheet.dart';
+import 'package:provider/provider.dart';
 
 /// The 五十音図 detail sheet must show a calm present-tense STATUS (a state),
 /// NEVER a chase-able per-kana score. Guards retention-ruler #1: accuracy /
@@ -15,9 +17,12 @@ void main() {
   final kana = kHiraganaGojuon.first; // あ (romaji "a")
 
   Future<void> pump(WidgetTester tester, KanaStat stat) => tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: KanaDetailSheet(kana: kana, stat: stat),
+    Provider<SpeechService>.value(
+      value: const SilentSpeechService(),
+      child: MaterialApp(
+        home: Scaffold(
+          body: KanaDetailSheet(kana: kana, stat: stat),
+        ),
       ),
     ),
   );
