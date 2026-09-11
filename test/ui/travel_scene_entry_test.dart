@@ -23,6 +23,7 @@ import 'package:kotonoha/ui/listening/listening_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/reply/reply_hub_screen.dart';
+import 'package:kotonoha/ui/reply/reply_screen.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:provider/provider.dart';
@@ -647,6 +648,177 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(InfoHubScreen), findsOneWidget);
     expect(find.text(AppStrings.infoPurpose), findsOneWidget);
+  });
+
+  testWidgets('Home→旅行→購衣 states try-on and pay, then meets in-scene', (
+    tester,
+  ) async {
+    final repos = await pumpHome(tester);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    await tester.pumpAndSettle();
+    await openScene(tester, AppStrings.travelSceneClothing);
+    expect(find.text(AppStrings.travelScenePurposeClothing), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneMeetTitle(AppStrings.travelSceneClothing),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('えき'), findsNothing);
+    expect(repos.words.seenItemCount, 0);
+  });
+
+  testWidgets('clothing reply starts try-on after the request phrase is met', (
+    tester,
+  ) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.clothing);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    await repos.words.markIntroduced('word:しちゃく', at: noon());
+    await repos.words.markIntroduced('phrase:しちゃくして いいですか', at: noon());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text('你停在外套衣架前。店員從架上取下那一件，看著你。'), findsOneWidget);
+    expect(find.text('問要不要試穿'), findsOneWidget);
+    expect(find.text('要試穿嗎'), findsNothing);
+    expect(find.text('しちゃくしますか'), findsNothing);
+    expect(find.text(AppStrings.replyNotSpeaking), findsOneWidget);
+  });
+
+  testWidgets('Home→旅行→購衣：つかう 不夠，先教 つかえます／ません 才進可否用卡', (tester) async {
+    final repos = await pumpHome(tester);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    final at = DateTime(2026, 9, 10, 12);
+    for (final id in const [
+      'phrase:この ふくは ちいさい',
+      'phrase:あかい ふくを かう',
+      'phrase:しちゃくして いいですか',
+      'phrase:しちゃくしつは どこ',
+      'phrase:げんきんは いいですか',
+      'phrase:げんきんで かいけい',
+      'word:おおきい',
+      'word:おねがい',
+      'word:かう',
+      'word:たかい',
+      'word:やすい',
+      'word:しちゃく',
+      'word:しちゃくしつ',
+      'word:みぎ',
+      'word:ひだり',
+      'word:サイズ',
+      'word:エル',
+      'word:エム',
+      'word:カード',
+      'word:げんきん',
+      'word:つかう',
+    ]) {
+      await repos.words.markIntroduced(id, at: at);
+    }
+    await tester.pumpAndSettle();
+    await openScene(tester, AppStrings.travelSceneClothing);
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingMeetTitle), findsOneWidget);
+    expect(
+      find.text('カードは つかえます').evaluate().isNotEmpty ||
+          find.text('カードは つかえません').evaluate().isNotEmpty,
+      isTrue,
+    );
+    expect(find.text('使用'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text('結帳臺。臺上放著你的卡，錢包裡還有現金。'), findsNothing);
+    expect(find.text('結帳臺。你只帶了卡，現金不夠付這件。'), findsNothing);
+    expect(find.text('搖頭'), findsNothing);
+    expect(find.text('カードは つかえません'), findsNothing);
+    expect(find.text('カードは つかえます'), findsNothing);
+  });
+
+  testWidgets('Home→旅行→購衣：320×640／2x 先見面 つかえません 須看見不能用才能記 seen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final repos = await pumpHub(tester, scene: TravelSceneId.clothing);
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    for (final id in TravelScene.progressIds[TravelSceneId.clothing]!) {
+      if (id == 'word:つかえません') continue;
+      await repos.words.markIntroduced(id, at: noon());
+    }
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    expect(find.text('つかえません'), findsOneWidget);
+    expect(find.text('不能用'), findsOneWidget);
+    expect(
+      find.text(AppStrings.ferryReadSelf).hitTestable(),
+      findsNothing,
+      reason: '未捲到否定意思前不能完成',
+    );
+    expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
+    await tester.ensureVisible(find.text('不能用'));
+    await tester.pumpAndSettle();
+    expect(find.text('不能用').hitTestable(), findsOneWidget);
+    final meaning = tester.getRect(find.text('不能用'));
+    expect(meaning.top, greaterThanOrEqualTo(-1));
+    expect(meaning.bottom, lessThanOrEqualTo(641));
+    final kana = tester.getRect(find.text('つかえません'));
+    expect(kana.bottom, greaterThan(0));
+    expect(kana.bottom, lessThanOrEqualTo(641));
+    expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
+    await tester.ensureVisible(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.iReadIt).hitTestable(), findsOneWidget);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(repos.words.statForItem('word:つかえません').isSeen, isTrue);
   });
 }
 

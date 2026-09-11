@@ -20,10 +20,20 @@ void main() {
     expect(KanaTokenizer.tokenize('そらが あおい'), ['そ', 'ら', 'が', 'あ', 'お', 'い']);
   });
 
-  test('every phrase is orthographically clean hiragana', () {
+  test('every phrase is orthographically clean for its scripts', () {
+    final allUnits = {for (final k in kAllKana) k.character};
     for (final p in kPhrases) {
       expect(p.romaji, isNotEmpty, reason: p.kana);
       expect(p.meaning, isNotEmpty, reason: p.kana);
+      final mixed = p.kana.runes.any((r) => r >= 0x30A0 && r <= 0x30FF);
+      if (mixed) {
+        expect(
+          KanaTokenizer.isReadable(p.kana, allUnits),
+          isTrue,
+          reason: p.kana,
+        );
+        continue;
+      }
       expect(
         validateKanaOrthography(p.kana, KanaScript.hiragana),
         isEmpty,
@@ -34,14 +44,14 @@ void main() {
 
   test('every phrase is readable once the full syllabary is learned', () {
     // The gate understands special moras (っ needs つ, digraph units gate as
-    // themselves) — so with every hiragana unit learned, nothing in the corpus
-    // can be permanently locked out.
+    // themselves) — so with every unit learned, nothing in the corpus
+    // can be permanently locked out. Mixed shop chunks need both scripts.
+    final allUnits = {for (final k in kAllKana) k.character};
     for (final p in kPhrases) {
-      expect(
-        KanaTokenizer.isReadable(p.kana, allHiraganaUnits),
-        isTrue,
-        reason: p.kana,
-      );
+      final units = p.kana.runes.any((r) => r >= 0x30A0 && r <= 0x30FF)
+          ? allUnits
+          : allHiraganaUnits;
+      expect(KanaTokenizer.isReadable(p.kana, units), isTrue, reason: p.kana);
     }
   });
 

@@ -249,7 +249,7 @@ abstract final class AppStrings {
   static const String travelSceneShrine = '神社古城';
   static const String travelSceneParkQueue = '一般入園／排隊／求助';
   static const String travelScenePurposeTransport = '這一回只練車站、電車、轉乘與行李。';
-  static const String travelScenePurposeClothing = '這一回只練衣服尺寸、價錢與購買。';
+  static const String travelScenePurposeClothing = '這一回只練試穿、尺寸、試衣間、價錢、購買與付款方式。';
   static const String travelScenePurposeShrine = '這一回只練神社、寺院與古城的方向、進出與風景。';
   static const String travelScenePurposeParkQueue =
       '這一回只練一般遊樂園的入口、排隊與當場求助。不定活動檔期。';
@@ -350,7 +350,8 @@ abstract final class AppStrings {
   static const String replyTitle = '短く返す';
   static const String replyPurpose = '這一回只練車站裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyClothingPurpose =
-      '這一回只練購衣時聽懂店員在說什麼,再選一句短回應。選對不是口說錄音判定。';
+      '這一回只練購衣時聽懂店員在說試穿、尺寸、試衣間或付款,再選一句短回應。'
+      '選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
   static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
