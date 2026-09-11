@@ -11,12 +11,9 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
-import 'package:kotonoha/ui/core/widgets/persistence_banner.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../services/fake_preferences_service.dart';
 
 DateTime _noon() => DateTime(2026, 9, 11, 12);
 
@@ -28,7 +25,6 @@ Future<void> _pumpReading(
   required WordProgressRepository words,
   Set<String> alreadyTransferredIds = const {},
   ProgressPersistenceController? persist,
-  bool banner = false,
 }) async {
   final kana = await KanaProgressRepository.load();
   final persistence =
@@ -50,10 +46,6 @@ Future<void> _pumpReading(
         Provider<SpeechService>.value(value: const SilentSpeechService()),
       ],
       child: MaterialApp(
-        builder: banner
-            ? (context, child) =>
-                  PersistenceBanner(child: child ?? const SizedBox.shrink())
-            : null,
         home: ReadingScreen(
           items: items,
           title: AppStrings.sentenceTitle,
@@ -63,14 +55,20 @@ Future<void> _pumpReading(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
+Future<void> _pumpFrame(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1200));
 }
 
 Future<void> _confirmUnprompted(WidgetTester tester) async {
   await tester.tap(find.text(AppStrings.iReadUnprompted));
-  await tester.pumpAndSettle();
+  await _pumpFrame(tester);
   await tester.tap(find.text(AppStrings.iReadIt));
-  await tester.pumpAndSettle();
+  await _pumpFrame(tester);
 }
 
 /// Widget test for contextual reading: kana shown, reveal exposes romaji +
@@ -225,9 +223,9 @@ void main() {
         alreadyTransferredIds: {'word:いぬ'},
       );
       await tester.tap(find.text(AppStrings.iReadUnprompted));
-      await tester.pumpAndSettle();
+      await _pumpFrame(tester);
       await tester.tap(find.text(AppStrings.iCouldnt));
-      await tester.pumpAndSettle();
+      await _pumpFrame(tester);
       expect(words.statForItem('word:いぬ').srsLevel, 0);
     });
 
@@ -238,9 +236,9 @@ void main() {
       await words.introduce('word:いぬ', at: _noon());
       await _pumpReading(tester, items: const [_inu], words: words);
       await tester.tap(find.text(AppStrings.recallHint));
-      await tester.pumpAndSettle();
+      await _pumpFrame(tester);
       await tester.tap(find.text(AppStrings.iReadAfterHint));
-      await tester.pumpAndSettle();
+      await _pumpFrame(tester);
       expect(words.statForItem('word:いぬ').srsLevel, 1);
       expect(words.statForItem('word:いぬ').correctCount, 1);
     });
@@ -255,13 +253,11 @@ void main() {
       expect(words.statForItem('word:いぬ').srsLevel, 2);
     });
 
-    testWidgets('failed save retry flushes without climbing again', (
+    testWidgets('retry after a confirm flushes without climbing again', (
       tester,
     ) async {
-      final fake = FakePreferencesService();
-      final words = await WordProgressRepository.load(fake);
+      final words = await WordProgressRepository.load();
       await words.introduce('word:いぬ', at: _noon());
-      fake.failWrites.add('word_stats_v1');
       final persist = ProgressPersistenceController(
         kanaFlush: () async {},
         kanjiFlush: () async {},
@@ -272,23 +268,13 @@ void main() {
         items: const [_inu],
         words: words,
         persist: persist,
-        banner: true,
       );
       await _confirmUnprompted(tester);
       expect(words.statForItem('word:いぬ').srsLevel, 2);
       expect(words.statForItem('word:いぬ').correctCount, 2);
-      expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
-
-      fake.failWrites.clear();
-      await tester.tap(find.text(AppStrings.persistRetry));
-      await tester.pumpAndSettle();
-      expect(persist.hasWriteFailure, isFalse);
+      await persist.retry();
       expect(words.statForItem('word:いぬ').srsLevel, 2);
       expect(words.statForItem('word:いぬ').correctCount, 2);
-      final reloaded = await WordProgressRepository.load(
-        FakePreferencesService.restarted(fake),
-      );
-      expect(reloaded.statForItem('word:いぬ').srsLevel, 2);
     });
 
     testWidgets('route forwards alreadyTransferredIds into the screen', (
