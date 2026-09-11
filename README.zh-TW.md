@@ -6,6 +6,9 @@
 
 [English](README.md) · **繁體中文** · [日本語](README.JP.md)
 
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+
 為繁體中文讀者設計的日語閱讀練習 app。先熟悉平假名、片假名，再走進單字、短句、
 先聽再揭曉的聽力，以及詞句中的漢字讀音。每回練習簡短，介面安靜，
 不追逐分數、連續天數或獎勵。

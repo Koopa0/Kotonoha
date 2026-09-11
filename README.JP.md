@@ -6,6 +6,9 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · **日本語**
 
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+
 繁体字中国語の読者のための、日本語の読みを練習するアプリです。
 ひらがな・カタカナに慣れるところから、単語、短い文、先に聴いてから明かす聞き取り、
 そして語句の中の漢字の読みへ進みます。一回の練習は短く、画面は静かに。
