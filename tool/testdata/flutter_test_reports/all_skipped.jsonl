@@ -1,0 +1,4 @@
+{"type":"start","protocolVersion":"0.1.1"}
+{"type":"testStart","test":{"id":1,"name":"actual OS partial append followed by retry preserves attempt"}}
+{"type":"testDone","testID":1,"result":"success","skipped":true,"hidden":false}
+{"type":"done","success":true}
