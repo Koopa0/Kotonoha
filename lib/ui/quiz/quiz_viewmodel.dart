@@ -58,6 +58,7 @@ class QuizViewModel extends ChangeNotifier {
   bool _presented = false;
   bool _recallCommitCaptured = false;
   int? _committedRecallLatencyMs;
+  bool _listeningHeard = false;
   bool _listeningHeardArmed = false;
 
   final List<AnsweredQuestion> _answers = [];
@@ -150,11 +151,15 @@ class QuizViewModel extends ChangeNotifier {
   }
 
   /// First completed foreground play on a [QuizDirection.soundToKana] item.
-  /// Re-arms the fluency clock from this hear. An already-invalid clock
-  /// stays null — never a fabricated RT. Later replays do not move the start.
+  ///
+  /// A valid hear is recorded even when the RT clock is already invalid
+  /// (background interrupt, then a successful replay). Fluency re-arms
+  /// only while timing is still valid. An already-invalid clock stays
+  /// null — never a fabricated RT. Later replays do not move the start.
   void noteListeningHeard() {
     if (isAnswered || _finished) return;
     if (current.direction != QuizDirection.soundToKana) return;
+    _listeningHeard = true;
     if (_listeningHeardArmed) return;
     if (!_timingValid) return;
     _listeningHeardArmed = true;
@@ -245,8 +250,7 @@ class QuizViewModel extends ChangeNotifier {
         // from writing anything; this extra gate covers a scored glyph
         // pick that never actually heard the prompt.
         final listening =
-            question.direction == QuizDirection.soundToKana &&
-            _listeningHeardArmed;
+            question.direction == QuizDirection.soundToKana && _listeningHeard;
         final persist = !correct
             ? repository.recordAnswer(
                 question.target,
@@ -299,6 +303,7 @@ class QuizViewModel extends ChangeNotifier {
       _selected = null;
       _recallCommitCaptured = false;
       _committedRecallLatencyMs = null;
+      _listeningHeard = false;
       _listeningHeardArmed = false;
       _armTiming();
     }

@@ -21,6 +21,8 @@ enum KanaStatus { unseen, learning, weak, strong }
 ///   fields (`recordAnswer(listening: true)`). A glyph-only diagnostic
 ///   must keep the default `listening: false`.
 /// * Unknown is not a miss and must not reset SRS by itself.
+/// * A listening miss stays unrecovered until a later scored hear.
+///   Calendar time and visual answers never mint [hasReliableListening].
 ///
 /// Pure data: no `package:flutter/*` imports.
 class KanaStat {
@@ -173,32 +175,32 @@ class KanaStat {
   /// early learning still graduates on speed alone (CV needs a few samples).
   static const double kMaxGraduationCv = 0.30;
 
-  /// Two scored correct hears, without a recent listening miss, are enough
-  /// to stop probing. One lucky pick is not treated as mastery.
+  /// Two scored correct hears, with the latest listen not a miss, are
+  /// enough to stop probing. One lucky pick is not treated as mastery.
   static const int kListeningVerifiedCorrect = 2;
 
-  /// A dated listening miss this old or newer still claims a sound probe.
-  /// Matches the visual recent-miss window so the two clocks stay comparable.
-  static const int kListeningMissDays = 14;
-
-  /// Whether a scored listening miss is still current. Unknown (no listen
-  /// clock) is never a miss.
-  bool hasRecentListeningMiss({required DateTime now}) {
-    if (lastListenMistakeAt == null) return false;
-    final int days = now.difference(lastListenMistakeAt!).inDays;
-    return !days.isNegative && days <= kListeningMissDays;
+  /// True when the latest scored listen was a miss. Unknown (no listen
+  /// miss clock) is never unrecovered. Visual answers and elapsed days
+  /// do not clear this — only a later scored hear moves [lastListenAt].
+  bool get listeningUnrecovered {
+    final missed = lastListenMistakeAt;
+    if (missed == null) return false;
+    final last = lastListenAt;
+    if (last == null) return true;
+    return !last.isAfter(missed);
   }
 
   /// Enough scored sound→kana evidence to leave the listening probe.
-  /// Visual strength alone never satisfies this.
+  /// Visual strength and calendar time alone never satisfy this.
+  /// [now] is kept so #49 can share the predicate without a second clock.
   bool hasReliableListening({required DateTime now}) {
     if (listenCorrectCount < kListeningVerifiedCorrect) return false;
-    if (hasRecentListeningMiss(now: now)) return false;
+    if (listeningUnrecovered) return false;
     return true;
   }
 
   /// Daily should still sample sound when listening is unknown, thin, or
-  /// recently missed. Not a quota — a per-item evidence gap.
+  /// unrecovered. Not a quota — a per-item evidence gap.
   bool needsListeningProbe({required DateTime now}) =>
       !hasReliableListening(now: now);
 

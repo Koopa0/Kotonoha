@@ -141,10 +141,40 @@ void main() {
     expect(counts[QuizDirection.kanaRecall] ?? 0, 0);
   });
 
+  test('unrecovered listen miss still probes after 16 visual-only days', () {
+    final missed = now.subtract(const Duration(days: 16));
+    final stats = {
+      for (final k in pool)
+        k.id: KanaStat(
+          seenCount: 27,
+          correctCount: 26,
+          wrongCount: 1,
+          srsLevel: 6,
+          avgLatencyMs: 500,
+          lastReviewedAt: now.subtract(const Duration(days: 1)),
+          lastMistakeAt: missed,
+          dueAt: now.add(const Duration(days: 30)),
+          listenSeenCount: 3,
+          listenCorrectCount: 2,
+          listenWrongCount: 1,
+          lastListenAt: missed,
+          lastListenMistakeAt: missed,
+        ),
+    };
+    expect(stats[pool.first.id]!.hasReliableListening(now: now), isFalse);
+    expect(
+      DailySession.readyForRecall(stats[pool.first.id]!, now: now),
+      isTrue,
+    );
+    final counts = countDirections(stats: stats, quiet: false, rounds: 5);
+    expect(counts[QuizDirection.soundToKana], 60);
+    expect(counts[QuizDirection.kanaRecall] ?? 0, 0);
+  });
+
   test('unknown listening is not a miss and does not deduct fluency', () {
     final stat = visualReadyUnknown()[pool.first.id]!;
     expect(stat.listeningUnknown, isTrue);
-    expect(stat.hasRecentListeningMiss(now: now), isFalse);
+    expect(stat.listeningUnrecovered, isFalse);
     expect(DailySession.readyForRecall(stat, now: now), isTrue);
     expect(Weakness.isActionable(stat, now: now), isFalse);
   });

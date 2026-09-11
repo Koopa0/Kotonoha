@@ -231,7 +231,7 @@ abstract final class DailySession {
       }
       return QuizDirection.kanaRecall;
     }
-    if (stat.hasRecentListeningMiss(now: now)) {
+    if (stat.listeningUnrecovered) {
       return QuizDirection.soundToKana;
     }
     return rng.nextBool()

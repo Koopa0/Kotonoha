@@ -252,15 +252,46 @@ void main() {
       at: now.add(const Duration(hours: 1)),
       listening: true,
     );
-    expect(
-      missed.hasRecentListeningMiss(now: now.add(const Duration(hours: 1))),
-      isTrue,
-    );
+    expect(missed.listeningUnrecovered, isTrue);
     expect(
       missed.hasReliableListening(now: now.add(const Duration(hours: 1))),
       isFalse,
     );
     expect(missed.srsLevel, 0);
+  });
+
+  test('unrecovered listen miss stays unreliable after visual-only days', () {
+    var s = const KanaStat();
+    var at = now;
+    for (var i = 0; i < 8; i++) {
+      s = s.recordAnswer(correct: true, at: at, latencyMs: 400);
+      at = at.add(const Duration(minutes: 1));
+    }
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    at = at.add(const Duration(minutes: 1));
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    at = at.add(const Duration(minutes: 1));
+    s = s.recordAnswer(correct: false, at: at, listening: true);
+    expect(s.listenCorrectCount, 2);
+    expect(s.listenSeenCount, 3);
+    expect(s.lastListenAt, s.lastListenMistakeAt);
+    expect(s.listeningUnrecovered, isTrue);
+
+    at = at.add(const Duration(days: 16));
+    for (var i = 0; i < 8; i++) {
+      s = s.recordAnswer(correct: true, at: at, latencyMs: 400);
+      at = at.add(const Duration(days: 1));
+    }
+    expect(s.listenCorrectCount, 2);
+    expect(s.listenSeenCount, 3);
+    expect(s.lastListenAt, s.lastListenMistakeAt);
+    expect(s.listeningUnrecovered, isTrue);
+    expect(s.hasReliableListening(now: at), isFalse);
+    expect(s.needsListeningProbe(now: at), isTrue);
+
+    s = s.recordAnswer(correct: true, at: at, latencyMs: 400, listening: true);
+    expect(s.listeningUnrecovered, isFalse);
+    expect(s.hasReliableListening(now: at), isTrue);
   });
 
   test('recordPromptedPractice keeps listen evidence untouched', () {
