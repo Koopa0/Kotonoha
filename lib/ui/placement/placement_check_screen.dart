@@ -146,34 +146,55 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     final kanaId = _vm.current.target.id;
-    final hinted = _draft.isHinted(kanaId);
-    // Hinted this check cannot become a first independent correct — same
-    // contract as [PlacementCheck.outcomeFor], and the same SRS write.
-    final independent = unprompted && !hinted;
+    // Same-visit 讀得出來 commit stays independent even though the reading
+    // is now persisted as exposure. After leave / reload the commit flag
+    // is gone; a persisted reveal is prompted-only and must not start a
+    // new unprompted RT.
+    final independent = unprompted && _recallUnpromptedCommit;
     _vm.gradeRecall(correct: correct, unprompted: independent);
     _draft = PlacementCheck.record(
       _draft,
       kanaId,
       PlacementCheck.outcomeFor(
         correct: correct,
-        unprompted: unprompted,
-        hinted: hinted,
+        unprompted: independent,
+        hinted: !independent && _draft.isHinted(kanaId),
       ),
     );
     persist.trackPlacement(widget.checks.save(_draft));
+  }
+
+  void _persistReveal() {
+    final kanaId = _vm.current.target.id;
+    _draft = PlacementCheck.noteHinted(_draft, kanaId);
+    context.read<ProgressPersistenceController>().trackPlacement(
+      widget.checks.save(_draft),
+    );
   }
 
   void _revealAsHint() {
     if (_vm.items.isEmpty || _vm.isAnswered) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
-    final kanaId = _vm.current.target.id;
-    _draft = PlacementCheck.noteHinted(_draft, kanaId);
-    persist.trackPlacement(widget.checks.save(_draft));
+    _persistReveal();
     setState(() {
       _recallUnpromptedCommit = false;
       _recallRevealed = true;
     });
+  }
+
+  void _revealAfterUnpromptedCommit() {
+    if (_vm.items.isEmpty || _vm.isAnswered) return;
+    final persist = context.read<ProgressPersistenceController>();
+    if (persist.hasWriteFailure) return;
+    _vm.captureUnpromptedRecall();
+    setState(() {
+      _recallUnpromptedCommit = true;
+      _recallRevealed = true;
+    });
+    // Persist exposure so leave / reload cannot restart a first
+    // unprompted round. Same-visit confirm still uses the commit flag.
+    _persistReveal();
   }
 
   void _onChanged() {
@@ -310,7 +331,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
 
   Widget _actions({required bool blocked}) {
     if (_recallRevealed) {
-      final unprompted = _recallUnpromptedCommit && !_currentHinted;
+      final unprompted = _recallUnpromptedCommit;
       return Row(
         children: [
           Expanded(
@@ -369,15 +390,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
                 ),
-                onPressed: blocked
-                    ? null
-                    : () {
-                        _vm.captureUnpromptedRecall();
-                        setState(() {
-                          _recallUnpromptedCommit = true;
-                          _recallRevealed = true;
-                        });
-                      },
+                onPressed: blocked ? null : _revealAfterUnpromptedCommit,
                 child: const Text(AppStrings.iReadUnprompted),
               ),
             ),

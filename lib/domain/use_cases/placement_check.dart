@@ -73,8 +73,8 @@ class PlacementCheck {
     return PlacementOutcome.independent;
   }
 
-  /// Marks that [kanaId] saw its reading this check. No grade is written.
-  /// Already-graded or not-pending ids are ignored.
+  /// Marks that [kanaId] saw its reading this check (看提示 or 讀得出來).
+  /// No grade is written. Already-graded or not-pending ids are ignored.
   static PlacementDraft noteHinted(PlacementDraft draft, String kanaId) {
     if (!draft.pendingKanaIds.contains(kanaId)) return draft;
     if (draft.records.any((r) => r.kanaId == kanaId)) return draft;

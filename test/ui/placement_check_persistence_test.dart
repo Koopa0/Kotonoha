@@ -54,6 +54,28 @@ void main() {
     expect(find.text(AppStrings.iReadUnprompted), findsOneWidget);
   });
 
+  testWidgets(
+    'same-visit 讀得出來 then 讀對了 stays independent — reveal persist does not wipe it',
+    (tester) async {
+      final app = await _pumpFormal(tester);
+      await _openAoCheck(tester);
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text(AppStrings.iReadIt), findsOneWidget);
+      expect(find.text(AppStrings.iReadAfterHint), findsNothing);
+
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      expect(
+        app.checks.draft.records.single.outcome,
+        PlacementOutcome.independent,
+      );
+      expect(app.kana.statFor(_kanaOf(app.kana, 'あ')).correctCount, 1);
+    },
+  );
+
   testWidgets('hint, leave, resume: cannot mint a first independent correct', (
     tester,
   ) async {
@@ -117,6 +139,71 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    '讀得出來 reveal, leave, resume: cannot restart a first unprompted round',
+    (tester) async {
+      final app = await _pumpFormal(tester);
+      await _openAoCheck(tester);
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      expect(find.text('a'), findsOneWidget);
+      expect(app.checks.draft.isHinted('あ'), isTrue);
+      expect(find.text(AppStrings.iReadIt), findsOneWidget);
+      expect(find.text(AppStrings.iReadUnprompted), findsNothing);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlacementScopeScreen), findsOneWidget);
+      expect(app.kana.statFor(_kanaOf(app.kana, 'あ')).correctCount, 0);
+
+      await tester.tap(find.text(AppStrings.placementResume));
+      await tester.pumpAndSettle();
+      expect(find.text('あ'), findsOneWidget);
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text(AppStrings.iReadUnprompted), findsNothing);
+      expect(find.text(AppStrings.iReadAfterHint), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.iReadAfterHint));
+      await tester.pumpAndSettle();
+      expect(
+        app.checks.draft.records.single.outcome,
+        PlacementOutcome.prompted,
+      );
+      expect(app.kana.statFor(_kanaOf(app.kana, 'あ')).correctCount, 0);
+      expect(app.kana.statFor(_kanaOf(app.kana, 'あ')).seenCount, 1);
+    },
+  );
+
+  testWidgets('讀得出來 reveal then process reload stays prompted-only', (
+    tester,
+  ) async {
+    final app = await _pumpFormal(tester);
+    await _openAoCheck(tester);
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pumpAndSettle();
+    expect(app.checks.draft.isHinted('あ'), isTrue);
+
+    final reloaded = await _remount(tester, app);
+    expect(reloaded.checks.draft.isHinted('あ'), isTrue);
+    expect(reloaded.checks.draft.pendingKanaIds.first, 'あ');
+    expect(reloaded.checks.draft.records, isEmpty);
+
+    await _resumeCheck(tester);
+    expect(find.text('あ'), findsOneWidget);
+    expect(find.text('a'), findsOneWidget);
+    expect(find.text(AppStrings.iReadUnprompted), findsNothing);
+    expect(find.text(AppStrings.iReadAfterHint), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.iReadAfterHint));
+    await tester.pumpAndSettle();
+    expect(
+      reloaded.checks.draft.records.single.outcome,
+      PlacementOutcome.prompted,
+    );
+    expect(reloaded.kana.statFor(_kanaOf(reloaded.kana, 'あ')).correctCount, 0);
+  });
 
   testWidgets('start write failure stays on scope; retry then resume', (
     tester,

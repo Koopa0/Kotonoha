@@ -35,8 +35,11 @@ class PlacementRecord {
 /// [records] are only real grades. Leaving mid-way must not invent the rest.
 ///
 /// [hintedKanaIds] is exposure, not a grade: a pending kana whose reading
-/// was shown this check stays prompted-only across resume. Reloading must
-/// not mint a first independent correct from a previously revealed card.
+/// was shown this check — via 看提示 or 讀得出來 — stays prompted-only
+/// across resume. Reloading must not mint a first independent correct or
+/// a new unprompted RT from a previously revealed card. Same-visit
+/// confirmation after 讀得出來 is still independent; only a new visit
+/// after leave / reload is conservative.
 class PlacementDraft {
   const PlacementDraft({
     required this.lessonIds,
