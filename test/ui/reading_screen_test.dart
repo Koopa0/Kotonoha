@@ -10,6 +10,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -23,6 +24,11 @@ import '../services/fake_preferences_service.dart';
 DateTime _noon() => DateTime(2026, 9, 11, 12);
 
 const _inu = Word(kana: 'いぬ', romaji: 'inu', meaning: '狗');
+const _cardNo = Phrase(
+  kana: 'カードは つかえません',
+  romaji: 'kaado wa tsukaemasen',
+  meaning: '不能用卡',
+);
 
 Future<void> _pumpReading(
   WidgetTester tester, {
@@ -381,5 +387,36 @@ void main() {
       expect(screen.alreadyTransferredIds, {'word:いぬ'});
       expect(screen.clock, isNotNull);
     });
+  });
+
+  testWidgets('320x640 at 2x text keeps payment phrase reveal readable', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 640);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(
+      () => tester.platformDispatcher.textScaleFactorTestValue = null,
+    );
+
+    final words = await WordProgressRepository.load();
+    await _pumpReading(
+      tester,
+      items: const [_cardNo],
+      words: words,
+    );
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await _pumpFrame(tester);
+    expect(tester.takeException(), isNull);
+    expect(find.text('カードは つかえません'), findsOneWidget);
+    expect(find.text('不能用卡'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('不能用卡'));
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await _pumpFrame(tester);
+    expect(tester.takeException(), isNull);
   });
 }

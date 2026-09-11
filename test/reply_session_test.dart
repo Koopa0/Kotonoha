@@ -127,6 +127,8 @@ void main() {
       '可以試穿',
       '試衣間在右邊',
       '告訴你試衣間',
+      '右手邊',
+      '右邊的門簾',
       '是這個尺寸嗎',
       '是不是這個尺寸',
       '要用卡嗎',
@@ -169,7 +171,8 @@ void main() {
     expect(byId['reply:fuku-chiisai-kau']!.sceneZh, contains('帶走'));
     expect(byId['reply:kau-masu-ka']!.sceneZh, contains('紅色'));
     expect(byId['reply:shichaku-shimasu-ka']!.sceneZh, contains('衣架'));
-    expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, contains('門簾'));
+    expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, contains('試衣間'));
+    expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, isNot(contains('右')));
     expect(byId['reply:size-l-onegai']!.sceneZh, contains('L'));
     expect(byId['reply:card-desu-ka']!.sceneZh, contains('刷卡'));
     expect(byId['reply:card-tsukaemasu']!.sceneZh, contains('只帶了卡'));

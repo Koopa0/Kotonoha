@@ -176,4 +176,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('廁紙'), findsOneWidget); // unfolded on demand
   });
+
+  testWidgets('320x640 at 2x text keeps つかえません meaning reachable on see beat', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 640);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(
+      () => tester.platformDispatcher.textScaleFactorTestValue = null,
+    );
+
+    const word = Word(
+      kana: 'つかえません',
+      romaji: 'tsukaemasen',
+      meaning: '不能用',
+    );
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: const MaterialApp(
+          home: FerryScreen(words: [word], title: AppStrings.ferryTitle),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('つかえません'), findsOneWidget);
+    expect(find.text('不能用'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('不能用'));
+    await tester.tap(find.text(AppStrings.ferryReadSelf));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text(AppStrings.ferryReadback), findsOneWidget);
+
+    await tester.ensureVisible(find.text(AppStrings.iReadIt));
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 }

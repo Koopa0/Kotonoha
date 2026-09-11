@@ -149,7 +149,7 @@ const List<ReplyDrill> kReplyDrills = [
   ReplyDrill(
     id: 'reply:shichaku-shitsu-migi',
     scene: ReplySceneId.clothing,
-    sceneZh: '你問過試衣間。店員伸手指向你右手邊的門簾。',
+    sceneZh: '你問過試衣間。',
     promptKana: 'しちゃくしつは みぎです',
     promptRomaji: 'shichakushitsu wa migi desu',
     promptMeaning: '試衣間在右邊',

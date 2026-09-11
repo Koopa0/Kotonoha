@@ -248,91 +248,109 @@ class _ReadingScreenState extends State<ReadingScreen> {
           ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: AppColors.hairline),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _current.displayText,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: big ? 64 : 44,
-                          height: 1.2,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.ink,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: AppColors.hairline),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 20,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _current.displayText,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: big ? 64 : 44,
+                                    height: 1.2,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            if (!_revealed)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text(
+                                  AppStrings.readPrompt,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: AppColors.inkMuted,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              )
+                            else ...[
+                              const Divider(height: 36, indent: 48, endIndent: 48),
+                              Text(
+                                _current.romaji,
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.accent,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _current.meaning,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              if (!widget.quiet)
+                                SpeakButton(text: _say, size: 30, onPlay: _speak),
+                              // A quiet 助詞 gloss for each particle in the phrase — pull,
+                              // never pushed; role + reading quirk only, never a lesson.
+                              for (final p
+                                  in Particles.particlesIn(_current.displayText))
+                                if (AppStrings.particleGloss(p) case final gloss?)
+                                  PullNote(
+                                    trigger: AppStrings.particleGlossTrigger,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Text(
+                                        gloss,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: AppColors.inkMuted,
+                                          height: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  if (!_revealed)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        AppStrings.readPrompt,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 15,
-                        ),
-                      ),
-                    )
-                  else ...[
-                    const Divider(height: 36, indent: 48, endIndent: 48),
-                    Text(
-                      _current.romaji,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.accent,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _current.meaning,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    if (!widget.quiet)
-                      SpeakButton(text: _say, size: 30, onPlay: _speak),
-                    // A quiet 助詞 gloss for each particle in the phrase — pull,
-                    // never pushed; role + reading quirk only, never a lesson.
-                    for (final p in Particles.particlesIn(_current.displayText))
-                      if (AppStrings.particleGloss(p) case final gloss?)
-                        PullNote(
-                          trigger: AppStrings.particleGlossTrigger,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Text(
-                              gloss,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppColors.inkMuted,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                  ],
-                  const Spacer(),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
         Padding(

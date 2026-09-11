@@ -231,85 +231,98 @@ class _FerryScreenState extends State<FerryScreen> {
           ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: AppColors.hairline),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(),
-                  SpeakButton(
-                    text: _current.kana,
-                    prominent: true,
-                    size: showKana ? 34 : 56,
-                    onPlay: _speak,
-                  ),
-                  if (showKana) ...[
-                    const SizedBox(height: 24),
-                    // The kana inks in — fades and rises into being.
-                    _InkIn(
-                      key: ValueKey(_index),
-                      child: Text(
-                        _current.kana,
-                        style: const TextStyle(
-                          fontSize: 64,
-                          height: 1.1,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.ink,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: AppColors.hairline),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 20,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SpeakButton(
+                              text: _current.kana,
+                              prominent: true,
+                              size: showKana ? 34 : 56,
+                              onPlay: _speak,
+                            ),
+                            if (showKana) ...[
+                              const SizedBox(height: 24),
+                              // The kana inks in — fades and rises into being.
+                              _InkIn(
+                                key: ValueKey(_index),
+                                child: Text(
+                                  _current.kana,
+                                  style: const TextStyle(
+                                    fontSize: 64,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // The same identity block the reading screen reveals, kept
+                              // consistent: romaji (the reading) then meaning (the word
+                              // you own). The ear already gave him the sound; these confirm.
+                              Text(
+                                _current.romaji,
+                                style: const TextStyle(
+                                  color: AppColors.accent,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _current.meaning,
+                                style: const TextStyle(
+                                  color: AppColors.ink,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              // 同形異義語: a quiet, on-demand note when the kanji means
+                              // something different in Japanese than a Chinese reader
+                              // would assume. Pull, never pushed.
+                              if (_current.falseFriend != null)
+                                _FalseFriendNote(
+                                  _current.falseFriend!,
+                                  key: ValueKey(_current.kana),
+                                ),
+                            ],
+                            const SizedBox(height: 16),
+                            Text(
+                              switch (_beat) {
+                                _Beat.hear => AppStrings.ferryHear,
+                                _Beat.see => AppStrings.ferrySee,
+                                _Beat.readback => AppStrings.ferryReadback,
+                              },
+                              style: const TextStyle(
+                                color: AppColors.inkMuted,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    // The same identity block the reading screen reveals, kept
-                    // consistent: romaji (the reading) then meaning (the word
-                    // you own). The ear already gave him the sound; these confirm.
-                    Text(
-                      _current.romaji,
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _current.meaning,
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontSize: 18,
-                      ),
-                    ),
-                    // 同形異義語: a quiet, on-demand note when the kanji means
-                    // something different in Japanese than a Chinese reader
-                    // would assume. Pull, never pushed.
-                    if (_current.falseFriend != null)
-                      _FalseFriendNote(
-                        _current.falseFriend!,
-                        key: ValueKey(_current.kana),
-                      ),
-                  ],
-                  const SizedBox(height: 16),
-                  Text(
-                    switch (_beat) {
-                      _Beat.hear => AppStrings.ferryHear,
-                      _Beat.see => AppStrings.ferrySee,
-                      _Beat.readback => AppStrings.ferryReadback,
-                    },
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 15,
-                    ),
                   ),
-                  const Spacer(),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
         Padding(
