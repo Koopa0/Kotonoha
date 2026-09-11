@@ -46,6 +46,7 @@ abstract final class AppStrings {
   static const String readPhrasesAction = '讀短句';
   static const String readKanjiSentencesAction = '漢字句閱讀';
   static const String shiftAction = '指定難點再練';
+  static const String replyAction = '聽懂再回應';
 
   // Guidance — the ambient one-line "next step" + the home card-path section
   // headers. The pure use_case returns only a target (+ a count); the 繁中 copy
@@ -308,6 +309,26 @@ abstract final class AppStrings {
       '無提示讀音、提示後讀音、換句後的句意是分開記下的自評。'
       '這一題不會把整個文法點、章節或相關詞句標成掌握。';
   static String shiftSourceChip(String url) => '來源備註 $url';
+
+  // 短く返す — hear a station ask, pick the intent, pick a short reply.
+  // Isolated from #47 scene membership and #9 聞き取り self-grade.
+  static const String replyEntry = '短く返す';
+  static const String replySubtitle = '聽對方在問什麼,再選一句短回應';
+  static const String replyTitle = '短く返す';
+  static const String replyPurpose = '這一回只練車站裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
+  static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
+  static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
+  static const String replyStartAction = '開始這一回';
+  static const String replyMeetTitle = '車站・見面';
+  static const String replyIntentPrompt = '對方在問什麼?';
+  static const String replyReplyPrompt = '你要怎麼回?';
+  static const String replyHint = '看意思提示';
+  static const String replyShowText = '看日文';
+  static const String replyNotSpeaking = '選對是理解／選句證據,不是口說判定。';
+  static const String replyClose = '這一回,先練到這裡。';
+  static const String replyCloseNote = '聽音、看過文字、提示後答出、獨立選回應是分開記下的。選對不是口說判定。';
+  static String replyMissingKana(String units) => '還需要先認得：$units';
 
   // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';

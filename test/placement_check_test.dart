@@ -241,9 +241,10 @@ void main() {
     expect(PracticeMode.listening.name, 'listening');
     expect(PracticeMode.shift.name, 'shift');
     expect(PracticeMode.placementCheck.name, 'placementCheck');
+    expect(PracticeMode.reply.name, 'reply');
     expect(
       PracticeMode.values.map((m) => m.name),
-      containsAllInOrder(['listening', 'shift', 'placementCheck']),
+      containsAllInOrder(['listening', 'shift', 'placementCheck', 'reply']),
     );
   });
 }

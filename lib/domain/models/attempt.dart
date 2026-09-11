@@ -15,6 +15,7 @@ enum PracticeMode {
   listening, // hear → recall → reveal → rehear (comprehension; not kana ID)
   shift, // original swap-sentence: reading vs sense, base vs transferred
   placementCheck, // explicit prior-range check: answer first, then reveal
+  reply, // hear a station ask, pick intent, pick a short reply (not speech)
 }
 
 /// The kind of learnable item an [Attempt] is about. Content-agnostic so kanji
@@ -32,6 +33,9 @@ abstract final class AttemptMeta {
   static const String distractor = 'distractor'; // wrong MC option chosen
   /// Whether the learner saw the reading before grading (bool).
   static const String prompted = 'prompted';
+
+  /// Whether the learner opened a meaning hint before grading (bool).
+  static const String hinted = 'hinted';
   static const String playback = 'playback'; // SpeechPlaybackResult.name
   static const String heard = 'heard'; // true only after a completed play
   static const String scored = 'scored'; // false = exposure, not a grade
