@@ -473,8 +473,6 @@ void main() {
     expect(find.text(AppStrings.shiftFirstUnseen), findsNothing);
     expect(find.text('あおい うみ'), findsNothing);
 
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
     await tester.pumpWidget(
       _harness(
         analytics: analytics,

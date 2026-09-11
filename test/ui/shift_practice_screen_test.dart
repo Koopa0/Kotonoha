@@ -188,6 +188,7 @@ void main() {
           analytics: analytics,
           child: ShiftPracticeScreen(
             drill: drill,
+            beats: const [ShiftBeat.base],
             clock: () => DateTime(2026, 9, 10, 10),
           ),
         ),
