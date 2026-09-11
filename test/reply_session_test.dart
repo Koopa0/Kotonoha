@@ -360,6 +360,36 @@ void main() {
     expect(session.map((d) => d.promptKana), isNot(contains('えきは どこ')));
   });
 
+  test('あたためますか yes-scene accepts はい and あたためて ください', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.convenience))
+        drill.id: drill,
+    };
+    final heat = byId['reply:atatame-kudasai']!;
+    final skip = byId['reply:atatame-iie']!;
+    expect(heat.replyAlsoCorrectKana, ['はい']);
+    expect(heat.replyWrongKana, ['いいえ']);
+    expect(heat.isReplyCorrect('あたためて ください'), isTrue);
+    expect(heat.isReplyCorrect('はい'), isTrue);
+    expect(heat.isReplyCorrect('いいえ'), isFalse);
+    expect(skip.replyWrongKana, contains('はい'));
+    expect(skip.isReplyCorrect('はい'), isFalse);
+  });
+
+  test('ほかに よろしいですか rice scene clarifies催飯 and drops いいえ distractor', () {
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.restaurant))
+        drill.id: drill,
+    };
+    final rice = byId['reply:hoka-gohan']!;
+    final bill = byId['reply:hoka-kaikei']!;
+    expect(rice.sceneZh, contains('還沒送上來'));
+    expect(rice.replyCorrectKana, 'ごはんを ください');
+    expect(rice.replyWrongKana, isNot(contains('いいえ')));
+    expect(rice.replyWrongKana, contains('かいけいを おねがい'));
+    expect(bill.replyCorrectKana, 'かいけいを おねがい');
+  });
+
   test('ふくろは いりますか scenes split はい and いいえ', () {
     final byId = {
       for (final drill in replyDrillsFor(ReplySceneId.convenience))

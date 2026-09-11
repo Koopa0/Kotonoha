@@ -209,7 +209,7 @@ const List<ReplyDrill> kReplyDrills = [
   ReplyDrill(
     id: 'reply:hoka-gohan',
     scene: ReplySceneId.restaurant,
-    sceneZh: '主食還沒上來。',
+    sceneZh: '已點了主食，但還沒送上來，想請服務生送。',
     promptKana: 'ほかに よろしいですか',
     promptRomaji: 'hoka ni yoroshii desu ka',
     promptMeaning: '還要別的嗎',
@@ -218,7 +218,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectKana: 'ごはんを ください',
     replyCorrectRomaji: 'gohan o kudasai',
     replyCorrectMeaning: '請給我飯',
-    replyWrongKana: ['ひとりです', 'いいえ'],
+    replyWrongKana: ['ひとりです', 'かいけいを おねがい'],
     requiredSeenIds: ['phrase:ほかに よろしいですか', 'word:ごはん'],
   ),
   ReplyDrill(
@@ -263,7 +263,8 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectKana: 'あたためて ください',
     replyCorrectRomaji: 'atatamete kudasai',
     replyCorrectMeaning: '請加熱',
-    replyWrongKana: ['いいえ', 'はい'],
+    replyAlsoCorrectKana: ['はい'],
+    replyWrongKana: ['いいえ'],
     requiredSeenIds: ['phrase:あたためますか', 'word:あたためる'],
   ),
   ReplyDrill(

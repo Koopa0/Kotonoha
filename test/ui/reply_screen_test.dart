@@ -31,6 +31,7 @@ final _priceAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:takai-yasui');
 final _buySmall = kReplyDrills.firstWhere(
   (d) => d.id == 'reply:fuku-chiisai-kau',
 );
+final _heatYes = kReplyDrills.firstWhere((d) => d.id == 'reply:atatame-kudasai');
 
 void _expectSceneKeepsAskHidden(ReplyDrill drill) {
   final widget =
@@ -408,6 +409,19 @@ void main() {
     expect(find.text('改札在你右邊。'), findsOneWidget);
     _expectSceneKeepsAskHidden(_ekiAsk);
     expect(find.text('えきは どこ'), findsNothing);
+  });
+
+  testWidgets('heat-scene はい is independent like あたためて ください', (
+    tester,
+  ) async {
+    final env = await pumpReply(tester, drills: [_heatYes]);
+    _expectSceneKeepsAskHidden(_heatYes);
+    expect(find.text('便當還是涼的，想現在吃。'), findsOneWidget);
+    await _hearThenPick(tester, intent: '問要不要加熱', reply: 'はい');
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[1].meta[AttemptMeta.scored], isTrue);
+    expect(logged[1].correct, isTrue);
   });
 
   testWidgets('right-scene みぎです is independent', (tester) async {

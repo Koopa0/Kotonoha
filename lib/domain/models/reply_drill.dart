@@ -22,6 +22,7 @@ class ReplyDrill {
     required this.replyCorrectKana,
     required this.replyCorrectRomaji,
     required this.replyCorrectMeaning,
+    this.replyAlsoCorrectKana = const [],
     required this.replyWrongKana,
     required this.requiredSeenIds,
   });
@@ -50,6 +51,9 @@ class ReplyDrill {
   final String replyCorrectKana;
   final String replyCorrectRomaji;
   final String replyCorrectMeaning;
+
+  /// Other short replies that fit the same scene — scored like [replyCorrectKana].
+  final List<String> replyAlsoCorrectKana;
   final List<String> replyWrongKana;
 
   /// Existing corpus progress ids that must already have been met.
@@ -62,10 +66,18 @@ class ReplyDrill {
   List<String> get gatingText => [
     promptKana,
     replyCorrectKana,
+    ...replyAlsoCorrectKana,
     ...replyWrongKana,
   ];
 
   List<String> get intentChoices => [intentCorrect, ...intentWrong];
 
-  List<String> get replyChoices => [replyCorrectKana, ...replyWrongKana];
+  List<String> get replyChoices => [
+    replyCorrectKana,
+    ...replyAlsoCorrectKana,
+    ...replyWrongKana,
+  ];
+
+  bool isReplyCorrect(String choice) =>
+      choice == replyCorrectKana || replyAlsoCorrectKana.contains(choice);
 }
