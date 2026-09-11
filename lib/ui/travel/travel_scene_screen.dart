@@ -360,6 +360,8 @@ class TravelSceneHub extends StatelessWidget {
     final route = ListeningScreen.route(
       items,
       AppStrings.travelSceneListenTitle(_label),
+      clock: clock,
+      alreadyTransferredIds: excludeProgressIds,
       onMore: () =>
           _startListen(context, replace: true, excludeProgressIds: nextExclude),
     );

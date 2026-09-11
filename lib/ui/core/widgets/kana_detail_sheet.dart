@@ -1,18 +1,22 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:provider/provider.dart';
 
 /// A calm bottom sheet showing a single kana large, with its romaji, audio, and
 /// a quiet present-tense STATUS (a state, never a grade). Opened from the Learn
 /// grid. Per the retention ruler, no count / accuracy / score is ever shown here
 /// — accuracy stays a private scheduler input.
-class KanaDetailSheet extends StatelessWidget {
+class KanaDetailSheet extends StatefulWidget {
   const KanaDetailSheet({required this.kana, required this.stat, super.key});
 
   final Kana kana;
@@ -27,6 +31,47 @@ class KanaDetailSheet extends StatelessWidget {
   }
 
   @override
+  State<KanaDetailSheet> createState() => _KanaDetailSheetState();
+}
+
+class _KanaDetailSheetState extends State<KanaDetailSheet> {
+  late final SpeechService _speech;
+  late final AppLifecycleListener _lifecycle;
+  int? _ownedPlay;
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = context.read<SpeechService>();
+    _lifecycle = AppLifecycleListener(
+      onInactive: _abandonOwnedPlayback,
+      onHide: _abandonOwnedPlayback,
+      onPause: _abandonOwnedPlayback,
+      onDetach: _abandonOwnedPlayback,
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _abandonOwnedPlayback();
+    super.dispose();
+  }
+
+  void _abandonOwnedPlayback() {
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
+  }
+
+  void _speak() {
+    unawaited(_speech.speak(widget.kana.character));
+    _ownedPlay = _speech.generation;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
@@ -35,7 +80,7 @@ class KanaDetailSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              kana.character,
+              widget.kana.character,
               style: const TextStyle(
                 fontSize: 104,
                 height: 1.0,
@@ -44,7 +89,7 @@ class KanaDetailSheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              kana.romaji,
+              widget.kana.romaji,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
@@ -52,10 +97,10 @@ class KanaDetailSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            SpeakButton(text: kana.character, size: 32),
+            SpeakButton(text: widget.kana.character, size: 32, onPlay: _speak),
             const SizedBox(height: 16),
-            if (stat.isSeen)
-              _StatusLine(status: stat.status)
+            if (widget.stat.isSeen)
+              _StatusLine(status: widget.stat.status)
             else
               const Text(
                 AppStrings.notPracticedYet,

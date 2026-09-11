@@ -52,7 +52,10 @@ import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({this.clock, super.key});
+
+  /// Injectable clock so 凪「もう一回」 can be exercised in daytime in tests.
+  final DateTime Function()? clock;
 
   @override
   Widget build(BuildContext context) {
@@ -513,7 +516,11 @@ class HomeScreen extends StatelessWidget {
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
 
-  void _startListening(BuildContext context, {bool replace = false}) {
+  void _startListening(
+    BuildContext context, {
+    bool replace = false,
+    Set<String> excludeProgressIds = const {},
+  }) {
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -521,15 +528,25 @@ class HomeScreen extends StatelessWidget {
     final items = ListeningSession.compose(
       learnedChars: learnedChars,
       rng: Random(),
-      now: DateTime.now(),
+      now: (clock ?? DateTime.now)(),
       stats: context.read<WordProgressRepository>().stats,
     );
     if (items.isEmpty) return;
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: items,
+    );
     final nav = Navigator.of(context);
     final route = ListeningScreen.route(
       items,
       AppStrings.listeningTitle,
-      onMore: () => _startListening(context, replace: true),
+      clock: clock,
+      alreadyTransferredIds: excludeProgressIds,
+      onMore: () => _startListening(
+        context,
+        replace: true,
+        excludeProgressIds: nextExclude,
+      ),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
