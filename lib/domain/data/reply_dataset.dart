@@ -204,7 +204,7 @@ const List<ReplyDrill> kReplyDrills = [
   ReplyDrill(
     id: 'reply:card-tsukaemasu',
     scene: ReplySceneId.clothing,
-    sceneZh: '你只帶了卡，沒帶夠現金。店員指著臺上的機器。',
+    sceneZh: '結帳臺。你只帶了卡，現金不夠付這件。',
     promptKana: 'カードは つかえます',
     promptRomaji: 'kaado wa tsukaemasu',
     promptMeaning: '可以用卡',
@@ -214,12 +214,12 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'kaado de onegai',
     replyCorrectMeaning: '請用卡',
     replyWrongKana: ['げんきんです', 'しちゃくして いいですか'],
-    requiredSeenIds: ['word:カード', 'word:つかう', 'word:おねがい', 'word:げんきん'],
+    requiredSeenIds: ['word:カード', 'word:つかえます', 'word:おねがい', 'word:げんきん'],
   ),
   ReplyDrill(
     id: 'reply:card-tsukaemasen',
     scene: ReplySceneId.clothing,
-    sceneZh: '你把卡放在臺上。店員搖頭，指著收銀箱。錢包裡還有現金。',
+    sceneZh: '結帳臺。臺上放著你的卡，錢包裡還有現金。',
     promptKana: 'カードは つかえません',
     promptRomaji: 'kaado wa tsukaemasen',
     promptMeaning: '不能用卡',
@@ -229,7 +229,12 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'genkin desu',
     replyCorrectMeaning: '用現金',
     replyWrongKana: ['カードで おねがい', 'やすいです'],
-    requiredSeenIds: ['word:カード', 'word:つかう', 'word:げんきん', 'phrase:げんきんで かいけい'],
+    requiredSeenIds: [
+      'word:カード',
+      'word:つかえません',
+      'word:げんきん',
+      'phrase:げんきんで かいけい',
+    ],
   ),
 ];
 

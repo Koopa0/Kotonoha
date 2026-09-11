@@ -700,6 +700,70 @@ void main() {
     expect(find.text('しちゃくしますか'), findsNothing);
     expect(find.text(AppStrings.replyNotSpeaking), findsOneWidget);
   });
+
+  testWidgets('Home→旅行→購衣：つかう 不夠，先教 つかえます／ません 才進可否用卡', (tester) async {
+    final repos = await pumpHome(tester);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    final at = DateTime(2026, 9, 10, 12);
+    for (final id in const [
+      'phrase:この ふくは ちいさい',
+      'phrase:あかい ふくを かう',
+      'phrase:しちゃくして いいですか',
+      'phrase:しちゃくしつは どこ',
+      'phrase:げんきんは いいですか',
+      'phrase:げんきんで かいけい',
+      'word:おおきい',
+      'word:おねがい',
+      'word:かう',
+      'word:たかい',
+      'word:やすい',
+      'word:しちゃく',
+      'word:しちゃくしつ',
+      'word:みぎ',
+      'word:ひだり',
+      'word:サイズ',
+      'word:エル',
+      'word:エム',
+      'word:カード',
+      'word:げんきん',
+      'word:つかう',
+    ]) {
+      await repos.words.markIntroduced(id, at: at);
+    }
+    await tester.pumpAndSettle();
+    await openScene(tester, AppStrings.travelSceneClothing);
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.replyStartAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(FerryScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingMeetTitle), findsOneWidget);
+    await tester.tap(find.text(AppStrings.ferryShowText));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('つかえます').evaluate().isNotEmpty ||
+          find.text('つかえません').evaluate().isNotEmpty,
+      isTrue,
+    );
+    expect(find.text('使用'), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.replyStartAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyScreen), findsOneWidget);
+    expect(find.text('結帳臺。臺上放著你的卡，錢包裡還有現金。'), findsNothing);
+    expect(find.text('結帳臺。你只帶了卡，現金不夠付這件。'), findsNothing);
+    expect(find.text('搖頭'), findsNothing);
+    expect(find.text('カードは つかえません'), findsNothing);
+    expect(find.text('カードは つかえます'), findsNothing);
+  });
 }
 
 Future<void> _answerCurrent(WidgetTester tester) async {

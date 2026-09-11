@@ -507,6 +507,8 @@ const List<Word> kWords = <Word>[
   Word(kana: 'はじまる', romaji: 'hajimaru', meaning: '開始'),
   Word(kana: 'でかける', romaji: 'dekakeru', meaning: '出門'),
   Word(kana: 'つかう', romaji: 'tsukau', meaning: '使用'),
+  Word(kana: 'つかえます', romaji: 'tsukaemasu', meaning: '可以用'),
+  Word(kana: 'つかえません', romaji: 'tsukaemasen', meaning: '不能用'),
   Word(kana: 'おしえる', romaji: 'oshieru', meaning: '教'),
   Word(kana: 'ならう', romaji: 'narau', meaning: '學、跟人學'),
   Word(kana: 'わらう', romaji: 'warau', meaning: '笑'),

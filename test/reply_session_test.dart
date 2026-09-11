@@ -131,6 +131,9 @@ void main() {
       '用卡付',
       '可以用卡',
       '不能用卡',
+      '搖頭',
+      '收銀箱',
+      '指著機器',
     ];
     for (final drill in kReplyDrills) {
       expect(
@@ -167,8 +170,8 @@ void main() {
     expect(byId['reply:shichaku-shitsu-migi']!.sceneZh, contains('門簾'));
     expect(byId['reply:size-l-onegai']!.sceneZh, contains('L'));
     expect(byId['reply:card-desu-ka']!.sceneZh, contains('刷卡'));
-    expect(byId['reply:card-tsukaemasu']!.sceneZh, contains('機器'));
-    expect(byId['reply:card-tsukaemasen']!.sceneZh, contains('收銀箱'));
+    expect(byId['reply:card-tsukaemasu']!.sceneZh, contains('只帶了卡'));
+    expect(byId['reply:card-tsukaemasen']!.sceneZh, contains('還有現金'));
   });
 
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
@@ -379,6 +382,8 @@ void main() {
         'word:サイズ',
         'word:カード',
         'word:げんきん',
+        'word:つかえます',
+        'word:つかえません',
       }),
     );
   });
@@ -466,8 +471,15 @@ void main() {
     expect(no.replyCorrectKana, 'げんきんです');
     expect(no.replyWrongKana, contains('カードで おねがい'));
     expect(yes.replyWrongKana, contains('げんきんです'));
-    expect(yes.sceneZh, contains('沒帶夠現金'));
+    expect(yes.sceneZh, contains('現金不夠'));
+    expect(yes.sceneZh, isNot(contains('機器')));
     expect(no.sceneZh, contains('還有現金'));
+    expect(no.sceneZh, isNot(contains('搖頭')));
+    expect(no.sceneZh, isNot(contains('收銀箱')));
+    expect(yes.requiredSeenIds, contains('word:つかえます'));
+    expect(yes.requiredSeenIds, isNot(contains('word:つかう')));
+    expect(no.requiredSeenIds, contains('word:つかえません'));
+    expect(no.requiredSeenIds, isNot(contains('word:つかう')));
 
     final onlyAsk = ReplySession.inspect(
       learnedChars: allChars,
@@ -481,8 +493,68 @@ void main() {
     );
     expect(onlyAsk.ready.map((d) => d.id), ['reply:card-desu-ka']);
     expect(
-      onlyAsk.unreadRequired.map((i) => i.progressId),
-      contains('word:つかう'),
+      onlyAsk.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({'word:つかえます', 'word:つかえません'}),
+    );
+  });
+
+  test('つかう alone does not unlock can/cannot payment drills', () {
+    final taughtUse = {
+      'word:カード': seenAt(),
+      'word:つかう': seenAt(),
+      'word:おねがい': seenAt(),
+      'word:げんきん': seenAt(),
+      'phrase:げんきんは いいですか': seenAt(),
+      'phrase:げんきんで かいけい': seenAt(),
+    };
+    final cold = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: taughtUse,
+      scene: ReplySceneId.clothing,
+    );
+    expect(
+      cold.ready.map((d) => d.id),
+      isNot(contains('reply:card-tsukaemasu')),
+    );
+    expect(
+      cold.ready.map((d) => d.id),
+      isNot(contains('reply:card-tsukaemasen')),
+    );
+    expect(cold.ready.map((d) => d.id), contains('reply:card-desu-ka'));
+    expect(
+      cold.unreadRequired.map((i) => i.progressId).toSet(),
+      containsAll({'word:つかえます', 'word:つかえません'}),
+    );
+    expect(
+      ReplySession.compose(
+        learnedChars: allChars,
+        rng: Random(3),
+        stats: taughtUse,
+        scene: ReplySceneId.clothing,
+      ).map((d) => d.id),
+      isNot(contains('reply:card-tsukaemasen')),
+    );
+
+    final yesReady = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {...taughtUse, 'word:つかえます': seenAt()},
+      scene: ReplySceneId.clothing,
+    );
+    expect(yesReady.ready.map((d) => d.id), contains('reply:card-tsukaemasu'));
+    expect(
+      yesReady.ready.map((d) => d.id),
+      isNot(contains('reply:card-tsukaemasen')),
+    );
+
+    final noReady = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: {...taughtUse, 'word:つかえません': seenAt()},
+      scene: ReplySceneId.clothing,
+    );
+    expect(noReady.ready.map((d) => d.id), contains('reply:card-tsukaemasen'));
+    expect(
+      noReady.ready.map((d) => d.id),
+      isNot(contains('reply:card-tsukaemasu')),
     );
   });
 

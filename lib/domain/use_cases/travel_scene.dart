@@ -114,6 +114,8 @@ abstract final class TravelScene {
       'word:カード',
       'word:げんきん',
       'word:つかう',
+      'word:つかえます',
+      'word:つかえません',
       'word:かいけい',
       'word:いい',
     ],
