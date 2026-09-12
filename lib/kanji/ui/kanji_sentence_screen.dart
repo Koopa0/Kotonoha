@@ -142,8 +142,21 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
     });
   }
 
+  bool _independentRecall({required bool unprompted}) {
+    final repo = context.read<KanjiReadingRepository>();
+    // The commit button is only half the evidence: first-teach furigana
+    // already on the card is reading support, even if the learner pressed
+    // 「讀得出來」. Mature readings (opacity 0) stay independent.
+    final rubySupport = RubyText.hasVisibleReadingSupport(
+      _current,
+      (id) => repo.statForUnit(id).srsLevel,
+    );
+    return unprompted && !rubySupport;
+  }
+
   void _grade({required bool correct, required bool unprompted}) {
     final now = _clock();
+    final independent = _independentRecall(unprompted: unprompted);
     context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -152,13 +165,13 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
         mode: PracticeMode.reading.name,
         correct: correct,
         sessionId: _sessionId,
-        meta: {'reading': _current.reading, AttemptMeta.prompted: !unprompted},
+        meta: {'reading': _current.reading, AttemptMeta.prompted: !independent},
       ),
     );
     // The sentence's own schedule — a cold self-graded read. (The per-reading
     // kanji SRS belongs to 漢字の声 and is deliberately untouched here.)
-    // Unprompted confirmed-correct is the only climb, and only the first
-    // time this grind covers the id. Prompted correct on a new item keeps
+    // Independent confirmed-correct is the only climb, and only the first
+    // time this grind covers the id. Supported correct on a new item keeps
     // intake (seen) without mastering. A miss always resets.
     final words = context.read<WordProgressRepository>();
     final persist = context.read<ProgressPersistenceController>();
@@ -166,9 +179,9 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
     final canRenew = DailyBridge.shouldRenew(id, widget.alreadyTransferredIds);
     if (!correct) {
       persist.trackWord(words.recordAnswer(id, correct: false, at: now));
-    } else if (unprompted && canRenew) {
+    } else if (independent && canRenew) {
       persist.trackWord(words.recordAnswer(id, correct: true, at: now));
-    } else if (!unprompted && !words.statForItem(id).isSeen) {
+    } else if (!independent && !words.statForItem(id).isSeen) {
       persist.trackWord(words.markIntroduced(id, at: now));
     }
     if (correct) _correct++;

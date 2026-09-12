@@ -10,6 +10,7 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -40,15 +41,33 @@ const _kawa = KanjiPhrase(
   meaning: '看得見河',
 );
 
+Future<void> _fadeReadings(
+  KanjiReadingRepository kanji,
+  Iterable<KanjiPhrase> phrases,
+) async {
+  final now = _noon();
+  final ids = <String>{
+    for (final phrase in phrases)
+      for (final segment in phrase.segments)
+        if (segment.unitId != null) segment.unitId!,
+  };
+  for (final id in ids) {
+    for (var i = 0; i < ReadingStat.kFuriganaFadeLevel; i++) {
+      await kanji.recordAnswer(id, correct: true, at: now);
+    }
+  }
+}
+
 Future<void> _pumpKanjiSentence(
   WidgetTester tester, {
   required List<KanjiPhrase> phrases,
   required WordProgressRepository words,
+  KanjiReadingRepository? kanji,
   Set<String> alreadyTransferredIds = const {},
   AnalyticsLog? analytics,
 }) async {
   final kana = await KanaProgressRepository.load();
-  final kanji = await KanjiReadingRepository.load();
+  kanji ??= await KanjiReadingRepository.load();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -124,18 +143,82 @@ void main() {
     expect(logged.single.meta[AttemptMeta.prompted], isTrue);
   });
 
-  testWidgets('unprompted 讀得出來 climbs and marks analytics unprompted', (
+  testWidgets(
+    'visible ruby 讀得出來 is prompted intake, not an independent climb',
+    (tester) async {
+      final words = await WordProgressRepository.load();
+      final analytics = InMemoryAnalyticsLog();
+      await _pumpKanjiSentence(
+        tester,
+        phrases: const [_yama],
+        words: words,
+        analytics: analytics,
+      );
+
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(
+                of: find.text('やま'),
+                matching: find.byType(Opacity),
+              ),
+            )
+            .opacity,
+        1,
+      );
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(of: find.text('み'), matching: find.byType(Opacity)),
+            )
+            .opacity,
+        1,
+      );
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await _pumpFrame(tester);
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await _pumpFrame(tester);
+
+      expect(words.statForItem(_yama.progressId).isSeen, isTrue);
+      expect(words.statForItem(_yama.progressId).correctCount, 0);
+      expect(words.statForItem(_yama.progressId).srsLevel, 0);
+      final logged = await analytics.all();
+      expect(logged.single.correct, isTrue);
+      expect(logged.single.meta[AttemptMeta.prompted], isTrue);
+    },
+  );
+
+  testWidgets('unprompted 讀得出來 climbs when ruby is fully hidden', (
     tester,
   ) async {
     final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load();
+    await _fadeReadings(kanji, const [_yama]);
     final analytics = InMemoryAnalyticsLog();
     await _pumpKanjiSentence(
       tester,
       phrases: const [_yama],
       words: words,
+      kanji: kanji,
       analytics: analytics,
     );
 
+    expect(
+      tester
+          .widget<Opacity>(
+            find.ancestor(of: find.text('やま'), matching: find.byType(Opacity)),
+          )
+          .opacity,
+      0,
+    );
+    expect(
+      tester
+          .widget<Opacity>(
+            find.ancestor(of: find.text('み'), matching: find.byType(Opacity)),
+          )
+          .opacity,
+      0,
+    );
     await tester.tap(find.text(AppStrings.iReadUnprompted));
     await _pumpFrame(tester);
     expect(words.statForItem(_yama.progressId).correctCount, 0);
@@ -154,12 +237,15 @@ void main() {
       tester,
     ) async {
       final words = await WordProgressRepository.load();
+      final kanji = await KanjiReadingRepository.load();
+      await _fadeReadings(kanji, const [_yama]);
       await words.introduce(_yama.progressId, at: _noon());
       expect(words.statForItem(_yama.progressId).srsLevel, 1);
       await _pumpKanjiSentence(
         tester,
         phrases: const [_yama],
         words: words,
+        kanji: kanji,
         alreadyTransferredIds: {_yama.progressId},
       );
       await _confirmUnprompted(tester);
@@ -188,7 +274,14 @@ void main() {
       tester,
     ) async {
       final words = await WordProgressRepository.load();
-      await _pumpKanjiSentence(tester, phrases: const [_kawa], words: words);
+      final kanji = await KanjiReadingRepository.load();
+      await _fadeReadings(kanji, const [_kawa]);
+      await _pumpKanjiSentence(
+        tester,
+        phrases: const [_kawa],
+        words: words,
+        kanji: kanji,
+      );
       await _confirmUnprompted(tester);
       expect(words.statForItem(_kawa.progressId).srsLevel, 1);
       expect(words.statForItem(_kawa.progressId).correctCount, 1);

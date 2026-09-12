@@ -10,6 +10,8 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
+import 'package:kotonoha/kanji/domain/data/kanji_phrase_dataset.dart';
+import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -28,12 +30,32 @@ Future<void> _learnAll(KanaProgressRepository kana) async {
   }
 }
 
+Future<void> _fadeReadings(
+  KanjiReadingRepository kanji, {
+  Iterable<String>? unitIds,
+}) async {
+  final now = _noon();
+  final ids =
+      unitIds ??
+      {
+        for (final phrase in kKanjiPhrases)
+          for (final segment in phrase.segments)
+            if (segment.unitId != null) segment.unitId!,
+      };
+  for (final id in ids) {
+    for (var i = 0; i < ReadingStat.kFuriganaFadeLevel; i++) {
+      await kanji.recordAnswer(id, correct: true, at: now);
+    }
+  }
+}
+
 Future<InMemoryAnalyticsLog> _pumpHome(
   WidgetTester tester, {
   required KanaProgressRepository kana,
   required WordProgressRepository words,
+  KanjiReadingRepository? kanji,
 }) async {
-  final kanji = await KanjiReadingRepository.load();
+  kanji ??= await KanjiReadingRepository.load();
   final analytics = InMemoryAnalyticsLog();
   await tester.binding.setSurfaceSize(const Size(420, 2600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -68,6 +90,26 @@ Future<void> _pumpFrame(WidgetTester tester) async {
 
 String _shownId(WidgetTester tester) {
   return tester.widget<RubyText>(find.byType(RubyText)).phrase.progressId;
+}
+
+List<double> _rubyOpacities(WidgetTester tester, List<String> furigana) {
+  return [
+    for (final text in furigana)
+      tester
+          .widget<Opacity>(
+            find.ancestor(of: find.text(text), matching: find.byType(Opacity)),
+          )
+          .opacity,
+  ];
+}
+
+Future<void> _reachPhrase(WidgetTester tester, String id) async {
+  var steps = 0;
+  while (_shownId(tester) != id) {
+    expect(steps, lessThan(12), reason: 'never reached $id');
+    await _confirmPrompted(tester);
+    steps++;
+  }
 }
 
 Future<String> _confirmUnprompted(WidgetTester tester) async {
@@ -115,10 +157,12 @@ void main() {
     final now = _noon();
     final kana = await KanaProgressRepository.load();
     final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load();
     await _learnAll(kana);
+    await _fadeReadings(kanji);
     await words.introduce(_yamaId, at: now);
     expect(words.statForItem(_yamaId).srsLevel, 1);
-    await _pumpHome(tester, kana: kana, words: words);
+    await _pumpHome(tester, kana: kana, words: words, kanji: kanji);
 
     await tester.ensureVisible(find.text(AppStrings.readKanjiSentencesAction));
     await tester.tap(find.text(AppStrings.readKanjiSentencesAction));
@@ -160,9 +204,11 @@ void main() {
     final now = _noon();
     final kana = await KanaProgressRepository.load();
     final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load();
     await _learnAll(kana);
+    await _fadeReadings(kanji);
     await words.introduce(_yamaId, at: now);
-    await _pumpHome(tester, kana: kana, words: words);
+    await _pumpHome(tester, kana: kana, words: words, kanji: kanji);
 
     await tester.ensureVisible(find.text(AppStrings.readKanjiSentencesAction));
     await tester.tap(find.text(AppStrings.readKanjiSentencesAction));
@@ -196,9 +242,16 @@ void main() {
       final now = _noon();
       final kana = await KanaProgressRepository.load();
       final words = await WordProgressRepository.load();
+      final kanji = await KanjiReadingRepository.load();
       await _learnAll(kana);
+      await _fadeReadings(kanji);
       await words.introduce(_yamaId, at: now);
-      final analytics = await _pumpHome(tester, kana: kana, words: words);
+      final analytics = await _pumpHome(
+        tester,
+        kana: kana,
+        words: words,
+        kanji: kanji,
+      );
 
       await tester.ensureVisible(
         find.text(AppStrings.readKanjiSentencesAction),
@@ -252,4 +305,75 @@ void main() {
       }
     },
   );
+
+  testWidgets('Home 漢字句: visible ruby on 山を見る is prompted, not independent', (
+    tester,
+  ) async {
+    final kana = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    await _learnAll(kana);
+    expect(words.statForItem(_yamaId).isSeen, isFalse);
+    final analytics = await _pumpHome(tester, kana: kana, words: words);
+
+    await tester.ensureVisible(find.text(AppStrings.readKanjiSentencesAction));
+    await tester.tap(find.text(AppStrings.readKanjiSentencesAction));
+    await _pumpFrame(tester);
+    expect(
+      tester
+          .widget<KanjiSentenceScreen>(find.byType(KanjiSentenceScreen))
+          .phrases
+          .map((p) => p.progressId),
+      contains(_yamaId),
+    );
+    await _reachPhrase(tester, _yamaId);
+    expect(_rubyOpacities(tester, ['やま', 'み']), [1.0, 1.0]);
+
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await _pumpFrame(tester);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await _pumpFrame(tester);
+
+    expect(words.statForItem(_yamaId).isSeen, isTrue);
+    expect(words.statForItem(_yamaId).correctCount, 0);
+    expect(words.statForItem(_yamaId).srsLevel, 0);
+    final yama = (await analytics.all()).where((a) => a.itemId == '山を見る');
+    expect(yama, isNotEmpty);
+    expect(yama.last.correct, isTrue);
+    expect(yama.last.meta[AttemptMeta.prompted], isTrue);
+  });
+
+  testWidgets('Home 漢字句: hidden ruby on 山を見る keeps independent success', (
+    tester,
+  ) async {
+    final kana = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    final kanji = await KanjiReadingRepository.load();
+    await _learnAll(kana);
+    await _fadeReadings(kanji, unitIds: const ['unit:山#やま', 'unit:見#み']);
+    expect(words.statForItem(_yamaId).isSeen, isFalse);
+    final analytics = await _pumpHome(
+      tester,
+      kana: kana,
+      words: words,
+      kanji: kanji,
+    );
+
+    await tester.ensureVisible(find.text(AppStrings.readKanjiSentencesAction));
+    await tester.tap(find.text(AppStrings.readKanjiSentencesAction));
+    await _pumpFrame(tester);
+    await _reachPhrase(tester, _yamaId);
+    expect(_rubyOpacities(tester, ['やま', 'み']), [0.0, 0.0]);
+
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await _pumpFrame(tester);
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await _pumpFrame(tester);
+
+    expect(words.statForItem(_yamaId).correctCount, 1);
+    expect(words.statForItem(_yamaId).srsLevel, 1);
+    final yama = (await analytics.all()).where((a) => a.itemId == '山を見る');
+    expect(yama, isNotEmpty);
+    expect(yama.last.correct, isTrue);
+    expect(yama.last.meta[AttemptMeta.prompted], isFalse);
+  });
 }
