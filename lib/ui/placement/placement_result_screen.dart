@@ -45,11 +45,16 @@ class PlacementResultScreen extends StatefulWidget {
 
 class _PlacementResultScreenState extends State<PlacementResultScreen> {
   late final PlacementSummary _summary;
+  late final ProgressPersistenceController _persistence;
+  bool _applying = false;
+  bool _draftClearIssued = false;
+  bool _awaitingRetry = false;
 
   @override
   void initState() {
     super.initState();
     final store = context.read<KanaProgressRepository>();
+    _persistence = context.read<ProgressPersistenceController>();
     _summary = PlacementCheck.summarize(
       draft: widget.draft,
       catalog: Lessons.fromKana(store.allKana),
@@ -60,12 +65,48 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
     });
   }
 
-  Future<void> _applyConfirmed(KanaProgressRepository store) async {
-    final persistence = context.read<ProgressPersistenceController>();
-    for (final lesson in _summary.confirmedLessons) {
-      persistence.trackKana(store.markUnitLearned(lesson.id));
+  @override
+  void dispose() {
+    if (_awaitingRetry) {
+      _persistence.removeListener(_onPersistChanged);
     }
-    persistence.trackPlacement(widget.checks.clear());
+    super.dispose();
+  }
+
+  void _onPersistChanged() {
+    if (!_awaitingRetry || !mounted || _applying || _draftClearIssued) return;
+    if (_persistence.hasWriteFailure || _persistence.isRetrying) return;
+    _awaitingRetry = false;
+    _persistence.removeListener(_onPersistChanged);
+    _applyConfirmed(context.read<KanaProgressRepository>());
+  }
+
+  /// Persist confirmed rows on disk first, then clear the draft. Memory
+  /// success is not enough — a failed `learned_units_v1` write must keep
+  /// the recoverable draft so cold start can resume results instead of
+  /// leaving "draft empty / row unlearned".
+  Future<void> _applyConfirmed(KanaProgressRepository store) async {
+    if (_applying || _draftClearIssued || !mounted) return;
+    _applying = true;
+    try {
+      for (final lesson in _summary.confirmedLessons) {
+        final save = store.markUnitLearned(lesson.id);
+        _persistence.trackKana(save);
+        await save;
+      }
+      if (!mounted) return;
+      _draftClearIssued = true;
+      _persistence.trackPlacement(widget.checks.clear());
+    } catch (_) {
+      // Banner already tracks the kana failure. Keep the draft so retry
+      // or a later results visit can finish the pair.
+      if (!_awaitingRetry) {
+        _awaitingRetry = true;
+        _persistence.addListener(_onPersistChanged);
+      }
+    } finally {
+      _applying = false;
+    }
   }
 
   void _fill(Lesson lesson) {
