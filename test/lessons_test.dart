@@ -9,6 +9,9 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
+import 'package:kotonoha/domain/use_cases/study_set.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   const all = kHiraganaGojuon;
@@ -93,6 +96,28 @@ void main() {
       expect(t.length, 15); // 10 focus + 5 review
       final kaIds = ka.kana.map((k) => k.id).toSet();
       expect(t.any((x) => kaIds.contains(x.id)), isTrue);
+    });
+  });
+
+  group('Lessons.composeTest', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    test('ん singleton uses kanaRecall, not forced-correct MCQ', () async {
+      final store = await KanaProgressRepository.load();
+      final nLesson = Lessons.fromKana(kAllKana)
+          .firstWhere((l) => l.id == 'hira_row_10');
+      final questions = Lessons.composeTest(
+        lesson: nLesson,
+        learnedOtherKana: const [],
+        pool: StudySet.lessonTestPool(store, nLesson),
+        random: Random(1),
+      );
+      expect(questions, isNotEmpty);
+      expect(
+        questions.every((q) => q.direction == QuizDirection.kanaRecall),
+        isTrue,
+      );
+      expect(questions.every((q) => !q.isForcedCorrect), isTrue);
     });
   });
 

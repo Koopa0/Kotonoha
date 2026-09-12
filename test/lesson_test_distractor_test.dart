@@ -9,7 +9,6 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
-import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -83,11 +82,10 @@ void main() {
         romajiByScript.putIfAbsent(k.script, () => <String>{}).add(k.romaji);
       }
 
-      final targets = Lessons.testTargets(kaLesson, learned, Random(1));
-      final questions = const QuizEngine().generateSession(
-        targets: targets,
-        allKana: pool,
-        length: targets.length,
+      final questions = Lessons.composeTest(
+        lesson: kaLesson,
+        learnedOtherKana: learned,
+        pool: pool,
         random: Random(1),
       );
 
@@ -103,13 +101,12 @@ void main() {
       final kaLesson = Lessons.fromKana(store.allKana)
           .firstWhere((l) => l.id == 'hira_row_1');
       final learned = learnedOther(store, kaLesson);
-      final targets = Lessons.testTargets(kaLesson, learned, Random(1));
       final pool = StudySet.lessonTestPool(store, kaLesson);
 
-      final questions = const QuizEngine().generateSession(
-        targets: targets,
-        allKana: pool,
-        length: targets.length,
+      final questions = Lessons.composeTest(
+        lesson: kaLesson,
+        learnedOtherKana: learned,
+        pool: pool,
         random: Random(1),
       );
 
@@ -134,10 +131,10 @@ void main() {
     final allowedIds = pool.map((k) => k.id).toSet();
     expect(allowedIds, {'あ', 'い', 'う', 'え', 'お'});
 
-    final questions = const QuizEngine().generateSession(
-      targets: Lessons.testTargets(aoLesson, const [], Random(3)),
-      allKana: pool,
-      length: 10,
+    final questions = Lessons.composeTest(
+      lesson: aoLesson,
+      learnedOtherKana: const [],
+      pool: pool,
       random: Random(3),
     );
 
@@ -145,5 +142,55 @@ void main() {
       KanaScript.hiragana: pool.map((k) => k.romaji).toSet(),
     };
     expectNoUnlearnedDistractors(questions, allowedIds, romajiByScript);
+  });
+
+  test('ん singleton: kanaRecall only, never forced-correct MCQ', () async {
+    final store = await KanaProgressRepository.load();
+    final nLesson = Lessons.fromKana(store.allKana)
+        .firstWhere((l) => l.id == 'hira_row_10');
+    final pool = StudySet.lessonTestPool(store, nLesson);
+
+    final questions = Lessons.composeTest(
+      lesson: nLesson,
+      learnedOtherKana: const [],
+      pool: pool,
+      random: Random(1),
+    );
+
+    expect(questions, isNotEmpty);
+    expect(questions.every((q) => q.target.character == 'ん'), isTrue);
+    expect(
+      questions.every((q) => q.direction == QuizDirection.kanaRecall),
+      isTrue,
+    );
+    expect(questions.every((q) => q.options.isEmpty), isTrue);
+    expect(questions.every((q) => !q.isForcedCorrect), isTrue);
+    expect(questions.every((q) => q.hasDiscrimination), isTrue);
+  });
+
+  test('わ行 tiny pool: MCQs keep 2 options, not padded to 4', () async {
+    final store = await KanaProgressRepository.load();
+    final waLesson = Lessons.fromKana(store.allKana)
+        .firstWhere((l) => l.id == 'hira_row_9');
+    final pool = StudySet.lessonTestPool(store, waLesson);
+
+    final questions = Lessons.composeTest(
+      lesson: waLesson,
+      learnedOtherKana: const [],
+      pool: pool,
+      random: Random(2),
+    );
+
+    final mcq = questions.where(
+      (q) =>
+          q.direction == QuizDirection.romajiToKana ||
+          q.direction == QuizDirection.kanaToRomaji,
+    );
+    expect(mcq, isNotEmpty);
+    for (final q in mcq) {
+      expect(q.options.length, 2);
+      expect(q.options.toSet().length, 2);
+      expect(q.isForcedCorrect, isFalse);
+    }
   });
 }
