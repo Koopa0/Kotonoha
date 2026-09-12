@@ -163,7 +163,7 @@ class ReplyHubScreen extends StatelessWidget {
   void _startMeet(BuildContext context, {bool replace = false}) {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
-    final words = ReplySession.unreadRequiredWords(
+    final words = ReplySession.composeIntroWords(
       scene: scene,
       learnedChars: learned,
       stats: stats,
@@ -182,7 +182,7 @@ class ReplyHubScreen extends StatelessWidget {
       );
       return;
     }
-    final phrases = ReplySession.unreadRequiredPhrases(
+    final phrases = ReplySession.composeIntroPhrases(
       scene: scene,
       learnedChars: learned,
       stats: stats,
@@ -191,6 +191,7 @@ class ReplyHubScreen extends StatelessWidget {
       final route = ReadingScreen.route(
         phrases,
         _meetTitle,
+        clock: clock,
         onMore: () => _continueMeet(context),
       );
       unawaited(

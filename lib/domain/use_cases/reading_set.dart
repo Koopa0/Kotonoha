@@ -15,6 +15,17 @@ import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 ///
 /// Pure logic, deterministic under an injected [Random].
 abstract final class ReadingSet {
+  /// Short-round cap shared by travel 先教 and Info／Reply first-teach.
+  static const int introLength = 8;
+
+  /// First [length] items in catalog order. Does not reshuffle or rewrite
+  /// stats — leftover unseen items stay for もう一回 or a later entry.
+  static List<T> takeIntro<T>(Iterable<T> items, {int length = introLength}) {
+    final list = items is List<T> ? items : List<T>.of(items);
+    if (list.length <= length) return list;
+    return list.sublist(0, length);
+  }
+
   /// Items every gating stretch of which is readable given [learnedChars] —
   /// the whole kana for a word or phrase, the plain-kana runs for a
   /// mixed-script sentence (see [ReadingItem.gatingText]).
@@ -55,7 +66,7 @@ abstract final class ReadingSet {
     required Random rng,
     required DateTime now,
     Map<String, WordStat> stats = const {},
-    int length = 8,
+    int length = introLength,
     int maxNew = 3,
     Season? season,
   }) {

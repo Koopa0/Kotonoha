@@ -147,4 +147,18 @@ void main() {
       expect(KanaTokenizer.isReadable(p.kana, allChars), isTrue);
     }
   });
+
+  test('takeIntro keeps catalog order and caps at introLength', () {
+    const pool = [
+      Word(kana: 'いち', romaji: 'ichi', meaning: '一'),
+      Word(kana: 'に', romaji: 'ni', meaning: '二'),
+      Word(kana: 'さん', romaji: 'san', meaning: '三'),
+    ];
+    expect(ReadingSet.takeIntro(pool, length: 2).map((w) => w.kana), [
+      'いち',
+      'に',
+    ]);
+    expect(ReadingSet.takeIntro(pool), pool);
+    expect(ReadingSet.introLength, 8);
+  });
 }

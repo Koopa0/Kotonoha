@@ -158,7 +158,7 @@ class InfoHubScreen extends StatelessWidget {
   void _startMeet(BuildContext context, {bool replace = false}) {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
-    final words = InfoSession.unreadRequiredWords(
+    final words = InfoSession.composeIntroWords(
       learnedChars: learned,
       stats: stats,
       drills: _drills,
@@ -177,7 +177,7 @@ class InfoHubScreen extends StatelessWidget {
       );
       return;
     }
-    final phrases = InfoSession.unreadRequiredPhrases(
+    final phrases = InfoSession.composeIntroPhrases(
       learnedChars: learned,
       stats: stats,
       drills: _drills,
