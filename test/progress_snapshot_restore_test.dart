@@ -295,6 +295,68 @@ void main() {
     },
   );
 
+  test(
+    'failed restore with blocking journal syncs recovery controller',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
+        1,
+      };
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
+        3,
+      };
+
+      final recovery = recoveryFor(
+        fake,
+        kana,
+        kanji,
+        words,
+        needsRecovery: false,
+      );
+      expect(recovery.needsRecovery, isFalse);
+      expect(kana.isRestoreJournalBlocked, isFalse);
+
+      final files = FakeSnapshotFilePort()..pickContents = backup;
+      final restorer = ProgressSnapshotRestorer(
+        snapshots: snapshotsFor(fake, kana, kanji, words),
+        restore: restoreFor(fake, kana, kanji, words),
+        files: files,
+        recovery: recovery,
+      );
+
+      final result = await restorer.restore(confirm: (_) async => true);
+
+      expect(result.status, SnapshotRestoreStatus.failed);
+      expect(recovery.needsRecovery, isTrue);
+      expect(kana.isRestoreJournalBlocked, isTrue);
+      expect(kanji.isRestoreJournalBlocked, isTrue);
+      expect(words.isRestoreJournalBlocked, isTrue);
+      await expectLater(
+        words.recordAnswer('word:いぬ', correct: true, at: now),
+        throwsA(isA<ProgressRestoreJournalBlocked>()),
+      );
+    },
+  );
+
+  test('restore lock refuses mutation before memory changes', () async {
+    final (fake, kana, kanji, words) = await loadAll();
+    await kana.prepareForRestore();
+
+    await expectLater(
+      kana.recordAnswer(kana.allKana.first, correct: true, at: now),
+      throwsA(isA<ProgressRestoreInProgress>()),
+    );
+    expect(kana.statFor(kana.allKana.first).correctCount, 0);
+
+    kana.finishRestore();
+  });
+
   test('failed rollback on restart keeps journal instead of mixed durable progress', () async {
     final (fake, kana, kanji, words) = await loadAll();
     await kana.markUnitLearned('keep_me');

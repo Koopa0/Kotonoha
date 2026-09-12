@@ -5,6 +5,7 @@ import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 
 /// What happened when the learner asked to restore from a snapshot file.
 enum SnapshotRestoreStatus {
@@ -40,11 +41,13 @@ class ProgressSnapshotRestorer {
     required this._snapshots,
     required this._restore,
     required this._files,
+    this._recovery,
   });
 
   final ProgressSnapshotRepository _snapshots;
   final ProgressSnapshotRestoreRepository _restore;
   final SnapshotFilePort _files;
+  final ProgressRestoreRecoveryController? _recovery;
 
   /// Stores that block restore (unfinished journal only — recoveryRequired may
   /// be fixed by a successful restore).
@@ -90,11 +93,13 @@ class ProgressSnapshotRestorer {
 
     try {
       await _restore.apply(preview.snapshot);
+      await _recovery?.syncFromPlatform();
       return SnapshotRestoreResult(
         SnapshotRestoreStatus.restored,
         preview: preview,
       );
     } on RestoreJournalWriteFailure catch (error) {
+      await _recovery?.syncFromPlatform();
       return SnapshotRestoreResult(
         SnapshotRestoreStatus.failed,
         preview: preview,

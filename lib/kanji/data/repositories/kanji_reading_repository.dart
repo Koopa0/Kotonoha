@@ -68,6 +68,9 @@ class KanjiReadingRepository extends ChangeNotifier {
     if (_restoreJournalBlocksWrites) {
       return Future<void>.error(const ProgressRestoreJournalBlocked());
     }
+    if (_restoreLocked) {
+      return Future<void>.error(const ProgressRestoreInProgress());
+    }
     return null;
   }
 

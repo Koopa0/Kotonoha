@@ -63,16 +63,21 @@ class HomeScreen extends StatelessWidget {
   /// Injectable clock so 凪「もう一回」 can be exercised in daytime in tests.
   final DateTime Function()? clock;
 
-  bool _restoreJournalBlocksLearning(BuildContext context) =>
+  bool _learningBlocked(BuildContext context) =>
       context.read<ProgressRestoreRecoveryController>().needsRecovery;
 
+  void _guardLearning(BuildContext context, VoidCallback action) {
+    if (_learningBlocked(context)) return;
+    action();
+  }
+
   void _openLessons(BuildContext context) {
-    if (_restoreJournalBlocksLearning(context)) return;
+    if (_learningBlocked(context)) return;
     Navigator.of(context).push(LessonsScreen.route());
   }
 
   void _openLearnGrid(BuildContext context) {
-    if (_restoreJournalBlocksLearning(context)) return;
+    if (_learningBlocked(context)) return;
     Navigator.of(context).push(LearnScreen.route());
   }
 
@@ -313,9 +318,11 @@ class HomeScreen extends StatelessWidget {
                     label: AppStrings.shiftAction,
                     productName: AppStrings.shiftEntry,
                     subtitle: AppStrings.shiftSubtitle,
-                    onTap: () =>
-                        Navigator.of(context)
-                            .push(ShiftFocusScreen.route(clock: clock)),
+                    onTap: () => _guardLearning(
+                      context,
+                      () => Navigator.of(context)
+                          .push(ShiftFocusScreen.route(clock: clock)),
+                    ),
                   ),
                   // Isolated travel-purpose picker. Does not change 渡し舟 /
                   // 黙読 / 聞き取り / 換句 contracts.
@@ -324,8 +331,11 @@ class HomeScreen extends StatelessWidget {
                     label: AppStrings.travelSceneAction,
                     productName: AppStrings.travelSceneEntry,
                     subtitle: AppStrings.travelSceneSubtitle,
-                    onTap: () =>
-                        Navigator.of(context).push(TravelSceneScreen.route()),
+                    onTap: () => _guardLearning(
+                      context,
+                      () => Navigator.of(context)
+                          .push(TravelSceneScreen.route()),
+                    ),
                   ),
                   _NavCard(
                     icon: Icons.flag_outlined,
@@ -334,9 +344,11 @@ class HomeScreen extends StatelessWidget {
                         : AppStrings.travelFocusAction,
                     productName: AppStrings.travelFocusEntry,
                     subtitle: AppStrings.travelFocusSubtitle,
-                    onTap: () =>
-                        Navigator.of(context)
-                            .push(TravelFocusScreen.route(clock: clock)),
+                    onTap: () => _guardLearning(
+                      context,
+                      () => Navigator.of(context)
+                          .push(TravelFocusScreen.route(clock: clock)),
+                    ),
                   ),
                   // Isolated from #47 scene membership and #9 聞き取り self-grade.
                   _NavCard(
@@ -344,9 +356,11 @@ class HomeScreen extends StatelessWidget {
                     label: AppStrings.replyAction,
                     productName: AppStrings.replyEntry,
                     subtitle: AppStrings.replySubtitle,
-                    onTap: () =>
-                        Navigator.of(context)
-                            .push(ReplyHubScreen.route(clock: clock)),
+                    onTap: () => _guardLearning(
+                      context,
+                      () => Navigator.of(context)
+                          .push(ReplyHubScreen.route(clock: clock)),
+                    ),
                   ),
                 ]),
                 ..._section(AppStrings.sectionKanji, [
@@ -428,6 +442,7 @@ class HomeScreen extends StatelessWidget {
     bool quiet = false,
     Set<String> excludeProgressIds = const {},
   }) {
+    if (_learningBlocked(context)) return;
     final practice = _composeDaily(
       context,
       quiet: quiet,
@@ -494,6 +509,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _startFerry(BuildContext context, {bool replace = false}) {
+    if (_learningBlocked(context)) return;
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -521,6 +537,7 @@ class HomeScreen extends StatelessWidget {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
   }) {
+    if (_learningBlocked(context)) return;
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -560,6 +577,7 @@ class HomeScreen extends StatelessWidget {
     bool replace = false,
     Set<String> excludeProgressIds = const {},
   }) {
+    if (_learningBlocked(context)) return;
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -591,6 +609,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _startWriting(BuildContext context) {
+    if (_learningBlocked(context)) return;
     final store = context.read<KanaProgressRepository>();
     final pool = List<Kana>.of(StudySet.reviewPool(store))..shuffle();
     Navigator.of(context).push(
@@ -609,6 +628,7 @@ class HomeScreen extends StatelessWidget {
     int maxNew = 3,
     Set<String> excludeProgressIds = const {},
   }) {
+    if (_learningBlocked(context)) return;
     final store = context.read<KanaProgressRepository>();
     final learnedChars = StudySet.learned(store)
         .map((k) => k.character)
@@ -648,6 +668,7 @@ class HomeScreen extends StatelessWidget {
     BuildContext context, {
     int maxNew = KanjiSession.kDefaultMaxNew,
   }) {
+    if (_learningBlocked(context)) return;
     final repo = context.read<KanjiReadingRepository>();
     final units = KanjiSession.compose(
       units: kKanjiUnits,
@@ -667,6 +688,7 @@ class HomeScreen extends StatelessWidget {
     bool replace = false,
     int maxNew = 3,
   }) {
+    if (_learningBlocked(context)) return;
     final picked = ReadingSet.session(
       items: readable,
       learnedChars: StudySet.learned(context.read<KanaProgressRepository>())
@@ -702,6 +724,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _startConfusable(BuildContext context) {
+    if (_learningBlocked(context)) return;
     final store = context.read<KanaProgressRepository>();
     final questions = _composeConfusable(store);
     if (questions.isEmpty) {
@@ -875,6 +898,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _openTravelHero(BuildContext context, GuidanceStep step) {
+    if (_learningBlocked(context)) return;
     switch (step.target) {
       case GuidanceTarget.daily:
         _startDaily(context);
@@ -897,6 +921,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _startTravelMeet(BuildContext context, GuidanceStep step) {
+    if (_learningBlocked(context)) return;
     final scene = step.scene;
     if (scene == null) return;
     TravelSceneHub.startMeet(
@@ -908,6 +933,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _startTravelRecall(BuildContext context, GuidanceStep step) {
+    if (_learningBlocked(context)) return;
     final scene = step.scene;
     if (scene == null) return;
     TravelSceneHub.startRecall(
@@ -919,6 +945,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   void _startTravelListen(BuildContext context, GuidanceStep step) {
+    if (_learningBlocked(context)) return;
     final scene = step.scene;
     if (scene == null) return;
     TravelSceneHub.startListen(
@@ -1094,7 +1121,7 @@ class HomeScreen extends StatelessWidget {
     return Center(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
+        onTap: () => _guardLearning(context, onTap),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: line,
@@ -1172,6 +1199,7 @@ class HomeScreen extends StatelessWidget {
     List<Phrase> readablePhrases,
     List<KanjiPhrase> readableKanjiPhrases,
   ) {
+    if (_learningBlocked(context)) return;
     context.read<ProgressPersistenceController>().trackKana(
       store.markUnlockSeen(pending.id),
     );

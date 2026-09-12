@@ -35,6 +35,17 @@ class ProgressRestoreRecoveryController extends ChangeNotifier {
 
   bool get isRetrying => _retrying;
 
+  /// Re-reads the journal from durable storage and applies blocking when an
+  /// in-session restore leaves progress in a mixed or unfinished state.
+  Future<void> syncFromPlatform() async {
+    await _prefs.reload();
+    final needs = ProgressRestoreJournal.needsRecovery(_prefs);
+    if (needs == _needsRecovery) return;
+    _needsRecovery = needs;
+    _applyBlocking(needs);
+    notifyListeners();
+  }
+
   Future<void> retry() async {
     if (_retrying) return;
     _retrying = true;

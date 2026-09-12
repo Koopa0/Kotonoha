@@ -117,6 +117,7 @@ Future<Widget> bootstrap({
             words: words,
           ),
           files: FilePickerSnapshotPort(),
+          recovery: restoreRecovery,
         ),
       ),
     ],
