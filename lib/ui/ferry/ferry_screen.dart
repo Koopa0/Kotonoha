@@ -164,17 +164,18 @@ class _FerryScreenState extends State<FerryScreen> {
         meta: {'romaji': _current.romaji},
       ),
     );
-    // 渡し舟 introduces, it never reviews: a first meeting enters the schedule
-    // (an encode credit, like the kanji TEACH beat — the cold modes will grade
-    // it honestly from tomorrow), and re-ferrying a seen word is exposure only
-    // (introduce is a no-op then). The self-grade above still lands honestly
-    // in the analytics stream.
-    context.read<ProgressPersistenceController>().trackWord(
-      context.read<WordProgressRepository>().introduce(
-        _current.progressId,
-        at: now,
-      ),
-    );
+    // 渡し舟 introduces, it never reviews. A first successful read-back is
+    // an encode credit (introduce → schedule). A first miss still marks the
+    // word seen so intake cannot replay it, but must not write a successful
+    // recall. Re-ferrying a seen word is exposure only.
+    final words = context.read<WordProgressRepository>();
+    final persist = context.read<ProgressPersistenceController>();
+    final id = _current.progressId;
+    if (correct) {
+      persist.trackWord(words.introduce(id, at: now));
+    } else if (!words.statForItem(id).isSeen) {
+      persist.trackWord(words.markIntroduced(id, at: now));
+    }
     if (correct) _correct++;
     if (_index + 1 >= widget.words.length) {
       final store = context.read<KanaProgressRepository>();

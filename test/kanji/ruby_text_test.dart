@@ -18,6 +18,28 @@ void main() {
     expect(RubyText.furiganaOpacity(5), 0.0);
   });
 
+  test('visible reading support follows the furigana still on the card', () {
+    const phrase = KanjiPhrase(
+      segments: [
+        RubySegment(text: '山', furigana: 'やま'),
+        RubySegment(text: 'を'),
+        RubySegment(text: '見', furigana: 'み'),
+        RubySegment(text: 'る'),
+      ],
+      romaji: 'yama o miru',
+      meaning: '看山',
+    );
+    expect(RubyText.hasVisibleReadingSupport(phrase, (_) => 0), isTrue);
+    expect(RubyText.hasVisibleReadingSupport(phrase, (_) => 2), isTrue);
+    expect(
+      RubyText.hasVisibleReadingSupport(
+        phrase,
+        (_) => ReadingStat.kFuriganaFadeLevel,
+      ),
+      isFalse,
+    );
+  });
+
   testWidgets('renders the kanji and its furigana', (tester) async {
     const phrase = KanjiPhrase(
       segments: [
