@@ -8,6 +8,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
+import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
@@ -33,23 +34,39 @@ class KanjiSentenceScreen extends StatefulWidget {
   const KanjiSentenceScreen({
     required this.phrases,
     required this.title,
+    this.clock,
     this.onMore,
+    this.alreadyTransferredIds = const {},
     super.key,
   });
 
   final List<KanjiPhrase> phrases;
   final String title;
 
+  /// Injectable clock so 凪「もう一回」 and due dates stay testable by day.
+  final DateTime Function()? clock;
+
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
+
+  /// Progress ids already covered in this 「もう一回」 grind. A wrap-around
+  /// sentence may be shown again but must not renew SRS.
+  final Set<String> alreadyTransferredIds;
 
   static Route<void> route(
     List<KanjiPhrase> phrases,
     String title, {
     VoidCallback? onMore,
+    DateTime Function()? clock,
+    Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
-    builder: (_) =>
-        KanjiSentenceScreen(phrases: phrases, title: title, onMore: onMore),
+    builder: (_) => KanjiSentenceScreen(
+      phrases: phrases,
+      title: title,
+      clock: clock,
+      onMore: onMore,
+      alreadyTransferredIds: alreadyTransferredIds,
+    ),
   );
 
   @override
@@ -64,10 +81,13 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   bool _playable = true;
   int _index = 0;
   bool _revealed = false;
+  bool _unpromptedCommit = false;
   int _correct = 0;
   bool _done = false;
 
   KanjiPhrase get _current => widget.phrases[_index];
+
+  DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   @override
   void initState() {
@@ -114,13 +134,16 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
     _ownedPlay = _speech.generation;
   }
 
-  void _reveal() {
+  void _reveal({required bool unpromptedCommit}) {
     _speak();
-    setState(() => _revealed = true);
+    setState(() {
+      _revealed = true;
+      _unpromptedCommit = unpromptedCommit;
+    });
   }
 
-  void _grade(bool correct) {
-    final now = DateTime.now();
+  void _grade({required bool correct, required bool unprompted}) {
+    final now = _clock();
     context.read<AnalyticsLog>().recordObserved(
       Attempt(
         ts: now.millisecondsSinceEpoch,
@@ -129,18 +152,25 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
         mode: PracticeMode.reading.name,
         correct: correct,
         sessionId: _sessionId,
-        meta: {'reading': _current.reading},
+        meta: {'reading': _current.reading, AttemptMeta.prompted: !unprompted},
       ),
     );
     // The sentence's own schedule — a cold self-graded read. (The per-reading
     // kanji SRS belongs to 漢字の声 and is deliberately untouched here.)
-    context.read<ProgressPersistenceController>().trackWord(
-      context.read<WordProgressRepository>().recordAnswer(
-        _current.progressId,
-        correct: correct,
-        at: now,
-      ),
-    );
+    // Unprompted confirmed-correct is the only climb, and only the first
+    // time this grind covers the id. Prompted correct on a new item keeps
+    // intake (seen) without mastering. A miss always resets.
+    final words = context.read<WordProgressRepository>();
+    final persist = context.read<ProgressPersistenceController>();
+    final id = _current.progressId;
+    final canRenew = DailyBridge.shouldRenew(id, widget.alreadyTransferredIds);
+    if (!correct) {
+      persist.trackWord(words.recordAnswer(id, correct: false, at: now));
+    } else if (unprompted && canRenew) {
+      persist.trackWord(words.recordAnswer(id, correct: true, at: now));
+    } else if (!unprompted && !words.statForItem(id).isSeen) {
+      persist.trackWord(words.markIntroduced(id, at: now));
+    }
     if (correct) _correct++;
     if (_index + 1 >= widget.phrases.length) {
       setState(() => _done = true);
@@ -148,6 +178,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
       setState(() {
         _index++;
         _revealed = false;
+        _unpromptedCommit = false;
       });
     }
   }
@@ -161,7 +192,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   }
 
   Widget _summary() {
-    final band = ClosingBand.forHour(DateTime.now().hour);
+    final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
       headline: AppStrings.readingSummary(_correct, widget.phrases.length),
       note: AppStrings.closing(widget.phrases.last.written, band: band),
@@ -249,43 +280,74 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: _revealed
-              ? Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(54),
-                          side: const BorderSide(color: AppColors.error),
-                          foregroundColor: AppColors.error,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        onPressed: () => _grade(false),
-                        child: const Text(AppStrings.iCouldnt),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          minimumSize: const Size.fromHeight(54),
-                        ),
-                        onPressed: () => _grade(true),
-                        child: const Text(AppStrings.iReadIt),
-                      ),
-                    ),
-                  ],
-                )
-              : SizedBox(
-                  height: 54,
-                  child: FilledButton(
-                    onPressed: _reveal,
-                    child: const Text(AppStrings.revealAnswer),
-                  ),
-                ),
+          child: _revealed ? _gradeControls() : _revealControls(),
+        ),
+      ],
+    );
+  }
+
+  Widget _revealControls() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            onPressed: () => _reveal(unpromptedCommit: false),
+            child: const Text(AppStrings.recallHint),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+            ),
+            onPressed: () => _reveal(unpromptedCommit: true),
+            child: const Text(AppStrings.iReadUnprompted),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _gradeControls() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              side: const BorderSide(color: AppColors.error),
+              foregroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            onPressed: () =>
+                _grade(correct: false, unprompted: _unpromptedCommit),
+            child: const Text(AppStrings.iCouldnt),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.success,
+              minimumSize: const Size.fromHeight(54),
+            ),
+            onPressed: () =>
+                _grade(correct: true, unprompted: _unpromptedCommit),
+            child: Text(
+              _unpromptedCommit
+                  ? AppStrings.iReadIt
+                  : AppStrings.iReadAfterHint,
+            ),
+          ),
         ),
       ],
     );

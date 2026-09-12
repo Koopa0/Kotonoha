@@ -543,7 +543,7 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(tts.spoken, isEmpty);
-    await tester.tap(find.text(AppStrings.revealAnswer));
+    await tester.tap(find.text(AppStrings.recallHint));
     await tester.pump();
     expect(tts.spoken, ['そらがあおい']);
     expect(tts.stopCount, 1);

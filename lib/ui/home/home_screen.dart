@@ -653,24 +653,37 @@ class HomeScreen extends StatelessWidget {
     List<KanjiPhrase> readable, {
     bool replace = false,
     int maxNew = 3,
+    Set<String> excludeProgressIds = const {},
   }) {
+    final now = (clock ?? DateTime.now)();
     final picked = ReadingSet.session(
       items: readable,
       learnedChars: StudySet.learned(context.read<KanaProgressRepository>())
           .map((k) => k.character)
           .toSet(),
       rng: Random(),
-      now: DateTime.now(),
+      now: now,
       stats: context.read<WordProgressRepository>().stats,
       maxNew: maxNew,
     );
     if (picked.isEmpty) return;
+    final nextExclude = DailyBridge.nextExclude(
+      previous: excludeProgressIds,
+      transfer: picked,
+    );
     final nav = Navigator.of(context);
     final route = KanjiSentenceScreen.route(
       picked,
       AppStrings.kanjiSentenceTitle,
-      onMore: () =>
-          _startKanjiSentence(context, readable, replace: true, maxNew: maxNew),
+      clock: clock,
+      alreadyTransferredIds: excludeProgressIds,
+      onMore: () => _startKanjiSentence(
+        context,
+        readable,
+        replace: true,
+        maxNew: maxNew,
+        excludeProgressIds: nextExclude,
+      ),
     );
     unawaited(replace ? nav.pushReplacement(route) : nav.push(route));
   }
