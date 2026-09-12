@@ -3,6 +3,8 @@
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
@@ -42,12 +44,14 @@ class ProgressSnapshotRepository {
     required this._kana,
     required this._kanji,
     required this._words,
+    this._prefs,
     this._codec = const ProgressSnapshotCodec(),
   });
 
   final KanaProgressRepository _kana;
   final KanjiReadingRepository _kanji;
   final WordProgressRepository _words;
+  final PreferencesService? _prefs;
   final ProgressSnapshotCodec _codec;
 
   /// Primary keys of the five snapshot bodies — the same identities the
@@ -69,6 +73,8 @@ class ProgressSnapshotRepository {
       seenUnlocksStore,
     if (_kanji.statsHealth == StoreHealth.recoveryRequired) kanjiStatsStore,
     if (_words.statsHealth == StoreHealth.recoveryRequired) wordStatsStore,
+    if (_prefs != null && ProgressRestoreJournal.blocksExport(_prefs))
+      ProgressRestoreJournal.journalKey,
   ]);
 
   /// Synchronously captures the five in-memory progress bodies into an

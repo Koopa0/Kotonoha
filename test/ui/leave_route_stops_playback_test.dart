@@ -10,6 +10,7 @@ import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
@@ -26,6 +27,7 @@ import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
@@ -33,6 +35,8 @@ import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 const _haru = Word(kana: 'はる', romaji: 'haru', meaning: '春天');
 const _nami = Word(kana: 'なみ', romaji: 'nami', meaning: '波浪');
@@ -160,13 +164,20 @@ Future<void> _pumpApp(
   await tester.binding.setSurfaceSize(const Size(420, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
-  final kana = await KanaProgressRepository.load();
-  final kanji = await KanjiReadingRepository.load();
-  final words = await WordProgressRepository.load();
+  final prefs = await PreferencesService.create();
+  final kana = await KanaProgressRepository.load(prefs);
+  final kanji = await KanjiReadingRepository.load(prefs);
+  final words = await WordProgressRepository.load(prefs);
   await _learnUnits(kana, learnedUnits);
   for (final id in seenUnlocks) {
     await kana.markUnlockSeen(id);
   }
+  final recovery = recoveryForRepos(
+    prefs: prefs,
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -187,6 +198,9 @@ Future<void> _pumpApp(
             ],
           ),
         ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
+        ),
         Provider<SpeechService>.value(value: speech),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
       ],
@@ -204,9 +218,16 @@ Future<void> _pumpProviders(
   await tester.binding.setSurfaceSize(const Size(420, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
-  final kana = await KanaProgressRepository.load();
-  final kanji = await KanjiReadingRepository.load();
-  final words = await WordProgressRepository.load();
+  final prefs = await PreferencesService.create();
+  final kana = await KanaProgressRepository.load(prefs);
+  final kanji = await KanjiReadingRepository.load(prefs);
+  final words = await WordProgressRepository.load(prefs);
+  final recovery = recoveryForRepos(
+    prefs: prefs,
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -219,6 +240,9 @@ Future<void> _pumpProviders(
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: speech),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

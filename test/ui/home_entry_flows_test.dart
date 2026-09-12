@@ -15,6 +15,7 @@ import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
@@ -24,6 +25,8 @@ import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 /// #10: home naming / navigation — three closed paths plus narrow / large-text
 /// and return-state checks. In-session titles stay Japanese; home entries
@@ -210,6 +213,7 @@ _pumpApp(
   if (seedSeenWord) {
     await words.recordAnswer('word:あい', correct: true, at: DateTime(2026));
   }
+  final recovery = await idleRestoreRecovery();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -229,6 +233,9 @@ _pumpApp(
               words.statsHealth,
             ],
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

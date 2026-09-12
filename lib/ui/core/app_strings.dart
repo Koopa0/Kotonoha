@@ -649,6 +649,13 @@ abstract final class AppStrings {
   static const String persistRecoveryRecoveryRequired =
       '先前的歩み一時讀不回來,現在可能是空的;原始資料還留著,沒有被蓋掉。';
 
+  // Unfinished restore journal after startup recovery — blocks learning writes
+  // until [ProgressRestoreRecoveryController.retry] succeeds.
+  static const String restoreJournalRecoveryLine =
+      '上次的還原還沒處理完,學習進度暫時不能寫入。';
+  static const String restoreJournalRecoveryDetail =
+      '請再試一次把裝置上的狀態整理好。';
+
   // 歩み backup — a file of the five portable bodies, never a complete
   // learning-history claim. Analytics, unfinished rounds, and device
   // settings stay off the file; restore is a later entrance.
@@ -661,4 +668,32 @@ abstract final class AppStrings {
   static const String backupBlocked = '現在的歩み還讀不完整,不能做成備份。';
   static const String backupFailed = '這次沒能寫成檔案。';
   static const String backupUnimportable = '這次的歩み不能做成可還原的檔案。';
+
+  // 歩み restore — replaces the five portable bodies only; not analytics,
+  // unfinished rounds, or device settings. Does not mint new answer evidence.
+  static const String restoreTitle = '從備份還原';
+  static const String restoreScope =
+      '可選先前保存的檔案，預覽日期與範圍後，明確確認才會取代現在的假名、課程、解鎖、漢字讀音與詞句進度。';
+  static const String restoreNotIncluded =
+      '不含作答紀錄、未完成的回合或裝置設定；不會把匯入的熟練度當成新的答對。';
+  static const String restoreAction = '選擇備份檔案';
+  static const String restoreRestoring = '正在還原…';
+  static const String restoreConfirmTitle = '確認取代現在的進度？';
+  static const String restoreConfirmYes = '取代現在的進度';
+  static const String restoreConfirmNo = '取消';
+  static const String restoreRestored = '已還原這五份進度。';
+  static const String restoreInvalid = '這個檔案不能還原。';
+  static const String restoreFailed = '這次沒能還原，原本的進度沒有變。';
+  static const String restoreBlocked = '上次的還原還沒處理完，暫時不能繼續。';
+
+  static String restorePreviewBody(DateTime createdAtUtc) {
+    final utc = createdAtUtc.toUtc();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final stamp =
+        '${utc.year}年${two(utc.month)}月${two(utc.day)}日 '
+        '${two(utc.hour)}:${two(utc.minute)}（UTC）';
+    return '備份時間：$stamp\n'
+        '會取代：假名熟練、已學課、已見解鎖、漢字讀音、詞句進度。\n'
+        '不含作答紀錄、未完成回合或裝置設定。';
+  }
 }

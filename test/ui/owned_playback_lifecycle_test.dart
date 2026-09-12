@@ -10,6 +10,7 @@ import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
@@ -23,6 +24,7 @@ import 'package:kotonoha/domain/use_cases/travel_scene.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/kana_detail_sheet.dart';
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
@@ -33,6 +35,8 @@ import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 const _eki = Word(kana: 'えき', romaji: 'eki', meaning: '車站');
 const _kimi = Word(kana: 'きみ', romaji: 'kimi', meaning: '你');
@@ -133,9 +137,16 @@ Future<void> _pumpProviders(
   if (kana == null && words == null) {
     SharedPreferences.setMockInitialValues({});
   }
-  final resolvedKana = kana ?? await KanaProgressRepository.load();
-  final kanji = await KanjiReadingRepository.load();
-  final resolvedWords = words ?? await WordProgressRepository.load();
+  final prefs = await PreferencesService.create();
+  final resolvedKana = kana ?? await KanaProgressRepository.load(prefs);
+  final kanji = await KanjiReadingRepository.load(prefs);
+  final resolvedWords = words ?? await WordProgressRepository.load(prefs);
+  final recovery = recoveryForRepos(
+    prefs: prefs,
+    kana: resolvedKana,
+    kanji: kanji,
+    words: resolvedWords,
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -152,6 +163,9 @@ Future<void> _pumpProviders(
             kanjiFlush: kanji.flushPending,
             wordFlush: resolvedWords.flushPending,
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: speech),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

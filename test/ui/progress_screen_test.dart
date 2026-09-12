@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
+import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
+import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
@@ -42,13 +45,43 @@ void main() {
     );
   }
 
+  ProgressSnapshotRestorer defaultRestorer(
+    PreferencesService prefs,
+    KanaProgressRepository store,
+    KanjiReadingRepository kanji,
+    WordProgressRepository words, {
+    FakeSnapshotFilePort? files,
+  }) {
+    final snapshots = ProgressSnapshotRepository(
+      kana: store,
+      kanji: kanji,
+      words: words,
+      prefs: prefs,
+    );
+    return ProgressSnapshotRestorer(
+      snapshots: snapshots,
+      restore: ProgressSnapshotRestoreRepository(
+        prefs: prefs,
+        kana: store,
+        kanji: kanji,
+        words: words,
+      ),
+      files: files ?? FakeSnapshotFilePort(),
+    );
+  }
+
   Future<void> pump(
     WidgetTester tester,
     KanaProgressRepository store, {
     ProgressSnapshotExporter? exporter,
+    ProgressSnapshotRestorer? restorer,
+    FakePreferencesService? prefs,
   }) async {
     await tester.binding.setSurfaceSize(const Size(420, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final backing = prefs ?? await PreferencesService.create();
+    final kanji = await KanjiReadingRepository.load(backing);
+    final words = await WordProgressRepository.load(backing);
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -56,6 +89,9 @@ void main() {
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
           Provider<ProgressSnapshotExporter>.value(
             value: exporter ?? await defaultExporter(store),
+          ),
+          Provider<ProgressSnapshotRestorer>.value(
+            value: restorer ?? defaultRestorer(backing, store, kanji, words),
           ),
         ],
         child: const MaterialApp(home: ProgressScreen()),
@@ -135,7 +171,7 @@ void main() {
       await tester.tap(find.text(AppStrings.backupAction));
       await tester.pumpAndSettle();
 
-      expect(files.calls, 1);
+      expect(files.saveCalls, 1);
       expect(
         const ProgressSnapshotCodec().decodeAndValidate(files.lastContents!),
         isA<SnapshotDecodeSuccess>(),
@@ -159,9 +195,22 @@ void main() {
     await tester.tap(find.text(AppStrings.backupAction));
     await tester.pumpAndSettle();
 
-    expect(files.calls, 1);
+    expect(files.saveCalls, 1);
     expect(find.text(AppStrings.backupSaved), findsNothing);
     expect(find.text(AppStrings.backupFailed), findsNothing);
+  });
+
+  testWidgets('restore copy names scope and excludes full-history claim', (
+    tester,
+  ) async {
+    final store = await KanaProgressRepository.load();
+    await pump(tester, store);
+
+    expect(find.text(AppStrings.restoreTitle), findsOneWidget);
+    expect(find.text(AppStrings.restoreScope), findsOneWidget);
+    expect(find.text(AppStrings.restoreNotIncluded), findsOneWidget);
+    expect(find.text(AppStrings.restoreAction), findsOneWidget);
+    expect(find.textContaining('完整學習歷程'), findsOneWidget);
   });
 
   testWidgets(
@@ -189,7 +238,7 @@ void main() {
         find.widgetWithText(OutlinedButton, AppStrings.backupAction),
       );
       expect(button.onPressed, isNull);
-      expect(files.calls, 0);
+      expect(files.saveCalls, 0);
     },
   );
 }

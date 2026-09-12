@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
@@ -85,6 +86,29 @@ class KanaProgressRepository extends ChangeNotifier {
   int _unlocksGen = 0;
   int _unlocksPersistedGen = 0;
 
+  /// Invalidates in-flight flushes when a restore transaction begins.
+  int _restoreBarrier = 0;
+
+  /// True while [prepareForRestore] holds the mutation queue for a restore.
+  bool _restoreLocked = false;
+
+  /// True when startup journal recovery could not finish — normal learning
+  /// writes must stay refused until [reloadFromPlatform] clears this.
+  bool _restoreJournalBlocksWrites = false;
+
+  /// Whether an unfinished restore journal still blocks learning writes.
+  bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
+
+  Future<void>? _blockedWriteFuture() {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    if (_restoreLocked) {
+      return Future<void>.error(const ProgressRestoreInProgress());
+    }
+    return null;
+  }
+
   /// Loads persisted stats + learned units (or starts empty).
   static Future<KanaProgressRepository> load([
     PreferencesService? prefs,
@@ -145,6 +169,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// memory after an earlier failed write, so success is only reported once
   /// every pending store is really flushed.
   Future<void> markUnitLearned(String unitId) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     if (_learnedUnits.add(unitId)) {
       _learnedGen++;
       notifyListeners();
@@ -164,6 +190,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// re-triggering the home's listener every frame; an already-seen id still
   /// joins the queue so a pending earlier write is flushed, never faked.
   Future<void> markUnlockSeen(String id) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     if (_seenUnlocks.add(id)) {
       _unlocksGen++;
       notifyListeners();
@@ -223,6 +251,8 @@ class KanaProgressRepository extends ChangeNotifier {
     int? latencyMs,
     bool listening = false,
   }) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final current = statFor(kana);
     final scale = kConfusableChars.contains(kana.character) ? 0.5 : 1.0;
     _stats[kana.id] = current.recordAnswer(
@@ -240,6 +270,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// Persists hinted-recall exposure without treating it as a successful
   /// recall or renewing the schedule. See [KanaStat.recordPromptedPractice].
   Future<void> recordPromptedPractice(Kana kana, {required DateTime at}) {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     _stats[kana.id] = statFor(kana).recordPromptedPractice(at: at);
     _statsGen++;
     notifyListeners();
@@ -256,6 +288,75 @@ class KanaProgressRepository extends ChangeNotifier {
   /// confirmed write, exactly as a mutation's flush does.
   Future<void> flushPending() => _serialized(_flushAll);
 
+  /// Refuses new mutations, drains every queued persistence future, then bumps
+  /// the restore barrier so no stale flush can land after the drain completes.
+  Future<void> prepareForRestore() async {
+    _restoreLocked = true;
+    await _tail;
+    _restoreBarrier++;
+  }
+
+  /// Releases the restore lock after [prepareForRestore].
+  void finishRestore() {
+    _restoreLocked = false;
+  }
+
+  /// Blocks or unblocks learning writes while a restore journal needs recovery.
+  void setRestoreJournalBlocked(bool blocked) {
+    if (_restoreJournalBlocksWrites == blocked) return;
+    _restoreJournalBlocksWrites = blocked;
+    notifyListeners();
+  }
+
+  /// Reloads all three bodies from durable primaries after journal recovery.
+  Future<void> reloadFromPlatform() async {
+    await _prefs.reload();
+    final stats = await _statsStore.load();
+    final learned = await _learnedStore.load();
+    final unlocks = await _unlocksStore.load();
+    _stats
+      ..clear()
+      ..addAll(stats.value);
+    _learnedUnits
+      ..clear()
+      ..addAll(learned.value);
+    _seenUnlocks
+      ..clear()
+      ..addAll(unlocks.value);
+    _statsGen++;
+    _learnedGen++;
+    _unlocksGen++;
+    _statsPersistedGen = _statsGen;
+    _learnedPersistedGen = _learnedGen;
+    _unlocksPersistedGen = _unlocksGen;
+    notifyListeners();
+  }
+
+  /// Replaces the three in-memory bodies after a successful restore
+  /// transaction. Primaries are already on disk; generations are marked clean.
+  void replaceFromRestore({
+    required Map<String, KanaStat> stats,
+    required Set<String> learnedUnits,
+    required Set<String> seenUnlocks,
+  }) {
+    _stats
+      ..clear()
+      ..addAll(stats);
+    _learnedUnits
+      ..clear()
+      ..addAll(learnedUnits);
+    _seenUnlocks
+      ..clear()
+      ..addAll(seenUnlocks);
+    _statsGen++;
+    _learnedGen++;
+    _unlocksGen++;
+    _statsPersistedGen = _statsGen;
+    _learnedPersistedGen = _learnedGen;
+    _unlocksPersistedGen = _unlocksGen;
+    notifyListeners();
+  }
+
   /// Clears all progress (used by tests and any future "reset" affordance).
   /// Removes exactly the keys this repository owns — primaries plus their
   /// last-known-good and quarantine copies — never a blanket clear. When a
@@ -267,6 +368,8 @@ class KanaProgressRepository extends ChangeNotifier {
   /// fails, the pre-reset snapshot is restored conservatively and the store
   /// stays dirty — an unknown state is never marked persisted.
   Future<void> reset() {
+    final blocked = _blockedWriteFuture();
+    if (blocked != null) return blocked;
     final statsBefore = Map<String, KanaStat>.of(_stats);
     final learnedBefore = Set<String>.of(_learnedUnits);
     final unlocksBefore = Set<String>.of(_seenUnlocks);
@@ -393,6 +496,12 @@ class KanaProgressRepository extends ChangeNotifier {
   /// future to the caller (so failures surface) while keeping the queue
   /// alive past a failed write.
   Future<void> _serialized(Future<void> Function() action) {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    if (_restoreLocked) {
+      return Future<void>.error(const ProgressRestoreInProgress());
+    }
     final run = _tail.then((_) => action());
     _tail = run.then<void>((_) {}, onError: (Object _) {});
     return run;
@@ -404,19 +513,35 @@ class KanaProgressRepository extends ChangeNotifier {
   /// the first failure so the awaiting mutation reports honestly; whatever
   /// stayed dirty is retried by the next mutation's flush.
   Future<void> _flushAll() async {
+    final barrier = _restoreBarrier;
     if (_statsGen != _statsPersistedGen) {
       final gen = _statsGen;
-      await _statsStore.write(_encodeStats());
+      if (_restoreBarrier != barrier) return;
+      await _statsStore.write(
+        _encodeStats(),
+        commitGuard: () => _restoreBarrier == barrier,
+      );
+      if (_restoreBarrier != barrier) return;
       _statsPersistedGen = gen;
     }
     if (_learnedGen != _learnedPersistedGen) {
       final gen = _learnedGen;
-      await _learnedStore.write(jsonEncode(_learnedUnits.toList()));
+      if (_restoreBarrier != barrier) return;
+      await _learnedStore.write(
+        jsonEncode(_learnedUnits.toList()),
+        commitGuard: () => _restoreBarrier == barrier,
+      );
+      if (_restoreBarrier != barrier) return;
       _learnedPersistedGen = gen;
     }
     if (_unlocksGen != _unlocksPersistedGen) {
       final gen = _unlocksGen;
-      await _unlocksStore.write(jsonEncode(_seenUnlocks.toList()));
+      if (_restoreBarrier != barrier) return;
+      await _unlocksStore.write(
+        jsonEncode(_seenUnlocks.toList()),
+        commitGuard: () => _restoreBarrier == barrier,
+      );
+      if (_restoreBarrier != barrier) return;
       _unlocksPersistedGen = gen;
     }
   }

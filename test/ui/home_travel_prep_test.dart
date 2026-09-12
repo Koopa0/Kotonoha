@@ -18,6 +18,7 @@ import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
@@ -28,6 +29,8 @@ import 'package:kotonoha/ui/travel/travel_focus_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +58,7 @@ void main() {
     double textScale = 1,
   }) async {
     final kanji = await KanjiReadingRepository.load();
+    final recovery = await idleRestoreRecovery();
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -71,6 +75,9 @@ void main() {
               wordFlush: words.flushPending,
               travelFocusFlush: travel.flushPending,
             ),
+          ),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
           ),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

@@ -8,6 +8,15 @@ import 'package:flutter/foundation.dart';
 import 'package:kotonoha/data/services/android_saf_snapshot_port.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
 
+Future<List<PlatformFile>> defaultSnapshotPickerPick() async {
+  final file = await FilePicker.pickFile(
+    type: FileType.custom,
+    allowedExtensions: const ['json'],
+  );
+  if (file == null) return [];
+  return [file];
+}
+
 Future<Uri?> defaultSnapshotPickerSave({
   required String fileName,
   required Uint8List bytes,
@@ -31,9 +40,11 @@ class FilePickerSnapshotPort implements SnapshotFilePort {
     SnapshotFilePort? android,
     Future<Uri?> Function({required String fileName, required Uint8List bytes})?
     saveWithPicker,
+    Future<List<PlatformFile>> Function()? pickWithPicker,
     this._preferAndroidSaf,
   }) : _android = android ?? AndroidSafSnapshotPort(),
-       _saveWithPicker = saveWithPicker ?? defaultSnapshotPickerSave;
+       _saveWithPicker = saveWithPicker ?? defaultSnapshotPickerSave,
+       _pickWithPicker = pickWithPicker ?? defaultSnapshotPickerPick;
 
   final SnapshotFilePort _android;
   final Future<Uri?> Function({
@@ -41,6 +52,7 @@ class FilePickerSnapshotPort implements SnapshotFilePort {
     required Uint8List bytes,
   })
   _saveWithPicker;
+  final Future<List<PlatformFile>> Function() _pickWithPicker;
   final bool? _preferAndroidSaf;
 
   bool get _useAndroidSaf =>
@@ -64,6 +76,23 @@ class FilePickerSnapshotPort implements SnapshotFilePort {
       return SnapshotSaveOutcome.saved;
     } catch (_) {
       return SnapshotSaveOutcome.failed;
+    }
+  }
+
+  @override
+  Future<SnapshotPickResult> pick() async {
+    try {
+      final files = await _pickWithPicker();
+      if (files.isEmpty) {
+        return const SnapshotPickResult(SnapshotPickOutcome.cancelled);
+      }
+      final bytes = await files.first.readAsBytes();
+      return SnapshotPickResult(
+        SnapshotPickOutcome.picked,
+        contents: utf8.decode(bytes),
+      );
+    } catch (_) {
+      return const SnapshotPickResult(SnapshotPickOutcome.failed);
     }
   }
 }

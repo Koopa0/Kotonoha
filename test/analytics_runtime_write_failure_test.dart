@@ -19,10 +19,13 @@ import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/persistence_banner.dart';
 import 'package:kotonoha/ui/quiz/quiz_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'support/restore_recovery_test_support.dart';
 
 /// Production [FileAnalyticsLog] + the real answering caller
 /// ([QuizViewModel.selectAnswer]). #27 already keeps the attempt in
@@ -282,9 +285,17 @@ void main() {
         vm = await makeVm(log: log, repo: repo, owner: owner, questions: [q]);
       });
 
+      final recovery = await idleRestoreRecovery();
       await tester.pumpWidget(
-        ChangeNotifierProvider<ProgressPersistenceController>.value(
-          value: owner,
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: owner,
+            ),
+            ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+              value: recovery,
+            ),
+          ],
           child: const MaterialApp(
             home: PersistenceBanner(child: SizedBox.expand()),
           ),

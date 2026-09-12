@@ -60,4 +60,9 @@ class AndroidSafSnapshotPort implements SnapshotFilePort {
       return SnapshotSaveOutcome.failed;
     }
   }
+
+  @override
+  Future<SnapshotPickResult> pick() async => const SnapshotPickResult(
+    SnapshotPickOutcome.failed,
+  );
 }
