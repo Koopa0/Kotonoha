@@ -8,12 +8,14 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/placement/placement_check_screen.dart';
@@ -22,6 +24,8 @@ import 'package:kotonoha/ui/placement/placement_scope_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -206,10 +210,17 @@ _pumpApp(WidgetTester tester) async {
   await tester.binding.setSurfaceSize(const Size(420, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
-  final kana = await KanaProgressRepository.load();
-  final kanji = await KanjiReadingRepository.load();
-  final words = await WordProgressRepository.load();
-  final checks = await PlacementCheckRepository.load();
+  final prefs = await PreferencesService.create();
+  final kana = await KanaProgressRepository.load(prefs);
+  final kanji = await KanjiReadingRepository.load(prefs);
+  final words = await WordProgressRepository.load(prefs);
+  final checks = await PlacementCheckRepository.load(prefs);
+  final recovery = recoveryForRepos(
+    prefs: prefs,
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -224,6 +235,9 @@ _pumpApp(WidgetTester tester) async {
             wordFlush: words.flushPending,
             placementFlush: checks.flushPending,
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

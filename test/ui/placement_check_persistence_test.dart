@@ -14,12 +14,14 @@ import 'package:kotonoha/domain/models/placement_check.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/placement/placement_check_screen.dart';
 import 'package:kotonoha/ui/placement/placement_result_screen.dart';
 import 'package:kotonoha/ui/placement/placement_scope_screen.dart';
 import 'package:provider/provider.dart';
 
 import '../services/fake_preferences_service.dart';
+import '../support/restore_recovery_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -447,6 +449,12 @@ Future<_FormalApp> _pumpFormal(
       checks.health,
     ],
   );
+  final recovery = recoveryForRepos(
+    prefs: prefs,
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -456,6 +464,9 @@ Future<_FormalApp> _pumpFormal(
         ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
         ChangeNotifierProvider<ProgressPersistenceController>.value(
           value: persist,
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
