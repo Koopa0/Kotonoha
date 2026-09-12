@@ -80,6 +80,133 @@ void main() {
     expect(logged.every((a) => a.mode == PracticeMode.ferry.name), isTrue);
     expect(logged.every((a) => a.itemType == ItemType.word), isTrue);
     expect(logged.first.itemId, 'きみ');
+    expect(wordRepo.statForItem('word:きみ').srsLevel, 1);
+    expect(wordRepo.statForItem('word:きみ').correctCount, 1);
+    expect(wordRepo.statForItem('word:やま').srsLevel, 1);
+    expect(wordRepo.statForItem('word:やま').correctCount, 1);
+  });
+
+  testWidgets(
+    'first 讀不出來 marks introduced without encode credit; seen miss stays put',
+    (tester) async {
+      final store = await KanaProgressRepository.load();
+      final wordRepo = await WordProgressRepository.load();
+      final persistence = ProgressPersistenceController(
+        kanaFlush: store.flushPending,
+        kanjiFlush: () async {},
+        wordFlush: wordRepo.flushPending,
+      );
+      final analytics = InMemoryAnalyticsLog();
+      const words = [
+        Word(kana: 'えき', romaji: 'eki', meaning: '車站'),
+        Word(kana: 'ここ', romaji: 'koko', meaning: '這裡'),
+      ];
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+            ChangeNotifierProvider<WordProgressRepository>.value(
+              value: wordRepo,
+            ),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: persistence,
+            ),
+            Provider<AnalyticsLog>.value(value: analytics),
+            Provider<SpeechService>.value(value: const SilentSpeechService()),
+          ],
+          child: const MaterialApp(
+            home: FerryScreen(words: words, title: AppStrings.ferryTitle),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      Future<void> gradeCurrent({required bool correct}) async {
+        await tester.tap(find.text(AppStrings.ferryShowText));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(AppStrings.ferryReadSelf));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(correct ? AppStrings.iReadIt : AppStrings.iCouldnt),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await gradeCurrent(correct: false);
+      expect(wordRepo.statForItem('word:えき').isSeen, isTrue);
+      expect(wordRepo.statForItem('word:えき').correctCount, 0);
+      expect(wordRepo.statForItem('word:えき').srsLevel, 0);
+      expect(wordRepo.statForItem('word:えき').wrongCount, 0);
+
+      await gradeCurrent(correct: true);
+      expect(wordRepo.statForItem('word:ここ').correctCount, 1);
+      expect(wordRepo.statForItem('word:ここ').srsLevel, 1);
+
+      final logged = await analytics.all();
+      expect(logged.map((a) => a.correct), [false, true]);
+    },
+  );
+
+  testWidgets('seen ferry 讀不出來 / 讀對了 do not add a second encode', (
+    tester,
+  ) async {
+    final store = await KanaProgressRepository.load();
+    final wordRepo = await WordProgressRepository.load();
+    final now = DateTime(2026, 9, 11, 12);
+    await wordRepo.introduce('word:えき', at: now);
+    await wordRepo.introduce('word:ここ', at: now);
+    expect(wordRepo.statForItem('word:えき').srsLevel, 1);
+    expect(wordRepo.statForItem('word:ここ').correctCount, 1);
+    final persistence = ProgressPersistenceController(
+      kanaFlush: store.flushPending,
+      kanjiFlush: () async {},
+      wordFlush: wordRepo.flushPending,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: persistence,
+          ),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          Provider<SpeechService>.value(value: const SilentSpeechService()),
+        ],
+        child: const MaterialApp(
+          home: FerryScreen(
+            words: [
+              Word(kana: 'えき', romaji: 'eki', meaning: '車站'),
+              Word(kana: 'ここ', romaji: 'koko', meaning: '這裡'),
+            ],
+            title: AppStrings.ferryTitle,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> gradeCurrent({required bool correct}) async {
+      await tester.tap(find.text(AppStrings.ferryShowText));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.ferryReadSelf));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(correct ? AppStrings.iReadIt : AppStrings.iCouldnt),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await gradeCurrent(correct: false);
+    expect(wordRepo.statForItem('word:えき').srsLevel, 1);
+    expect(wordRepo.statForItem('word:えき').correctCount, 1);
+    expect(wordRepo.statForItem('word:えき').wrongCount, 0);
+
+    await gradeCurrent(correct: true);
+    expect(wordRepo.statForItem('word:ここ').srsLevel, 1);
+    expect(wordRepo.statForItem('word:ここ').correctCount, 1);
   });
 
   testWidgets('rtMs times only the read-back, not the see-beat dwell', (
