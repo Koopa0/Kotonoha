@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
@@ -16,9 +17,12 @@ import 'package:kotonoha/kanji/ui/kanji_sentence_screen.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 const _yamaId = 'sentence:山を見る';
 
@@ -56,6 +60,13 @@ Future<InMemoryAnalyticsLog> _pumpHome(
   KanjiReadingRepository? kanji,
 }) async {
   kanji ??= await KanjiReadingRepository.load();
+  final prefs = await PreferencesService.create();
+  final recovery = recoveryForRepos(
+    prefs: prefs,
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   final analytics = InMemoryAnalyticsLog();
   await tester.binding.setSurfaceSize(const Size(420, 2600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -70,7 +81,17 @@ Future<InMemoryAnalyticsLog> _pumpHome(
             kanaFlush: kana.flushPending,
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
+            health: [
+              kana.statsHealth,
+              kana.learnedUnitsHealth,
+              kana.seenUnlocksHealth,
+              kanji.statsHealth,
+              words.statsHealth,
+            ],
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: analytics),
