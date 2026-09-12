@@ -39,6 +39,17 @@ class RubyText extends StatelessWidget {
     return 0.4; // one below the cap — faint
   }
 
+  /// True when any kanji run still shows furigana — the sentence already
+  /// offered a reading, so a later「讀得出來」is not an independent recall.
+  static bool hasVisibleReadingSupport(
+    KanjiPhrase phrase,
+    int Function(String unitId) srsLevelOf,
+  ) {
+    return phrase.segments.any(
+      (s) => s.isKanji && furiganaOpacity(srsLevelOf(s.unitId!)) > 0,
+    );
+  }
+
   /// The maturity of the practice unit this run belongs to — the word, not the
   /// character, so 学校 fades as 学校 and knowing 先生 fades nothing in 学生.
   double _opacityFor(RubySegment s) => furiganaOpacity(srsLevelOf(s.unitId!));
