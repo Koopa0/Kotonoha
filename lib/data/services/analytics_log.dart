@@ -33,13 +33,34 @@ abstract class AnalyticsLog {
   Future<void> flushPending();
 }
 
+/// Routes [recordObserved] writes to [notify]. Production bootstrap binds
+/// this once to the persistence owner's `trackAnalytics` so a failed
+/// durable write can raise the existing persistence banner.
+///
+/// [AnalyticsLog.record] is unchanged — Shift already tracks those
+/// futures itself and must not also go through [recordObserved], or the
+/// same write would be notified twice.
+void bindObservedWriteNotify(
+  AnalyticsLog log,
+  void Function(Future<void> pending) notify,
+) {
+  _observedWriteNotify[log] = notify;
+}
+
+final Expando<void Function(Future<void> pending)> _observedWriteNotify =
+    Expando<void Function(Future<void> pending)>('analyticsObservedWrite');
+
 /// Observes [AnalyticsLog.record] so a runtime write failure cannot become
 /// an uncaught async error. The attempt policy still lives on the log:
 /// memory retains it, [AnalyticsLog.unpersistedCount] stays honest, and
-/// the next write retries.
+/// the next write retries. When [bindObservedWriteNotify] is set, the
+/// same future is handed to the persistence owner — one notification
+/// path for every production observed write.
 extension AnalyticsLogObserve on AnalyticsLog {
   void recordObserved(Attempt attempt) {
-    unawaited(record(attempt).then<void>((_) {}, onError: _ignoreWriteError));
+    final pending = record(attempt);
+    _observedWriteNotify[this]?.call(pending);
+    unawaited(pending.then<void>((_) {}, onError: _ignoreWriteError));
   }
 }
 
