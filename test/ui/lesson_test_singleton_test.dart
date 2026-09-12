@@ -15,7 +15,6 @@ import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dar
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
-import 'package:kotonoha/ui/result/quiz_result_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
