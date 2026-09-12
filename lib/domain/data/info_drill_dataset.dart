@@ -110,6 +110,45 @@ const List<InfoDrill> kInfoDrills = [
   ),
 ];
 
+/// Hotel-only time extraction. Scoped to [TravelSceneId.hotel]; not mixed into
+/// the global [kInfoDrills] catalog.
+const List<InfoDrill> kHotelInfoDrills = [
+  InfoDrill(
+    id: 'info:hotel-breakfast-9am',
+    kind: InfoKind.time,
+    sceneZh: '櫃檯說明早餐從幾點開始。',
+    promptKana: 'あさごはんは ごぜん く じ です',
+    promptRomaji: 'asagohan wa gozen ku ji desu',
+    promptMeaning: '（早餐是）上午九點',
+    correctAnswer: '上午9點',
+    wrongAnswers: ['上午10點', '下午9點'],
+    requiredSeenIds: [
+      'phrase:あさごはんは ありますか',
+      'word:あさごはん',
+      'word:ごぜん',
+      'word:く',
+      'word:じ',
+    ],
+  ),
+  InfoDrill(
+    id: 'info:hotel-checkout-10am',
+    kind: InfoKind.time,
+    sceneZh: '櫃檯提醒明天退房時間。',
+    promptKana: 'チェックアウトは ごぜん じゅう じ です',
+    promptRomaji: 'chekkuauto wa gozen juu ji desu',
+    promptMeaning: '（退房是）上午十點',
+    correctAnswer: '上午10點',
+    wrongAnswers: ['上午3點', '下午10點'],
+    requiredSeenIds: [
+      'phrase:あした でます',
+      'word:チェックアウト',
+      'word:ごぜん',
+      'word:じゅう',
+      'word:じ',
+    ],
+  ),
+];
+
 List<InfoDrill> infoDrillsFor(InfoKind? kind) {
   if (kind == null) return List<InfoDrill>.unmodifiable(kInfoDrills);
   return List<InfoDrill>.unmodifiable([

@@ -49,16 +49,7 @@ class ShiftHistoryView extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
-                grade.check == ShiftCheck.read
-                    ? AppStrings.shiftReadSelfGrade(
-                        prompted: grade.prompted,
-                        correct: grade.correct,
-                      )
-                    : AppStrings.shiftSenseSelfGrade(
-                        prompted: grade.prompted,
-                        correct: grade.correct,
-                        readSupport: grade.readSupport,
-                      ),
+                _copy(grade),
                 style: const TextStyle(color: AppColors.inkMuted, height: 1.45),
               ),
             ),
@@ -66,5 +57,31 @@ class ShiftHistoryView extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  String _copy(ShiftSelfGrade grade) {
+    switch (grade.check) {
+      case ShiftCheck.read:
+        return AppStrings.shiftReadSelfGrade(
+          prompted: grade.prompted,
+          correct: grade.correct,
+        );
+      case ShiftCheck.verb:
+        return AppStrings.shiftVerbSelfGrade(
+          prompted: grade.prompted,
+          correct: grade.correct,
+        );
+      case ShiftCheck.roles:
+        return AppStrings.shiftRolesSelfGrade(
+          prompted: grade.prompted,
+          correct: grade.correct,
+        );
+      case ShiftCheck.sense:
+        return AppStrings.shiftSenseSelfGrade(
+          prompted: grade.prompted,
+          correct: grade.correct,
+          readSupport: grade.readSupport,
+        );
+    }
   }
 }

@@ -210,6 +210,23 @@ void main() {
     expect(first.words.statForItem('word:えき').seenCount, seenBefore);
   });
 
+  testWidgets('travel focus picker lists restaurant and convenience', (
+    tester,
+  ) async {
+    final kana = await KanaProgressRepository.load();
+    final words = await WordProgressRepository.load();
+    final travel = await TravelFocusRepository.load();
+    await pumpHome(tester, kana: kana, words: words, travel: travel);
+    await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
+    await tester.tap(find.text(AppStrings.travelFocusAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(TravelFocusScreen), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneTransport), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneRestaurant), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneConvenience), findsOneWidget);
+    expect(find.text(AppStrings.travelSceneHotel), findsOneWidget);
+  });
+
   testWidgets('general mode stays on 手解き when no travel plan is set', (
     tester,
   ) async {
@@ -301,33 +318,34 @@ void main() {
     expect(repos.travel.plan.kanaBoostOn, isNull);
   });
 
-  testWidgets('finishing a daily round consumes boost; reload stays consistent', (
-    tester,
-  ) async {
-    final repos = await seedPartialTransport();
-    await pumpHome(
-      tester,
-      kana: repos.kana,
-      words: repos.words,
-      travel: repos.travel,
-    );
+  testWidgets(
+    'finishing a daily round consumes boost; reload stays consistent',
+    (tester) async {
+      final repos = await seedPartialTransport();
+      await pumpHome(
+        tester,
+        kana: repos.kana,
+        words: repos.words,
+        travel: repos.travel,
+      );
 
-    await tester.tap(find.text(AppStrings.travelPrepBoostAction));
-    await tester.pumpAndSettle();
-    expect(find.byType(QuizScreen), findsOneWidget);
-    expect(repos.travel.plan.kanaBoostOn, isNull);
+      await tester.tap(find.text(AppStrings.travelPrepBoostAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizScreen), findsOneWidget);
+      expect(repos.travel.plan.kanaBoostOn, isNull);
 
-    await _finishDailyRound(tester);
-    await _popToTravelHome(tester);
+      await _finishDailyRound(tester);
+      await _popToTravelHome(tester);
 
-    expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
-    expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
-    expect(_kanaSeenTotal(repos.kana), greaterThan(1));
+      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+      expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
+      expect(_kanaSeenTotal(repos.kana), greaterThan(1));
 
-    final reloaded = await TravelFocusRepository.load();
-    expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
-    expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
-  });
+      final reloaded = await TravelFocusRepository.load();
+      expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+      expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
+    },
+  );
 
   testWidgets(
     'quiet success uses the same boost contract; re-entry does not skip meet',
@@ -438,76 +456,126 @@ void main() {
   });
 
   testWidgets(
-    'due えき plus unread ここ recalls first; finish then continues',
+    'Home restaurant focus: meet then finish advances the next step',
     (tester) async {
-      final repos = await seedPartialTransport();
-      await repos.travel.markKanaBoost(now);
-      await repos.words.introduce(
-        'word:えき',
-        at: now.subtract(const Duration(days: 2)),
-      );
-      final learnedChars = StudySet.learned(repos.kana)
-          .map((k) => k.character)
-          .toSet();
-      final view = TravelScene.inspect(
-        scene: TravelSceneId.transport,
-        learnedChars: learnedChars,
-        stats: repos.words.stats,
-        now: now,
-      );
-      expect(view.dueReadable.map((i) => i.progressId), contains('word:えき'));
-      expect(view.unreadReadable.map((i) => i.progressId), contains('word:ここ'));
+      final kana = await KanaProgressRepository.load();
+      final words = await WordProgressRepository.load();
+      final travel = await TravelFocusRepository.load();
+      await kana.markUnitLearned('hira_row_0');
+      await kana.markUnitLearned('hira_row_2');
+      for (final unlock in Unlock.values) {
+        await kana.markUnlockSeen(unlock.id);
+      }
+      await travel.saveFocuses(const [
+        TravelFocus(scene: TravelSceneId.restaurant),
+      ]);
 
-      await pumpHome(
-        tester,
-        kana: repos.kana,
-        words: repos.words,
-        travel: repos.travel,
-      );
-      expect(find.text(AppStrings.travelPrepRecallAction), findsOneWidget);
-      expect(find.textContaining('見過的該回想'), findsOneWidget);
-      expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
-      expect(find.textContaining('還沒見過的先見面'), findsNothing);
+      await pumpHome(tester, kana: kana, words: words, travel: travel);
+      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+      expect(find.textContaining('接著練「餐廳」'), findsOneWidget);
 
-      await tester.tap(find.text(AppStrings.travelPrepRecallAction));
+      await tester.tap(find.text(AppStrings.travelPrepMeetAction));
       await tester.pumpAndSettle();
-      expect(find.byType(ReadingScreen), findsOneWidget);
+      expect(find.byType(FerryScreen), findsOneWidget);
       expect(
         find.text(
-          AppStrings.travelSceneRecallTitle(AppStrings.travelSceneTransport),
+          AppStrings.travelSceneMeetTitle(AppStrings.travelSceneRestaurant),
         ),
         findsOneWidget,
       );
-      expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+      expect(find.text('ふくろ'), findsNothing);
+      expect(find.text('えき'), findsNothing);
+      expect(travel.plan.servedOn[TravelSceneId.restaurant], isNull);
 
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.text(AppStrings.travelPrepRecallAction), findsOneWidget);
-      expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
-
-      await tester.tap(find.text(AppStrings.travelPrepRecallAction));
-      await tester.pumpAndSettle();
-      await _finishReadingRound(tester);
-      expect(find.text(AppStrings.done), findsOneWidget);
+      await _finishFerryRound(tester);
       expect(
-        repos.travel.plan.servedOn[TravelSceneId.transport],
+        travel.plan.servedOn[TravelSceneId.restaurant],
         DateTime(2026, 9, 11),
       );
+      expect(words.seenItemCount, greaterThan(0));
 
       await _popToTravelHome(tester);
-      expect(find.text(AppStrings.travelPrepRecallAction), findsNothing);
-      expect(find.textContaining('接著練「交通」'), findsNothing);
-      expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+      expect(find.textContaining('接著練「餐廳」'), findsNothing);
+      expect(find.text(AppStrings.guidanceTravelHold), findsOneWidget);
 
       final reloaded = await TravelFocusRepository.load();
-      expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
       expect(
-        reloaded.plan.servedOn[TravelSceneId.transport],
+        reloaded.plan.servedOn[TravelSceneId.restaurant],
         DateTime(2026, 9, 11),
       );
-      expect(reloaded.plan.servedOn[TravelSceneId.clothing], isNull);
     },
   );
+
+  testWidgets('due えき plus unread ここ recalls first; finish then continues', (
+    tester,
+  ) async {
+    final repos = await seedPartialTransport();
+    await repos.travel.markKanaBoost(now);
+    await repos.words.introduce(
+      'word:えき',
+      at: now.subtract(const Duration(days: 2)),
+    );
+    final learnedChars = StudySet.learned(repos.kana)
+        .map((k) => k.character)
+        .toSet();
+    final view = TravelScene.inspect(
+      scene: TravelSceneId.transport,
+      learnedChars: learnedChars,
+      stats: repos.words.stats,
+      now: now,
+    );
+    expect(view.dueReadable.map((i) => i.progressId), contains('word:えき'));
+    expect(view.unreadReadable.map((i) => i.progressId), contains('word:ここ'));
+
+    await pumpHome(
+      tester,
+      kana: repos.kana,
+      words: repos.words,
+      travel: repos.travel,
+    );
+    expect(find.text(AppStrings.travelPrepRecallAction), findsOneWidget);
+    expect(find.textContaining('見過的該回想'), findsOneWidget);
+    expect(find.text(AppStrings.travelPrepMeetAction), findsNothing);
+    expect(find.textContaining('還沒見過的先見面'), findsNothing);
+
+    await tester.tap(find.text(AppStrings.travelPrepRecallAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReadingScreen), findsOneWidget);
+    expect(
+      find.text(
+        AppStrings.travelSceneRecallTitle(AppStrings.travelSceneTransport),
+      ),
+      findsOneWidget,
+    );
+    expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.travelPrepRecallAction), findsOneWidget);
+    expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
+
+    await tester.tap(find.text(AppStrings.travelPrepRecallAction));
+    await tester.pumpAndSettle();
+    await _finishReadingRound(tester);
+    expect(find.text(AppStrings.done), findsOneWidget);
+    expect(
+      repos.travel.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+
+    await _popToTravelHome(tester);
+    expect(find.text(AppStrings.travelPrepRecallAction), findsNothing);
+    expect(find.textContaining('接著練「交通」'), findsNothing);
+    expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(
+      reloaded.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+    expect(reloaded.plan.servedOn[TravelSceneId.clothing], isNull);
+  });
 }
 
 int _kanaSeenTotal(KanaProgressRepository kana) =>

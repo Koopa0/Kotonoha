@@ -198,6 +198,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
         rng: _rng,
         season: Season.forMonth(now.month),
       );
+      _abandonOwnedPlayback();
       setState(() => _done = true);
       widget.onFinished?.call();
     } else {
@@ -424,10 +425,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: () => _grade(
-              correct: false,
-              unprompted: _unpromptedCommit,
-            ),
+            onPressed: () =>
+                _grade(correct: false, unprompted: _unpromptedCommit),
             child: const Text(AppStrings.iCouldnt),
           ),
         ),
@@ -438,10 +437,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
               backgroundColor: AppColors.success,
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: () => _grade(
-              correct: true,
-              unprompted: _unpromptedCommit,
-            ),
+            onPressed: () =>
+                _grade(correct: true, unprompted: _unpromptedCommit),
             child: Text(
               _unpromptedCommit
                   ? AppStrings.iReadIt

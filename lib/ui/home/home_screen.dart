@@ -1001,6 +1001,9 @@ class HomeScreen extends StatelessWidget {
       TravelSceneId.clothing => AppStrings.travelSceneClothing,
       TravelSceneId.shrine => AppStrings.travelSceneShrine,
       TravelSceneId.parkQueue => AppStrings.travelSceneParkQueue,
+      TravelSceneId.restaurant => AppStrings.travelSceneRestaurant,
+      TravelSceneId.convenience => AppStrings.travelSceneConvenience,
+      TravelSceneId.hotel => AppStrings.travelSceneHotel,
       null => AppStrings.travelFocusEntry,
     };
   }

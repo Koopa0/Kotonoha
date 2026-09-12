@@ -8,9 +8,10 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 /// Composes the 換句 picker, optional next-day hold / confirm, and the
 /// analytics shape for one self-grade or sighting.
 ///
-/// Evidence stays per drill / beat / check. A correct self-grade never
-/// masters a focus, a Satori chapter, or a sibling sentence. Free-text
-/// explanations are not an input here — the screen must not send them.
+/// Evidence stays per drill / beat / check. A correct self-grade or a
+/// unique-structure hit never masters a focus, a Satori chapter, or a
+/// sibling sentence. Free-text explanations are not an input here — the
+/// screen must not send them as a grade.
 ///
 /// Delayed confirm reuses the attempt stream. Hold / sight / read-support
 /// metadata associate a reserved beat with a later sitting; they are not
@@ -19,6 +20,9 @@ import 'package:kotonoha/domain/models/shift_drill.dart';
 /// Content tickets append curated [ShiftDrill] rows. Planning keys only on
 /// [ShiftDrill.id] plus [ShiftBeat] / [ShiftCheck]; it does not generate
 /// variants or read modifier / head copy. History UI stays here.
+///
+/// [checksFor] inserts verb / roles on action drills. History must display
+/// those checks as themselves — never as sense.
 ///
 /// [sightOf] keeps legacy unknown unless *that beat* has hold / exposure
 /// history. A sibling preview or lane cannot prove the other beat is new.
@@ -48,6 +52,20 @@ abstract final class ShiftSession {
     return null;
   }
 
+  /// Adjective drills keep read → sense. Action drills insert verb and
+  /// roles after reading, still before free-text sense.
+  static List<ShiftCheck> checksFor(ShiftDrill drill) {
+    if (drill.isAction) {
+      return const [
+        ShiftCheck.read,
+        ShiftCheck.verb,
+        ShiftCheck.roles,
+        ShiftCheck.sense,
+      ];
+    }
+    return const [ShiftCheck.read, ShiftCheck.sense];
+  }
+
   static String itemId(ShiftDrill drill, ShiftBeat beat) =>
       'shift:${drill.id}:${beat.name}';
 
@@ -73,6 +91,9 @@ abstract final class ShiftSession {
     return null;
   }
 
+  /// [readSupport] is the reading help already on screen when sense is
+  /// graded (`independent` / `prompted`). A roles Chinese gloss is sense
+  /// help — record that on [AttemptMeta.prompted], not this key.
   static Attempt attempt({
     required ShiftDrill drill,
     required ShiftBeat beat,
@@ -86,6 +107,7 @@ abstract final class ShiftSession {
     String? readSupport,
   }) {
     final source = sourceUrl?.trim();
+    final support = readSupport?.trim();
     return Attempt(
       ts: at.millisecondsSinceEpoch,
       itemId: itemId(drill, beat),
@@ -101,10 +123,8 @@ abstract final class ShiftSession {
         AttemptMeta.focus: drill.focusId,
         AttemptMeta.lane: lane.name,
         AttemptMeta.scored: true,
-        if (check == ShiftCheck.sense &&
-            readSupport != null &&
-            readSupport.isNotEmpty)
-          AttemptMeta.readSupport: readSupport,
+        if (check == ShiftCheck.sense && support != null && support.isNotEmpty)
+          AttemptMeta.readSupport: support,
         if (source != null && source.isNotEmpty) AttemptMeta.source: source,
       },
     );
@@ -169,6 +189,35 @@ abstract final class ShiftSession {
     );
   }
 
+  /// Unique dictionary-form answer. Teaching must have listed [picked]
+  /// on the intro cards before the screen offers it.
+  static bool gradesVerb(String picked, ShiftSentence sentence) {
+    final answer = sentence.dictionaryForm.trim();
+    return answer.isNotEmpty && picked.trim() == answer;
+  }
+
+  /// Unique who / what answer. Free Chinese is not an input.
+  static bool gradesRoles({
+    required String actor,
+    required String item,
+    required ShiftSentence sentence,
+  }) {
+    return actor.trim() == sentence.actor.trim() &&
+        item.trim() == sentence.item.trim() &&
+        sentence.actor.isNotEmpty &&
+        sentence.item.isNotEmpty;
+  }
+
+  /// Sense support already on screen. The roles Chinese gloss, or the
+  /// correct who / what labels shown after a miss, is the same class of
+  /// help as tapping the sense hint. A correct unprompted roles lock is
+  /// not sense help. [readSupport] stays a reading-only flag.
+  static bool sensePrompted({
+    required bool askedSenseHint,
+    required bool sawRolesGloss,
+    bool sawRolesReveal = false,
+  }) => askedSenseHint || sawRolesGloss || sawRolesReveal;
+
   /// Transfer evidence is the sense check on the swapped sentence.
   /// Prompted and unprompted stay distinct; neither masters the focus.
   static bool isTransferSense(Attempt attempt) =>
@@ -177,8 +226,19 @@ abstract final class ShiftSession {
       attempt.meta[AttemptMeta.evidence] == ShiftCheck.sense.name &&
       attempt.meta[AttemptMeta.scored] != false;
 
-  /// A self-grade — even an unprompted transfer success — must never mark
-  /// the focus, a chapter, or sibling drills as mastered.
+  static bool isTransferVerb(Attempt attempt) =>
+      attempt.mode == PracticeMode.shift.name &&
+      attempt.meta[AttemptMeta.beat] == ShiftBeat.shift.name &&
+      attempt.meta[AttemptMeta.evidence] == ShiftCheck.verb.name;
+
+  static bool isTransferRoles(Attempt attempt) =>
+      attempt.mode == PracticeMode.shift.name &&
+      attempt.meta[AttemptMeta.beat] == ShiftBeat.shift.name &&
+      attempt.meta[AttemptMeta.evidence] == ShiftCheck.roles.name;
+
+  /// A self-grade or a structural hit — even an unprompted transfer
+  /// success — must never mark the focus, a chapter, or sibling drills
+  /// as mastered.
   static bool marksFocusMastered(Iterable<Attempt> attempts) {
     for (final _ in attempts) {
       return false;
@@ -423,9 +483,7 @@ abstract final class ShiftSession {
 
   static bool _isGrade(Attempt attempt) {
     if (attempt.meta[AttemptMeta.scored] == false) return false;
-    final evidence = attempt.meta[AttemptMeta.evidence];
-    return evidence == ShiftCheck.read.name ||
-        evidence == ShiftCheck.sense.name;
+    return _checkOf(attempt) != null;
   }
 
   static ShiftBeat? _beatOf(Attempt attempt) {
@@ -443,8 +501,9 @@ abstract final class ShiftSession {
 
   static ShiftCheck? _checkOf(Attempt attempt) {
     final raw = attempt.meta[AttemptMeta.evidence];
-    if (raw == ShiftCheck.read.name) return ShiftCheck.read;
-    if (raw == ShiftCheck.sense.name) return ShiftCheck.sense;
+    for (final check in ShiftCheck.values) {
+      if (raw == check.name) return check;
+    }
     return null;
   }
 }

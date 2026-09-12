@@ -94,6 +94,7 @@ class _DictationScreenState extends State<DictationScreen> {
   bool _done = false;
   int _shownAtMs = 0;
   int _playGen = 0;
+  int? _ownedPlay;
   bool _blindHeard = false;
   String? _heardItemId;
   SpeechPlaybackResult? _lastPlay;
@@ -140,9 +141,17 @@ class _DictationScreenState extends State<DictationScreen> {
     }
   }
 
+  /// Cancels this screen's in-flight playback and drops its local generation.
+  ///
+  /// [SpeechService.stop] is scoped to [_ownedPlay] so a leaving
+  /// `pushReplacement` cannot cancel the new route's utterance.
   void _abandonPlayback() {
     _playGen++;
-    unawaited(_speech.stop());
+    final generation = _ownedPlay;
+    _ownedPlay = null;
+    if (generation != null) {
+      unawaited(_speech.stop(generation: generation));
+    }
   }
 
   void _resetHearing() {
@@ -184,7 +193,9 @@ class _DictationScreenState extends State<DictationScreen> {
     final itemId = _current.progressId;
     final startedBlind = !_checked;
     final gen = ++_playGen;
-    final result = await _speech.play(_current.kana);
+    final pending = _speech.play(_current.kana);
+    _ownedPlay = _speech.generation;
+    final result = await pending;
     if (!mounted || _done || gen != _playGen || _current.progressId != itemId) {
       return;
     }

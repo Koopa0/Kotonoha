@@ -40,7 +40,8 @@ abstract final class AttemptMeta {
   static const String playback = 'playback'; // SpeechPlaybackResult.name
   static const String heard = 'heard'; // true only after a completed play
   static const String scored = 'scored'; // false = exposure, not a grade
-  /// Shift-practice check: [ShiftCheck.name] (`read` or `sense`).
+  /// Shift-practice check: [ShiftCheck.name]
+  /// (`read`, `sense`, and action drills also `verb`, `roles`).
   static const String evidence = 'evidence';
 
   /// Shift-practice beat: [ShiftBeat.name] (`base` or `shift`).
@@ -62,10 +63,11 @@ abstract final class AttemptMeta {
   /// Absence on a legacy row means exposure is unknown — never "unseen".
   static const String sight = 'sight';
 
-  /// Reading support already given when the sense check was graded
+  /// Reading support already given when a shift sense check was graded
   /// (`independent` or `prompted`). Independent requires a correct
   /// unprompted read after reveal, not the pre-reveal commit alone.
-  /// Sense never inherits a mastery flag.
+  /// Sense never inherits a mastery flag. This is reading-only — a roles
+  /// Chinese gloss is sense support, not this key.
   static const String readSupport = 'readSupport';
 }
 

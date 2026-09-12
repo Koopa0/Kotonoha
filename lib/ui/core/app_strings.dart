@@ -249,11 +249,20 @@ abstract final class AppStrings {
   static const String travelSceneClothing = '購衣';
   static const String travelSceneShrine = '神社古城';
   static const String travelSceneParkQueue = '一般入園／排隊／求助';
+  static const String travelSceneRestaurant = '餐廳';
+  static const String travelSceneConvenience = '便利商店';
+  static const String travelSceneHotel = '旅館';
   static const String travelScenePurposeTransport = '這一回只練車站、電車、轉乘與行李。';
   static const String travelScenePurposeClothing = '這一回只練試穿、尺寸、試衣間、價錢、購買與付款方式。';
   static const String travelScenePurposeShrine = '這一回只練神社、寺院與古城的方向、進出與風景。';
   static const String travelScenePurposeParkQueue =
       '這一回只練一般遊樂園的入口、排隊與當場求助。不定活動檔期。';
+  static const String travelScenePurposeRestaurant =
+      '這一回只練人數、點餐與請結帳。不定推薦或真實付款。';
+  static const String travelScenePurposeConvenience =
+      '這一回只練袋子、加熱與結帳時的基本意思。不定即時價格。';
+  static const String travelScenePurposeHotel =
+      '這一回只練表明預約、請辦理入住、確認早餐與退房時間、以及明天離開。不定訂房或真實付款。';
   static const String travelSceneMeetAction = '先見面';
   static const String travelSceneRecallAction = '回想';
   static const String travelSceneListenAction = '先聽再揭曉';
@@ -346,6 +355,7 @@ abstract final class AppStrings {
   static const String shiftBeatBase = '原句';
   static const String shiftBeatShift = '換句';
   static const String shiftSensePrompt = '這句是誰修飾誰?可用中文或假名寫下你的理解。';
+  static const String shiftActionSensePrompt = '這句是誰把什麼帶過來?可用中文或假名寫下你的理解。';
   static const String shiftSenseHint = '看句意';
   static const String shiftSenseReady = '我想好了';
   static const String shiftSensePadHint = '寫給自己看,不會自動批改';
@@ -354,12 +364,28 @@ abstract final class AppStrings {
   static const String shiftSenseMiss = '句意還對不上';
   static const String shiftBridgeNoun = '下一句換了被修飾的名詞。先自己讀,再想誰修飾誰。';
   static const String shiftBridgeModifier = '下一句換了修飾詞。先自己讀,再想誰修飾誰。';
+  static const String shiftBridgeActor = '下一句換了做這件事的人。先自己讀,再想誰把什麼帶過來。';
+  static const String shiftBridgeItem = '下一句換了帶過來的東西。先自己讀,再想誰把什麼帶過來。';
+  static const String shiftIntroLead = '先看這回會用到的詞和形式。這不是測驗,看過再讀完整句。';
+  static const String shiftIntroNext = '下一個';
+  static const String shiftIntroDone = '看過了,開始讀句';
+  static const String shiftVerbPrompt = '這句的動詞,辭書形是哪一個?';
+  static const String shiftVerbHint = '看形式對照';
+  static const String shiftRolesPrompt = '誰把什麼帶過來?';
+  static const String shiftRolesWho = '誰在做?';
+  static const String shiftRolesWhat = '帶過來的是什麼?';
+  static const String shiftRolesHint = '看誰／什麼';
+  static const String shiftRolesReady = '確認';
+  static const String shiftContinue = '繼續';
   static const String shiftClose = '這一回,先練到這裡。';
   static const String shiftCloseNote =
-      '無提示讀音、提示後讀音、換句後的句意是分開記下的自評。'
+      '讀音、動詞還原、誰做／做什麼、句意是分開記下的。'
+      '有唯一結構答案的題可以判對錯;中文理由仍是自評。'
       '這一題不會把整個文法點、章節或相關詞句標成掌握。';
   static const String shiftPersistFailed = '這次的換句紀錄還沒寫進裝置。跨重啟接續要等寫入成功。';
   static String shiftSourceChip(String url) => '來源備註 $url';
+  static String shiftIntroProgress(int current, int total) =>
+      '先介紹 $current / $total';
 
   static String shiftHistoryDay(String calendarDay, ShiftBeat beat) {
     final parts = calendarDay.split('-');
@@ -377,6 +403,22 @@ abstract final class AppStrings {
     return prompted ? '讀音：提示後讀出' : '讀音：自行讀出';
   }
 
+  static String shiftVerbSelfGrade({
+    required bool prompted,
+    required bool correct,
+  }) {
+    if (!correct) return '辭書形：仍不會';
+    return prompted ? '辭書形：看過後對上了' : '辭書形：自行判斷';
+  }
+
+  static String shiftRolesSelfGrade({
+    required bool prompted,
+    required bool correct,
+  }) {
+    if (!correct) return '誰／什麼：仍不會';
+    return prompted ? '誰／什麼：看過後對上了' : '誰／什麼：自行判斷';
+  }
+
   static String shiftSenseSelfGrade({
     required bool prompted,
     required bool correct,
@@ -386,7 +428,6 @@ abstract final class AppStrings {
     if (readSupport == ShiftReadSupport.prompted) {
       return '$sense（讀音當時已提示）';
     }
-    // Verified unprompted read at sense time — not the「讀得出來」commit.
     if (readSupport == ShiftReadSupport.independent) {
       return '$sense（讀音自行讀出）';
     }
@@ -402,15 +443,46 @@ abstract final class AppStrings {
   static const String replyClothingPurpose =
       '這一回只練購衣時聽懂店員在說試穿、尺寸、試衣間或付款,再選一句短回應。'
       '選對不是口說錄音判定。';
+  static const String replyRestaurantPurpose =
+      '這一回只練餐廳裡聽懂對方在問什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyConveniencePurpose =
+      '這一回只練便利商店裡聽懂店員在問什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyShrinePurpose =
+      '這一回只練參道與神社裡聽懂對方在說什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyParkPurpose =
+      '這一回只練排隊入口聽懂工作人員在說什麼,再選一句短回應。選對不是口說錄音判定。';
+  static const String replyHelpPurpose =
+      '這一回只練聽不懂時怎麼請對方再說或說慢一點。選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
-  static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyClothingMeetHint =
+      '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyRestaurantMeetHint =
+      '還沒見過的餐廳詞句,先見面;見過的才聽對方再回應。';
+  static const String replyConvenienceMeetHint =
+      '還沒見過的便利商店詞句,先見面;見過的才聽對方再回應。';
+  static const String replyShrineMeetHint =
+      '還沒見過的神社詞句,先見面;見過的才聽對方再回應。';
+  static const String replyParkMeetHint =
+      '還沒見過的排隊詞句,先見面;見過的才聽對方再回應。';
+  static const String replyHelpMeetHint =
+      '還沒見過的求助詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
   static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
   static const String replyStartAction = '開始這一回';
   static const String replyMeetTitle = '車站・見面';
   static const String replyClothingMeetTitle = '購衣・見面';
+  static const String replyRestaurantMeetTitle = '餐廳・見面';
+  static const String replyConvenienceMeetTitle = '便利商店・見面';
+  static const String replyShrineMeetTitle = '神社・見面';
+  static const String replyParkMeetTitle = '排隊・見面';
+  static const String replyHelpMeetTitle = '求助・見面';
+  static const String replyHelpAction = '聽不懂請對方配合';
+  static const String replyHelpEntry = '困ったとき';
   static const String replyIntentPrompt = '對方在問什麼?';
   static const String replyClothingIntentPrompt = '對方在說什麼?';
+  static const String replyShrineIntentPrompt = '對方在說什麼?';
+  static const String replyParkIntentPrompt = '對方在說什麼?';
+  static const String replyHelpIntentPrompt = '你遇到什麼狀況?';
   static const String replyReplyPrompt = '你要怎麼回?';
   static const String replyHint = '看意思提示';
   static const String replyShowText = '看日文';
@@ -423,13 +495,10 @@ abstract final class AppStrings {
   static const String infoAction = '聽懂數字資訊';
   static const String infoEntry = '旅の情報';
   static const String infoTitle = '旅の情報';
-  static const String infoPurpose =
-      '這一回只練旅行裡聽懂金額、時刻或人數，再選出聽到的資訊。選對不是口說錄音判定。';
-  static const String infoMeetHint =
-      '還沒見過的數字或單位，先見面；見過的才聽句子再選資訊。';
+  static const String infoPurpose = '這一回只練旅行裡聽懂金額、時刻或人數，再選出聽到的資訊。選對不是口說錄音判定。';
+  static const String infoMeetHint = '還沒見過的數字或單位，先見面；見過的才聽句子再選資訊。';
   static const String infoReadyHint = '見過的可以聽句子再選資訊。還沒見過的仍先見面。';
-  static const String infoNeedKana =
-      '這回還有句子讀不動。先到「手解き」補假名，選對也不會當成已會辨識。';
+  static const String infoNeedKana = '這回還有句子讀不動。先到「手解き」補假名，選對也不會當成已會辨識。';
   static const String infoStartAction = '開始這一回';
   static const String infoMeetTitle = '旅の情報・見面';
   static const String infoAmountPrompt = '聽到的金額是？';
@@ -439,9 +508,11 @@ abstract final class AppStrings {
   static const String infoShowText = '看日文';
   static const String infoNotSpeaking = '選對是聽懂資訊的證據，不是口說判定。';
   static const String infoClose = '這一回，先練到這裡。';
-  static const String infoCloseNote =
-      '聽音、看過文字、提示後答出、獨立選資訊是分開記下的。選對不是口說判定。';
+  static const String infoCloseNote = '聽音、看過文字、提示後答出、獨立選資訊是分開記下的。選對不是口說判定。';
   static String infoMissingKana(String units) => '還需要先認得：$units';
+  static const String infoHotelPurpose = '這一回只練聽懂早餐與退房時間，再選出聽到的時刻。選對不是口說錄音判定。';
+  static const String infoHotelMeetTitle = '旅館・聽懂時刻・見面';
+  static const String infoHotelEntry = '旅館時刻';
 
   // Kanji reading (漢字の声) — ear-first teach, then a cold choose-the-reading.
   static const String kanjiEntry = '漢字の声';

@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/domain/data/info_drill_dataset.dart';
 import 'package:kotonoha/domain/models/reply_drill.dart';
 import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
@@ -80,6 +81,33 @@ class TravelSceneScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _SceneCard(
+              key: const ValueKey<String>('travel-scene-restaurant'),
+              label: AppStrings.travelSceneRestaurant,
+              purpose: AppStrings.travelScenePurposeRestaurant,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(TravelSceneHub.route(TravelSceneId.restaurant)),
+            ),
+            const SizedBox(height: 12),
+            _SceneCard(
+              key: const ValueKey<String>('travel-scene-convenience'),
+              label: AppStrings.travelSceneConvenience,
+              purpose: AppStrings.travelScenePurposeConvenience,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(TravelSceneHub.route(TravelSceneId.convenience)),
+            ),
+            const SizedBox(height: 12),
+            _SceneCard(
+              key: const ValueKey<String>('travel-scene-hotel'),
+              label: AppStrings.travelSceneHotel,
+              purpose: AppStrings.travelScenePurposeHotel,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(TravelSceneHub.route(TravelSceneId.hotel)),
+            ),
+            const SizedBox(height: 12),
+            _SceneCard(
               key: const ValueKey<String>('travel-scene-info'),
               label: AppStrings.infoAction,
               purpose: AppStrings.infoPurpose,
@@ -114,6 +142,9 @@ class TravelSceneHub extends StatelessWidget {
     TravelSceneId.clothing => AppStrings.travelSceneClothing,
     TravelSceneId.shrine => AppStrings.travelSceneShrine,
     TravelSceneId.parkQueue => AppStrings.travelSceneParkQueue,
+    TravelSceneId.restaurant => AppStrings.travelSceneRestaurant,
+    TravelSceneId.convenience => AppStrings.travelSceneConvenience,
+    TravelSceneId.hotel => AppStrings.travelSceneHotel,
   };
 
   String get _purpose => switch (scene) {
@@ -121,6 +152,19 @@ class TravelSceneHub extends StatelessWidget {
     TravelSceneId.clothing => AppStrings.travelScenePurposeClothing,
     TravelSceneId.shrine => AppStrings.travelScenePurposeShrine,
     TravelSceneId.parkQueue => AppStrings.travelScenePurposeParkQueue,
+    TravelSceneId.restaurant => AppStrings.travelScenePurposeRestaurant,
+    TravelSceneId.convenience => AppStrings.travelScenePurposeConvenience,
+    TravelSceneId.hotel => AppStrings.travelScenePurposeHotel,
+  };
+
+  ReplySceneId? get _replyScene => switch (scene) {
+    TravelSceneId.clothing => ReplySceneId.clothing,
+    TravelSceneId.restaurant => ReplySceneId.restaurant,
+    TravelSceneId.convenience => ReplySceneId.convenience,
+    TravelSceneId.transport ||
+    TravelSceneId.shrine ||
+    TravelSceneId.parkQueue ||
+    TravelSceneId.hotel => null,
   };
 
   Set<String> _learnedChars(BuildContext context) =>
@@ -221,16 +265,75 @@ class TravelSceneHub extends StatelessWidget {
                 onPressed: () => _startListen(context),
               ),
             ],
-            if (scene == TravelSceneId.clothing) ...[
+            if (scene == TravelSceneId.hotel) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-hotel-info'),
+                label: AppStrings.infoAction,
+                productName: AppStrings.infoHotelEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  InfoHubScreen.route(
+                    clock: clock,
+                    drills: kHotelInfoDrills,
+                    title: AppStrings.travelSceneHotel,
+                    purpose: AppStrings.infoHotelPurpose,
+                    meetTitle: AppStrings.infoHotelMeetTitle,
+                    entryName: AppStrings.infoHotelEntry,
+                  ),
+                ),
+              ),
+            ],
+            if (_replyScene != null) ...[
               const SizedBox(height: 12),
               _ActionButton(
                 key: const ValueKey<String>('travel-reply'),
                 label: AppStrings.replyAction,
                 productName: AppStrings.replyEntry,
                 kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(ReplyHubScreen.route(scene: _replyScene!, clock: clock)),
+              ),
+            ],
+            if (scene == TravelSceneId.shrine) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply-shrine'),
+                label: AppStrings.replyAction,
+                productName: AppStrings.replyEntry,
+                kind: _ActionKind.outlined,
                 onPressed: () => Navigator.of(context).push(
                   ReplyHubScreen.route(
-                    scene: ReplySceneId.clothing,
+                    scene: ReplySceneId.shrine,
+                    clock: clock,
+                  ),
+                ),
+              ),
+            ],
+            if (scene == TravelSceneId.parkQueue) ...[
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply-park'),
+                label: AppStrings.replyAction,
+                productName: AppStrings.replyEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  ReplyHubScreen.route(
+                    scene: ReplySceneId.parkQueue,
+                    clock: clock,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ActionButton(
+                key: const ValueKey<String>('travel-reply-help'),
+                label: AppStrings.replyHelpAction,
+                productName: AppStrings.replyHelpEntry,
+                kind: _ActionKind.outlined,
+                onPressed: () => Navigator.of(context).push(
+                  ReplyHubScreen.route(
+                    scene: ReplySceneId.help,
                     clock: clock,
                   ),
                 ),
@@ -346,6 +449,7 @@ class TravelSceneHub extends StatelessWidget {
       final route = ReadingScreen.route(
         phrases,
         AppStrings.travelSceneMeetTitle(_label),
+        clock: clock,
         alreadyTransferredIds: excludeProgressIds,
         onMore: () =>
             _continueOrFinishMeet(context, excludeProgressIds: nextExclude),
@@ -414,6 +518,7 @@ class TravelSceneHub extends StatelessWidget {
     final route = ReadingScreen.route(
       items,
       AppStrings.travelSceneRecallTitle(_label),
+      clock: clock,
       alreadyTransferredIds: excludeProgressIds,
       onMore: () =>
           _startRecall(context, replace: true, excludeProgressIds: nextExclude),

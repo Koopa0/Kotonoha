@@ -21,7 +21,11 @@ import 'package:provider/provider.dart';
 /// Learn-then-practice door for station or clothing replies. Isolated from #47
 /// [TravelScene] membership and #48 換句.
 class ReplyHubScreen extends StatelessWidget {
-  const ReplyHubScreen({this.scene = ReplySceneId.station, this.clock, super.key});
+  const ReplyHubScreen({
+    this.scene = ReplySceneId.station,
+    this.clock,
+    super.key,
+  });
 
   final ReplySceneId scene;
   final DateTime Function()? clock;
@@ -29,25 +33,39 @@ class ReplyHubScreen extends StatelessWidget {
   static Route<void> route({
     ReplySceneId scene = ReplySceneId.station,
     DateTime Function()? clock,
-  }) =>
-      MaterialPageRoute<void>(
-        builder: (_) => ReplyHubScreen(scene: scene, clock: clock),
-        settings: RouteSettings(name: 'reply-hub-${scene.name}'),
-      );
+  }) => MaterialPageRoute<void>(
+    builder: (_) => ReplyHubScreen(scene: scene, clock: clock),
+    settings: RouteSettings(name: 'reply-hub-${scene.name}'),
+  );
 
   String get _purpose => switch (scene) {
     ReplySceneId.station => AppStrings.replyPurpose,
     ReplySceneId.clothing => AppStrings.replyClothingPurpose,
+    ReplySceneId.restaurant => AppStrings.replyRestaurantPurpose,
+    ReplySceneId.convenience => AppStrings.replyConveniencePurpose,
+    ReplySceneId.shrine => AppStrings.replyShrinePurpose,
+    ReplySceneId.parkQueue => AppStrings.replyParkPurpose,
+    ReplySceneId.help => AppStrings.replyHelpPurpose,
   };
 
   String get _meetHint => switch (scene) {
     ReplySceneId.station => AppStrings.replyMeetHint,
     ReplySceneId.clothing => AppStrings.replyClothingMeetHint,
+    ReplySceneId.restaurant => AppStrings.replyRestaurantMeetHint,
+    ReplySceneId.convenience => AppStrings.replyConvenienceMeetHint,
+    ReplySceneId.shrine => AppStrings.replyShrineMeetHint,
+    ReplySceneId.parkQueue => AppStrings.replyParkMeetHint,
+    ReplySceneId.help => AppStrings.replyHelpMeetHint,
   };
 
   String get _meetTitle => switch (scene) {
     ReplySceneId.station => AppStrings.replyMeetTitle,
     ReplySceneId.clothing => AppStrings.replyClothingMeetTitle,
+    ReplySceneId.restaurant => AppStrings.replyRestaurantMeetTitle,
+    ReplySceneId.convenience => AppStrings.replyConvenienceMeetTitle,
+    ReplySceneId.shrine => AppStrings.replyShrineMeetTitle,
+    ReplySceneId.parkQueue => AppStrings.replyParkMeetTitle,
+    ReplySceneId.help => AppStrings.replyHelpMeetTitle,
   };
 
   Set<String> _learnedChars(BuildContext context) =>
@@ -145,7 +163,7 @@ class ReplyHubScreen extends StatelessWidget {
   void _startMeet(BuildContext context, {bool replace = false}) {
     final learned = _learnedChars(context);
     final stats = context.read<WordProgressRepository>().stats;
-    final words = ReplySession.unreadRequiredWords(
+    final words = ReplySession.composeIntroWords(
       scene: scene,
       learnedChars: learned,
       stats: stats,
@@ -164,7 +182,7 @@ class ReplyHubScreen extends StatelessWidget {
       );
       return;
     }
-    final phrases = ReplySession.unreadRequiredPhrases(
+    final phrases = ReplySession.composeIntroPhrases(
       scene: scene,
       learnedChars: learned,
       stats: stats,
@@ -173,6 +191,7 @@ class ReplyHubScreen extends StatelessWidget {
       final route = ReadingScreen.route(
         phrases,
         _meetTitle,
+        clock: clock,
         onMore: () => _continueMeet(context),
       );
       unawaited(

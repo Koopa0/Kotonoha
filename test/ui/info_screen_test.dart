@@ -23,6 +23,12 @@ final _amount3k = kInfoDrills.firstWhere((d) => d.id == 'info:amount-3000');
 final _amount5k = kInfoDrills.firstWhere((d) => d.id == 'info:amount-5000');
 final _person3 = kInfoDrills.firstWhere((d) => d.id == 'info:person-3');
 final _time330 = kInfoDrills.firstWhere((d) => d.id == 'info:time-330pm');
+final _hotelBreakfast = kHotelInfoDrills.firstWhere(
+  (d) => d.id == 'info:hotel-breakfast-9am',
+);
+final _hotelCheckout = kHotelInfoDrills.firstWhere(
+  (d) => d.id == 'info:hotel-checkout-10am',
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -72,7 +78,10 @@ void main() {
     return (analytics: analytics);
   }
 
-  Future<void> hearThenPick(WidgetTester tester, {required String answer}) async {
+  Future<void> hearThenPick(
+    WidgetTester tester, {
+    required String answer,
+  }) async {
     await tester.ensureVisible(find.text(answer));
     await tester.tap(find.text(answer));
     await tester.pumpAndSettle();
@@ -96,7 +105,10 @@ void main() {
     );
     expect(find.text('3000日圓'), findsOneWidget);
     expect(find.text('6000日圓'), findsOneWidget);
-    expect(find.byKey(const ValueKey<String>('info-prompt-kana')), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('info-prompt-kana')),
+      findsNothing,
+    );
     await hearThenPick(tester, answer: '3000日圓');
     final logged = await env.analytics.all();
     expect(logged, hasLength(1));
@@ -143,7 +155,10 @@ void main() {
       surface: const Size(320, 640),
     );
     expect(find.text('5000日圓'), findsOneWidget);
-    expect(find.byKey(const ValueKey<String>('info-prompt-kana')), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('info-prompt-kana')),
+      findsNothing,
+    );
     await hearThenPick(tester, answer: '5000日圓');
     final logged = await env.analytics.all();
     expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
@@ -153,6 +168,29 @@ void main() {
   testWidgets('migration person-3位 scores miss on 2位', (tester) async {
     final env = await pumpInfo(tester, drills: [_person3]);
     await hearThenPick(tester, answer: '2位');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[0].correct, isFalse);
+  });
+
+  testWidgets('hotel breakfast 9am is independent without revealing kana', (
+    tester,
+  ) async {
+    final env = await pumpInfo(tester, drills: [_hotelBreakfast]);
+    expect(find.text('上午9點'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('info-prompt-kana')),
+      findsNothing,
+    );
+    await hearThenPick(tester, answer: '上午9點');
+    final logged = await env.analytics.all();
+    expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+    expect(logged[0].correct, isTrue);
+  });
+
+  testWidgets('hotel checkout 10am wrong choice scores miss', (tester) async {
+    final env = await pumpInfo(tester, drills: [_hotelCheckout]);
+    await hearThenPick(tester, answer: '上午3點');
     final logged = await env.analytics.all();
     expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.miss);
     expect(logged[0].correct, isFalse);
