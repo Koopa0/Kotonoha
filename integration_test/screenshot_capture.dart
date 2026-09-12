@@ -14,6 +14,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -24,6 +25,7 @@ import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,6 +71,14 @@ Future<void> main() async {
     }
     final checks = await PlacementCheckRepository.load();
     final travel = await TravelFocusRepository.load();
+    final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(prefs);
+    final restoreRecovery = ProgressRestoreRecoveryController(
+      prefs: prefs,
+      kana: store,
+      kanji: kanji,
+      words: words,
+      needsRecovery: journalRecovery.needsRecovery,
+    );
     final persistence = ProgressPersistenceController(
       kanaFlush: store.flushPending,
       kanjiFlush: kanji.flushPending,
@@ -95,6 +105,9 @@ Future<void> main() async {
           ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: persistence,
+          ),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: restoreRecovery,
           ),
           // Capture the listen-first room, not the no-voice banner.
           Provider<SpeechService>.value(value: const _HeardSpeechService()),
@@ -125,6 +138,7 @@ Future<void> main() async {
                 words: words,
               ),
               files: FilePickerSnapshotPort(),
+              recovery: restoreRecovery,
             ),
           ),
         ],
