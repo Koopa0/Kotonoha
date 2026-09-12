@@ -358,7 +358,7 @@ void main() {
   ) async {
     final repos = await pumpHub(
       tester,
-      ReplyHubScreen(scene: ReplySceneId.station, clock: noon),
+      ReplyHubScreen(clock: noon),
     );
     await learnAllKana(repos.kana);
     await leaveStationPhrases(repos.words);
@@ -378,7 +378,7 @@ void main() {
   ) async {
     final repos = await pumpHub(
       tester,
-      ReplyHubScreen(scene: ReplySceneId.station, clock: night),
+      ReplyHubScreen(clock: night),
     );
     await learnAllKana(repos.kana);
     await leaveStationPhrases(repos.words);
