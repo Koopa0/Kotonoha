@@ -345,6 +345,64 @@ void main() {
   );
 
   test(
+    'platform write throw during apply syncs recovery and blocks learning',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+
+      fake.throwWrites.add(ProgressSnapshotRepository.seenUnlocksStore);
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
+        3,
+      };
+
+      final recovery = recoveryFor(
+        fake,
+        kana,
+        kanji,
+        words,
+        needsRecovery: false,
+      );
+      final files = FakeSnapshotFilePort()..pickContents = backup;
+      final restorer = ProgressSnapshotRestorer(
+        snapshots: snapshotsFor(fake, kana, kanji, words),
+        restore: restoreFor(fake, kana, kanji, words),
+        files: files,
+        recovery: recovery,
+      );
+
+      final result = await restorer.restore(confirm: (_) async => true);
+
+      expect(result.status, SnapshotRestoreStatus.failed);
+      expect(recovery.needsRecovery, isTrue);
+      expect(kana.isRestoreJournalBlocked, isTrue);
+      expect(kanji.isRestoreJournalBlocked, isTrue);
+      expect(words.isRestoreJournalBlocked, isTrue);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNotNull);
+      expect(words.statForItem('word:あい').seenCount, 0);
+
+      await expectLater(
+        words.introduce('word:あい', at: now),
+        throwsA(isA<ProgressRestoreJournalBlocked>()),
+      );
+      expect(words.statForItem('word:あい').seenCount, 0);
+
+      fake.throwWrites.clear();
+      fake.failWriteOnAttempt.clear();
+      await recovery.retry();
+
+      expect(recovery.needsRecovery, isFalse);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(words.statForItem('word:あい').seenCount, 0);
+      await words.introduce('word:あい', at: now);
+      expect(words.statForItem('word:あい').seenCount, 1);
+    },
+  );
+
+  test(
     'rollback failure blocks word learning until retry rolls back primaries',
     () async {
       final (sourceFake, sourceKana, sourceKanji, sourceWords) =

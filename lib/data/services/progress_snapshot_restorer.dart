@@ -91,20 +91,25 @@ class ProgressSnapshotRestorer {
       );
     }
 
+    Object? applyError;
     try {
       await _restore.apply(preview.snapshot);
-      await _recovery?.syncFromPlatform();
-      return SnapshotRestoreResult(
-        SnapshotRestoreStatus.restored,
-        preview: preview,
-      );
-    } on RestoreJournalWriteFailure catch (error) {
-      await _recovery?.syncFromPlatform();
+    } catch (error) {
+      applyError = error;
+    }
+    await _recovery?.syncFromPlatform();
+    if (applyError != null) {
       return SnapshotRestoreResult(
         SnapshotRestoreStatus.failed,
         preview: preview,
-        detail: error.key,
+        detail: applyError is RestoreJournalWriteFailure
+            ? applyError.key
+            : applyError.toString(),
       );
     }
+    return SnapshotRestoreResult(
+      SnapshotRestoreStatus.restored,
+      preview: preview,
+    );
   }
 }
