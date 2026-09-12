@@ -115,7 +115,6 @@ void main() {
         itemId: 'あ',
         mode: PracticeMode.daily.name,
         correct: true,
-        rtMs: 0,
         sessionId: 's',
       );
       log.recordObserved(attempt);
