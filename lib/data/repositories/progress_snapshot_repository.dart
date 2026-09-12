@@ -44,9 +44,9 @@ class ProgressSnapshotRepository {
     required this._kana,
     required this._kanji,
     required this._words,
-    PreferencesService? prefs,
+    this._prefs,
     this._codec = const ProgressSnapshotCodec(),
-  }) : _prefs = prefs;
+  });
 
   final KanaProgressRepository _kana;
   final KanjiReadingRepository _kanji;

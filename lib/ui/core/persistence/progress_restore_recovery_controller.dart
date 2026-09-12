@@ -13,16 +13,12 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 /// repositories refuse normal learning writes until [retry] succeeds.
 class ProgressRestoreRecoveryController extends ChangeNotifier {
   ProgressRestoreRecoveryController({
-    required PreferencesService prefs,
-    required KanaProgressRepository kana,
-    required KanjiReadingRepository kanji,
-    required WordProgressRepository words,
+    required this._prefs,
+    required this._kana,
+    required this._kanji,
+    required this._words,
     required bool needsRecovery,
-  }) : _prefs = prefs,
-       _kana = kana,
-       _kanji = kanji,
-       _words = words,
-       _needsRecovery = needsRecovery {
+  }) : _needsRecovery = needsRecovery {
     _applyBlocking(needsRecovery);
   }
 

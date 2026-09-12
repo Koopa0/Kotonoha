@@ -202,12 +202,10 @@ class ProgressRestoreJournal {
 
     for (final key in RestoreJournalStores.all) {
       final raw = parsed.rollback[key];
-      if (raw is String) {
-        if (!await _prefs.writeString(key, raw)) return false;
-      } else if (raw == null) {
+      if (raw == null) {
         if (!await _prefs.remove(key)) return false;
       } else {
-        return false;
+        if (!await _prefs.writeString(key, raw)) return false;
       }
     }
     return true;

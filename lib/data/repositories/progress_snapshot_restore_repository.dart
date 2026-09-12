@@ -23,14 +23,12 @@ class ProgressRestorePreview {
 /// Memory is replaced only after every primary write succeeds.
 class ProgressSnapshotRestoreRepository {
   ProgressSnapshotRestoreRepository({
-    required PreferencesService prefs,
+    required this._prefs,
     required this._kana,
     required this._kanji,
     required this._words,
-    ProgressSnapshotCodec codec = const ProgressSnapshotCodec(),
-  }) : _prefs = prefs,
-       _codec = codec,
-       _journal = ProgressRestoreJournal(prefs);
+    this._codec = const ProgressSnapshotCodec(),
+  }) : _journal = ProgressRestoreJournal(_prefs);
 
   final PreferencesService _prefs;
   final KanaProgressRepository _kana;
@@ -99,7 +97,9 @@ class ProgressSnapshotRestoreRepository {
         }
         try {
           await _journal.abortAndRollback();
-        } on RestoreJournalRollbackFailure {}
+        } on RestoreJournalRollbackFailure {
+          // Journal stays blocking — primaries may still be mixed on disk.
+        }
         await _syncMemoryFromDurable();
         rethrow;
       }

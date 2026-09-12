@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,10 +10,8 @@ import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
-import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
-import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -488,7 +487,7 @@ void main() {
     );
 
     var applyCompleted = false;
-    applyFuture.then((_) => applyCompleted = true);
+    unawaited(applyFuture.then((_) => applyCompleted = true));
     await Future<void>.delayed(Duration.zero);
     expect(applyCompleted, isFalse);
 
@@ -543,7 +542,7 @@ void main() {
         restore.previewEncoded(backup)!.snapshot,
       );
       var applyCompleted = false;
-      applyFuture.then((_) => applyCompleted = true);
+      unawaited(applyFuture.then((_) => applyCompleted = true));
       await Future<void>.delayed(Duration.zero);
       expect(applyCompleted, isFalse);
 

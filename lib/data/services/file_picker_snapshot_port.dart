@@ -8,12 +8,13 @@ import 'package:flutter/foundation.dart';
 import 'package:kotonoha/data/services/android_saf_snapshot_port.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
 
-Future<List<PlatformFile>> defaultSnapshotPickerPick() {
-  return FilePicker.pickFiles(
+Future<List<PlatformFile>> defaultSnapshotPickerPick() async {
+  final file = await FilePicker.pickFile(
     type: FileType.custom,
     allowedExtensions: const ['json'],
-    allowMultiple: false,
   );
+  if (file == null) return [];
+  return [file];
 }
 
 Future<Uri?> defaultSnapshotPickerSave({
