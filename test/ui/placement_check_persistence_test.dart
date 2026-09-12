@@ -410,6 +410,135 @@ void main() {
       expect(find.byType(PlacementScopeScreen), findsNothing);
     },
   );
+
+  testWidgets(
+    'learned_units write false keeps draft; remount can resume results',
+    (tester) async {
+      final app = await _openResultsAfterAoIndependent(
+        tester,
+        failWrites: {'learned_units_v1'},
+      );
+
+      expect(find.byType(PlacementResultScreen), findsOneWidget);
+      expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
+      expect(app.persist.hasWriteFailure, isTrue);
+      expect(app.kana.isUnitLearned('hira_row_0'), isTrue);
+      expect(app.checks.draft.isComplete, isTrue);
+
+      final failedDisk = await _loadDisk(app.prefs);
+      expect(failedDisk.kana.isUnitLearned('hira_row_0'), isFalse);
+      expect(failedDisk.checks.draft.isComplete, isTrue);
+      expect(
+        failedDisk.kana.statFor(_kanaOf(failedDisk.kana, 'あ')).correctCount,
+        1,
+      );
+
+      final reloaded = await _remount(tester, app);
+      expect(reloaded.kana.isUnitLearned('hira_row_0'), isFalse);
+      expect(reloaded.checks.draft.isComplete, isTrue);
+      expect(find.text(AppStrings.persistFailedLine), findsNothing);
+      expect(
+        reloaded.kana.statFor(_kanaOf(reloaded.kana, 'あ')).correctCount,
+        1,
+      );
+
+      await _resumeResults(tester);
+      expect(find.byType(PlacementResultScreen), findsOneWidget);
+      expect(reloaded.kana.isUnitLearned('hira_row_0'), isTrue);
+      expect(reloaded.checks.draft.hasProgress, isFalse);
+      expect(find.text(AppStrings.persistFailedLine), findsNothing);
+
+      final recovered = await _loadDisk(reloaded.prefs);
+      expect(recovered.kana.isUnitLearned('hira_row_0'), isTrue);
+      expect(recovered.checks.draft.hasProgress, isFalse);
+      expect(
+        recovered.kana.statFor(_kanaOf(recovered.kana, 'あ')).correctCount,
+        1,
+      );
+    },
+  );
+
+  testWidgets('learned_units write throw keeps draft; remount can resume', (
+    tester,
+  ) async {
+    final app = await _openResultsAfterAoIndependent(
+      tester,
+      throwWrites: {'learned_units_v1'},
+    );
+
+    expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
+    expect(app.persist.hasWriteFailure, isTrue);
+    expect(app.checks.draft.isComplete, isTrue);
+
+    final failedDisk = await _loadDisk(app.prefs);
+    expect(failedDisk.kana.isUnitLearned('hira_row_0'), isFalse);
+    expect(failedDisk.checks.draft.isComplete, isTrue);
+    expect(
+      failedDisk.kana.statFor(_kanaOf(failedDisk.kana, 'あ')).correctCount,
+      1,
+    );
+
+    final reloaded = await _remount(tester, app);
+    expect(reloaded.kana.isUnitLearned('hira_row_0'), isFalse);
+    expect(reloaded.checks.draft.isComplete, isTrue);
+    expect(find.text(AppStrings.persistFailedLine), findsNothing);
+
+    await _resumeResults(tester);
+    expect(find.byType(PlacementResultScreen), findsOneWidget);
+    expect(reloaded.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(reloaded.checks.draft.hasProgress, isFalse);
+
+    final recovered = await _loadDisk(reloaded.prefs);
+    expect(recovered.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(recovered.checks.draft.hasProgress, isFalse);
+  });
+
+  testWidgets(
+    'learned_units write false then retry persists row and clears draft',
+    (tester) async {
+      final app = await _openResultsAfterAoIndependent(
+        tester,
+        failWrites: {'learned_units_v1'},
+      );
+
+      expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
+      expect(app.checks.draft.isComplete, isTrue);
+
+      app.prefs.failWrites.clear();
+      await tester.tap(find.text(AppStrings.persistRetry));
+      await tester.pumpAndSettle();
+      expect(app.persist.hasWriteFailure, isFalse);
+      expect(find.text(AppStrings.persistFailedLine), findsNothing);
+      expect(app.kana.isUnitLearned('hira_row_0'), isTrue);
+      expect(app.checks.draft.hasProgress, isFalse);
+
+      final recovered = await _remount(tester, app);
+      expect(recovered.kana.isUnitLearned('hira_row_0'), isTrue);
+      expect(recovered.checks.draft.hasProgress, isFalse);
+      expect(
+        recovered.kana.statFor(_kanaOf(recovered.kana, 'あ')).correctCount,
+        1,
+      );
+      expect(find.byType(PlacementScopeScreen), findsNothing);
+    },
+  );
+
+  testWidgets('successful confirm persists learned and clears draft', (
+    tester,
+  ) async {
+    final app = await _openResultsAfterAoIndependent(tester);
+
+    expect(find.byType(PlacementResultScreen), findsOneWidget);
+    expect(find.text(AppStrings.persistFailedLine), findsNothing);
+    expect(app.persist.hasWriteFailure, isFalse);
+    expect(app.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(app.checks.draft.hasProgress, isFalse);
+
+    final disk = await _loadDisk(app.prefs);
+    expect(disk.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(disk.checks.draft.hasProgress, isFalse);
+    expect(disk.kana.statFor(_kanaOf(disk.kana, 'あ')).correctCount, 1);
+  });
 }
 
 Kana _kanaOf(KanaProgressRepository store, String character) =>
@@ -495,6 +624,44 @@ Future<void> _resumeCheck(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text(AppStrings.placementResume));
   await tester.pumpAndSettle();
+}
+
+Future<void> _resumeResults(WidgetTester tester) async {
+  await tester.tap(find.text(AppStrings.learnNewKanaAction));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(AppStrings.placementEntry));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(AppStrings.placementSeeResult));
+  await tester.pumpAndSettle();
+}
+
+Future<_FormalApp> _openResultsAfterAoIndependent(
+  WidgetTester tester, {
+  Set<String> failWrites = const {},
+  Set<String> throwWrites = const {},
+}) async {
+  final app = await _pumpFormal(tester);
+  await _openAoCheck(tester);
+  for (var i = 0; i < 4; i++) {
+    await _independentCorrect(tester);
+    await tester.tap(find.text(AppStrings.continueLabel));
+    await tester.pumpAndSettle();
+  }
+  await _independentCorrect(tester);
+  app.prefs.failWrites.addAll(failWrites);
+  app.prefs.throwWrites.addAll(throwWrites);
+  await tester.tap(find.text(AppStrings.seeResults));
+  await tester.pumpAndSettle();
+  return app;
+}
+
+Future<({KanaProgressRepository kana, PlacementCheckRepository checks})>
+_loadDisk(FakePreferencesService prefs) async {
+  final restarted = FakePreferencesService.restarted(prefs);
+  return (
+    kana: await KanaProgressRepository.load(restarted),
+    checks: await PlacementCheckRepository.load(restarted),
+  );
 }
 
 Future<void> _independentCorrect(WidgetTester tester) async {
