@@ -184,6 +184,7 @@ class _FerryScreenState extends State<FerryScreen> {
         rng: _rng,
         season: Season.forMonth(now.month),
       );
+      _abandonOwnedPlayback();
       setState(() => _done = true);
       widget.onFinished?.call();
     } else {
