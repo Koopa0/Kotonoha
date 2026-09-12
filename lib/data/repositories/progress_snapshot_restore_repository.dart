@@ -88,6 +88,7 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         await _syncMemoryFromDurable();
+        _syncJournalWriteBlocking();
         rethrow;
       } catch (_) {
         await _prefs.reload();
@@ -101,6 +102,7 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         await _syncMemoryFromDurable();
+        _syncJournalWriteBlocking();
         rethrow;
       }
       _applyToMemory(snapshot);
@@ -129,6 +131,13 @@ class ProgressSnapshotRestoreRepository {
       _kanji.reloadFromPlatform(),
       _words.reloadFromPlatform(),
     ]);
+  }
+
+  void _syncJournalWriteBlocking() {
+    final blocked = ProgressRestoreJournal.needsRecovery(_prefs);
+    _kana.setRestoreJournalBlocked(blocked);
+    _kanji.setRestoreJournalBlocked(blocked);
+    _words.setRestoreJournalBlocked(blocked);
   }
 
   void _applyToMemory(ProgressSnapshot snapshot) {

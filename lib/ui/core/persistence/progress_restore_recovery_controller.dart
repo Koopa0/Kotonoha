@@ -40,9 +40,9 @@ class ProgressRestoreRecoveryController extends ChangeNotifier {
   Future<void> syncFromPlatform() async {
     await _prefs.reload();
     final needs = ProgressRestoreJournal.needsRecovery(_prefs);
+    _applyBlocking(needs);
     if (needs == _needsRecovery) return;
     _needsRecovery = needs;
-    _applyBlocking(needs);
     notifyListeners();
   }
 
