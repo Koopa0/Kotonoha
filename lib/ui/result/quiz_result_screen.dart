@@ -90,11 +90,10 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
         )
         .expand((l) => l.kana)
         .toList();
-    final targets = Lessons.testTargets(lesson, learned, rng);
-    final questions = const QuizEngine().generateSession(
-      targets: targets,
-      allKana: store.kanaForScript(lesson.script),
-      length: targets.length,
+    final questions = Lessons.composeTest(
+      lesson: lesson,
+      learnedOtherKana: learned,
+      pool: StudySet.lessonTestPool(store, lesson),
       random: rng,
     );
     Navigator.of(context).pushReplacement(

@@ -246,6 +246,22 @@ void _expectDailyTargetsLearned(
 }
 
 Future<void> _answerCurrent(WidgetTester tester) async {
+  if (find.text(AppStrings.iReadUnprompted).evaluate().isNotEmpty) {
+    await tester.tap(find.text(AppStrings.iReadUnprompted));
+    await tester.pump();
+    await tester.tap(find.text(AppStrings.iReadIt));
+    await tester.pump();
+    final next = find.text(AppStrings.continueLabel);
+    if (next.evaluate().isNotEmpty) {
+      await tester.tap(next);
+    } else {
+      await tester.tap(find.text(AppStrings.seeResults));
+    }
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    return;
+  }
+
   final quiz = tester.widget<QuizScreen>(find.byType(QuizScreen));
   final labels = tester
       .widgetList<AnswerOptionButton>(find.byType(AnswerOptionButton))

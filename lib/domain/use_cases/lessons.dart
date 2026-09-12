@@ -5,7 +5,10 @@ import 'dart:math';
 
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
+import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
+import 'package:kotonoha/domain/use_cases/daily_session.dart';
+import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
 
 /// Builds the ordered list of lessons from a kana set, assembles a lesson's
 /// test (cumulative — the row plus review of earlier rows), and decides when a
@@ -125,6 +128,44 @@ class Lessons {
     }
     targets.shuffle(rng);
     return targets;
+  }
+
+  /// Composes a lesson row test from [pool] (learned ∪ focus row). Tiny pools
+  /// follow the Daily honesty contract: when a target cannot host a fair MCQ,
+  /// it becomes [QuizDirection.kanaRecall] instead of a forced-correct tap.
+  static List<QuizQuestion> composeTest({
+    required Lesson lesson,
+    required List<Kana> learnedOtherKana,
+    required List<Kana> pool,
+    Random? random,
+    QuizEngine engine = const QuizEngine(),
+  }) {
+    final rng = random ?? Random();
+    final targets = testTargets(lesson, learnedOtherKana, rng);
+    final questions = <QuizQuestion>[];
+    for (final target in targets) {
+      questions.add(_questionFor(target, pool, rng, engine));
+    }
+    return questions;
+  }
+
+  static QuizQuestion _questionFor(
+    Kana target,
+    List<Kana> pool,
+    Random rng,
+    QuizEngine engine,
+  ) {
+    if (!DailySession.canDiscriminate(target, pool)) {
+      return engine.buildQuestion(target, QuizDirection.kanaRecall, pool, rng);
+    }
+    final direction = rng.nextBool()
+        ? QuizDirection.kanaToRomaji
+        : QuizDirection.romajiToKana;
+    final question = engine.buildQuestion(target, direction, pool, rng);
+    if (question.isForcedCorrect) {
+      return engine.buildQuestion(target, QuizDirection.kanaRecall, pool, rng);
+    }
+    return question;
   }
 
   /// Whether the lesson is passed — judged ONLY on the focus row's questions,

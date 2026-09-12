@@ -11,7 +11,7 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
-import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
+import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
@@ -134,12 +134,10 @@ class _StudyScreenState extends State<StudyScreen> {
     final store = context.read<KanaProgressRepository>();
     final rng = Random();
     final learned = _learnedOtherKana(store);
-    final targets = Lessons.testTargets(widget.lesson, learned, rng);
-    final questions = const QuizEngine().generateSession(
-      targets: targets,
-      // Distractors stay within the lesson's own script.
-      allKana: store.kanaForScript(widget.lesson.script),
-      length: targets.length,
+    final questions = Lessons.composeTest(
+      lesson: widget.lesson,
+      learnedOtherKana: learned,
+      pool: StudySet.lessonTestPool(store, widget.lesson),
       random: rng,
     );
     Navigator.of(context).pushReplacement(

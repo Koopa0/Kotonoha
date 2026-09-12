@@ -76,6 +76,10 @@ Future<Widget> bootstrap({
       travel.health,
     ],
   );
+  // Every production [recordObserved] write shares this owner. Shift
+  // still tracks [AnalyticsLog.record] itself and must not also use
+  // [recordObserved], or the same future would be notified twice.
+  bindObservedWriteNotify(analytics, persistence.trackAnalytics);
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
