@@ -344,6 +344,95 @@ void main() {
     },
   );
 
+  test(
+    'rollback failure blocks word learning until retry rolls back primaries',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
+        1,
+      };
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
+        3,
+      };
+
+      final recovery = recoveryFor(
+        fake,
+        kana,
+        kanji,
+        words,
+        needsRecovery: false,
+      );
+      final files = FakeSnapshotFilePort()..pickContents = backup;
+      final restorer = ProgressSnapshotRestorer(
+        snapshots: snapshotsFor(fake, kana, kanji, words),
+        restore: restoreFor(fake, kana, kanji, words),
+        files: files,
+        recovery: recovery,
+      );
+
+      final result = await restorer.restore(confirm: (_) async => true);
+
+      expect(result.status, SnapshotRestoreStatus.failed);
+      expect(recovery.needsRecovery, isTrue);
+      expect(words.isRestoreJournalBlocked, isTrue);
+      expect(words.statForItem('word:あい').seenCount, 0);
+
+      await expectLater(
+        words.introduce('word:あい', at: now),
+        throwsA(isA<ProgressRestoreJournalBlocked>()),
+      );
+      expect(words.statForItem('word:あい').seenCount, 0);
+
+      fake.failWriteOnAttempt.clear();
+      await recovery.retry();
+
+      expect(recovery.needsRecovery, isFalse);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(words.statForItem('word:あい').seenCount, 0);
+      await words.introduce('word:あい', at: now);
+      expect(words.statForItem('word:あい').seenCount, 1);
+    },
+  );
+
+  test(
+    'apply rollback failure blocks repos even without recovery controller',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
+        1,
+      };
+      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
+        3,
+      };
+      final restore = restoreFor(fake, kana, kanji, words);
+      final preview = restore.previewEncoded(backup)!;
+
+      await expectLater(
+        restore.apply(preview.snapshot),
+        throwsA(isA<RestoreJournalWriteFailure>()),
+      );
+
+      expect(ProgressRestoreJournal.blocksExport(fake), isTrue);
+      expect(words.isRestoreJournalBlocked, isTrue);
+      await expectLater(
+        words.introduce('word:あい', at: now),
+        throwsA(isA<ProgressRestoreJournalBlocked>()),
+      );
+    },
+  );
+
   test('restore lock refuses mutation before memory changes', () async {
     final (fake, kana, kanji, words) = await loadAll();
     await kana.prepareForRestore();
