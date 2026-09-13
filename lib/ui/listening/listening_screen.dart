@@ -17,6 +17,7 @@ import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/item_reaction_clock.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
@@ -27,11 +28,15 @@ import 'package:provider/provider.dart';
 /// Only a completed play *before* reveal is unprompted listening evidence.
 /// A first success after the answer is visible is prompted practice: it may
 /// be logged, but it cannot backfill a blind success or move SRS.
+///
+/// Valid [Attempt.rtMs] starts on the first completed blind hear. Pause /
+/// hide freezes the clock — resume or same-item replay must not restart it.
 class ListeningScreen extends StatefulWidget {
   const ListeningScreen({
     required this.items,
     required this.title,
     this.clock,
+    this.monotonicMs,
     this.onMore,
     this.onFinished,
     this.alreadyTransferredIds = const {},
@@ -41,8 +46,10 @@ class ListeningScreen extends StatefulWidget {
   final List<ReadingItem> items;
   final String title;
 
-  /// Injectable clock so reaction time is testable.
+  /// Optional clock / monotonic elapsed for tests. Production leaves both
+  /// null so the screen uses [DateTime.now] and [Stopwatch].
   final DateTime Function()? clock;
+  final int Function()? monotonicMs;
 
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
@@ -60,6 +67,7 @@ class ListeningScreen extends StatefulWidget {
     VoidCallback? onMore,
     VoidCallback? onFinished,
     DateTime Function()? clock,
+    int Function()? monotonicMs,
     Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
     builder: (_) => ListeningScreen(
@@ -68,6 +76,7 @@ class ListeningScreen extends StatefulWidget {
       onMore: onMore,
       onFinished: onFinished,
       clock: clock,
+      monotonicMs: monotonicMs,
       alreadyTransferredIds: alreadyTransferredIds,
     ),
   );
@@ -82,6 +91,7 @@ class _ListeningScreenState extends State<ListeningScreen>
   final Random _rng = Random();
 
   late final SpeechService _speech;
+  late final ItemReactionClock _reaction;
   int? _ownedPlay;
 
   int _index = 0;
@@ -90,7 +100,6 @@ class _ListeningScreenState extends State<ListeningScreen>
   bool _promptedHeard = false;
   bool _playing = false;
   bool _done = false;
-  int _heardAtMs = 0;
   int _playGen = 0;
   String? _heardItemId;
   SpeechPlaybackResult? _lastPlay;
@@ -107,6 +116,10 @@ class _ListeningScreenState extends State<ListeningScreen>
   void initState() {
     super.initState();
     _speech = context.read<SpeechService>();
+    _reaction = ItemReactionClock(
+      clock: widget.clock,
+      monotonicMs: widget.monotonicMs,
+    );
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_play());
@@ -145,6 +158,9 @@ class _ListeningScreenState extends State<ListeningScreen>
 
   Future<void> _interrupt() async {
     _abandonPlayback();
+    // An already-opened hear clock stays dead. Resume / replay must
+    // not mint a fresh RT for this item.
+    _reaction.invalidate();
     if (!mounted) return;
     setState(() {
       _playing = false;
@@ -171,9 +187,9 @@ class _ListeningScreenState extends State<ListeningScreen>
       if (startedBlind && !_revealed) {
         _blindHeard = true;
         _heardItemId = itemId;
-        if (_heardAtMs == 0) {
-          _heardAtMs = _clock().millisecondsSinceEpoch;
-        }
+        // First completed foreground hear. Already-invalid clocks stay
+        // null — a later replay does not move the start.
+        _reaction.start();
       } else {
         _promptedHeard = true;
       }
@@ -213,9 +229,7 @@ class _ListeningScreenState extends State<ListeningScreen>
           itemType: ItemType.word,
           mode: PracticeMode.listening.name,
           correct: recordMastery && correct,
-          rtMs: recordMastery && _heardAtMs != 0
-              ? now.millisecondsSinceEpoch - _heardAtMs
-              : 0,
+          rtMs: recordMastery ? _reaction.elapsedMs() : 0,
           sessionId: _sessionId,
           meta: {
             'romaji': _current.romaji,
@@ -260,9 +274,9 @@ class _ListeningScreenState extends State<ListeningScreen>
       _blindHeard = false;
       _promptedHeard = false;
       _playing = false;
-      _heardAtMs = 0;
       _heardItemId = null;
       _lastPlay = null;
+      _reaction.arm();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _done) return;

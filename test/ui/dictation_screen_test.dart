@@ -239,6 +239,7 @@ void main() {
       wordFlush: wordRepo.flushPending,
     );
     var now = DateTime(2026, 6);
+    var elapsed = 0;
     const words = [Word(kana: 'きみ', romaji: 'kimi', meaning: '你')];
 
     await tester.pumpWidget(
@@ -256,6 +257,7 @@ void main() {
             words: words,
             title: AppStrings.dictationTitle,
             clock: () => now,
+            monotonicMs: () => elapsed,
           ),
         ),
       ),
@@ -263,6 +265,7 @@ void main() {
     await tester.pumpAndSettle();
 
     now = now.add(const Duration(milliseconds: 1200)); // time spent assembling
+    elapsed = 1200;
     await tester.tap(find.text('き'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('み'));

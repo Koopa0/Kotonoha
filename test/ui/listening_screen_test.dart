@@ -123,6 +123,7 @@ Future<void> pumpListening(
   InMemoryAnalyticsLog? analytics,
   WordProgressRepository? wordRepo,
   DateTime Function()? clock,
+  int Function()? monotonicMs,
   Set<String> alreadyTransferredIds = const {},
   Size size = const Size(360, 800),
   double textScale = 1,
@@ -161,6 +162,7 @@ Future<void> pumpListening(
               items: items,
               title: AppStrings.listeningTitle,
               clock: clock,
+              monotonicMs: monotonicMs,
               alreadyTransferredIds: alreadyTransferredIds,
             ),
           ),
@@ -194,6 +196,7 @@ void main() {
       final analytics = InMemoryAnalyticsLog();
       final words = await WordProgressRepository.load();
       var now = DateTime(2026, 9, 10, 12);
+      var elapsed = 0;
       await pumpListening(
         tester,
         speech: speech,
@@ -201,6 +204,7 @@ void main() {
         analytics: analytics,
         wordRepo: words,
         clock: () => now,
+        monotonicMs: () => elapsed,
       );
 
       await tester.tap(find.byKey(const ValueKey<String>('listening-reveal')));
@@ -211,6 +215,7 @@ void main() {
       expect(find.text(AppStrings.listeningRehear), findsOneWidget);
 
       now = now.add(const Duration(seconds: 4));
+      elapsed = 4000;
       await tester.tap(find.text(AppStrings.listeningHeard));
       await tester.pump();
       await tester.pump();
