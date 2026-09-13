@@ -186,6 +186,12 @@ Future<void> _pumpApp(
   await tester.binding.setSurfaceSize(const Size(420, 2400));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final kanji = await KanjiReadingRepository.load();
+  final recovery = recoveryForRepos(
+    prefs: await PreferencesService.create(),
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -198,6 +204,9 @@ Future<void> _pumpApp(
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(value: speech),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
@@ -15,10 +16,13 @@ import 'package:kotonoha/domain/use_cases/unlocks.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 /// Home → 目利き → QuizScreen must stay inside the learned set.
 /// Pure Confusable unit tests are not enough if Home still passes the
@@ -44,8 +48,15 @@ void main() {
     WidgetTester tester,
     KanaProgressRepository kana,
   ) async {
-    final kanji = await KanjiReadingRepository.load();
-    final words = await WordProgressRepository.load();
+    final prefs = await PreferencesService.create();
+    final kanji = await KanjiReadingRepository.load(prefs);
+    final words = await WordProgressRepository.load(prefs);
+    final recovery = recoveryForRepos(
+      prefs: prefs,
+      kana: kana,
+      kanji: kanji,
+      words: words,
+    );
     await tester.binding.setSurfaceSize(const Size(420, 2000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -60,6 +71,9 @@ void main() {
               kanjiFlush: kanji.flushPending,
               wordFlush: words.flushPending,
             ),
+          ),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
           ),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
