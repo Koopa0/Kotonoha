@@ -9,9 +9,8 @@
 ///
 /// 0 means untimed (see Attempt.rtMs), not a claimed 0ms reflex.
 class ItemReactionClock {
-  ItemReactionClock({DateTime Function()? clock, int Function()? monotonicMs})
-    : _clock = clock ?? DateTime.now,
-      _monotonicMs = monotonicMs {
+  ItemReactionClock({DateTime Function()? clock, this._monotonicMs})
+    : _clock = clock ?? DateTime.now {
     _stopwatch = Stopwatch()..start();
   }
 
