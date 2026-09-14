@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
@@ -51,9 +52,11 @@ Future<void> _pump(
   );
   await tester.binding.setSurfaceSize(const Size(420, 2600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  final travel = await TravelFocusRepository.load();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
         ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
         ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),

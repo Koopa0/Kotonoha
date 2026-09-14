@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -266,9 +267,14 @@ _pumpApp(
     await words.recordAnswer('word:あい', correct: true, at: DateTime(2026));
   }
   final recovery = await idleRestoreRecovery();
+  final travel = await TravelFocusRepository.load();
+  // A second call in the same test is a restart with fresh repositories, so
+  // tear the old tree down first rather than updating it in place.
+  await tester.pumpWidget(const SizedBox.shrink());
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
         ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
         ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),

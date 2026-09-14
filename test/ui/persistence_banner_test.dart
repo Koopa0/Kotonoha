@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -53,19 +54,21 @@ void main() {
     );
   }
 
-  Widget appWith(
+  Future<Widget> appWith(
     FakePreferencesService fake,
     KanaProgressRepository kana,
     KanjiReadingRepository kanji,
     WordProgressRepository words,
     ProgressPersistenceController persistence, {
     ProgressRestoreRecoveryController? recovery,
-  }) {
+  }) async {
     final effectiveRecovery =
         recovery ??
         recoveryForRepos(prefs: fake, kana: kana, kanji: kanji, words: words);
+    final travel = await TravelFocusRepository.load(fake);
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
         ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
         ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
@@ -97,7 +100,7 @@ void main() {
     final words = await WordProgressRepository.load(fake);
     final owner = ownerFor(kana, kanji);
 
-    await tester.pumpWidget(appWith(fake, kana, kanji, words, owner));
+    await tester.pumpWidget(await appWith(fake, kana, kanji, words, owner));
     await settle(tester);
 
     // Dismiss the unlock — call site #6 (markUnlockSeen), whose write fails.
@@ -125,7 +128,7 @@ void main() {
       final words = await WordProgressRepository.load(fake);
 
       await tester.pumpWidget(
-        appWith(fake, kana, kanji, words, ownerFor(kana, kanji)),
+        await appWith(fake, kana, kanji, words, ownerFor(kana, kanji)),
       );
       await settle(tester);
 
@@ -154,7 +157,7 @@ void main() {
     final words = await WordProgressRepository.load(fake);
     final owner = ownerFor(kana, kanji);
 
-    await tester.pumpWidget(appWith(fake, kana, kanji, words, owner));
+    await tester.pumpWidget(await appWith(fake, kana, kanji, words, owner));
     await settle(tester);
     // A successful dismiss write — nothing should ever announce success.
     await tester.tap(find.text(AppStrings.unlockDismiss));
@@ -187,7 +190,7 @@ void main() {
       final owner = ownerFor(kana, kanji);
 
       await tester.pumpWidget(
-        appWith(fake, kana, kanji, words, owner, recovery: recovery),
+        await appWith(fake, kana, kanji, words, owner, recovery: recovery),
       );
       await settle(tester);
 
