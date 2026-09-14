@@ -44,8 +44,15 @@ class TravelFocusViewModel extends ChangeNotifier {
   final DateTime Function() _clock;
 
   List<TravelFocus> _draft;
+  bool _disposed = false;
   bool _limitHint = false;
   bool _saving = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   /// The focuses as edited, not yet saved.
   List<TravelFocus> get draft => List.unmodifiable(_draft);
@@ -129,10 +136,12 @@ class TravelFocusViewModel extends ChangeNotifier {
     try {
       await pending;
     } catch (_) {
+      if (_disposed) return false;
       _saving = false;
       notifyListeners();
       return false;
     }
+    if (_disposed) return true;
     _saving = false;
     notifyListeners();
     return true;
@@ -140,6 +149,7 @@ class TravelFocusViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     persistence.removeListener(notifyListeners);
     super.dispose();
   }

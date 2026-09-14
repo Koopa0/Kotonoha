@@ -176,4 +176,121 @@ void main() {
     expect(t.focuses.plan.focuses.single.scene, TravelSceneId.transport);
     t.vm.dispose();
   });
+
+  test(
+    'a pending save finishing after leave does not notify a disposed ViewModel',
+    () async {
+      final t = await makeVm();
+      final gate = PlatformGate();
+      t.fake.writeGates['travel_focus_v1'] = gate;
+      t.vm.toggle(TravelSceneId.transport);
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      t.vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      final save = t.vm.save();
+      await gate.entered;
+
+      left = true;
+      t.vm.dispose();
+      gate.release();
+      expect(await save, isTrue);
+
+      final reloaded = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(t.fake),
+      );
+      expect(reloaded.plan.focuses.single.scene, TravelSceneId.transport);
+      expect(notificationsAfterLeave, 0);
+    },
+  );
+
+  test(
+    'a failed save finishing after leave does not notify a disposed ViewModel',
+    () async {
+      final t = await makeVm();
+      final gate = PlatformGate();
+      t.fake.writeGates['travel_focus_v1'] = gate;
+      t.vm.toggle(TravelSceneId.transport);
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      t.vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      final save = t.vm.save();
+      await gate.entered;
+
+      left = true;
+      t.vm.dispose();
+      t.fake.failWrites.add('travel_focus_v1');
+      gate.release();
+      expect(await save, isFalse);
+      await _settle(() => t.persistence.hasWriteFailure);
+
+      expect(notificationsAfterLeave, 0);
+      expect(t.persistence.hasWriteFailure, isTrue);
+    },
+  );
+
+  test('a pending clear finishing after leave does not notify a disposed ViewModel', () async {
+    final t = await makeVm(
+      retained: const [TravelFocus(scene: TravelSceneId.shrine)],
+    );
+    final gate = PlatformGate();
+    t.fake.writeGates['travel_focus_v1'] = gate;
+
+    var notificationsAfterLeave = 0;
+    var left = false;
+    t.vm.addListener(() {
+      if (left) notificationsAfterLeave++;
+    });
+    final clear = t.vm.clear();
+    await gate.entered;
+
+    left = true;
+    t.vm.dispose();
+    gate.release();
+    expect(await clear, isTrue);
+
+    final reloaded = await TravelFocusRepository.load(
+      FakePreferencesService.restarted(t.fake),
+    );
+    expect(reloaded.plan.focuses, isEmpty);
+    expect(notificationsAfterLeave, 0);
+  });
+
+  test(
+    'a failed clear finishing after leave does not notify a disposed ViewModel',
+    () async {
+      final t = await makeVm(
+        retained: const [TravelFocus(scene: TravelSceneId.shrine)],
+      );
+      final gate = PlatformGate();
+      t.fake.writeGates['travel_focus_v1'] = gate;
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      t.vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      final clear = t.vm.clear();
+      await gate.entered;
+
+      left = true;
+      t.vm.dispose();
+      t.fake.failWrites.add('travel_focus_v1');
+      gate.release();
+      expect(await clear, isFalse);
+      await _settle(() => t.persistence.hasWriteFailure);
+
+      expect(notificationsAfterLeave, 0);
+      expect(t.persistence.hasWriteFailure, isTrue);
+      final reloaded = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(t.fake),
+      );
+      expect(reloaded.plan.focuses.single.scene, TravelSceneId.shrine);
+    },
+  );
 }
