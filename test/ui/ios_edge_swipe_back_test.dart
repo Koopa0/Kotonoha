@@ -1,8 +1,12 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:ui' as ui;
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -13,7 +17,8 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
-import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/washi_background.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
@@ -22,6 +27,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/fake_tts_client.dart';
 import '../support/restore_recovery_test_support.dart';
+
+const _iosSwipeCaptureKey = Key('ios_edge_swipe_capture');
+
+/// A screen point still covered by the sliding [LessonsScreen] after the second
+/// mid-swipe delta. On the pre-washi iOS fallback (c306f403) Home's progress
+/// ring accent bleeds through the transparent scaffold here.
+const _lessonsMidSwipeOpaqueProbe = Offset(220, 420);
 
 /// #141: the custom ink builder dropped iOS edge-swipe back. Host probe with
 /// production App / Home / Lessons / AppTheme — not iPhone device acceptance
@@ -50,15 +62,49 @@ void main() {
         await tester.tap(find.text(AppStrings.learnNewKanaAction));
         await tester.pumpAndSettle();
         expect(find.byType(LessonsScreen), findsOneWidget);
-        expect(find.byType(ProgressRing), findsNothing);
 
+        final route = _lessonsRoute(tester);
         final gesture = await tester.startGesture(const Offset(1, 300));
-        await gesture.moveBy(const Offset(140, 0));
-        await tester.pump();
 
-        expect(find.byType(LessonsScreen), findsOneWidget);
-        expect(find.byType(ProgressRing), findsNothing);
-        expect(find.text(AppStrings.learnNewKanaAction), findsNothing);
+        // First delta only hands the edge drag to Cupertino's recognizer.
+        await gesture.moveBy(const Offset(20, 0));
+        await tester.pump();
+        expect(route.popGestureInProgress, isTrue);
+        expect(tester.getTopLeft(find.byType(LessonsScreen)).dx, 0);
+
+        // Second delta actually slides the route; Home may peek on the left.
+        await gesture.moveBy(const Offset(120, 0));
+        await tester.pump();
+        expect(route.popGestureInProgress, isTrue);
+        expect(
+          tester.getTopLeft(find.byType(LessonsScreen)).dx,
+          greaterThan(80),
+        );
+
+        final lessonsTransition = find.ancestor(
+          of: find.byType(LessonsScreen),
+          matching: find.byType(CupertinoPageTransition),
+        );
+        expect(
+          find.descendant(
+            of: lessonsTransition,
+            matching: find.byType(WashiBackground),
+          ),
+          findsOneWidget,
+        );
+
+        final probeColor = await _sampleScreenPixel(
+          tester,
+          _lessonsMidSwipeOpaqueProbe,
+        );
+        expect(probeColor.alpha, 255);
+        expect(
+          _colorsNear(probeColor, AppColors.accent),
+          isFalse,
+          reason:
+              'Home progress-ring accent bled through Lessons mid-swipe '
+              '(transparent scaffold without route washi)',
+        );
 
         await gesture.up();
         await tester.pumpAndSettle();
@@ -139,6 +185,12 @@ Future<void> _runIos(Future<void> Function() body) async {
   }
 }
 
+ModalRoute<void> _lessonsRoute(WidgetTester tester) {
+  final route = ModalRoute.of(tester.element(find.byType(LessonsScreen)));
+  expect(route, isNotNull);
+  return route!;
+}
+
 Future<void> _edgeSwipeBack(WidgetTester tester) async {
   await tester.timedDragFrom(
     const Offset(1, 300),
@@ -155,6 +207,31 @@ Future<void> _edgeSwipeCancel(WidgetTester tester) async {
     const Duration(milliseconds: 450),
   );
   await tester.pumpAndSettle();
+}
+
+Future<Color> _sampleScreenPixel(WidgetTester tester, Offset position) async {
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(_iosSwipeCaptureKey),
+  );
+  final image = await tester.runAsync(() => boundary.toImage(pixelRatio: 1));
+  final data = await tester.runAsync(
+    () => image!.toByteData(format: ui.ImageByteFormat.rawRgba),
+  );
+  final x = position.dx.floor().clamp(0, image!.width - 1);
+  final y = position.dy.floor().clamp(0, image!.height - 1);
+  final offset = (y * image.width + x) * 4;
+  return Color.fromARGB(
+    data!.getUint8(offset + 3),
+    data.getUint8(offset),
+    data.getUint8(offset + 1),
+    data.getUint8(offset + 2),
+  );
+}
+
+bool _colorsNear(Color a, Color b, {int tolerance = 10}) {
+  return (a.red - b.red).abs() <= tolerance &&
+      (a.green - b.green).abs() <= tolerance &&
+      (a.blue - b.blue).abs() <= tolerance;
 }
 
 Future<void> _pumpApp(WidgetTester tester, {SpeechService? speech}) async {
@@ -174,34 +251,37 @@ Future<void> _pumpApp(WidgetTester tester, {SpeechService? speech}) async {
   final words = await WordProgressRepository.load();
   final recovery = await idleRestoreRecovery();
   await tester.pumpWidget(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
-        ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
-        ChangeNotifierProvider<WordProgressRepository>.value(value: words),
-        ChangeNotifierProvider<ProgressPersistenceController>.value(
-          value: ProgressPersistenceController(
-            kanaFlush: kana.flushPending,
-            kanjiFlush: kanji.flushPending,
-            wordFlush: words.flushPending,
-            health: [
-              kana.statsHealth,
-              kana.learnedUnitsHealth,
-              kana.seenUnlocksHealth,
-              kanji.statsHealth,
-              words.statsHealth,
-            ],
+    RepaintBoundary(
+      key: _iosSwipeCaptureKey,
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
+          ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: kana.flushPending,
+              kanjiFlush: kanji.flushPending,
+              wordFlush: words.flushPending,
+              health: [
+                kana.statsHealth,
+                kana.learnedUnitsHealth,
+                kana.seenUnlocksHealth,
+                kanji.statsHealth,
+                words.statsHealth,
+              ],
+            ),
           ),
-        ),
-        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
-          value: recovery,
-        ),
-        Provider<SpeechService>.value(
-          value: speech ?? const SilentSpeechService(),
-        ),
-        Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
-      ],
-      child: const KanaLoopApp(),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
+          ),
+          Provider<SpeechService>.value(
+            value: speech ?? const SilentSpeechService(),
+          ),
+          Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+        ],
+        child: const KanaLoopApp(),
+      ),
     ),
   );
   await tester.pumpAndSettle();
