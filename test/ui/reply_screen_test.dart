@@ -26,6 +26,9 @@ import '../helpers/fake_tts_client.dart';
 final _ekiAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:eki-wa-doko');
 final _ekiHere = kReplyDrills.firstWhere((d) => d.id == 'reply:eki-wa-koko');
 final _whereGo = kReplyDrills.firstWhere((d) => d.id == 'reply:doko-e-iku');
+final _whereGoOsaka = kReplyDrills.firstWhere(
+  (d) => d.id == 'reply:doko-e-iku-osaka',
+);
 final _confirmEki = kReplyDrills.firstWhere((d) => d.id == 'reply:koko-wa-eki');
 final _priceAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:takai-yasui');
 final _buySmall = kReplyDrills.firstWhere(
@@ -598,6 +601,49 @@ void main() {
       expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
     },
   );
+
+  testWidgets(
+    'Osaka destination scene does not leak intent; おおさかです is independent',
+    (tester) async {
+      final env = await pumpReply(tester, drills: [_whereGoOsaka]);
+      _expectSceneKeepsAskHidden(_whereGoOsaka);
+      expect(find.text('檢票口。此行前往大阪。'), findsOneWidget);
+      expect(find.text('要去哪裡'), findsNothing);
+      await _hearThenPick(tester, intent: '問你要去哪裡', reply: 'おおさかです');
+      final logged = await env.analytics.all();
+      expect(logged[0].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+      expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+      expect(logged[1].correct, isTrue);
+    },
+  );
+
+  testWidgets('Osaka destination scene きょうとです is a scored miss', (
+    tester,
+  ) async {
+    final env = await pumpReply(tester, drills: [_whereGoOsaka]);
+    await _hearThenPick(tester, intent: '問你要去哪裡', reply: 'きょうとです');
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[1].correct, isFalse);
+  });
+
+  testWidgets('Kyoto destination scene おおさかです is a scored miss', (
+    tester,
+  ) async {
+    final env = await pumpReply(tester, drills: [_whereGo]);
+    await _hearThenPick(tester, intent: '問你要去哪裡', reply: 'おおさかです');
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[1].correct, isFalse);
+  });
+
+  testWidgets('right-scene おおさかです is a scored miss', (tester) async {
+    final env = await pumpReply(tester, drills: [_ekiAsk]);
+    await _hearThenPick(tester, intent: '問車站在哪裡', reply: 'おおさかです');
+    final logged = await env.analytics.all();
+    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.miss);
+    expect(logged[1].correct, isFalse);
+  });
 
   testWidgets(
     'station-confirm scene does not leak intent; hear stays independent',
