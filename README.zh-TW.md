@@ -1,54 +1,41 @@
-<div align="center">
-  <img src="assets/icon/app_icon.png" width="104" alt="言の葉" />
-</div>
+<h1><img src="assets/icon/app_icon.png" width="36" height="36" alt=""> 言の葉 · Kotonoha</h1>
 
-# 言の葉 · Kotonoha
+[English](README.md) | 繁體中文 | [日本語](README.JP.md)
 
-[English](README.md) · **繁體中文** · [日本語](README.JP.md)
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-為繁體中文讀者設計的日語閱讀練習 app。先熟悉平假名、片假名，再走進單字、短句、
-先聽再揭曉的聽力，以及詞句中的漢字讀音。每回練習簡短，介面安靜，
-不追逐分數、連續天數或獎勵。
+為繁體中文讀者設計的日語學習 app，練習假名、單字、短句、聽力，以及詞句中的漢字讀音。
 
-## 適合誰
+## 可以練習什麼
 
-已經能讀繁體中文，希望日語文字慢慢變得讀得動 —— 不是文法課、不是計分板，
-也不附帶付費教材全文或真人錄音。
+- **假名**：逐行認識平假名與片假名、分辨相似字形，從選擇題進入無提示的讀音回想。
+- **單字與句子**：先聽單字、練習拼字，並在替換詞語後，分別確認句子的讀音與意思。
+- **聽力**：先聽學過的車站用語，再揭曉文字、重聽確認。
+- **旅遊情境**：練習交通、買衣服、神社古城與樂園排隊的詞句；選擇一至兩個旅行重點，安排接下來的練習。
+- **漢字讀音**：在單字與句子中學習、回想讀音。
+- **學習進度**：查看已練習的範圍，以檔案儲存或還原假名、漢字與詞句進度；不包含作答歷史。
 
-## 練習怎麼走
+進度存在自己的裝置，無須帳號，也沒有廣告。日語發音使用裝置已安裝的語音；能否離線播放取決於該語音。
 
-手解き一行一行帶你認假名。今日の稽古複習已經見過的假名：熟悉的會離開選擇題，
-改成無提示回想。若有重用這些假名、且已經見過的詞或讀得動的短句，可能再接一題
-轉移練習；並非每回都有。沒有可用的詞句時，這一回就停在假名。
+## 畫面
 
-假名拼得出詞之後，渡し舟用耳朵介紹單字，文字起こし請你自己拼出來，
-**聞き取り**（先聽再揭曉）則播放已見過的車站用語，先藏起文字，再讓你揭曉、重聽。
-旅の場面可依交通、購衣、神社古城或入園排隊，選這一回要練的詞句，先見面再回想或聽。
-換句用原創變化句換一個詞，分開確認讀音與句意，也可把換句留到隔天再確認；是自評，不是系統打分。
-漢字の声在 app 自己的詞句裡教讀音、再回想，不是逐字抽離的單字卡。
-其他房間 —— 相似字形、紙上默寫、五十音圖、短句、漢字句 —— 等你用得上才開。
-歩み是接觸範圍的地圖，不是成績單。
-
-發音使用裝置的日語文字轉語音引擎；有沒有聲音、能不能離線，取決於已安裝的語音。
-進度存在本機。無須帳號，也沒有廣告。
+介面使用繁體中文與日文，以下為示例進度。
 
 <p align="center">
-  <img src="screenshots/01-home.png" width="280" alt="首頁：示例進度與目前的動作名稱">
-  <img src="screenshots/02-listening.png" width="280" alt="聞き取り：先聽再揭曉">
+  <a href="screenshots/01-home.png"><img src="screenshots/01-home.png" width="240" alt="首頁：假名示例進度"></a>
+  <a href="screenshots/02-listening.png"><img src="screenshots/02-listening.png" width="240" alt="聽力：先聽用語，再揭曉文字"></a>
 </p>
 <p align="center">
-  首頁 · 示例進度&emsp;·&emsp;聞き取り — 先聽，再揭曉
-</p>
-<p align="center">
-  <img src="screenshots/03-kanji.png" width="280" alt="漢字の声：在句子裡教讀音">
-  <img src="screenshots/04-progress.png" width="280" alt="歩み：示例接觸範圍">
-</p>
-<p align="center">
-  漢字の声 — 詞句中的讀音&emsp;·&emsp;歩み — 接觸範圍，不是分數
+  <a href="screenshots/03-kanji.png"><img src="screenshots/03-kanji.png" width="240" alt="漢字：在句子中學習讀音"></a>
+  <a href="screenshots/04-progress.png"><img src="screenshots/04-progress.png" width="240" alt="進度：已練習範圍與學習狀態"></a>
 </p>
 
-以 Flutter 打造，支援 Android 與 iOS。
+## 目前狀態
+
+Android 與 iOS 版本開發中，手機安裝與音訊驗證仍在進行。
+問題與改善建議請提至 [Issues](https://github.com/Koopa0/Kotonoha/issues)。
 
 ## 授權
 
-程式：[MIT](LICENSE) · © 2026 Koopa。Klee One 字型：[SIL OFL 1.1](assets/fonts/OFL.txt)。
+[MIT](LICENSE)。Klee One 字型：[SIL Open Font License 1.1](assets/fonts/OFL.txt)。

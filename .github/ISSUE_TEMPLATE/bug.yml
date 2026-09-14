@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a problem with learning, progress, audio, or the interface.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English, 繁體中文, and 日本語 are welcome. Search existing issues first.
+        For vulnerabilities, use the security policy instead of a public issue.
+        Share synthetic examples, not personal progress files or credentials.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the screen and kana, word, or sentence involved. If it happened only once, say so.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: App version, phone model, and OS version
+      description: For audio issues, include the Japanese voice, headphones, and online or offline state if known.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or other evidence
+      description: Remove personal information before uploading.

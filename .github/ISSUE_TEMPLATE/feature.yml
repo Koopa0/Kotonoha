@@ -1,0 +1,21 @@
+name: Feature or improvement
+description: Suggest a learning feature, content, or usability improvement.
+title: "improvement: "
+body:
+  - type: markdown
+    attributes:
+      value: English, 繁體中文, and 日本語 are welcome. Search existing issues first.
+  - type: textarea
+    id: need
+    attributes:
+      label: What are you trying to learn or do?
+      description: Describe where the current app falls short, with an example.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would a useful result look like?
+      description: Include how you would tell that the improvement works.
+    validations:
+      required: true
