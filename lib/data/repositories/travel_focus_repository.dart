@@ -58,35 +58,10 @@ class TravelFocusRepository extends ChangeNotifier {
   Future<void> saveFocuses(Iterable<TravelFocus> focuses) =>
       save(_plan.withFocuses(focuses));
 
-  Future<void> markKanaBoost(DateTime now) async {
-    final before = _plan;
-    _plan = _plan.markKanaBoost(now);
-    _gen++;
-    notifyListeners();
-    try {
-      await _serialized(_flush);
-    } catch (_) {
-      _plan = before;
-      _gen++;
-      notifyListeners();
-      rethrow;
-    }
-  }
+  Future<void> markKanaBoost(DateTime now) => save(_plan.markKanaBoost(now));
 
-  Future<void> markServed(TravelSceneId scene, DateTime now) async {
-    final before = _plan;
-    _plan = _plan.markServed(scene, now);
-    _gen++;
-    notifyListeners();
-    try {
-      await _serialized(_flush);
-    } catch (_) {
-      _plan = before;
-      _gen++;
-      notifyListeners();
-      rethrow;
-    }
-  }
+  Future<void> markServed(TravelSceneId scene, DateTime now) =>
+      save(_plan.markServed(scene, now));
 
   Future<void> clear() => save(TravelFocusPlan.empty);
 

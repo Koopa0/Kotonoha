@@ -941,7 +941,7 @@ class HomeScreen extends StatelessWidget {
       context,
       scene: scene,
       clock: clock,
-      onFinished: () => unawaited(_markTravelServed(context, scene)),
+      onFinished: () => _markTravelServed(context, scene),
     );
   }
 
@@ -953,7 +953,7 @@ class HomeScreen extends StatelessWidget {
       context,
       scene: scene,
       clock: clock,
-      onFinished: () => unawaited(_markTravelServed(context, scene)),
+      onFinished: () => _markTravelServed(context, scene),
     );
   }
 
@@ -965,7 +965,7 @@ class HomeScreen extends StatelessWidget {
       context,
       scene: scene,
       clock: clock,
-      onFinished: () => unawaited(_markTravelServed(context, scene)),
+      onFinished: () => _markTravelServed(context, scene),
     );
   }
 
@@ -974,55 +974,38 @@ class HomeScreen extends StatelessWidget {
     if (travel == null || !travel.plan.isActive) return null;
     return () {
       if (!context.mounted) return;
-      unawaited(_markTravelBoost(context));
+      _markTravelBoost(context);
     };
   }
 
-  Future<void> _skipTravelStep(BuildContext context, GuidanceStep step) async {
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
+  void _skipTravelStep(BuildContext context, GuidanceStep step) {
     switch (step.target) {
       case GuidanceTarget.daily:
-        await _markTravelBoost(context);
+        _markTravelBoost(context);
       case GuidanceTarget.travelMeet:
       case GuidanceTarget.travelRecall:
       case GuidanceTarget.travelListen:
       case GuidanceTarget.travelLearnKana:
-        if (step.scene != null) await _markTravelServed(context, step.scene!);
+        if (step.scene != null) _markTravelServed(context, step.scene!);
       default:
         break;
     }
   }
 
-  Future<void> _markTravelBoost(BuildContext context) async {
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
+  void _markTravelBoost(BuildContext context) {
     final travel = _readTravel(context);
     if (travel == null || !travel.plan.isActive) return;
-    final save = travel.markKanaBoost((clock ?? DateTime.now)());
-    persist.trackTravelFocus(save);
-    try {
-      await save;
-    } catch (_) {
-      return;
-    }
+    context.read<ProgressPersistenceController>().trackTravelFocus(
+      travel.markKanaBoost((clock ?? DateTime.now)()),
+    );
   }
 
-  Future<void> _markTravelServed(
-    BuildContext context,
-    TravelSceneId scene,
-  ) async {
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
+  void _markTravelServed(BuildContext context, TravelSceneId scene) {
     final travel = _readTravel(context);
     if (travel == null || !travel.plan.isActive) return;
-    final save = travel.markServed(scene, (clock ?? DateTime.now)());
-    persist.trackTravelFocus(save);
-    try {
-      await save;
-    } catch (_) {
-      return;
-    }
+    context.read<ProgressPersistenceController>().trackTravelFocus(
+      travel.markServed(scene, (clock ?? DateTime.now)()),
+    );
   }
 
   String _sceneLabel(TravelSceneId? scene) {

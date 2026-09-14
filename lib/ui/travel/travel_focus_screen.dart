@@ -30,6 +30,7 @@ class TravelFocusScreen extends StatefulWidget {
 class _TravelFocusScreenState extends State<TravelFocusScreen> {
   late List<TravelFocus> _draft;
   bool _limitHint = false;
+  bool _saving = false;
 
   DateTime get _now => (widget.clock ?? DateTime.now)();
 
@@ -99,13 +100,14 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
 
   Future<void> _save() async {
     final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
+    if (persist.hasWriteFailure || _saving) return;
+    setState(() => _saving = true);
     final save = context.read<TravelFocusRepository>().saveFocuses(_draft);
     persist.trackTravelFocus(save);
     try {
       await save;
     } catch (_) {
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _saving = false);
       return;
     }
     if (!mounted) return;
@@ -114,13 +116,14 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
 
   Future<void> _clear() async {
     final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
+    if (persist.hasWriteFailure || _saving) return;
+    setState(() => _saving = true);
     final clear = context.read<TravelFocusRepository>().clear();
     persist.trackTravelFocus(clear);
     try {
       await clear;
     } catch (_) {
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _saving = false);
       return;
     }
     if (!mounted) return;
@@ -130,7 +133,7 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   @override
   Widget build(BuildContext context) {
     final persist = context.watch<ProgressPersistenceController>();
-    final blocked = persist.hasWriteFailure;
+    final blocked = persist.hasWriteFailure || _saving;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.travelFocusTitle)),
       body: SafeArea(
@@ -172,13 +175,17 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
                   vertical: 12,
                 ),
               ),
-              child: const Text(AppStrings.travelFocusSave),
+              child: Text(
+                _saving ? AppStrings.backupSaving : AppStrings.travelFocusSave,
+              ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: blocked ? null : _clear,
               style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
-              child: const Text(AppStrings.travelFocusClear),
+              child: Text(
+                _saving ? AppStrings.backupSaving : AppStrings.travelFocusClear,
+              ),
             ),
           ],
         ),
