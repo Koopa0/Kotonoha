@@ -57,14 +57,12 @@ void main() {
     KanaProgressRepository kana,
     KanjiReadingRepository kanji,
     WordProgressRepository words,
-    ProgressPersistenceController persistence,
-  ) {
-    final recovery = recoveryForRepos(
-      prefs: fake,
-      kana: kana,
-      kanji: kanji,
-      words: words,
-    );
+    ProgressPersistenceController persistence, {
+    ProgressRestoreRecoveryController? recovery,
+  }) {
+    final effectiveRecovery =
+        recovery ??
+        recoveryForRepos(prefs: fake, kana: kana, kanji: kanji, words: words);
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
@@ -74,7 +72,7 @@ void main() {
           value: persistence,
         ),
         ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
-          value: recovery,
+          value: effectiveRecovery,
         ),
         Provider<SpeechService>.value(value: const SilentSpeechService()),
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
@@ -165,4 +163,64 @@ void main() {
     expect(find.text(AppStrings.persistFailedLine), findsNothing);
     expect(find.text(AppStrings.persistRetry), findsNothing);
   });
+
+  testWidgets(
+    'needsRecovery + unlock dismiss still shows restore recovery banner and retry calls restoreRecovery.retry',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(420, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final fake = FakePreferencesService();
+      fake.seed('learned_units_v1', '["hira_row_0"]');
+      final kana = await KanaProgressRepository.load(fake);
+      final kanji = await KanjiReadingRepository.load(fake);
+      final words = await WordProgressRepository.load(fake);
+      final recovery = _TrackingRestoreRecoveryController(
+        prefs: fake,
+        kana: kana,
+        kanji: kanji,
+        words: words,
+        needsRecovery: true,
+      );
+      final owner = ownerFor(kana, kanji);
+
+      await tester.pumpWidget(
+        appWith(fake, kana, kanji, words, owner, recovery: recovery),
+      );
+      await settle(tester);
+
+      expect(find.text(AppStrings.restoreJournalRecoveryLine), findsOneWidget);
+      expect(find.text(AppStrings.unlockWords), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.unlockDismiss));
+      await settle(tester);
+
+      expect(owner.hasWriteFailure, isTrue);
+      expect(find.text(AppStrings.restoreJournalRecoveryLine), findsOneWidget);
+      expect(find.text(AppStrings.persistFailedLine), findsNothing);
+
+      expect(recovery.retryCount, 0);
+      await tester.tap(find.text(AppStrings.persistRetry));
+      await settle(tester);
+      expect(recovery.retryCount, 1);
+    },
+  );
+}
+
+class _TrackingRestoreRecoveryController
+    extends ProgressRestoreRecoveryController {
+  _TrackingRestoreRecoveryController({
+    required super.prefs,
+    required super.kana,
+    required super.kanji,
+    required super.words,
+    required super.needsRecovery,
+  });
+
+  int retryCount = 0;
+
+  @override
+  Future<void> retry() {
+    retryCount++;
+    return super.retry();
+  }
 }
