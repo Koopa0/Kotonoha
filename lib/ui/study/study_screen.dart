@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -10,16 +9,20 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
-import 'package:kotonoha/domain/use_cases/lessons.dart';
-import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
+import 'package:kotonoha/ui/study/study_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Teaches one lesson's kana one card at a time (calm flashcards with audio),
 /// then sends the learner into a test scoped to that lesson.
+///
+/// A thin View over [StudyViewModel]: it owns the pager, the speaker and
+/// the lifecycle listener, renders, and navigates. The pass (encode /
+/// recap), the card in view, the reveal and how the row test is composed
+/// are the ViewModel's.
 class StudyScreen extends StatefulWidget {
   const StudyScreen({required this.lesson, super.key});
 
@@ -32,32 +35,21 @@ class StudyScreen extends StatefulWidget {
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
-/// 手解き runs in two passes: an honest ENCODE (every glyph shown with its
-/// romaji + audio — you cannot recall a kana you have never met), then an
-/// optional, self-paced RECAP (glyph only, romaji behind a tap) so the row test
-/// is no longer the first time the learner retrieves anything. The recap is
-/// opt-in — the default is straight to 測驗這一行 — and is never graded or scored.
-enum _Phase { encode, recap }
-
 class _StudyScreenState extends State<StudyScreen> {
   final PageController _controller = PageController();
+  late final StudyViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  int _index = 0;
-  _Phase _phase = _Phase.encode;
-  // Recap-only: whether the current card's romaji is revealed. Held in the State
-  // and reset on every page change (mirrors reading_screen), so the
-  // PageView.builder cards can stay stateless.
-  bool _revealed = false;
-
-  List<Kana> get _kana => widget.lesson.kana;
-  bool get _isLast => _index >= _kana.length - 1;
 
   @override
   void initState() {
     super.initState();
+    _vm = StudyViewModel(
+      lesson: widget.lesson,
+      kana: context.read<KanaProgressRepository>(),
+    );
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -91,18 +83,15 @@ class _StudyScreenState extends State<StudyScreen> {
 
   void _speakCurrent() {
     if (!mounted || !_playable || !_foreground) return;
-    unawaited(_speech.speak(_kana[_index].character));
+    unawaited(_speech.speak(_vm.current.character));
     _ownedPlay = _speech.generation;
   }
 
   void _onPageChanged(int i) {
-    setState(() {
-      _index = i;
-      _revealed = false;
-    });
+    _vm.showCard(i);
     // The recap is a silent recall — don't auto-speak the answer; the learner
     // hears it on reveal (or via the speak button) instead.
-    if (_phase == _Phase.encode) _speakCurrent();
+    if (!_vm.isRecap) _speakCurrent();
   }
 
   void _next() {
@@ -112,37 +101,23 @@ class _StudyScreenState extends State<StudyScreen> {
     );
   }
 
-  /// Enter the optional recall lap: walk the SAME row again from the top with
-  /// romaji hidden behind a tap. Reachable only from the last encode card, so
-  /// every recap glyph has already been met with its romaji + audio.
+  /// Enter the optional recall lap: the ViewModel walks the SAME row again
+  /// from the top with romaji hidden; the pager follows it there.
   void _enterRecap() {
-    setState(() {
-      _phase = _Phase.recap;
-      _index = 0;
-      _revealed = false;
-    });
+    _vm.enterRecap();
     _controller.jumpToPage(0);
   }
 
   /// Confirm a recap card: reveal the romaji and speak the kana.
   void _reveal() {
-    setState(() => _revealed = true);
+    _vm.reveal();
     _speakCurrent();
   }
 
   void _startTest() {
-    final store = context.read<KanaProgressRepository>();
-    final rng = Random();
-    final learned = _learnedOtherKana(store);
-    final questions = Lessons.composeTest(
-      lesson: widget.lesson,
-      learnedOtherKana: learned,
-      pool: StudySet.lessonTestPool(store, widget.lesson),
-      random: rng,
-    );
     Navigator.of(context).pushReplacement(
       QuizScreen.route(
-        questions: questions,
+        questions: _vm.composeTest(),
         title: widget.lesson.title,
         mode: PracticeMode.lessonTest,
         lesson: widget.lesson,
@@ -150,25 +125,12 @@ class _StudyScreenState extends State<StudyScreen> {
     );
   }
 
-  /// Kana from previously-learned rows (excluding this one), for interleaving.
-  List<Kana> _learnedOtherKana(KanaProgressRepository store) {
-    return Lessons.fromKana(store.allKana)
-        .where(
-          (l) =>
-              l.id != widget.lesson.id &&
-              l.script == widget.lesson.script &&
-              store.isUnitLearned(l.id),
-        )
-        .expand((l) => l.kana)
-        .toList();
-  }
-
   /// The footer button(s). The only new branch on the default path is the last
   /// ENCODE card, which offers a choice: go to the test now (primary, = today's
   /// behaviour) or take the optional recall lap (secondary). Every other card —
   /// and the last recap card — keeps a single full-width button.
   Widget _footer() {
-    if (_phase == _Phase.encode && _isLast) {
+    if (_vm.offersRecap) {
       return Row(
         children: [
           Expanded(
@@ -198,7 +160,7 @@ class _StudyScreenState extends State<StudyScreen> {
         ],
       );
     }
-    final isRecapLast = _phase == _Phase.recap && _isLast;
+    final isRecapLast = _vm.isRecap && _vm.isLast;
     return FilledButton(
       onPressed: isRecapLast ? _startTest : _next,
       child: Text(isRecapLast ? AppStrings.testThisRow : AppStrings.nextCard),
@@ -218,37 +180,45 @@ class _StudyScreenState extends State<StudyScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.lesson.title)),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-            Text(
-              AppStrings.itemProgress(_index + 1, _kana.length),
-              style: const TextStyle(
-                color: AppColors.inkMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Expanded(
-              child: PageView.builder(
-                controller: _controller,
-                onPageChanged: _onPageChanged,
-                itemCount: _kana.length,
-                itemBuilder: (context, i) => _StudyCard(
-                  kana: _kana[i],
-                  recall: _phase == _Phase.recap,
-                  revealed: i == _index && _revealed,
-                  onReveal: _reveal,
-                  onSpeak: _speakCurrent,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: _footer(),
-            ),
-          ],
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _body(),
         ),
       ),
+    );
+  }
+
+  Widget _body() {
+    final cards = _vm.cards;
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          AppStrings.itemProgress(_vm.index + 1, cards.length),
+          style: const TextStyle(
+            color: AppColors.inkMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: PageView.builder(
+            controller: _controller,
+            onPageChanged: _onPageChanged,
+            itemCount: cards.length,
+            itemBuilder: (context, i) => _StudyCard(
+              kana: cards[i],
+              recall: _vm.isRecap,
+              revealed: i == _vm.index && _vm.isRevealed,
+              onReveal: _reveal,
+              onSpeak: _speakCurrent,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: _footer(),
+        ),
+      ],
     );
   }
 }

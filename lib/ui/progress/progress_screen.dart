@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
 import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
@@ -14,6 +15,7 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
+import 'package:kotonoha/ui/progress/progress_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// 歩み — the one quiet 回望 (look-back). It is a MAP, not a scoreboard: how far
@@ -21,45 +23,67 @@ import 'package:provider/provider.dart';
 /// (which can rise or fall, and tells you where to look), and the occasional
 /// hard-gated observation. No accuracy %, no reaction-time number, no tally —
 /// those are private inputs to the silent scheduler, never shown.
-class ProgressScreen extends StatelessWidget {
+class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
 
   static Route<void> route() =>
       MaterialPageRoute<void>(builder: (_) => const ProgressScreen());
 
   @override
+  State<ProgressScreen> createState() => _ProgressScreenState();
+}
+
+/// A thin View over [ProgressViewModel] for the map; backup and restore
+/// below keep their own owners.
+class _ProgressScreenState extends State<ProgressScreen> {
+  late final ProgressViewModel _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = ProgressViewModel(
+      kana: context.read<KanaProgressRepository>(),
+      analytics: context.read<AnalyticsLog>(),
+    );
+    unawaited(_vm.observe());
+  }
+
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.progress)),
       body: SafeArea(
-        child: Consumer<KanaProgressRepository>(
-          builder: (context, store, _) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              children: [
-                const SizedBox(height: 8),
-                // Coverage of the whole syllabary — a map of how far you've come,
-                // never a grade. It can only grow by the honest act of meeting a
-                // kana, and it cannot be "lost".
-                Center(
-                  child: ProgressRing(
-                    value: store.totalCount == 0
-                        ? 0
-                        : store.seenCount / store.totalCount,
-                    centerLabel: '${store.seenCount}/${store.totalCount}',
-                    caption: AppStrings.practiced,
-                    title: AppStrings.practicedAllKanaScope,
-                    footnote: AppStrings.practicedAllKanaHint,
-                  ),
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            children: [
+              const SizedBox(height: 8),
+              // Coverage of the whole syllabary — a map of how far you've
+              // come, never a grade. It can only grow by the honest act of
+              // meeting a kana, and it cannot be "lost".
+              Center(
+                child: ProgressRing(
+                  value: _vm.coverage,
+                  centerLabel: '${_vm.seenCount}/${_vm.totalCount}',
+                  caption: AppStrings.practiced,
+                  title: AppStrings.practicedAllKanaScope,
+                  footnote: AppStrings.practicedAllKanaHint,
                 ),
-                const SizedBox(height: 28),
-                _StatusBreakdown(store: store),
-                const _Observations(),
-                const _ProgressBackup(),
-                const _ProgressRestore(),
-              ],
-            );
-          },
+              ),
+              const SizedBox(height: 28),
+              _StatusBreakdown(countOf: _vm.countWithStatus),
+              _Observations(observations: _vm.observations),
+              const _ProgressBackup(),
+              const _ProgressRestore(),
+            ],
+          ),
         ),
       ),
     );
@@ -70,26 +94,20 @@ class ProgressScreen extends StatelessWidget {
 /// teaching signal that used to live in 自画像. Says nothing rather than something
 /// flimsy, so an empty result simply shows nothing.
 class _Observations extends StatelessWidget {
-  const _Observations();
+  const _Observations({required this.observations});
+
+  final List<Observation> observations;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Attempt>>(
-      future: context.read<AnalyticsLog>().all(),
-      builder: (context, snapshot) {
-        final observations = snapshot.hasData
-            ? SelfPortrait.observe(snapshot.data!)
-            : const <Observation>[];
-        if (observations.isEmpty) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Column(
-            children: [
-              for (final o in observations) _ObservationCard(observation: o),
-            ],
-          ),
-        );
-      },
+    if (observations.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        children: [
+          for (final o in observations) _ObservationCard(observation: o),
+        ],
+      ),
     );
   }
 }
@@ -134,9 +152,9 @@ class _ObservationCard extends StatelessWidget {
 }
 
 class _StatusBreakdown extends StatelessWidget {
-  const _StatusBreakdown({required this.store});
+  const _StatusBreakdown({required this.countOf});
 
-  final KanaProgressRepository store;
+  final int Function(KanaStatus status) countOf;
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +169,7 @@ class _StatusBreakdown extends StatelessWidget {
         for (final (status, label) in items) ...[
           _StatusRow(
             label: label,
-            count: store.countWithStatus(status),
+            count: countOf(status),
             color: AppColors.forStatus(status),
           ),
           const SizedBox(height: 12),
