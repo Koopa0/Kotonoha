@@ -17,9 +17,15 @@ class PlacementCheckRepository extends ChangeNotifier {
     : _draft = loaded.value,
       health = loaded.health;
 
-  static const String _storageKey = 'placement_check_v1';
-  static const String _lastGoodKey = 'placement_check_last_good_v1';
-  static const String _quarantineKey = 'placement_check_quarantine_v1';
+  static const String storageKey = 'placement_check_v1';
+  static const String lastGoodKey = 'placement_check_last_good_v1';
+  static const String quarantineKey = 'placement_check_quarantine_v1';
+
+  static const List<String> durableKeys = <String>[
+    storageKey,
+    lastGoodKey,
+    quarantineKey,
+  ];
 
   final RecoverableStore<PlacementDraft> _store;
   PlacementDraft _draft;
@@ -35,9 +41,9 @@ class PlacementCheckRepository extends ChangeNotifier {
     final service = prefs ?? await PreferencesService.create();
     final store = RecoverableStore<PlacementDraft>(
       prefs: service,
-      primaryKey: _storageKey,
-      lastGoodKey: _lastGoodKey,
-      quarantineKey: _quarantineKey,
+      primaryKey: storageKey,
+      lastGoodKey: lastGoodKey,
+      quarantineKey: quarantineKey,
       empty: () => PlacementDraft.empty,
       decode: _decode,
     );
@@ -57,18 +63,28 @@ class PlacementCheckRepository extends ChangeNotifier {
 
   Future<void> clear() => save(PlacementDraft.empty);
 
-  /// Drops any placement draft after a committed progress restore. The
-  /// snapshot's five portable bodies are authoritative; a complete draft from
-  /// before restore must not re-apply learned rows on the results screen.
-  Future<void> discardAfterRestore() => _serialized(_discardAfterRestore);
+  /// Drops any placement draft during a progress restore, before the journal
+  /// commits. The snapshot's five portable bodies are authoritative; a draft
+  /// from before restore must not re-apply learned rows on the results screen.
+  Future<void> discardForRestore() => _serialized(_discardForRestore);
+
+  /// Re-reads the draft from durable storage after a restore rollback.
+  Future<void> reloadFromPlatform() => _serialized(_reloadFromPlatform);
 
   Future<void> flushPending() => _serialized(_flush);
 
-  Future<void> _discardAfterRestore() async {
+  Future<void> _discardForRestore() async {
     await _store.removeAll();
     _draft = PlacementDraft.empty;
     _gen++;
     _persistedGen = _gen;
+    notifyListeners();
+  }
+
+  Future<void> _reloadFromPlatform() async {
+    final loaded = await _store.load();
+    _draft = loaded.value;
+    _gen = _persistedGen = 0;
     notifyListeners();
   }
 

@@ -74,8 +74,12 @@ class ProgressSnapshotRestoreRepository {
     ]);
     try {
       final staging = _encodeStaging(snapshot);
+      final placementRollback = _capturePlacementRollback();
       try {
-        await _journal.beginStaging(staging);
+        await _journal.beginStaging(
+          staging,
+          placementRollback: placementRollback,
+        );
         for (final key in RestoreJournalStores.all) {
           await _journal.applyPrimary(key, staging[key]!);
         }
@@ -84,8 +88,10 @@ class ProgressSnapshotRestoreRepository {
             throw RestoreJournalWriteFailure(key);
           }
         }
+        if (placementRollback != null) {
+          await _discardPlacementDraftBeforeCommit();
+        }
         await _journal.commit();
-        await _discardPlacementDraftAfterCommit();
       } on RestoreJournalWriteFailure {
         await _syncMemoryFromDurable();
         try {
@@ -94,12 +100,12 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         await _syncMemoryFromDurable();
+        await _syncPlacementFromDurable();
         _syncJournalWriteBlocking();
         rethrow;
       } catch (_) {
         await _prefs.reload();
         if (_isDurableCommitted()) {
-          await _discardPlacementDraftAfterCommit();
           _applyToMemory(snapshot);
           return;
         }
@@ -109,6 +115,7 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         await _syncMemoryFromDurable();
+        await _syncPlacementFromDurable();
         _syncJournalWriteBlocking();
         rethrow;
       }
@@ -147,14 +154,27 @@ class ProgressSnapshotRestoreRepository {
     _words.setRestoreJournalBlocked(blocked);
   }
 
-  Future<void> _discardPlacementDraftAfterCommit() async {
+  Map<String, String?>? _capturePlacementRollback() {
+    final placement = _placement;
+    if (placement == null || !placement.draft.hasProgress) return null;
+    return {
+      for (final key in PlacementCheckRepository.durableKeys)
+        key: _prefs.readString(key),
+    };
+  }
+
+  Future<void> _discardPlacementDraftBeforeCommit() async {
     final placement = _placement;
     if (placement == null) return;
     try {
-      await placement.discardAfterRestore();
+      await placement.discardForRestore();
     } on StoreWriteFailure catch (error) {
       throw RestoreJournalWriteFailure(error.key);
     }
+  }
+
+  Future<void> _syncPlacementFromDurable() async {
+    await _placement?.reloadFromPlatform();
   }
 
   void _applyToMemory(ProgressSnapshot snapshot) {

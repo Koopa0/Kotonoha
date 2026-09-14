@@ -1180,4 +1180,115 @@ void main() {
       expect(kana.learnedUnits, isEmpty);
     },
   );
+
+  test(
+    'placement discard failure before commit rolls back primaries and draft',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackupLearnedHiraRow1Only(
+        sourceKana,
+        sourceKanji,
+        sourceWords,
+      );
+
+      final (fake, kana, kanji, words) = await loadAll();
+      final checks = await seedCompleteAoDraft(fake);
+      await kana.markUnitLearned('keep_me');
+      final before = primaryRaws(fake);
+      final beforePlacement = fake.durable['placement_check_v1'];
+      fake.failRemoves.add(PlacementCheckRepository.storageKey);
+
+      final restore = restoreFor(
+        fake,
+        kana,
+        kanji,
+        words,
+        placement: checks,
+      );
+      final preview = restore.previewEncoded(backup)!;
+
+      await expectLater(
+        restore.apply(preview.snapshot),
+        throwsA(isA<RestoreJournalWriteFailure>()),
+      );
+
+      expect(primaryRaws(fake), before);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(fake.durable['placement_check_v1'], beforePlacement);
+      expect(checks.draft.isComplete, isTrue);
+      expect(kana.learnedUnits, {'keep_me'});
+    },
+  );
+
+  test(
+    'placement discard failure reports failed restore without changing learned set',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackupLearnedHiraRow1Only(
+        sourceKana,
+        sourceKanji,
+        sourceWords,
+      );
+
+      final (fake, kana, kanji, words) = await loadAll();
+      final checks = await seedCompleteAoDraft(fake);
+      fake.failRemoves.add(PlacementCheckRepository.storageKey);
+
+      final files = FakeSnapshotFilePort()..pickContents = backup;
+      final restorer = ProgressSnapshotRestorer(
+        snapshots: snapshotsFor(fake, kana, kanji, words),
+        restore: restoreFor(fake, kana, kanji, words, placement: checks),
+        files: files,
+      );
+
+      final result = await restorer.restore(confirm: (_) async => true);
+
+      expect(result.status, SnapshotRestoreStatus.failed);
+      expect(kana.learnedUnits, isEmpty);
+      expect(checks.draft.isComplete, isTrue);
+      expect(fake.durable['placement_check_v1'], isNotNull);
+    },
+  );
+
+  test(
+    'recoverIfNeeded rolls back primaries and placement after interrupted discard',
+    () async {
+      final (fake, kana, kanji, words) = await loadAll();
+      final checks = await seedCompleteAoDraft(fake);
+      await kana.markUnitLearned('keep_me');
+      final before = primaryRaws(fake);
+      final beforePlacement = fake.durable['placement_check_v1'];
+
+      fake.seed(
+        ProgressRestoreJournal.journalKey,
+        jsonEncode(<String, Object?>{
+          'phase': RestoreJournalPhase.applying.name,
+          'rollback': before,
+          'staging': <String, String>{
+            for (final key in RestoreJournalStores.all) key: '{"partial":true}',
+          },
+          'placementRollback': {
+            for (final key in PlacementCheckRepository.durableKeys)
+              key: fake.durable[key],
+          },
+        }),
+      );
+      fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
+          '["hira_row_1"]';
+      await checks.discardForRestore();
+
+      await ProgressRestoreJournal.recoverIfNeeded(fake);
+
+      expect(primaryRaws(fake), before);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(fake.durable['placement_check_v1'], beforePlacement);
+
+      final reloadedChecks = await PlacementCheckRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(reloadedChecks.draft.isComplete, isTrue);
+    },
+  );
 }
