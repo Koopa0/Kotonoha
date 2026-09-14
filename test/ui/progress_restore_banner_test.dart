@@ -240,19 +240,19 @@ void main() {
       await settle(tester);
 
       // The transaction's own reload threw before staging, so nothing was
-      // written; the sync then fell back to the cached verdict (no journal)
-      // instead of throwing — the card reports the failure, the button is
-      // live again, and no banner or blocking was invented.
+      // written; the sync could not re-read durable state either, so
+      // isolation stays on until the platform reads again — the card reports
+      // the failure, the button is live again, and the banner is visible.
       expect(tester.takeException(), isNull);
       expect(find.text(AppStrings.restoreRestoring), findsNothing);
       expect(find.text(AppStrings.restoreFailed), findsOneWidget);
       expect(restoreButton(tester).onPressed, isNotNull);
       expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
-      expect(find.text(AppStrings.restoreJournalRecoveryLine), findsNothing);
-      expect(t.recovery.needsRecovery, isFalse);
-      expect(t.words.isRestoreJournalBlocked, isFalse);
+      expect(find.text(AppStrings.restoreJournalRecoveryLine), findsOneWidget);
+      expect(t.recovery.needsRecovery, isTrue);
+      expect(t.words.isRestoreJournalBlocked, isTrue);
 
-      // Once the platform reads again, the same button retries.
+      // Once the platform reads again, retry clears the banner and restores.
       fake.throwReloads = false;
       await tapRestore(tester);
       await tester.tap(find.text(AppStrings.restoreConfirmYes));

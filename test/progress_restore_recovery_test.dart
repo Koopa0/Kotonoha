@@ -119,19 +119,30 @@ void main() {
   });
 
   test(
-    'syncFromPlatform falls back to the cached journal when the read throws',
+    'syncFromPlatform keeps blocking when the platform read throws',
     () async {
       final t = await load(FakePreferencesService());
       t.fake.throwReloads = true;
 
-      expect(await t.recovery.syncFromPlatform(), isFalse);
-      expect(t.words.isRestoreJournalBlocked, isFalse);
-
-      // What a transaction wrote through the cache is the best verdict left
-      // when the platform cannot be re-read: blocking must not be dropped.
-      t.fake.cache[ProgressRestoreJournal.journalKey] = 'not json';
+      // Durable state is unknown — an empty cache cannot lift blocking.
       expect(await t.recovery.syncFromPlatform(), isTrue);
-      expect(t.recovery.needsRecovery, isTrue);
+      expect(t.words.isRestoreJournalBlocked, isTrue);
+
+      // Same when the cache alone would look finished (committed / no journal).
+      t.fake.cache[ProgressRestoreJournal.journalKey] = jsonEncode(
+        <String, Object?>{
+          'phase': RestoreJournalPhase.committed.name,
+          'rollback': <String, String?>{
+            for (final key in RestoreJournalStores.all) key: null,
+          },
+        },
+      );
+      expect(await t.recovery.syncFromPlatform(), isTrue);
+      expect(
+        ProgressRestoreJournal.blocksExport(t.fake),
+        isFalse,
+        reason: 'optimistic cache alone',
+      );
       expect(t.kana.isRestoreJournalBlocked, isTrue);
       expect(t.kanji.isRestoreJournalBlocked, isTrue);
       expect(t.words.isRestoreJournalBlocked, isTrue);

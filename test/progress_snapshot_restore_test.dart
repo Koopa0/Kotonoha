@@ -1051,6 +1051,80 @@ void main() {
     },
   );
 
+  test(
+    'committed marker write failure with reload throw keeps blocking until retry',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+      final (fake, kana, kanji, words) = await loadAll();
+      await kana.markUnitLearned('keep_me');
+      fake.failWriteOnAttempt[ProgressRestoreJournal.journalKey] = {7};
+      // apply() reloads once; the three owners reload in parallel, then
+      // abortAndRollback and the outer catch each reload again — every
+      // post-commit reload must throw so cache stays optimistic.
+      fake.throwReloadOnAttempt.addAll({2, 3, 4, 5, 6});
+
+      final recovery = recoveryFor(
+        fake,
+        kana,
+        kanji,
+        words,
+        needsRecovery: false,
+      );
+      final files = FakeSnapshotFilePort()..pickContents = backup;
+      final restorer = ProgressSnapshotRestorer(
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
+        files: files,
+      );
+
+      final result = await restorer.restore(confirm: (_) async => true);
+
+      expect(result.status, SnapshotRestoreStatus.failed);
+      expect(result.ranTransaction, isTrue);
+
+      final cachedJournal = jsonDecode(
+        fake.cache[ProgressRestoreJournal.journalKey]!,
+      ) as Map<String, dynamic>;
+      final durableJournal = jsonDecode(
+        fake.durable[ProgressRestoreJournal.journalKey]!,
+      ) as Map<String, dynamic>;
+      expect(cachedJournal['phase'], RestoreJournalPhase.committed.name);
+      expect(durableJournal['phase'], RestoreJournalPhase.applying.name);
+      expect(
+        fake.durable[ProgressStoreKeys.learnedUnits],
+        contains('hira_row_0'),
+      );
+
+      // Optimistic cache alone would lift blocking; durable is still mixed.
+      expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+      fake.throwReloadOnAttempt.add(7);
+      await recovery.syncFromPlatform();
+      expect(recovery.needsRecovery, isTrue);
+      expect(kana.isRestoreJournalBlocked, isTrue);
+      expect(kanji.isRestoreJournalBlocked, isTrue);
+      expect(words.isRestoreJournalBlocked, isTrue);
+      await expectLater(
+        words.introduce('word:あい', at: now),
+        throwsA(isA<ProgressRestoreJournalBlocked>()),
+      );
+
+      fake.throwReloadOnAttempt.clear();
+      fake.failWriteOnAttempt.clear();
+      await recovery.retry();
+
+      expect(recovery.needsRecovery, isFalse);
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(kana.learnedUnits, {'keep_me'});
+      expect(kana.isRestoreJournalBlocked, isFalse);
+      expect(words.isRestoreJournalBlocked, isFalse);
+      await words.introduce('word:あい', at: now);
+      expect(words.statForItem('word:あい').isSeen, isTrue);
+    },
+  );
+
   test('journal remove before-effect throw still restores memory when committed durable', () async {
     final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
     final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);

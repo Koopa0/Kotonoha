@@ -39,17 +39,19 @@ class ProgressRestoreRecovery {
   /// owners. Returns whether a blocking journal remains — an in-session
   /// restore that aborted mid-way leaves one behind.
   ///
-  /// Never throws: when the platform read itself fails, the verdict comes
-  /// from the cached journal — the same view the transaction just wrote
-  /// through — so blocking is still applied and a caller's busy state can
-  /// always be released.
+  /// Never throws: when the platform read itself fails, durable state is
+  /// unknown — a cached committed marker or absent journal cannot safely
+  /// lift blocking. Isolation stays on until a later read and recovery
+  /// succeed, so a caller's busy state can always be released.
   Future<bool> syncFromPlatform() async {
+    var reloadOk = false;
     try {
       await prefs.reload();
+      reloadOk = true;
     } on Object {
-      // Cached verdict below; a failed read must not drop blocking.
+      // Durable state unknown — never unblock from cache alone.
     }
-    final needs = needsRecovery;
+    final needs = !reloadOk || needsRecovery;
     applyBlocking(needs);
     return needs;
   }
