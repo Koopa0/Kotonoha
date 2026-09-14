@@ -65,6 +65,13 @@ class PlacementScopeViewModel extends ChangeNotifier {
   final ProgressRestoreRecoveryController recovery;
 
   final Set<String> _selected = {};
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   /// Every row, in catalog order.
   List<Lesson> get catalog => Lessons.fromKana(kana.allKana);
@@ -117,9 +124,10 @@ class PlacementScopeViewModel extends ChangeNotifier {
     } catch (_) {
       // Do not open a check whose draft is not on disk — resume from this
       // screen after retry, never silently.
-      notifyListeners();
+      if (!_disposed) notifyListeners();
       return null;
     }
+    if (_disposed) return null;
     return draft;
   }
 
@@ -145,11 +153,12 @@ class PlacementScopeViewModel extends ChangeNotifier {
     } catch (_) {
       // In-memory is empty; retry flushes that empty draft. Stay put.
     }
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     kana.removeListener(notifyListeners);
     checks.removeListener(notifyListeners);
     persistence.removeListener(notifyListeners);

@@ -191,4 +191,51 @@ void main() {
     expect(notifications, greaterThan(afterKana));
     t.vm.dispose();
   });
+
+  test(
+    'a pending start save finishing after leave does not notify a disposed vm',
+    () async {
+      final t = await makeVm();
+      final row = t.vm.hiragana.first;
+      t.vm.setSelected(row.id, selected: true);
+      final gate = PlatformGate();
+      t.fake.writeGates[PlacementCheckRepository.storageKey] = gate;
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      t.vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      final start = t.vm.startNew();
+      await gate.entered;
+      left = true;
+      t.vm.dispose();
+
+      gate.release();
+      expect(await start, isNull);
+      expect(notificationsAfterLeave, 0);
+    },
+  );
+
+  test('a pending discard clear finishing after leave does not notify a disposed vm', () async {
+    final t = await makeVm();
+    await t.checks.save(PlacementCheck.start([t.vm.hiragana.first])!);
+    final gate = PlatformGate();
+    t.fake.writeGates[PlacementCheckRepository.storageKey] = gate;
+
+    var notificationsAfterLeave = 0;
+    var left = false;
+    t.vm.addListener(() {
+      if (left) notificationsAfterLeave++;
+    });
+    final discard = t.vm.discardAndStay();
+    await gate.entered;
+    left = true;
+    t.vm.dispose();
+
+    gate.release();
+    await discard;
+    expect(t.checks.draft.hasProgress, isFalse);
+    expect(notificationsAfterLeave, 0);
+  });
 }

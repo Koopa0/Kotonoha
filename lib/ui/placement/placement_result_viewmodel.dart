@@ -67,9 +67,37 @@ class PlacementResultViewModel extends ChangeNotifier {
 
   final DateTime Function() _clock;
 
+  bool _disposed = false;
   bool _applying = false;
   bool _draftClearIssued = false;
   bool _awaitingRetry = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
+  /// The recoverable draft still belongs to this results visit — not a later
+  /// check the learner opened after leaving.
+  bool _stillOwnsDraft() {
+    final current = checks.draft;
+    if (!draft.isComplete || !current.isComplete) return false;
+    if (current.lessonIds.length != draft.lessonIds.length) return false;
+    for (var i = 0; i < draft.lessonIds.length; i++) {
+      if (current.lessonIds[i] != draft.lessonIds[i]) return false;
+    }
+    if (current.records.length != draft.records.length) return false;
+    for (var i = 0; i < draft.records.length; i++) {
+      final expected = draft.records[i];
+      final actual = current.records[i];
+      if (expected.kanaId != actual.kanaId ||
+          expected.outcome != actual.outcome) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   /// The confirmed rows are on disk and the draft clear has been issued.
   bool get isApplied => _draftClearIssued;
@@ -92,7 +120,7 @@ class PlacementResultViewModel extends ChangeNotifier {
   /// a running or finished apply is a no-op, and a blocked one parks itself
   /// until the owners clear.
   Future<void> applyConfirmed() async {
-    if (_applying || _draftClearIssued) return;
+    if (_disposed || _applying || _draftClearIssued) return;
     if (recovery.needsRecovery) {
       _awaitRetry();
       return;
@@ -104,20 +132,21 @@ class PlacementResultViewModel extends ChangeNotifier {
         persistence.trackKana(save);
         await save;
       }
+      if (_disposed || !_stillOwnsDraft()) return;
       _draftClearIssued = true;
       persistence.trackPlacement(checks.clear());
       notifyListeners();
     } catch (_) {
       // Banner already tracks the kana failure. Keep the draft so retry
       // or a later results visit can finish the pair.
-      _awaitRetry();
+      if (!_disposed) _awaitRetry();
     } finally {
       _applying = false;
     }
   }
 
   void _awaitRetry() {
-    if (_awaitingRetry) return;
+    if (_disposed || _awaitingRetry) return;
     _awaitingRetry = true;
     persistence.addListener(_onOwnersChanged);
     recovery.addListener(_onOwnersChanged);
@@ -125,7 +154,7 @@ class PlacementResultViewModel extends ChangeNotifier {
   }
 
   void _onOwnersChanged() {
-    if (!_awaitingRetry || _applying || _draftClearIssued) return;
+    if (_disposed || !_awaitingRetry || _applying || _draftClearIssued) return;
     if (persistence.hasWriteFailure || persistence.isRetrying) return;
     if (recovery.needsRecovery || recovery.isRetrying) return;
     _stopAwaitingRetry();
@@ -141,6 +170,7 @@ class PlacementResultViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _stopAwaitingRetry();
     kana.removeListener(notifyListeners);
     super.dispose();

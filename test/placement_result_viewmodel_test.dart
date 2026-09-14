@@ -190,4 +190,37 @@ void main() {
     expect(t.vm.isAwaitingRetry, isTrue);
     t.vm.dispose();
   });
+
+  test(
+    'a pending learned write finishing after leave does not clear a new draft',
+    () async {
+      final t = await makeVm();
+      final nextRow = Lessons.fromKana(t.kana.allKana)
+          .firstWhere((l) => l.id != t.row.id);
+      final learnedGate = PlatformGate();
+      t.fake.writeGates['learned_units_v1'] = learnedGate;
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      t.vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      final apply = t.vm.applyConfirmed();
+      await learnedGate.entered;
+
+      left = true;
+      t.vm.dispose();
+      final nextDraft = PlacementCheck.start([nextRow])!;
+      await t.checks.save(nextDraft);
+      expect(t.checks.draft.lessonIds, [nextRow.id]);
+
+      learnedGate.release();
+      await apply;
+      await _settle(() => t.persistence.hasWriteFailure == false);
+
+      expect(t.checks.draft.lessonIds, [nextRow.id]);
+      expect(t.checks.draft.hasProgress, isTrue);
+      expect(notificationsAfterLeave, 0);
+    },
+  );
 }
