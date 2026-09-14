@@ -48,6 +48,8 @@ abstract final class AppStrings {
   static const String readKanjiSentencesAction = '漢字句閱讀';
   static const String shiftAction = '指定難點再練';
   static const String replyAction = '聽懂再回應';
+  static const String confusableAction = '分辨相似假名';
+  static const String writingAction = '紙上默寫假名';
 
   // Guidance — the ambient one-line "next step" + the home card-path section
   // headers. The pure use_case returns only a target (+ a count); the 繁中 copy
@@ -192,7 +194,7 @@ abstract final class AppStrings {
 
   // Handwriting recall (with paper practice book)
   static const String writingEntry = '手習い';
-  static const String writingSubtitle = '看題目,在習字本上寫';
+  static const String writingSubtitle = '看題目,在自己的習字本上寫';
   static const String writingTitle = '手習い';
   static const String writePrompt = '在習字本上寫出這個音';
   static const String revealAnswer = '看答案';
