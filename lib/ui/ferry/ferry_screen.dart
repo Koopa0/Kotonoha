@@ -2,33 +2,32 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/data/koten_dataset.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/false_friend.dart';
-import 'package:kotonoha/domain/models/koten.dart';
-import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
-import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/ferry/ferry_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// 渡し舟 — the Ferry. For a learner whose ear runs ahead of his eye: a word he
 /// may already know by sound is ferried across to its written body in three
 /// beats — (1) hear it, (2) watch the kana ink in over the still-ringing audio
-/// (the binding), (3) read it back unaided. The thesis made mechanical. Records
-/// a reading [Attempt] (mode=ferry); reaction time is the read-back.
+/// (the binding), (3) read it back unaided. The thesis made mechanical.
+///
+/// A thin View over [FerryViewModel]: it owns the speaker (the owned
+/// utterance, whether the app may play), the lifecycle listener, rendering
+/// and navigation. The beat, the read-back clock and every schedule or
+/// analytics write are the ViewModel's.
 class FerryScreen extends StatefulWidget {
   const FerryScreen({
     required this.words,
@@ -71,31 +70,29 @@ class FerryScreen extends StatefulWidget {
   State<FerryScreen> createState() => _FerryScreenState();
 }
 
-enum _Beat { hear, see, readback }
-
 class _FerryScreenState extends State<FerryScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  final Random _rng = Random();
+  late final FerryViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  int _index = 0;
-  _Beat _beat = _Beat.hear;
-  int _readbackAtMs = 0;
-  int _correct = 0;
-  bool _done = false;
-
-  /// Picked once, at the close — an occasional classical 余韻 (often null).
-  KotenLine? _share;
+  int _shownIndex = 0;
+  bool _closed = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
-
-  Word get _current => widget.words[_index];
 
   @override
   void initState() {
     super.initState();
+    _vm = FerryViewModel(
+      items: widget.words,
+      words: context.read<WordProgressRepository>(),
+      kana: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      clock: widget.clock,
+    )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -112,6 +109,8 @@ class _FerryScreenState extends State<FerryScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
@@ -135,85 +134,54 @@ class _FerryScreenState extends State<FerryScreen> {
 
   void _speak() {
     if (!mounted || !_playable || !_foreground) return;
-    unawaited(_speech.speak(_current.kana));
+    unawaited(_speech.speak(_vm.current.kana));
     _ownedPlay = _speech.generation;
   }
 
+  /// The see beat speaks the word again over its inking-in — the binding.
   void _showText() {
     _speak();
-    setState(() => _beat = _Beat.see);
+    _vm.showText();
   }
 
-  void _readSelf() => setState(() {
-    _beat = _Beat.readback;
-    // Time only the read-back — the see-beat dwell must not count.
-    _readbackAtMs = _clock().millisecondsSinceEpoch;
-  });
-
-  void _grade(bool correct) {
-    final now = _clock();
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.kana,
-        itemType: ItemType.word,
-        mode: PracticeMode.ferry.name,
-        correct: correct,
-        rtMs: now.millisecondsSinceEpoch - _readbackAtMs,
-        sessionId: _sessionId,
-        meta: {'romaji': _current.romaji},
-      ),
-    );
-    // 渡し舟 introduces, it never reviews. A first successful read-back is
-    // an encode credit (introduce → schedule). A first miss still marks the
-    // word seen so intake cannot replay it, but must not write a successful
-    // recall. Re-ferrying a seen word is exposure only.
-    final words = context.read<WordProgressRepository>();
-    final persist = context.read<ProgressPersistenceController>();
-    final id = _current.progressId;
-    if (correct) {
-      persist.trackWord(words.introduce(id, at: now));
-    } else if (!words.statForItem(id).isSeen) {
-      persist.trackWord(words.markIntroduced(id, at: now));
-    }
-    if (correct) _correct++;
-    if (_index + 1 >= widget.words.length) {
-      final store = context.read<KanaProgressRepository>();
-      _share = KotenShare.pick(
-        pool: kKoten,
-        seenKanaCount: store.seenCount,
-        rng: _rng,
-        season: Season.forMonth(now.month),
-      );
+  /// Session transitions are the ViewModel's; what they mean for the
+  /// utterance is the view's. A new word speaks once it has a frame; the
+  /// close drops the owned utterance and reports the official finish.
+  void _onChanged() {
+    if (_vm.isFinished) {
+      if (_closed) return;
+      _closed = true;
       _abandonOwnedPlayback();
-      setState(() => _done = true);
       widget.onFinished?.call();
-    } else {
-      setState(() {
-        _index++;
-        _beat = _Beat.hear;
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
+      return;
     }
+    if (_vm.index == _shownIndex) return;
+    _shownIndex = _vm.index;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _speak());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
-      headline: AppStrings.readingSummary(_correct, widget.words.length),
+      headline: AppStrings.readingSummary(_vm.correctCount, _vm.total),
       // The classical 余韻 (when picked) replaces the close note.
-      note: _share == null
+      note: _vm.share == null
           ? AppStrings.closing(widget.words.last.kana, band: band)
           : null,
-      share: _share,
+      share: _vm.share,
       onDone: () => Navigator.of(context).pop(),
       // Night close grants permission to stop — suppress もう一回 at render time.
       onMore: band == ClosingBand.day ? widget.onMore : null,
@@ -221,12 +189,13 @@ class _FerryScreenState extends State<FerryScreen> {
   }
 
   Widget _question() {
-    final showKana = _beat != _Beat.hear;
+    final current = _vm.current;
+    final showKana = _vm.showsKana;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.words.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -263,7 +232,7 @@ class _FerryScreenState extends State<FerryScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   SpeakButton(
-                                    text: _current.kana,
+                                    text: current.kana,
                                     prominent: true,
                                     size: showKana ? 34 : 56,
                                     onPlay: _speak,
@@ -273,9 +242,9 @@ class _FerryScreenState extends State<FerryScreen> {
                                     // Keep the 64 glyph size; wrap and scroll
                                     // rather than shrinking the learner scale.
                                     _InkIn(
-                                      key: ValueKey(_index),
+                                      key: ValueKey(_vm.index),
                                       child: Text(
-                                        _current.kana,
+                                        current.kana,
                                         textAlign: TextAlign.center,
                                         softWrap: true,
                                         style: const TextStyle(
@@ -288,7 +257,7 @@ class _FerryScreenState extends State<FerryScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      _current.romaji,
+                                      current.romaji,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: AppColors.accent,
@@ -298,7 +267,7 @@ class _FerryScreenState extends State<FerryScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      _current.meaning,
+                                      current.meaning,
                                       key: const ValueKey<String>(
                                         'ferry-meaning',
                                       ),
@@ -308,18 +277,18 @@ class _FerryScreenState extends State<FerryScreen> {
                                         fontSize: 18,
                                       ),
                                     ),
-                                    if (_current.falseFriend != null)
+                                    if (current.falseFriend != null)
                                       _FalseFriendNote(
-                                        _current.falseFriend!,
-                                        key: ValueKey(_current.kana),
+                                        current.falseFriend!,
+                                        key: ValueKey(current.kana),
                                       ),
                                   ],
                                   const SizedBox(height: 16),
                                   Text(
-                                    switch (_beat) {
-                                      _Beat.hear => AppStrings.ferryHear,
-                                      _Beat.see => AppStrings.ferrySee,
-                                      _Beat.readback =>
+                                    switch (_vm.beat) {
+                                      FerryBeat.hear => AppStrings.ferryHear,
+                                      FerryBeat.see => AppStrings.ferrySee,
+                                      FerryBeat.readback =>
                                         AppStrings.ferryReadback,
                                     },
                                     textAlign: TextAlign.center,
@@ -349,20 +318,20 @@ class _FerryScreenState extends State<FerryScreen> {
   }
 
   Widget _controls() {
-    switch (_beat) {
-      case _Beat.hear:
+    switch (_vm.beat) {
+      case FerryBeat.hear:
         return FilledButton(
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
           onPressed: _showText,
           child: const Text(AppStrings.ferryShowText),
         );
-      case _Beat.see:
+      case FerryBeat.see:
         return FilledButton(
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
-          onPressed: _readSelf,
+          onPressed: _vm.readSelf,
           child: const Text(AppStrings.ferryReadSelf),
         );
-      case _Beat.readback:
+      case FerryBeat.readback:
         return Row(
           children: [
             Expanded(
@@ -375,7 +344,7 @@ class _FerryScreenState extends State<FerryScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: () => _grade(false),
+                onPressed: () => _vm.grade(correct: false),
                 child: const Text(AppStrings.iCouldnt),
               ),
             ),
@@ -386,7 +355,7 @@ class _FerryScreenState extends State<FerryScreen> {
                   backgroundColor: AppColors.success,
                   minimumSize: const Size.fromHeight(54),
                 ),
-                onPressed: () => _grade(true),
+                onPressed: () => _vm.grade(correct: true),
                 child: const Text(AppStrings.iReadIt),
               ),
             ),

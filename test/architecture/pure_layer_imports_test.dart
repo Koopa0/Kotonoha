@@ -142,29 +142,44 @@ void main() {
   });
 
   test('migrated feature views leave progress and analytics writes to their ViewModel', () {
-    // Screens already split into View / ViewModel (#149). Grow this list as
-    // each batch lands; a listed file that moves fails loudly instead of the
-    // guard silently scanning nothing. A view may still *inject* a repository
-    // or the analytics log into its ViewModel — it must never mutate one.
-    const migratedViews = [
-      'lib/ui/quiz/quiz_screen.dart',
-      'lib/ui/reading/reading_screen.dart',
-      'lib/ui/listening/listening_screen.dart',
-    ];
+    // A feature counts as split into View / ViewModel (#149) once its
+    // directory holds a *_viewmodel.dart; every *_screen.dart beside it is
+    // then a View. Discovering the set from the tree means each batch that
+    // lands is guarded without editing a list here (and without merge
+    // conflicts between batches). A view may still *inject* a repository or
+    // the analytics log into its ViewModel — it must never mutate one.
+    final migratedDirs = _dartFilesUnder(['lib/ui', 'lib/kanji/ui'])
+        .where((f) => f.path.endsWith('_viewmodel.dart'))
+        .map((f) => f.parent.path)
+        .toSet()
+        .toList();
+    expect(
+      migratedDirs,
+      isNotEmpty,
+      reason:
+          'no *_viewmodel.dart files found — the naming convention moved '
+          'and this guard is scanning nothing; update the glob',
+    );
+    final migratedViews = _dartFilesUnder(migratedDirs)
+        .where((f) => f.path.endsWith('_screen.dart'))
+        .toList();
+    expect(
+      migratedViews,
+      isNotEmpty,
+      reason: 'a ViewModel directory with no *_screen.dart beside it',
+    );
     final forbidden = RegExp(
       r'\.(recordAnswer|recordPromptedPractice|markIntroduced|introduce|'
       'markUnitLearned|recordObserved|record|trackKana|trackKanji|trackWord|'
       r'trackPlacement|trackAnalytics|trackTravelFocus)\s*\(',
     );
     final offenders = <String>[];
-    for (final path in migratedViews) {
-      final file = File(path);
-      expect(file.existsSync(), isTrue, reason: 'missing migrated view: $path');
+    for (final file in migratedViews) {
       for (final line in file.readAsLinesSync()) {
         final t = line.trimLeft();
         if (t.startsWith('//') || t.startsWith('*')) continue;
         if (forbidden.hasMatch(line)) {
-          offenders.add('$path: ${line.trim()}');
+          offenders.add('${file.path}: ${line.trim()}');
         }
       }
     }

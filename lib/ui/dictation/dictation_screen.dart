@@ -9,31 +9,25 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/data/kana_dataset.dart';
-import 'package:kotonoha/domain/data/koten_dataset.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
-import 'package:kotonoha/domain/models/kana.dart';
-import 'package:kotonoha/domain/models/koten.dart';
-import 'package:kotonoha/domain/models/season.dart';
 import 'package:kotonoha/domain/models/word.dart';
-import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
-import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
-import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
-import 'package:kotonoha/ui/core/item_reaction_clock.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/dictation/dictation_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// 文字を起こす — dictation. Hear a word, then ASSEMBLE it from kana tiles (its
 /// own kana plus a few distractors). This is the production / encoding rep the
 /// learner is otherwise missing — recognition tells you nothing about whether he
-/// can call the written shape up himself. Records a [Attempt] (mode=dictation).
+/// can call the written shape up himself.
 ///
-/// Valid [Attempt.rtMs] is foreground assemble time. Pause / hide freezes
-/// the clock — resume or same-word replay must not restart it.
+/// A thin View over [DictationViewModel]: it owns playback (generations, the
+/// owned utterance and in-flight state), the lifecycle listener, the scroll
+/// position, rendering and navigation. The board, what a completed play
+/// *means*, the assemble clock and every schedule or analytics write are the
+/// ViewModel's; the view only reports play outcomes and interrupts to it.
 class DictationScreen extends StatefulWidget {
   const DictationScreen({
     required this.words,
@@ -49,7 +43,7 @@ class DictationScreen extends StatefulWidget {
   final String title;
 
   /// Optional clock / monotonic elapsed for tests. Production leaves both
-  /// null so the screen uses [DateTime.now] and [Stopwatch].
+  /// null so the view-model uses [DateTime.now] and [Stopwatch].
   final DateTime Function()? clock;
   final int Function()? monotonicMs;
 
@@ -83,53 +77,41 @@ class DictationScreen extends StatefulWidget {
 }
 
 class _DictationScreenState extends State<DictationScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  final Random _rng = Random();
   final ScrollController _scrollController = ScrollController();
 
+  late final DictationViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
-  late final ItemReactionClock _reaction;
 
-  /// Picked once, at the close — an occasional classical 余韻 (often null).
-  KotenLine? _share;
-  int _index = 0;
-  List<String> _tiles = const [];
-  List<bool> _used = const [];
-  final List<int> _picked = [];
-  bool _checked = false;
-  bool _wasCorrect = false;
-  int _correct = 0;
-  bool _done = false;
   int _playGen = 0;
   int? _ownedPlay;
-  bool _blindHeard = false;
-  String? _heardItemId;
-  SpeechPlaybackResult? _lastPlay;
-
-  Word get _current => widget.words[_index];
+  int _shownIndex = 0;
+  bool _shownChecked = false;
+  bool _closed = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
-
-  /// The word split into learning-unit tiles (きゃ stays one tile, っ/ー are
-  /// their own tiles) — assembly works in the units the learner reads in.
-  List<String> get _targetChars => KanaTokenizer.tokenize(_current.kana);
 
   @override
   void initState() {
     super.initState();
-    _speech = context.read<SpeechService>();
-    _reaction = ItemReactionClock(
+    _vm = DictationViewModel(
+      items: widget.words,
+      words: context.read<WordProgressRepository>(),
+      kana: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      alreadyTransferredIds: widget.alreadyTransferredIds,
       clock: widget.clock,
       monotonicMs: widget.monotonicMs,
-    );
+    )..addListener(_onChanged);
+    _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _onUnanswerable,
       onHide: _onUnanswerable,
       onPause: _onUnanswerable,
       onDetach: _onUnanswerable,
     );
-    _setup();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_play());
     });
@@ -140,20 +122,17 @@ class _DictationScreenState extends State<DictationScreen> {
     _lifecycle.dispose();
     _abandonPlayback();
     _scrollController.dispose();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
   void _onUnanswerable() {
-    if (_done) return;
+    if (_vm.isFinished) return;
     // Stopping audio is independent of whether the item is already
     // assembled — a reveal replay must cancel in the background too.
     _abandonPlayback();
-    // An already-shown assemble clock stays dead. Resume / replay
-    // must not mint a fresh RT for this word.
-    _reaction.invalidate();
-    if (mounted) {
-      setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
-    }
+    _vm.noteInterrupted();
   }
 
   /// Cancels this screen's in-flight playback and drops its local generation.
@@ -169,12 +148,6 @@ class _DictationScreenState extends State<DictationScreen> {
     }
   }
 
-  void _resetHearing() {
-    _blindHeard = false;
-    _heardItemId = null;
-    _lastPlay = null;
-  }
-
   /// A new listening item must open on its prompt. Same-word assemble / clear
   /// / reveal keep the user's place — only the target change jumps back.
   void _scrollToPrompt() {
@@ -182,151 +155,71 @@ class _DictationScreenState extends State<DictationScreen> {
     _scrollController.jumpTo(0);
   }
 
-  void _setup() {
-    final chars = _targetChars;
-    // Distractor tiles come from the word's own script — cross-script tiles
-    // would give the answer away by shape alone.
-    final distractorPool = _current.script == KanaScript.katakana
-        ? kKatakanaGojuon
-        : kHiraganaGojuon;
-    final distractors =
-        (distractorPool
-                .map((k) => k.character)
-                .where((c) => !chars.contains(c))
-                .toList()
-              ..shuffle(_rng))
-            .take(3);
-    _tiles = [...chars, ...distractors]..shuffle(_rng);
-    _used = List<bool>.filled(_tiles.length, false);
-    _picked.clear();
-    _checked = false;
-    _reaction.arm(startImmediately: true);
+  /// Session transitions are the ViewModel's; what they mean for the
+  /// utterance is the view's. A check replays the word over its reveal; a
+  /// new word drops the old play, returns to the prompt and auto-plays once
+  /// it has a frame; the close leaves the last utterance behind.
+  void _onChanged() {
+    if (_vm.isFinished) {
+      if (_closed) return;
+      _closed = true;
+      _abandonPlayback();
+      return;
+    }
+    if (_vm.index != _shownIndex) {
+      _shownIndex = _vm.index;
+      _shownChecked = false;
+      _abandonPlayback();
+      _scrollToPrompt();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _vm.isFinished) return;
+        unawaited(_play());
+      });
+      return;
+    }
+    if (_vm.isChecked && !_shownChecked) {
+      _shownChecked = true;
+      unawaited(_play());
+    }
   }
 
   Future<void> _play() async {
-    if (!mounted || _done) return;
-    final itemId = _current.progressId;
-    final startedBlind = !_checked;
+    if (!mounted || _vm.isFinished) return;
+    final itemIndex = _vm.index;
+    final startedBlind = !_vm.isChecked;
     final gen = ++_playGen;
-    final pending = _speech.play(_current.kana);
+    final pending = _speech.play(_vm.current.kana);
     _ownedPlay = _speech.generation;
     final result = await pending;
-    if (!mounted || _done || gen != _playGen || _current.progressId != itemId) {
+    if (!mounted ||
+        _vm.isFinished ||
+        gen != _playGen ||
+        _vm.index != itemIndex) {
       return;
     }
-    setState(() {
-      _lastPlay = result;
-      if (result != SpeechPlaybackResult.played) return;
-      if (startedBlind && !_checked) {
-        _blindHeard = true;
-        _heardItemId = itemId;
-      }
-    });
-  }
-
-  void _tapTile(int i) {
-    if (_used[i] || _checked) return;
-    setState(() {
-      _used[i] = true;
-      _picked.add(i);
-    });
-    if (_picked.length == _targetChars.length) _check();
-  }
-
-  void _clear() {
-    setState(() {
-      for (final i in _picked) {
-        _used[i] = false;
-      }
-      _picked.clear();
-    });
-  }
-
-  void _check() {
-    final built = _picked.map((i) => _tiles[i]).join();
-    final correct = built == _current.kana;
-    final now = _clock();
-    final heard = _blindHeard && _heardItemId == _current.progressId;
-    final playback = heard
-        ? SpeechPlaybackResult.played
-        : (_lastPlay ?? SpeechPlaybackResult.interrupted);
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.kana,
-        itemType: ItemType.word,
-        mode: PracticeMode.dictation.name,
-        correct: correct,
-        rtMs: _reaction.elapsedMs(),
-        sessionId: _sessionId,
-        meta: {
-          'romaji': _current.romaji,
-          AttemptMeta.playback: playback.name,
-          AttemptMeta.heard: heard,
-          AttemptMeta.prompted: false,
-          AttemptMeta.scored: heard,
-        },
-      ),
+    _vm.notePlayback(
+      itemIndex: itemIndex,
+      result: result,
+      startedBlind: startedBlind,
     );
-    // Only a completed play *before* assembly is unprompted dictation
-    // evidence. A later success cannot backfill SRS for this item.
-    // A miss always resets. Unprompted correct climbs only the first
-    // time this grind covers the id — wrap-around practice may repeat
-    // the word but must not farm the schedule.
-    if (heard) {
-      final words = context.read<WordProgressRepository>();
-      final persist = context.read<ProgressPersistenceController>();
-      final id = _current.progressId;
-      if (!correct) {
-        persist.trackWord(words.recordAnswer(id, correct: false, at: now));
-      } else if (DailyBridge.shouldRenew(id, widget.alreadyTransferredIds)) {
-        persist.trackWord(words.recordAnswer(id, correct: true, at: now));
-      }
-    }
-    if (correct) _correct++;
-    setState(() {
-      _checked = true;
-      _wasCorrect = correct;
-    });
-    unawaited(_play());
-  }
-
-  void _next() {
-    _abandonPlayback();
-    if (_index + 1 >= widget.words.length) {
-      final store = context.read<KanaProgressRepository>();
-      _share = KotenShare.pick(
-        pool: kKoten,
-        seenKanaCount: store.seenCount,
-        rng: _rng,
-        season: Season.forMonth(_clock().month),
-      );
-      setState(() => _done = true);
-    } else {
-      setState(() {
-        _index++;
-        _resetHearing();
-        _setup();
-      });
-      _scrollToPrompt();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _done) return;
-        unawaited(_play());
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
   String? get _playbackStatus {
-    if (_blindHeard) return null;
-    return switch (_lastPlay) {
+    if (_vm.blindHeard) return null;
+    return switch (_vm.lastPlay) {
       SpeechPlaybackResult.unavailable => AppStrings.dictationUnavailable,
       SpeechPlaybackResult.failed => AppStrings.dictationFailed,
       SpeechPlaybackResult.interrupted => AppStrings.dictationInterrupted,
@@ -337,12 +230,12 @@ class _DictationScreenState extends State<DictationScreen> {
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
-      headline: AppStrings.readingSummary(_correct, widget.words.length),
+      headline: AppStrings.readingSummary(_vm.correctCount, _vm.total),
       // The classical 余韻 (when picked) replaces the close note.
-      note: _share == null
+      note: _vm.share == null
           ? AppStrings.closing(widget.words.last.kana, band: band)
           : null,
-      share: _share,
+      share: _vm.share,
       onDone: () => Navigator.of(context).pop(),
       // Night close grants permission to stop — suppress もう一回 at render time.
       onMore: band == ClosingBand.day ? widget.onMore : null,
@@ -350,7 +243,10 @@ class _DictationScreenState extends State<DictationScreen> {
   }
 
   Widget _question() {
-    final target = _targetChars;
+    final current = _vm.current;
+    final target = _vm.targetUnits;
+    final tiles = _vm.tiles;
+    final checked = _vm.isChecked;
     // Slots wrap when a word's units exceed the width; the page scrolls when
     // the column exceeds a short or large-text viewport. Slot boxes are sized
     // for a two-kana unit without reading the glyph, so layout cannot leak
@@ -366,7 +262,7 @@ class _DictationScreenState extends State<DictationScreen> {
                 children: [
                   const SizedBox(height: 8),
                   Text(
-                    AppStrings.itemProgress(_index + 1, widget.words.length),
+                    AppStrings.itemProgress(_vm.index + 1, _vm.total),
                     style: const TextStyle(
                       color: AppColors.inkMuted,
                       fontWeight: FontWeight.w600,
@@ -375,7 +271,7 @@ class _DictationScreenState extends State<DictationScreen> {
                   const SizedBox(height: 24),
                   SpeakButton(
                     key: const ValueKey<String>('dictation-replay'),
-                    text: _current.kana,
+                    text: current.kana,
                     prominent: true,
                     size: 40,
                     onPlay: () => unawaited(_play()),
@@ -409,12 +305,10 @@ class _DictationScreenState extends State<DictationScreen> {
                         for (var i = 0; i < target.length; i++)
                           _Slot(
                             key: ValueKey<String>('dictation-slot-$i'),
-                            char: i < _picked.length
-                                ? _tiles[_picked[i]]
-                                : null,
-                            state: !_checked
+                            char: _vm.slotUnit(i),
+                            state: !checked
                                 ? _SlotState.building
-                                : (_wasCorrect
+                                : (_vm.wasCorrect
                                       ? _SlotState.right
                                       : _SlotState.wrong),
                           ),
@@ -422,7 +316,7 @@ class _DictationScreenState extends State<DictationScreen> {
                     ),
                   ),
                   const Spacer(),
-                  if (!_checked)
+                  if (!checked)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Wrap(
@@ -430,9 +324,12 @@ class _DictationScreenState extends State<DictationScreen> {
                         spacing: 12,
                         runSpacing: 12,
                         children: [
-                          for (var i = 0; i < _tiles.length; i++)
-                            if (!_used[i])
-                              _Tile(label: _tiles[i], onTap: () => _tapTile(i)),
+                          for (var i = 0; i < tiles.length; i++)
+                            if (!_vm.isTileUsed(i))
+                              _Tile(
+                                label: tiles[i],
+                                onTap: () => _vm.tapTile(i),
+                              ),
                         ],
                       ),
                     )
@@ -445,9 +342,9 @@ class _DictationScreenState extends State<DictationScreen> {
                           // The same identity block the reading & ferry
                           // reveals show. On a miss, lead with the answer's
                           // kana; romaji + meaning follow.
-                          if (!_wasCorrect) ...[
+                          if (!_vm.wasCorrect) ...[
                             Text(
-                              _current.kana,
+                              current.kana,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 34,
@@ -459,7 +356,7 @@ class _DictationScreenState extends State<DictationScreen> {
                             const SizedBox(height: 6),
                           ],
                           Text(
-                            _current.romaji,
+                            current.romaji,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: AppColors.accent,
@@ -469,7 +366,7 @@ class _DictationScreenState extends State<DictationScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _current.meaning,
+                            current.meaning,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: AppColors.ink,
@@ -482,12 +379,12 @@ class _DictationScreenState extends State<DictationScreen> {
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    child: _checked
+                    child: checked
                         ? SizedBox(
                             height: 54,
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _next,
+                              onPressed: _vm.next,
                               child: const Text(AppStrings.dictationNext),
                             ),
                           )
@@ -505,7 +402,7 @@ class _DictationScreenState extends State<DictationScreen> {
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
-                              onPressed: _picked.isEmpty ? null : _clear,
+                              onPressed: _vm.picked.isEmpty ? null : _vm.clear,
                               child: const Text(AppStrings.dictationClear),
                             ),
                           ),
