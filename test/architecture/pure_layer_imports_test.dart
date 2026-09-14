@@ -81,6 +81,43 @@ void main() {
     );
   });
 
+  test('a repository never reaches for another repository', () {
+    // Each kind of data has exactly one truth owner. Coordination across two
+    // owners is a use case's job (ProgressSnapshotCapture, the restore
+    // transaction); a repository that imports a sibling starts a second,
+    // hidden owner and a notification order nobody can reason about.
+    final offenders = _scan(
+      dirs: ['lib/data/repositories', 'lib/kanji/data/repositories'],
+      forbidden: RegExp('''^\\s*(?:import|export)\\s+['"].*repositories/'''),
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'cross-owner coordination belongs in a use case, not inside one '
+          'repository — found:\n${offenders.join('\n')}',
+    );
+  });
+
+  test('the domain layer never imports the UI layer', () {
+    // Stronger than "no package:flutter": a pure model or use case must not
+    // know our own widgets, ViewModels or controllers either, or the learning
+    // rules start depending on how they happen to be shown.
+    final offenders = _scan(
+      dirs: ['lib/domain', 'lib/kanji/domain'],
+      forbidden: RegExp(
+        '''^\\s*(?:import|export)\\s+['"]package:kotonoha/(?:kanji/)?ui/''',
+      ),
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'learning rules must not depend on presentation — found:\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
   test('the data layer has no import cycles', () {
     final files = _dartFilesUnder(['lib/data', 'lib/kanji/data']);
     final edges = <String, List<String>>{};
@@ -206,6 +243,63 @@ void main() {
       reason:
           'ui must reach platform sources only through data/services — found:\n'
           '${offenders.join('\n')}',
+    );
+  });
+
+  test('the composition root provides every owner the UI reads', () {
+    // #149 composition-root contract, read off the source rather than
+    // trusted: a screen that reads a type bootstrap does not register only
+    // fails at runtime, in whichever route happens to reach it first.
+    final reads = <String>{};
+    final readPattern = RegExp(
+      r'(?:context\.(?:read|watch)|Provider\.of)<([A-Za-z0-9_]+)>'
+      r'|\bConsumer<([A-Za-z0-9_]+)>',
+    );
+    for (final file in _dartFilesUnder(['lib/ui', 'lib/kanji/ui'])) {
+      for (final line in file.readAsLinesSync()) {
+        final t = line.trimLeft();
+        if (t.startsWith('//') || t.startsWith('*')) continue;
+        for (final m in readPattern.allMatches(line)) {
+          reads.add((m.group(1) ?? m.group(2))!);
+        }
+      }
+    }
+    expect(
+      reads,
+      isNotEmpty,
+      reason:
+          'no provider reads found under lib/ui — the lookup style moved and '
+          'this guard is scanning nothing; update the pattern',
+    );
+
+    final provided = <String>{};
+    final providePattern = RegExp(
+      r'\b(?:ChangeNotifierProvider|Provider|ListenableProvider|'
+      'ValueListenableProvider)<([A-Za-z0-9_]+)>',
+    );
+    for (final line in File('lib/main.dart').readAsLinesSync()) {
+      final t = line.trimLeft();
+      if (t.startsWith('//') || t.startsWith('*')) continue;
+      for (final m in providePattern.allMatches(line)) {
+        provided.add(m.group(1)!);
+      }
+    }
+    expect(
+      provided,
+      isNotEmpty,
+      reason:
+          'no providers found in lib/main.dart — the composition root moved '
+          'and this guard is scanning nothing; update the path',
+    );
+
+    final missing = reads.difference(provided).toList()..sort();
+    expect(
+      missing,
+      isEmpty,
+      reason:
+          'bootstrap must register every owner a screen reads, so a missing '
+          'one fails at launch instead of deep inside a route — found:\n'
+          '${missing.join('\n')}',
     );
   });
 }

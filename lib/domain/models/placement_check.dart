@@ -41,12 +41,24 @@ class PlacementRecord {
 /// confirmation after 讀得出來 is still independent; only a new visit
 /// after leave / reload is conservative.
 class PlacementDraft {
-  const PlacementDraft({
-    required this.lessonIds,
-    required this.pendingKanaIds,
-    required this.records,
-    this.hintedKanaIds = const [],
-  });
+  /// Copies every list into an unmodifiable view: the draft is the owner's
+  /// value, and a reader that holds one must not be able to write through it
+  /// or watch it shift when the owner saves the next one.
+  PlacementDraft({
+    required List<String> lessonIds,
+    required List<String> pendingKanaIds,
+    required List<PlacementRecord> records,
+    List<String> hintedKanaIds = const [],
+  }) : lessonIds = List<String>.unmodifiable(lessonIds),
+       pendingKanaIds = List<String>.unmodifiable(pendingKanaIds),
+       records = List<PlacementRecord>.unmodifiable(records),
+       hintedKanaIds = List<String>.unmodifiable(hintedKanaIds);
+
+  const PlacementDraft._empty()
+    : lessonIds = const [],
+      pendingKanaIds = const [],
+      records = const [],
+      hintedKanaIds = const [];
 
   /// Honest decode: drop corrupt rows, never invent an outcome. If the same
   /// id is both recorded and pending, pending wins (unanswered). Hinted ids
@@ -84,11 +96,7 @@ class PlacementDraft {
     );
   }
 
-  static const PlacementDraft empty = PlacementDraft(
-    lessonIds: [],
-    pendingKanaIds: [],
-    records: [],
-  );
+  static const PlacementDraft empty = PlacementDraft._empty();
 
   /// Selected lesson ids, in the order the learner asked to check.
   final List<String> lessonIds;
