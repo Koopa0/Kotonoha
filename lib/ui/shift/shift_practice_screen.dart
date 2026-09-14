@@ -6,9 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
-import 'package:kotonoha/domain/use_cases/shift_session.dart';
 import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -18,6 +16,7 @@ import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/shift/shift_history.dart';
 import 'package:kotonoha/ui/shift/shift_persist_notice.dart';
+import 'package:kotonoha/ui/shift/shift_practice_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Original swap-sentence practice: teach new forms first, then read, then
@@ -25,6 +24,11 @@ import 'package:provider/provider.dart';
 /// then sense. Hints do not leak another check. Free-text is never
 /// auto-graded. Evidence is logged per beat and check; word / phrase SRS
 /// is never touched.
+///
+/// A thin View over [ShiftPracticeViewModel]: it owns the speaker, the
+/// lifecycle listener, the free-text pad, rendering and navigation. The
+/// beats and phases, every check's evidence and write, and the
+/// durable-write state are the ViewModel's.
 class ShiftPracticeScreen extends StatefulWidget {
   const ShiftPracticeScreen({
     required this.drill,
@@ -72,57 +76,19 @@ class ShiftPracticeScreen extends StatefulWidget {
   State<ShiftPracticeScreen> createState() => _ShiftPracticeScreenState();
 }
 
-enum _Phase {
-  intro,
-  readCommit,
-  readGrade,
-  verbAsk,
-  verbReveal,
-  rolesAsk,
-  rolesReveal,
-  senseCommit,
-  senseGrade,
-}
-
 class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   final TextEditingController _note = TextEditingController();
+  late final ShiftPracticeViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
-  late final List<ShiftBeat> _beats;
-  late ShiftBeat _beat;
-  final Set<ShiftBeat> _exposed = <ShiftBeat>{};
-  List<ShiftSelfGrade> _history = const [];
+  late ShiftBeat _shownBeat;
   int? _ownedPlay;
   bool _playable = true;
-  late _Phase _phase;
-  int _introIndex = 0;
-  bool _readUnprompted = false;
-  bool _readCorrect = false;
-  bool _senseUnprompted = false;
-  bool _verbPrompted = false;
-  bool _rolesPrompted = false;
-  bool _rolesRevealedAnswer = false;
-  String? _pickedVerb;
-  String? _pickedActor;
-  String? _pickedItem;
-  bool _senseGrading = false;
-  bool _done = false;
-  bool _unsaved = false;
-  bool _retrying = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
-  ShiftSentence get _sentence => widget.drill.sentenceAt(_beat);
-
-  String get _say => _sentence.kana.replaceAll(' ', '');
-
-  bool get _action => widget.drill.isAction;
-
-  List<ShiftIntroCard> get _intro => widget.drill.introduce;
-
   String? get _laneCaption {
-    if (_unsaved) return AppStrings.shiftPersistFailed;
+    if (_vm.isUnsaved) return AppStrings.shiftPersistFailed;
     switch (widget.lane) {
       case ShiftLane.hold:
         return AppStrings.shiftHeldUntilTomorrow;
@@ -140,6 +106,18 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   @override
   void initState() {
     super.initState();
+    _vm = ShiftPracticeViewModel(
+      drill: widget.drill,
+      analytics: context.read<AnalyticsLog>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      sourceUrl: widget.sourceUrl,
+      lane: widget.lane,
+      beats: widget.beats,
+      firstUnseen: widget.firstUnseen,
+      clock: widget.clock,
+    )..addListener(_onChanged);
+    _shownBeat = _vm.beat;
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -148,14 +126,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
       onDetach: _abandonOwnedPlayback,
       onResume: () => _playable = true,
     );
-    _beats = List<ShiftBeat>.of(
-      widget.beats ?? const [ShiftBeat.base, ShiftBeat.shift],
-    );
-    _beat = _beats.first;
     _playable = _foreground;
-    _phase = _intro.isEmpty ? _Phase.readCommit : _Phase.intro;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_startRecords());
+      unawaited(_vm.start());
     });
   }
 
@@ -164,6 +137,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
     _note.dispose();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
@@ -187,256 +162,20 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     _ownedPlay = _speech.generation;
   }
 
-  void _speak() => _speakText(_say);
+  void _speak() => _speakText(_vm.say);
 
-  void _advanceIntro() {
-    if (_introIndex + 1 < _intro.length) {
-      setState(() => _introIndex += 1);
-      return;
-    }
-    setState(() => _phase = _Phase.readCommit);
-  }
-
+  /// The reading commit sounds the sentence — a comfort after the commit,
+  /// never evidence, so it stays the view's.
   void _commitRead({required bool unprompted}) {
     _speak();
-    setState(() {
-      _readUnprompted = unprompted;
-      _phase = _Phase.readGrade;
-    });
+    _vm.commitRead(unprompted: unprompted);
   }
 
-  Future<void> _startRecords() async {
-    await _reserveIfNeeded();
-    await _markPracticeSight();
-    if (mounted) _syncUnsaved();
-  }
-
-  ProgressPersistenceController? _persistence() {
-    try {
-      return context.read<ProgressPersistenceController>();
-    } on ProviderNotFoundException {
-      return null;
-    }
-  }
-
-  void _syncUnsaved() {
-    final unsaved = context.read<AnalyticsLog>().unpersistedCount > 0;
-    if (!mounted) return;
-    setState(() => _unsaved = unsaved);
-  }
-
-  Future<void> _write(Attempt attempt) async {
-    final log = context.read<AnalyticsLog>();
-    final pending = log.record(attempt);
-    _persistence()?.trackAnalytics(pending);
-    try {
-      await pending;
-    } on Object {
-      // Memory retains the row; [unpersistedCount] stays honest.
-    }
-    if (mounted) _syncUnsaved();
-  }
-
-  Future<void> _retryPersist() async {
-    if (_retrying) return;
-    setState(() => _retrying = true);
-    final log = context.read<AnalyticsLog>();
-    final persist = _persistence();
-    if (persist != null) {
-      await persist.retry();
-    }
-    if (!mounted) return;
-    try {
-      await log.flushPending();
-    } on Object {
-      // Leave [unpersistedCount] honest. Do not invent a persist.
-    }
-    if (!mounted) return;
-    setState(() {
-      _retrying = false;
-      _unsaved = log.unpersistedCount > 0;
-    });
-  }
-
-  Future<void> _reserveIfNeeded() async {
-    if (widget.lane != ShiftLane.hold) return;
-    await _write(
-      ShiftSession.reservation(
-        drill: widget.drill,
-        sessionId: _sessionId,
-        at: _clock(),
-        sourceUrl: widget.sourceUrl,
-      ),
-    );
-  }
-
-  Future<void> _markPracticeSight() async {
-    if (!_exposed.add(_beat)) return;
-    await _write(
-      ShiftSession.sighting(
-        drill: widget.drill,
-        beat: _beat,
-        kind: ShiftSightKind.practice,
-        sessionId: _sessionId,
-        at: _clock(),
-        lane: widget.lane,
-        sourceUrl: widget.sourceUrl,
-      ),
-    );
-  }
-
-  Future<void> _loadHistory() async {
-    final all = await context.read<AnalyticsLog>().all();
-    if (!mounted) return;
-    setState(() {
-      _history = ShiftSession.selfGrades(all, drillId: widget.drill.id);
-    });
-  }
-
-  void _gradeRead({required bool correct}) {
-    unawaited(
-      _record(ShiftCheck.read, prompted: !_readUnprompted, correct: correct),
-    );
-    setState(() {
-      _readCorrect = correct;
-      _phase = _action ? _Phase.verbAsk : _Phase.senseCommit;
-    });
-  }
-
-  void _hintVerb() {
-    setState(() => _verbPrompted = true);
-  }
-
-  void _pickVerb(String choice) {
-    if (_pickedVerb != null) return;
-    final correct = ShiftSession.gradesVerb(choice, _sentence);
-    unawaited(
-      _record(ShiftCheck.verb, prompted: _verbPrompted, correct: correct),
-    );
-    setState(() {
-      _pickedVerb = choice;
-      _phase = _Phase.verbReveal;
-    });
-  }
-
-  void _afterVerb() {
-    setState(() => _phase = _Phase.rolesAsk);
-  }
-
-  void _hintRoles() {
-    setState(() => _rolesPrompted = true);
-  }
-
-  void _selectActor(String choice) {
-    if (_phase != _Phase.rolesAsk) return;
-    setState(() => _pickedActor = choice);
-  }
-
-  void _selectItem(String choice) {
-    if (_phase != _Phase.rolesAsk) return;
-    setState(() => _pickedItem = choice);
-  }
-
-  void _lockRoles() {
-    final actor = _pickedActor;
-    final item = _pickedItem;
-    if (actor == null || item == null) return;
-    final correct = ShiftSession.gradesRoles(
-      actor: actor,
-      item: item,
-      sentence: _sentence,
-    );
-    unawaited(
-      _record(ShiftCheck.roles, prompted: _rolesPrompted, correct: correct),
-    );
-    setState(() {
-      _rolesRevealedAnswer = !correct;
-      _phase = _Phase.rolesReveal;
-    });
-  }
-
-  void _afterRoles() {
-    setState(() => _phase = _Phase.senseCommit);
-  }
-
-  /// Reading support on screen when the sense check is graded — not the
-  /// pre-reveal commit alone, and not the roles Chinese gloss.
-  String _readSupportAtSenseGrade() {
-    if (_readUnprompted && _readCorrect) {
-      return ShiftReadSupport.independent;
-    }
-    return ShiftReadSupport.prompted;
-  }
-
-  bool get _rolesSenseSupport => _rolesPrompted || _rolesRevealedAnswer;
-
-  void _commitSense({required bool unprompted}) {
-    setState(() {
-      _senseUnprompted = unprompted && !_rolesSenseSupport;
-      _phase = _Phase.senseGrade;
-    });
-  }
-
-  Future<void> _gradeSense({required bool correct}) async {
-    if (_senseGrading) return;
-    _senseGrading = true;
-    if (mounted) setState(() {});
-
-    await _record(
-      ShiftCheck.sense,
-      prompted: ShiftSession.sensePrompted(
-        askedSenseHint: !_senseUnprompted,
-        sawRolesGloss: _rolesPrompted,
-        sawRolesReveal: _rolesRevealedAnswer,
-      ),
-      correct: correct,
-      readSupport: _readSupportAtSenseGrade(),
-    );
-    if (!mounted) return;
-    final next = _beats.indexOf(_beat) + 1;
-    if (next < _beats.length) {
-      _note.clear();
-      setState(() {
-        _senseGrading = false;
-        _beat = _beats[next];
-        _phase = _Phase.readCommit;
-        _readUnprompted = false;
-        _readCorrect = false;
-        _senseUnprompted = false;
-        _verbPrompted = false;
-        _rolesPrompted = false;
-        _rolesRevealedAnswer = false;
-        _pickedVerb = null;
-        _pickedActor = null;
-        _pickedItem = null;
-      });
-      unawaited(_markPracticeSight());
-      return;
-    }
-    setState(() => _done = true);
-    unawaited(_loadHistory());
-  }
-
-  Future<void> _record(
-    ShiftCheck check, {
-    required bool prompted,
-    required bool correct,
-    String? readSupport,
-  }) async {
-    await _write(
-      ShiftSession.attempt(
-        drill: widget.drill,
-        beat: _beat,
-        check: check,
-        prompted: prompted,
-        correct: correct,
-        sessionId: _sessionId,
-        at: _clock(),
-        sourceUrl: widget.sourceUrl,
-        lane: widget.lane,
-        readSupport: readSupport,
-      ),
-    );
+  /// A new beat starts with an empty pad; everything else re-renders.
+  void _onChanged() {
+    if (_vm.beat == _shownBeat) return;
+    _shownBeat = _vm.beat;
+    _note.clear();
   }
 
   @override
@@ -444,13 +183,18 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text(AppStrings.shiftTitle)),
-      body: SafeArea(child: _done ? _summary() : _body()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _body(),
+        ),
+      ),
     );
   }
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
-    final holdNote = widget.lane == ShiftLane.hold && !_unsaved
+    final holdNote = widget.lane == ShiftLane.hold && !_vm.isUnsaved
         ? '${AppStrings.shiftCloseNote}\n\n${AppStrings.shiftHeldUntilTomorrow}'
         : AppStrings.shiftCloseNote;
     return LayoutBuilder(
@@ -460,15 +204,15 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
               children: [
-                if (_history.isNotEmpty)
+                if (_vm.history.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    child: ShiftHistoryView(grades: _history),
+                    child: ShiftHistoryView(grades: _vm.history),
                   ),
-                if (_unsaved)
+                if (_vm.isUnsaved)
                   ShiftPersistNotice(
-                    retrying: _retrying,
-                    onRetry: () => unawaited(_retryPersist()),
+                    retrying: _vm.isRetrying,
+                    onRetry: () => unawaited(_vm.retryPersist()),
                   ),
                 SessionSummary(
                   headline: AppStrings.shiftClose,
@@ -485,7 +229,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   Widget _body() {
-    if (_phase == _Phase.intro) return _introBody();
+    if (_vm.phase == ShiftPhase.intro) return _introBody();
     final source = widget.sourceUrl?.trim();
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -494,10 +238,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           Column(
             children: [
               Text(
-                AppStrings.itemProgress(
-                  _beats.indexOf(_beat) + 1,
-                  _beats.length,
-                ),
+                AppStrings.itemProgress(_vm.beatIndex + 1, _vm.beats.length),
                 style: const TextStyle(
                   color: AppColors.inkMuted,
                   fontWeight: FontWeight.w600,
@@ -539,7 +280,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                   child: Column(
                     children: [
-                      if (_beat == ShiftBeat.shift) ...[
+                      if (_vm.beat == ShiftBeat.shift) ...[
                         Text(
                           widget.lane == ShiftLane.confirm
                               ? AppStrings.shiftConfirmLead
@@ -553,7 +294,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                         const SizedBox(height: 16),
                       ],
                       Text(
-                        _sentence.kana,
+                        _vm.sentence.kana,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 44,
@@ -577,7 +318,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   Widget _introBody() {
-    final card = _intro[_introIndex];
+    final card = _vm.intro[_vm.introIndex];
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -592,8 +333,8 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                     children: [
                       Text(
                         AppStrings.shiftIntroProgress(
-                          _introIndex + 1,
-                          _intro.length,
+                          _vm.introIndex + 1,
+                          _vm.intro.length,
                         ),
                         style: const TextStyle(
                           color: AppColors.inkMuted,
@@ -686,12 +427,12 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: FilledButton(
-                      onPressed: _advanceIntro,
+                      onPressed: _vm.advanceIntro,
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(54),
                       ),
                       child: Text(
-                        _introIndex + 1 < _intro.length
+                        _vm.introIndex + 1 < _vm.intro.length
                             ? AppStrings.shiftIntroNext
                             : AppStrings.shiftIntroDone,
                       ),
@@ -720,10 +461,10 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   List<Widget> _phaseCopy() {
-    switch (_phase) {
-      case _Phase.intro:
+    switch (_vm.phase) {
+      case ShiftPhase.intro:
         return const [];
-      case _Phase.readCommit:
+      case ShiftPhase.readCommit:
         return const [
           Text(
             AppStrings.readPrompt,
@@ -731,24 +472,24 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             style: TextStyle(color: AppColors.inkMuted, fontSize: 15),
           ),
         ];
-      case _Phase.readGrade:
+      case ShiftPhase.readGrade:
         return [
           const Divider(height: 28, indent: 28, endIndent: 28),
           Text(
-            _sentence.romaji,
+            _vm.sentence.romaji,
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w700,
               color: AppColors.accent,
             ),
           ),
-          SpeakButton(text: _say, size: 30, onPlay: _speak),
+          SpeakButton(text: _vm.say, size: 30, onPlay: _speak),
         ];
-      case _Phase.verbAsk:
-      case _Phase.verbReveal:
+      case ShiftPhase.verbAsk:
+      case ShiftPhase.verbReveal:
         return [
           Text(
-            _sentence.romaji,
+            _vm.sentence.romaji,
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -761,7 +502,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.inkMuted, height: 1.5),
           ),
-          if (_verbPrompted || _phase == _Phase.verbReveal) ...[
+          if (_vm.verbPrompted || _vm.phase == ShiftPhase.verbReveal) ...[
             const SizedBox(height: 8),
             Text(
               widget.drill.formHint,
@@ -770,22 +511,24 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             ),
           ],
           const SizedBox(height: 12),
-          for (final choice in _sentence.verbChoices)
+          for (final choice in _vm.sentence.verbChoices)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: AnswerOptionButton(
                 label: choice,
                 fontSize: 22,
                 state: _verbState(choice),
-                onTap: _pickedVerb == null ? () => _pickVerb(choice) : null,
+                onTap: _vm.pickedVerb == null
+                    ? () => _vm.pickVerb(choice)
+                    : null,
               ),
             ),
         ];
-      case _Phase.rolesAsk:
-      case _Phase.rolesReveal:
+      case ShiftPhase.rolesAsk:
+      case ShiftPhase.rolesReveal:
         return [
           Text(
-            _sentence.romaji,
+            _vm.sentence.romaji,
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -798,10 +541,10 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.inkMuted, height: 1.5),
           ),
-          if (_rolesPrompted) ...[
+          if (_vm.rolesPrompted) ...[
             const SizedBox(height: 8),
             Text(
-              _sentence.relation,
+              _vm.sentence.relation,
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
             ),
@@ -812,7 +555,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          for (final choice in _sentence.actorChoices)
+          for (final choice in _vm.sentence.actorChoices)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: AnswerOptionButton(
@@ -820,12 +563,12 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                 fontSize: 22,
                 state: _roleState(
                   choice,
-                  picked: _pickedActor,
-                  answer: _sentence.actor,
-                  revealed: _phase == _Phase.rolesReveal,
+                  picked: _vm.pickedActor,
+                  answer: _vm.sentence.actor,
+                  revealed: _vm.phase == ShiftPhase.rolesReveal,
                 ),
-                onTap: _phase == _Phase.rolesAsk
-                    ? () => _selectActor(choice)
+                onTap: _vm.phase == ShiftPhase.rolesAsk
+                    ? () => _vm.selectActor(choice)
                     : null,
               ),
             ),
@@ -835,7 +578,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          for (final choice in _sentence.itemChoices)
+          for (final choice in _vm.sentence.itemChoices)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: AnswerOptionButton(
@@ -843,20 +586,20 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
                 fontSize: 22,
                 state: _roleState(
                   choice,
-                  picked: _pickedItem,
-                  answer: _sentence.item,
-                  revealed: _phase == _Phase.rolesReveal,
+                  picked: _vm.pickedItem,
+                  answer: _vm.sentence.item,
+                  revealed: _vm.phase == ShiftPhase.rolesReveal,
                 ),
-                onTap: _phase == _Phase.rolesAsk
-                    ? () => _selectItem(choice)
+                onTap: _vm.phase == ShiftPhase.rolesAsk
+                    ? () => _vm.selectItem(choice)
                     : null,
               ),
             ),
         ];
-      case _Phase.senseCommit:
+      case ShiftPhase.senseCommit:
         return [
           Text(
-            _sentence.romaji,
+            _vm.sentence.romaji,
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -865,7 +608,7 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _action
+            _vm.isAction
                 ? AppStrings.shiftActionSensePrompt
                 : AppStrings.shiftSensePrompt,
             textAlign: TextAlign.center,
@@ -891,17 +634,17 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             ),
           ),
         ];
-      case _Phase.senseGrade:
+      case ShiftPhase.senseGrade:
         return [
           const Divider(height: 28, indent: 28, endIndent: 28),
           Text(
-            _sentence.meaning,
+            _vm.sentence.meaning,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 18, color: AppColors.ink),
           ),
           const SizedBox(height: 8),
           Text(
-            _sentence.relation,
+            _vm.sentence.relation,
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
           ),
@@ -920,9 +663,9 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   OptionState _verbState(String choice) {
-    if (_pickedVerb == null) return OptionState.idle;
-    final ok = ShiftSession.gradesVerb(choice, _sentence);
-    if (choice == _pickedVerb) {
+    if (_vm.pickedVerb == null) return OptionState.idle;
+    final ok = _vm.isVerbCorrect(choice);
+    if (choice == _vm.pickedVerb) {
       return ok ? OptionState.correct : OptionState.wrong;
     }
     return ok ? OptionState.revealed : OptionState.dimmed;
@@ -945,58 +688,56 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
   }
 
   Widget _actions() {
-    switch (_phase) {
-      case _Phase.intro:
+    switch (_vm.phase) {
+      case ShiftPhase.intro:
         return const SizedBox.shrink();
-      case _Phase.readCommit:
+      case ShiftPhase.readCommit:
         return _pair(
           outlined: AppStrings.recallHint,
           filled: AppStrings.iReadUnprompted,
           onOutlined: () => _commitRead(unprompted: false),
           onFilled: () => _commitRead(unprompted: true),
         );
-      case _Phase.readGrade:
+      case ShiftPhase.readGrade:
         return _pair(
           outlined: AppStrings.iCouldnt,
-          filled: _readUnprompted
+          filled: _vm.readUnprompted
               ? AppStrings.iReadIt
               : AppStrings.iReadAfterHint,
           danger: true,
-          onOutlined: () => _gradeRead(correct: false),
-          onFilled: () => _gradeRead(correct: true),
+          onOutlined: () => _vm.gradeRead(correct: false),
+          onFilled: () => _vm.gradeRead(correct: true),
         );
-      case _Phase.verbAsk:
-        return _verbPrompted
+      case ShiftPhase.verbAsk:
+        return _vm.verbPrompted
             ? const SizedBox.shrink()
             : OutlinedButton(
-                onPressed: _hintVerb,
+                onPressed: _vm.hintVerb,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
                 ),
                 child: const Text(AppStrings.shiftVerbHint),
               );
-      case _Phase.verbReveal:
+      case ShiftPhase.verbReveal:
         return FilledButton(
-          onPressed: _afterVerb,
+          onPressed: _vm.afterVerb,
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
           child: const Text(AppStrings.shiftContinue),
         );
-      case _Phase.rolesAsk:
+      case ShiftPhase.rolesAsk:
         return Column(
           children: [
-            if (!_rolesPrompted)
+            if (!_vm.rolesPrompted)
               OutlinedButton(
-                onPressed: _hintRoles,
+                onPressed: _vm.hintRoles,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
                 ),
                 child: const Text(AppStrings.shiftRolesHint),
               ),
-            if (!_rolesPrompted) const SizedBox(height: 12),
+            if (!_vm.rolesPrompted) const SizedBox(height: 12),
             FilledButton(
-              onPressed: _pickedActor != null && _pickedItem != null
-                  ? _lockRoles
-                  : null,
+              onPressed: _vm.canLockRoles ? _vm.lockRoles : null,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
               ),
@@ -1004,29 +745,29 @@ class _ShiftPracticeScreenState extends State<ShiftPracticeScreen> {
             ),
           ],
         );
-      case _Phase.rolesReveal:
+      case ShiftPhase.rolesReveal:
         return FilledButton(
-          onPressed: _afterRoles,
+          onPressed: _vm.afterRoles,
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
           child: const Text(AppStrings.shiftContinue),
         );
-      case _Phase.senseCommit:
+      case ShiftPhase.senseCommit:
         return _pair(
           outlined: AppStrings.shiftSenseHint,
           filled: AppStrings.shiftSenseReady,
-          onOutlined: () => _commitSense(unprompted: false),
-          onFilled: () => _commitSense(unprompted: true),
+          onOutlined: () => _vm.commitSense(unprompted: false),
+          onFilled: () => _vm.commitSense(unprompted: true),
         );
-      case _Phase.senseGrade:
+      case ShiftPhase.senseGrade:
         return _pair(
           outlined: AppStrings.shiftSenseMiss,
-          filled: _senseUnprompted
+          filled: _vm.senseUnprompted
               ? AppStrings.shiftSenseOk
               : AppStrings.shiftSenseOkAfterHint,
           danger: true,
-          enabled: !_senseGrading,
-          onOutlined: () => unawaited(_gradeSense(correct: false)),
-          onFilled: () => unawaited(_gradeSense(correct: true)),
+          enabled: !_vm.isSenseGrading,
+          onOutlined: () => unawaited(_vm.gradeSense(correct: false)),
+          onFilled: () => unawaited(_vm.gradeSense(correct: true)),
         );
     }
   }

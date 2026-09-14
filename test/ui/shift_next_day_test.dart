@@ -643,6 +643,14 @@ Widget _harness({
     providers: [
       if (words != null)
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+      ChangeNotifierProvider<ProgressPersistenceController>.value(
+        value: ProgressPersistenceController(
+          kanaFlush: () async {},
+          kanjiFlush: () async {},
+          wordFlush: () async {},
+          analyticsFlush: analytics.flushPending,
+        ),
+      ),
       Provider<SpeechService>.value(value: const SilentSpeechService()),
       Provider<AnalyticsLog>.value(value: analytics),
     ],

@@ -307,9 +307,8 @@ void main() {
       analytics.senseGate!.complete();
       await tester.pumpAndSettle();
 
-      final senses = _grades(await analytics.all()).where(
-        (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
-      );
+      final senses = _grades(await analytics.all())
+          .where((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name);
       expect(senses, hasLength(1));
       expect(senses.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
       expect(find.text('あおい うみ'), findsOneWidget);
@@ -350,9 +349,8 @@ void main() {
     analytics.senseGate!.complete();
     await tester.pumpAndSettle();
 
-    final senses = _grades(await analytics.all()).where(
-      (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
-    );
+    final senses = _grades(await analytics.all())
+        .where((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name);
     expect(senses, hasLength(1));
     expect(find.text(AppStrings.shiftClose), findsOneWidget);
   });
@@ -1119,6 +1117,14 @@ Widget _harness({
     providers: [
       if (words != null)
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+      ChangeNotifierProvider<ProgressPersistenceController>.value(
+        value: ProgressPersistenceController(
+          kanaFlush: () async {},
+          kanjiFlush: () async {},
+          wordFlush: () async {},
+          analyticsFlush: analytics.flushPending,
+        ),
+      ),
       Provider<SpeechService>.value(value: speech),
       Provider<AnalyticsLog>.value(value: analytics),
     ],
