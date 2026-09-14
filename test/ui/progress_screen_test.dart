@@ -107,6 +107,9 @@ void main() {
     await pump(tester, store);
 
     expect(find.text('0/208'), findsOneWidget); // coverage, not a grade
+    expect(find.text(AppStrings.practiced), findsOneWidget);
+    expect(find.text(AppStrings.practicedAllKanaScope), findsOneWidget);
+    expect(find.text(AppStrings.practicedAllKanaHint), findsOneWidget);
     expect(find.textContaining('%'), findsNothing); // no accuracy anywhere
     expect(
       find.widgetWithText(Container, AppStrings.statusNew),
@@ -132,6 +135,7 @@ void main() {
     await pump(tester, store);
 
     expect(find.text('5/208'), findsOneWidget); // 5 kana met
+    expect(find.text(AppStrings.practicedAllKanaScope), findsOneWidget);
     expect(find.textContaining('%'), findsNothing); // still no score
     // The 4 strong kana surface in the 熟練 row.
     expect(

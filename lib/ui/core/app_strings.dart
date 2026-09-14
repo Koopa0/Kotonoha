@@ -167,6 +167,11 @@ abstract final class AppStrings {
   static const String progress = '歩み';
   static const String progressSubtitle = '目前的學習狀況';
   static const String practiced = '已練習';
+  // Short scope titles beside the two coverage rings. Numerators stay
+  // contact counts; the names only say which set each denominator covers.
+  static const String practicedGojuonScope = '基本五十音';
+  static const String practicedAllKanaScope = '全部假名';
+  static const String practicedAllKanaHint = '含濁音、拗音';
 
   // Quiz
   static const String quizTitleMissed = '複習答錯的假名';
