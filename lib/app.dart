@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -33,8 +34,15 @@ class KanaLoopApp extends StatelessWidget {
       // theme, so this single backdrop shows through under all of them). The
       // persistence banner sits above the navigator, so the one calm progress-
       // save notice survives route changes.
-      builder: (context, child) => WashiBackground(
-        child: PersistenceBanner(child: child ?? const SizedBox.shrink()),
+      // The root system-bar style, above the navigator: a route with an
+      // AppBar annotates its own (the same one), and popping back to a page
+      // without one — the home — falls back here instead of keeping the
+      // previous route's icons.
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: AppTheme.systemOverlay,
+        child: WashiBackground(
+          child: PersistenceBanner(child: child ?? const SizedBox.shrink()),
+        ),
       ),
       home: const HomeScreen(),
     );

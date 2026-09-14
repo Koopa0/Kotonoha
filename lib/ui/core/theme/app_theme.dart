@@ -3,11 +3,28 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/washi_background.dart';
 
 /// Builds the calm, Material 3 light theme for Kotonoha.
 abstract final class AppTheme {
+  /// The system bars always sit on light washi paper, so their icons are
+  /// dark. Stated once and applied in two places, because neither alone is
+  /// enough: every AppBar is transparent, and Flutter guesses a *dark*
+  /// background from a transparent colour and asks for light icons; and the
+  /// home has no AppBar at all, so without a root annotation it would simply
+  /// keep whatever the last route asked for.
+  ///
+  /// Status-bar fields only. The navigation bar and the edge-to-edge layout
+  /// keep whatever the platform and the embedder already set.
+  static const SystemUiOverlayStyle systemOverlay = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    // Android reads the icon brightness; iOS reads the background brightness.
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+  );
+
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(seedColor: AppColors.accent).copyWith(
       primary: AppColors.buttonFill,
@@ -55,6 +72,7 @@ abstract final class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
+        systemOverlayStyle: systemOverlay,
       ),
       cardTheme: CardThemeData(
         color: AppColors.card,
