@@ -52,6 +52,7 @@ void main() {
         containsAll(['phrase:えきは どこ', 'word:みぎ']),
       );
       expect(kPhrases.where((p) => p.kana == 'きょうとです'), isEmpty);
+      expect(kPhrases.where((p) => p.kana == 'おおさかです'), isEmpty);
       expect(kPhrases.where((p) => p.kana == 'ここは えきですか'), isEmpty);
       for (final kana in const [
         'じんじゃは どこ',
@@ -194,6 +195,7 @@ void main() {
     }
     final byId = {for (final drill in kReplyDrills) drill.id: drill};
     expect(byId['reply:doko-e-iku']!.sceneZh, contains('京都'));
+    expect(byId['reply:doko-e-iku-osaka']!.sceneZh, contains('大阪'));
     expect(byId['reply:eki-wa-doko']!.sceneZh, contains('右'));
     expect(byId['reply:eki-wa-koko']!.sceneZh, contains('門口'));
     expect(byId['reply:koko-wa-eki']!.sceneZh, contains('車站'));
@@ -234,6 +236,22 @@ void main() {
     expect(shrineAsk.intentWrong, isNot(contains('說要安靜進寺')));
   });
 
+
+  test('どこへ いく scenes split きょうとです and おおさかです; neither is a wrong answer', () {
+    final byId = {for (final drill in kReplyDrills) drill.id: drill};
+    final kyoto = byId['reply:doko-e-iku']!;
+    final osaka = byId['reply:doko-e-iku-osaka']!;
+    expect(kyoto.promptKana, 'どこへ いく');
+    expect(osaka.promptKana, 'どこへ いく');
+    expect(kyoto.sceneZh, contains('京都'));
+    expect(osaka.sceneZh, contains('大阪'));
+    expect(kyoto.replyCorrectKana, 'きょうとです');
+    expect(osaka.replyCorrectKana, 'おおさかです');
+    expect(kyoto.replyWrongKana, contains('おおさかです'));
+    expect(osaka.replyWrongKana, contains('きょうとです'));
+    expect(kyoto.replyWrongKana, isNot(contains('きょうとです')));
+    expect(osaka.replyWrongKana, isNot(contains('おおさかです')));
+  });
 
   test('えきは どこ scenes split みぎです and ここです; neither is a wrong answer', () {
     final byId = {for (final drill in kReplyDrills) drill.id: drill};
@@ -313,6 +331,19 @@ void main() {
       scene: ReplySceneId.station,
     );
     expect(both.ready.map((d) => d.id), contains('reply:koko-wa-eki'));
+  });
+
+  test('meeting どこへ いく unlocks both destination scenes together', () {
+    final stats = {'phrase:どこへ いく': seenAt()};
+    final view = ReplySession.inspect(
+      learnedChars: allChars,
+      stats: stats,
+      scene: ReplySceneId.station,
+    );
+    expect(
+      view.ready.map((d) => d.id).toSet(),
+      {'reply:doko-e-iku', 'reply:doko-e-iku-osaka'},
+    );
   });
 
   test('station compose never pads with clothing material', () {
