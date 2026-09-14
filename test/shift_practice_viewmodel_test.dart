@@ -364,7 +364,7 @@ void main() {
     expect(t.vm.isUnsaved, isTrue);
     expect(await log.all(), hasLength(1)); // memory retains the row
 
-    (log as _FlakyAnalyticsLog).failWrites = false;
+    log.failWrites = false;
     var sawRetrying = false;
     t.vm.addListener(() => sawRetrying |= t.vm.isRetrying);
     await t.vm.retryPersist();

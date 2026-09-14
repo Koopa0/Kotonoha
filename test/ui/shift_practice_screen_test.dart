@@ -1132,7 +1132,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(420, 2000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      _harness(analytics: analytics, child: ShiftFocusScreen()),
+      _harness(analytics: analytics, child: const ShiftFocusScreen()),
     );
     analytics.flushGate = Completer<void>();
     await tester.pump();
