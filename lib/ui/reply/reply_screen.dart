@@ -2,29 +2,30 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/reply_drill.dart';
-import 'package:kotonoha/domain/use_cases/reply_session.dart';
 import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_grid.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:kotonoha/ui/reply/reply_viewmodel.dart';
 import 'package:provider/provider.dart';
-
-enum _Beat { intent, reply }
 
 /// Hear a station ask, pick the intent, pick a short reply.
 ///
 /// Playback success is heard evidence. Seeing Japanese or a meaning hint is
 /// recorded separately. A correct tap is never spoken-production evidence,
 /// and this room does not write 詞と句 SRS.
+///
+/// A thin View over [ReplyViewModel]: it owns playback (generations, the
+/// owned utterance, in-flight state), the lifecycle listener, rendering and
+/// navigation. What a completed play *means*, the picks and every analytics
+/// write are the ViewModel's; the view reports play outcomes and interrupts.
 class ReplyScreen extends StatefulWidget {
   const ReplyScreen({
     required this.drills,
@@ -55,33 +56,17 @@ class ReplyScreen extends StatefulWidget {
 }
 
 class _ReplyScreenState extends State<ReplyScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  final Random _rng = Random();
-
+  late final ReplyViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-
-  int _index = 0;
-  _Beat _beat = _Beat.intent;
-  bool _heard = false;
-  bool _sawText = false;
-  bool _hinted = false;
   bool _playing = false;
-  bool _done = false;
-  bool _intentIndependent = false;
-  String? _intentPick;
-  String? _replyPick;
-  int _heardAtMs = 0;
   int _playGen = 0;
-  SpeechPlaybackResult? _lastPlay;
-  late List<String> _intentOrder;
-  late List<String> _replyOrder;
+  int _shownIndex = 0;
+  bool _closed = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
-
-  ReplyDrill get _current => widget.drills[_index];
 
   bool get _foreground {
     final state = WidgetsBinding.instance.lifecycleState;
@@ -91,8 +76,13 @@ class _ReplyScreenState extends State<ReplyScreen> {
   @override
   void initState() {
     super.initState();
+    _vm = ReplyViewModel(
+      drills: widget.drills,
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      clock: widget.clock,
+    )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
-    _shuffleChoices();
     _lifecycle = AppLifecycleListener(
       onInactive: _onBackgrounded,
       onHide: _onBackgrounded,
@@ -102,7 +92,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
     );
     _playable = _foreground;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _done) return;
+      if (!mounted || _vm.isFinished) return;
       _scheduleAutoplay();
     });
   }
@@ -111,21 +101,18 @@ class _ReplyScreenState extends State<ReplyScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
   void _onBackgrounded() {
     _playable = false;
-    unawaited(_interrupt());
+    _interrupt();
   }
 
   void _onResumed() {
     _playable = true;
-  }
-
-  void _shuffleChoices() {
-    _intentOrder = List<String>.of(_current.intentChoices)..shuffle(_rng);
-    _replyOrder = List<String>.of(_current.replyChoices)..shuffle(_rng);
   }
 
   void _abandonPlayback() {
@@ -137,155 +124,68 @@ class _ReplyScreenState extends State<ReplyScreen> {
     }
   }
 
-  Future<void> _interrupt() async {
+  void _interrupt() {
     _abandonPlayback();
+    _vm.noteInterrupted();
     if (!mounted) return;
-    setState(() {
-      _playing = false;
-      _lastPlay = SpeechPlaybackResult.interrupted;
-    });
+    setState(() => _playing = false);
   }
 
   void _scheduleAutoplay() {
-    if (!mounted || _done) return;
+    if (!mounted || _vm.isFinished) return;
     if (!_playable || !_foreground) return;
     unawaited(_play());
   }
 
-  Future<void> _play() async {
-    if (!mounted || _done) return;
-    if (!_playable || !_foreground) return;
-    final itemId = _current.id;
-    final gen = ++_playGen;
-    setState(() => _playing = true);
-    final pending = _speech.play(_current.say);
-    _ownedPlay = _speech.generation;
-    final result = await pending;
-    if (!mounted || _done || gen != _playGen || _current.id != itemId) {
-      return;
-    }
-    setState(() {
-      _playing = false;
-      _lastPlay = result;
-      if (result != SpeechPlaybackResult.played) return;
-      _heard = true;
-      if (_heardAtMs == 0) {
-        _heardAtMs = _clock().millisecondsSinceEpoch;
-      }
-    });
-  }
-
-  void _pickIntent(String choice) {
-    if (_intentPick != null) return;
-    final correct = choice == _current.intentCorrect;
-    final evidence = ReplyEvidence.classify(
-      heard: _heard,
-      sawText: _sawText,
-      usedHint: _hinted,
-      correct: correct,
-    );
-    _log(beat: ReplyEvidence.intent, choice: choice, evidence: evidence);
-    setState(() {
-      _intentPick = choice;
-      _intentIndependent = ReplyEvidence.isIndependent(evidence);
-    });
-  }
-
-  void _pickReply(String choice) {
-    if (_replyPick != null || _intentPick == null) return;
-    final correct = _current.isReplyCorrect(choice);
-    final evidence = ReplyEvidence.classify(
-      heard: _heard,
-      sawText: _sawText,
-      usedHint: _hinted,
-      correct: correct,
-      priorIndependent: _intentIndependent,
-    );
-    _log(beat: ReplyEvidence.reply, choice: choice, evidence: evidence);
-    setState(() {
-      _replyPick = choice;
-    });
-  }
-
-  void _log({
-    required String beat,
-    required String choice,
-    required String evidence,
-  }) {
-    final now = _clock();
-    final scored = _heard;
-    final correct =
-        evidence == ReplyEvidence.independent ||
-        evidence == ReplyEvidence.peeked ||
-        evidence == ReplyEvidence.hinted;
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.id,
-        itemType: ItemType.word,
-        mode: PracticeMode.reply.name,
-        correct: scored && correct,
-        rtMs: scored && _heardAtMs != 0
-            ? now.millisecondsSinceEpoch - _heardAtMs
-            : 0,
-        sessionId: _sessionId,
-        meta: {
-          AttemptMeta.beat: beat,
-          AttemptMeta.evidence: evidence,
-          AttemptMeta.heard: _heard,
-          AttemptMeta.prompted: _sawText,
-          AttemptMeta.hinted: _hinted,
-          AttemptMeta.scored: scored,
-          AttemptMeta.playback:
-              (_lastPlay ?? SpeechPlaybackResult.interrupted).name,
-          if (!correct && choice.isNotEmpty) AttemptMeta.distractor: choice,
-        },
-      ),
-    );
-  }
-
-  void _advance() {
-    if (_index + 1 >= widget.drills.length) {
+  /// Session transitions are the ViewModel's; what they mean for the
+  /// utterance is the view's. A new drill drops the old play and auto-plays
+  /// once it has a frame; the close leaves the last utterance behind.
+  void _onChanged() {
+    if (_vm.isFinished) {
+      if (_closed) return;
+      _closed = true;
       _abandonPlayback();
-      setState(() => _done = true);
       return;
     }
+    if (_vm.index == _shownIndex) return;
+    _shownIndex = _vm.index;
     _abandonPlayback();
-    setState(() {
-      _index++;
-      _beat = _Beat.intent;
-      _heard = false;
-      _sawText = false;
-      _hinted = false;
-      _playing = false;
-      _intentIndependent = false;
-      _intentPick = null;
-      _replyPick = null;
-      _heardAtMs = 0;
-      _lastPlay = null;
-      _shuffleChoices();
-    });
+    setState(() => _playing = false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _done) return;
+      if (!mounted || _vm.isFinished) return;
       _scheduleAutoplay();
     });
   }
 
-  void _skipUnheard() {
-    if (_heard || _intentPick != null) return;
-    _log(
-      beat: ReplyEvidence.intent,
-      choice: '',
-      evidence: ReplyEvidence.unheard,
-    );
-    _advance();
+  Future<void> _play() async {
+    if (!mounted || _vm.isFinished) return;
+    if (!_playable || !_foreground) return;
+    final itemIndex = _vm.index;
+    final gen = ++_playGen;
+    setState(() => _playing = true);
+    final pending = _speech.play(_vm.current.say);
+    _ownedPlay = _speech.generation;
+    final result = await pending;
+    if (!mounted ||
+        _vm.isFinished ||
+        gen != _playGen ||
+        _vm.index != itemIndex) {
+      return;
+    }
+    setState(() => _playing = false);
+    _vm.notePlayback(itemIndex: itemIndex, result: result);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.replyTitle)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
@@ -304,7 +204,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.drills.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -347,7 +247,8 @@ class _ReplyScreenState extends State<ReplyScreen> {
   }
 
   Widget _cardBody() {
-    final prompt = _beat == _Beat.intent
+    final current = _vm.current;
+    final prompt = _vm.beat == ReplyBeat.intent
         ? switch (widget.scene) {
             ReplySceneId.station => AppStrings.replyIntentPrompt,
             ReplySceneId.clothing ||
@@ -363,7 +264,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          _current.sceneZh,
+          current.sceneZh,
           key: const ValueKey<String>('reply-scene'),
           textAlign: TextAlign.center,
           style: const TextStyle(
@@ -404,10 +305,10 @@ class _ReplyScreenState extends State<ReplyScreen> {
             height: 1.4,
           ),
         ),
-        if (_sawText) ...[
+        if (_vm.sawText) ...[
           const SizedBox(height: 16),
           Text(
-            _current.promptKana,
+            current.promptKana,
             key: const ValueKey<String>('reply-prompt-kana'),
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -419,7 +320,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            _current.promptRomaji,
+            current.promptRomaji,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppColors.accent,
@@ -428,10 +329,10 @@ class _ReplyScreenState extends State<ReplyScreen> {
             ),
           ),
         ],
-        if (_hinted) ...[
+        if (_vm.hinted) ...[
           const SizedBox(height: 8),
           Text(
-            _current.promptMeaning,
+            current.promptMeaning,
             key: const ValueKey<String>('reply-prompt-meaning'),
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.ink, fontSize: 16),
@@ -451,26 +352,26 @@ class _ReplyScreenState extends State<ReplyScreen> {
           ),
         ],
         const SizedBox(height: 16),
-        if (_beat == _Beat.intent)
+        if (_vm.beat == ReplyBeat.intent)
           _choiceColumn(
-            options: _intentOrder,
-            pick: _intentPick,
-            isCorrect: (option) => option == _current.intentCorrect,
+            options: _vm.intentOrder,
+            pick: _vm.intentPick,
+            isCorrect: _vm.isIntentCorrect,
             prefix: 'reply-intent',
-            onPick: _pickIntent,
+            onPick: _vm.pickIntent,
           )
         else
           _choiceColumn(
-            options: _replyOrder,
-            pick: _replyPick,
-            isCorrect: _current.isReplyCorrect,
+            options: _vm.replyOrder,
+            pick: _vm.replyPick,
+            isCorrect: _vm.isReplyCorrect,
             prefix: 'reply-choice',
-            onPick: _pickReply,
+            onPick: _vm.pickReply,
           ),
-        if (_replyPick != null) ...[
+        if (_vm.replyPick != null) ...[
           const SizedBox(height: 12),
           Text(
-            _current.replyCorrectMeaning,
+            current.replyCorrectMeaning,
             key: const ValueKey<String>('reply-answer-meaning'),
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.ink, fontSize: 16),
@@ -516,8 +417,8 @@ class _ReplyScreenState extends State<ReplyScreen> {
   }
 
   String? get _blockMessage {
-    if (_heard) return null;
-    return switch (_lastPlay) {
+    if (_vm.isHeard) return null;
+    return switch (_vm.lastPlay) {
       SpeechPlaybackResult.unavailable => AppStrings.listeningUnavailable,
       SpeechPlaybackResult.failed => AppStrings.listeningFailed,
       SpeechPlaybackResult.interrupted => AppStrings.listeningInterrupted,
@@ -527,7 +428,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
   }
 
   Widget _controls() {
-    if (_beat == _Beat.intent && _intentPick == null) {
+    if (_vm.beat == ReplyBeat.intent && _vm.intentPick == null) {
       return Column(
         children: [
           Row(
@@ -535,7 +436,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
               Expanded(
                 child: OutlinedButton(
                   key: const ValueKey<String>('reply-hint'),
-                  onPressed: () => setState(() => _hinted = true),
+                  onPressed: _vm.showHint,
                   child: const Text(AppStrings.replyHint),
                 ),
               ),
@@ -543,13 +444,13 @@ class _ReplyScreenState extends State<ReplyScreen> {
               Expanded(
                 child: OutlinedButton(
                   key: const ValueKey<String>('reply-show-text'),
-                  onPressed: () => setState(() => _sawText = true),
+                  onPressed: _vm.showText,
                   child: const Text(AppStrings.replyShowText),
                 ),
               ),
             ],
           ),
-          if (!_heard) ...[
+          if (!_vm.isHeard) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -559,7 +460,7 @@ class _ReplyScreenState extends State<ReplyScreen> {
                   side: const BorderSide(color: AppColors.hairline),
                   foregroundColor: AppColors.inkMuted,
                 ),
-                onPressed: _skipUnheard,
+                onPressed: _vm.skipUnheard,
                 child: const Text(AppStrings.listeningSkip),
               ),
             ),
@@ -567,22 +468,22 @@ class _ReplyScreenState extends State<ReplyScreen> {
         ],
       );
     }
-    if (_beat == _Beat.intent && _intentPick != null) {
+    if (_vm.beat == ReplyBeat.intent && _vm.intentPick != null) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
           key: const ValueKey<String>('reply-to-answer'),
-          onPressed: () => setState(() => _beat = _Beat.reply),
+          onPressed: _vm.toReply,
           child: const Text(AppStrings.replyReplyPrompt),
         ),
       );
     }
-    if (_replyPick != null) {
+    if (_vm.replyPick != null) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
           key: const ValueKey<String>('reply-next'),
-          onPressed: _advance,
+          onPressed: _vm.advance,
           child: const Text(AppStrings.listeningNext),
         ),
       );
