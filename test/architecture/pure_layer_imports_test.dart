@@ -193,6 +193,26 @@ void main() {
     );
   });
 
+  test('no screen invents a second product by probing for a provider', () {
+    // #149 composition-root contract: a feature declares the owners it needs
+    // and the composition root supplies them. Catching
+    // ProviderNotFoundException to fall back to a different behaviour makes
+    // the app quietly become a second product whenever a fixture forgets a
+    // provider — the home did exactly that for the travel plan.
+    final offenders = _scan(
+      dirs: ['lib'],
+      forbidden: RegExp(r'\bProviderNotFound(?:Exception|Error)\b'),
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'inject the owner at construction and let a missing provider fail '
+          'loudly, instead of substituting another behaviour — found:\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
   test('the UI layer never touches platform packages directly (services wrap them)', () {
     final offenders = _scan(
       dirs: ['lib/ui', 'lib/kanji/ui'],

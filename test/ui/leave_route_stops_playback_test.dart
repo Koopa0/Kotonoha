@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
@@ -178,9 +179,11 @@ Future<void> _pumpApp(
     kanji: kanji,
     words: words,
   );
+  final travel = await TravelFocusRepository.load();
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
         ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
         ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),

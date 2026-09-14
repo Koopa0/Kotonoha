@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -249,11 +250,13 @@ Future<void> _pumpApp(WidgetTester tester, {SpeechService? speech}) async {
   final kanji = await KanjiReadingRepository.load();
   final words = await WordProgressRepository.load();
   final recovery = await idleRestoreRecovery();
+  final travel = await TravelFocusRepository.load();
   await tester.pumpWidget(
     RepaintBoundary(
       key: _iosSwipeCaptureKey,
       child: MultiProvider(
         providers: [
+          ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
           ChangeNotifierProvider<KanaProgressRepository>.value(value: kana),
           ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
           ChangeNotifierProvider<WordProgressRepository>.value(value: words),
