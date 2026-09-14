@@ -9,8 +9,8 @@ import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
-import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
+import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 
@@ -29,10 +29,9 @@ class ProgressSnapshotRestoreRepository {
     required this._kana,
     required this._kanji,
     required this._words,
-    PlacementCheckRepository? placement,
+    this._placement,
     this._codec = const ProgressSnapshotCodec(),
-  }) : _journal = ProgressRestoreJournal(_prefs),
-       _placement = placement;
+  }) : _journal = ProgressRestoreJournal(_prefs);
 
   final PreferencesService _prefs;
   final KanaProgressRepository _kana;
