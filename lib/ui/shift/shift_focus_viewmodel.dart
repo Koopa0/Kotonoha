@@ -60,6 +60,13 @@ class ShiftFocusViewModel extends ChangeNotifier {
   List<Attempt> _attempts;
   bool _unsaved = false;
   bool _retrying = false;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   List<ShiftFocus> get focuses => ShiftSession.focuses(drills: drills);
   String get selectedId => _selectedId;
@@ -105,7 +112,7 @@ class ShiftFocusViewModel extends ChangeNotifier {
       ShiftSession.selfGrades(_attempts, drillId: drillId);
 
   void select(String drillId) {
-    if (_selectedId == drillId) return;
+    if (_disposed || _selectedId == drillId) return;
     _selectedId = drillId;
     notifyListeners();
   }
@@ -122,6 +129,7 @@ class ShiftFocusViewModel extends ChangeNotifier {
   /// Re-reads the authoritative stream and marks any new previews.
   Future<void> reload() async {
     _attempts = await _authoritativeAttempts();
+    if (_disposed) return;
     _unsaved = analytics.unpersistedCount > 0;
     notifyListeners();
     await _markVisiblePreviews();
@@ -131,13 +139,14 @@ class ShiftFocusViewModel extends ChangeNotifier {
   /// plan behind a 「もう一回」.
   Future<List<Attempt>> refreshAttempts() async {
     _attempts = await _authoritativeAttempts();
+    if (_disposed) return _attempts;
     notifyListeners();
     return _attempts;
   }
 
   /// Retries the durable write of every unsaved row.
   Future<void> retryPersist() async {
-    if (_retrying) return;
+    if (_disposed || _retrying) return;
     _retrying = true;
     notifyListeners();
     await persistence.retry();
@@ -146,6 +155,7 @@ class ShiftFocusViewModel extends ChangeNotifier {
     } on Object {
       // Leave [isUnsaved] honest. Do not invent a persist.
     }
+    if (_disposed) return;
     _retrying = false;
     _unsaved = analytics.unpersistedCount > 0;
     notifyListeners();
@@ -163,8 +173,10 @@ class ShiftFocusViewModel extends ChangeNotifier {
   }
 
   Future<void> _markVisiblePreviews() async {
+    if (_disposed) return;
     final now = _clock();
     for (final drill in drills) {
+      if (_disposed) return;
       final drillPlan = plan(drill);
       final preview = ShiftSession.pickerPreview(drillPlan);
       if (preview == null) continue;
@@ -186,7 +198,14 @@ class ShiftFocusViewModel extends ChangeNotifier {
         // Memory retains the preview; do not invent a persist.
       }
     }
+    if (_disposed) return;
     _unsaved = analytics.unpersistedCount > 0;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

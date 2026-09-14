@@ -114,6 +114,13 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   bool _finished = false;
   bool _unsaved = false;
   bool _retrying = false;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   ShiftBeat get beat => _beat;
   int get beatIndex => beats.indexOf(_beat);
@@ -151,12 +158,14 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   /// practice sighting.
   Future<void> start() async {
     await _reserveIfNeeded();
+    if (_disposed) return;
     await _markPracticeSight();
+    if (_disposed) return;
     _syncUnsaved();
   }
 
   void advanceIntro() {
-    if (_finished || _phase != ShiftPhase.intro) return;
+    if (_disposed || _finished || _phase != ShiftPhase.intro) return;
     if (_introIndex + 1 < intro.length) {
       _introIndex += 1;
     } else {
@@ -166,14 +175,14 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   }
 
   void commitRead({required bool unprompted}) {
-    if (_finished || _phase != ShiftPhase.readCommit) return;
+    if (_disposed || _finished || _phase != ShiftPhase.readCommit) return;
     _readUnprompted = unprompted;
     _phase = ShiftPhase.readGrade;
     notifyListeners();
   }
 
   void gradeRead({required bool correct}) {
-    if (_finished || _phase != ShiftPhase.readGrade) return;
+    if (_disposed || _finished || _phase != ShiftPhase.readGrade) return;
     unawaited(
       _write(ShiftCheck.read, prompted: !_readUnprompted, correct: correct),
     );
@@ -183,13 +192,21 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   }
 
   void hintVerb() {
-    if (_finished || _phase != ShiftPhase.verbAsk || _verbPrompted) return;
+    if (_disposed ||
+        _finished ||
+        _phase != ShiftPhase.verbAsk ||
+        _verbPrompted) {
+      return;
+    }
     _verbPrompted = true;
     notifyListeners();
   }
 
   void pickVerb(String choice) {
-    if (_finished || _phase != ShiftPhase.verbAsk || _pickedVerb != null) {
+    if (_disposed ||
+        _finished ||
+        _phase != ShiftPhase.verbAsk ||
+        _pickedVerb != null) {
       return;
     }
     final correct = isVerbCorrect(choice);
@@ -202,31 +219,36 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   }
 
   void afterVerb() {
-    if (_finished || _phase != ShiftPhase.verbReveal) return;
+    if (_disposed || _finished || _phase != ShiftPhase.verbReveal) return;
     _phase = ShiftPhase.rolesAsk;
     notifyListeners();
   }
 
   void hintRoles() {
-    if (_finished || _phase != ShiftPhase.rolesAsk || _rolesPrompted) return;
+    if (_disposed ||
+        _finished ||
+        _phase != ShiftPhase.rolesAsk ||
+        _rolesPrompted) {
+      return;
+    }
     _rolesPrompted = true;
     notifyListeners();
   }
 
   void selectActor(String choice) {
-    if (_finished || _phase != ShiftPhase.rolesAsk) return;
+    if (_disposed || _finished || _phase != ShiftPhase.rolesAsk) return;
     _pickedActor = choice;
     notifyListeners();
   }
 
   void selectItem(String choice) {
-    if (_finished || _phase != ShiftPhase.rolesAsk) return;
+    if (_disposed || _finished || _phase != ShiftPhase.rolesAsk) return;
     _pickedItem = choice;
     notifyListeners();
   }
 
   void lockRoles() {
-    if (_finished || _phase != ShiftPhase.rolesAsk) return;
+    if (_disposed || _finished || _phase != ShiftPhase.rolesAsk) return;
     final actor = _pickedActor;
     final item = _pickedItem;
     if (actor == null || item == null) return;
@@ -244,7 +266,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   }
 
   void afterRoles() {
-    if (_finished || _phase != ShiftPhase.rolesReveal) return;
+    if (_disposed || _finished || _phase != ShiftPhase.rolesReveal) return;
     _phase = ShiftPhase.senseCommit;
     notifyListeners();
   }
@@ -252,7 +274,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   bool get _rolesSenseSupport => _rolesPrompted || _rolesRevealedAnswer;
 
   void commitSense({required bool unprompted}) {
-    if (_finished || _phase != ShiftPhase.senseCommit) return;
+    if (_disposed || _finished || _phase != ShiftPhase.senseCommit) return;
     _senseUnprompted = unprompted && !_rolesSenseSupport;
     _phase = ShiftPhase.senseGrade;
     notifyListeners();
@@ -267,7 +289,12 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   /// Self-grades the sense, then the next beat or the close. The write is
   /// awaited so a second tap cannot land while the first is in flight.
   Future<void> gradeSense({required bool correct}) async {
-    if (_finished || _phase != ShiftPhase.senseGrade || _senseGrading) return;
+    if (_disposed ||
+        _finished ||
+        _phase != ShiftPhase.senseGrade ||
+        _senseGrading) {
+      return;
+    }
     _senseGrading = true;
     notifyListeners();
     await _write(
@@ -280,6 +307,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
       correct: correct,
       readSupport: _readSupportAtSenseGrade,
     );
+    if (_disposed) return;
     final next = beatIndex + 1;
     if (next < beats.length) {
       _senseGrading = false;
@@ -305,7 +333,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
 
   /// Retries the durable write of every unsaved row.
   Future<void> retryPersist() async {
-    if (_retrying) return;
+    if (_disposed || _retrying) return;
     _retrying = true;
     notifyListeners();
     await persistence.retry();
@@ -314,6 +342,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
     } on Object {
       // Leave [isUnsaved] honest. Do not invent a persist.
     }
+    if (_disposed) return;
     _retrying = false;
     _syncUnsaved();
   }
@@ -331,6 +360,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   }
 
   Future<void> _markPracticeSight() async {
+    if (_disposed) return;
     if (!_exposed.add(_beat)) return;
     await _record(
       ShiftSession.sighting(
@@ -347,6 +377,7 @@ class ShiftPracticeViewModel extends ChangeNotifier {
 
   Future<void> _loadHistory() async {
     final all = await analytics.all();
+    if (_disposed) return;
     _history = ShiftSession.selfGrades(all, drillId: drill.id);
     notifyListeners();
   }
@@ -383,7 +414,14 @@ class ShiftPracticeViewModel extends ChangeNotifier {
   }
 
   void _syncUnsaved() {
+    if (_disposed) return;
     _unsaved = analytics.unpersistedCount > 0;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

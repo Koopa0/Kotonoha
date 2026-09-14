@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/domain/data/shift_dataset.dart';
@@ -12,6 +14,42 @@ import 'package:kotonoha/ui/shift/shift_practice_viewmodel.dart';
 /// An analytics log whose durable write can be made to fail: the row stays
 /// in memory, [unpersistedCount] counts it, and [flushPending] persists it
 /// once writes work again.
+/// Holds [record] until [recordGate] completes — reproduces a slow durable
+/// write while the learner leaves the sitting.
+class _DelayedAnalyticsLog implements AnalyticsLog {
+  final List<Attempt> _rows = [];
+  Completer<void>? recordGate;
+  int _unpersisted = 0;
+  bool failWrites = false;
+
+  @override
+  Future<void> record(Attempt attempt) async {
+    _rows.add(attempt);
+    if (recordGate != null) {
+      await recordGate!.future;
+    }
+    if (failWrites) {
+      _unpersisted++;
+      throw StateError('disk full');
+    }
+  }
+
+  @override
+  Future<List<Attempt>> all() async => List.unmodifiable(_rows);
+
+  @override
+  Future<int> count() async => _rows.length;
+
+  @override
+  int get unpersistedCount => _unpersisted;
+
+  @override
+  Future<void> flushPending() async {
+    if (failWrites) throw StateError('disk full');
+    _unpersisted = 0;
+  }
+}
+
 class _FlakyAnalyticsLog implements AnalyticsLog {
   final List<Attempt> _rows = [];
   int _unpersisted = 0;
@@ -53,12 +91,12 @@ void main() {
   final noun = kShiftDrills.firstWhere((d) => !d.isAction);
   final action = kShiftDrills.firstWhere((d) => d.isAction);
 
-  ({ShiftPracticeViewModel vm, _FlakyAnalyticsLog log}) makeVm(
+  ({ShiftPracticeViewModel vm, AnalyticsLog log}) makeVm(
     ShiftDrill drill, {
     ShiftLane lane = ShiftLane.sameDay,
     List<ShiftBeat>? beats,
     String? sourceUrl,
-    _FlakyAnalyticsLog? log,
+    AnalyticsLog? log,
   }) {
     final analytics = log ?? _FlakyAnalyticsLog();
     final vm = ShiftPracticeViewModel(
@@ -326,7 +364,7 @@ void main() {
     expect(t.vm.isUnsaved, isTrue);
     expect(await log.all(), hasLength(1)); // memory retains the row
 
-    log.failWrites = false;
+    (log as _FlakyAnalyticsLog).failWrites = false;
     var sawRetrying = false;
     t.vm.addListener(() => sawRetrying |= t.vm.isRetrying);
     await t.vm.retryPersist();
@@ -334,5 +372,64 @@ void main() {
     expect(t.vm.isRetrying, isFalse);
     expect(t.vm.isUnsaved, isFalse);
     t.vm.dispose();
+  });
+
+  test('a pending sense write finishing after leave keeps the sitting and one sighting', () async {
+    final log = _DelayedAnalyticsLog();
+    final t = makeVm(noun, log: log);
+    await t.vm.start();
+    skipIntro(t.vm);
+    t.vm.commitRead(unprompted: true);
+    t.vm.gradeRead(correct: true);
+    t.vm.commitSense(unprompted: true);
+
+    var notificationsAfterLeave = 0;
+    var left = false;
+    t.vm.addListener(() {
+      if (left) notificationsAfterLeave++;
+    });
+
+    log.recordGate = Completer<void>();
+    final grade = t.vm.gradeSense(correct: true);
+    await Future<void>.delayed(Duration.zero);
+
+    left = true;
+    t.vm.dispose();
+    log.recordGate!.complete();
+    await grade;
+
+    expect(notificationsAfterLeave, 0);
+    final all = await log.all();
+    expect(
+      grades(all)
+          .where((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name),
+      hasLength(1),
+    );
+    expect(sightings(all).map((a) => a.meta[AttemptMeta.beat]), [
+      ShiftBeat.base.name,
+    ]);
+  });
+
+  test('start finishing after leave does not sync unsaved state', () async {
+    final log = _DelayedAnalyticsLog()..failWrites = true;
+    final t = makeVm(noun, log: log);
+
+    var notificationsAfterLeave = 0;
+    var left = false;
+    t.vm.addListener(() {
+      if (left) notificationsAfterLeave++;
+    });
+
+    log.recordGate = Completer<void>();
+    final start = t.vm.start();
+    await Future<void>.delayed(Duration.zero);
+
+    left = true;
+    t.vm.dispose();
+    log.recordGate!.complete();
+    await start;
+
+    expect(notificationsAfterLeave, 0);
+    expect(await log.all(), hasLength(1));
   });
 }

@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/domain/data/shift_dataset.dart';
@@ -14,15 +16,42 @@ import 'package:kotonoha/ui/shift/shift_focus_viewmodel.dart';
 /// catalogue and the named drill, plans against the attempt stream, the
 /// one-per-visit preview sightings, reload / refresh from the authoritative
 /// stream, and the retry state.
+/// Holds [flushPending] / [record] until [gate] completes — reproduces a
+/// slow authoritative read or preview write while the picker is left.
+class _DelayedAnalyticsLog implements AnalyticsLog {
+  final List<Attempt> _items = [];
+  Completer<void>? gate;
+
+  @override
+  Future<void> record(Attempt attempt) async {
+    _items.add(attempt);
+    if (gate != null) await gate!.future;
+  }
+
+  @override
+  Future<List<Attempt>> all() async => List.unmodifiable(_items);
+
+  @override
+  Future<int> count() async => _items.length;
+
+  @override
+  int get unpersistedCount => 0;
+
+  @override
+  Future<void> flushPending() async {
+    if (gate != null) await gate!.future;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final now = DateTime(2026, 9, 10, 12);
   final first = kShiftDrills.first;
 
-  ({ShiftFocusViewModel vm, InMemoryAnalyticsLog log}) makeVm({
+  ({ShiftFocusViewModel vm, AnalyticsLog log}) makeVm({
     List<Attempt>? attempts,
     List<ShiftDrill>? drills,
-    InMemoryAnalyticsLog? log,
+    AnalyticsLog? log,
   }) {
     final analytics = log ?? InMemoryAnalyticsLog();
     final vm = ShiftFocusViewModel(
@@ -190,5 +219,68 @@ void main() {
     expect(t.vm.isRetrying, isFalse);
     expect(t.vm.isUnsaved, isFalse);
     t.vm.dispose();
+  });
+
+  test('reload finishing after leave does not notify', () async {
+    final log = _DelayedAnalyticsLog();
+    final t = makeVm(log: log);
+
+    var notificationsAfterLeave = 0;
+    var left = false;
+    t.vm.addListener(() {
+      if (left) notificationsAfterLeave++;
+    });
+
+    log.gate = Completer<void>();
+    final reload = t.vm.reload();
+    await Future<void>.delayed(Duration.zero);
+
+    left = true;
+    t.vm.dispose();
+    log.gate!.complete();
+    await reload;
+
+    expect(notificationsAfterLeave, 0);
+  });
+
+  test('preview markings stop after leave', () async {
+    final log = _DelayedAnalyticsLog();
+    final t = makeVm(log: log, drills: [kShiftDrills[0], kShiftDrills[1]]);
+
+    log.gate = Completer<void>();
+    final load = t.vm.load();
+    await Future<void>.delayed(Duration.zero);
+
+    t.vm.dispose();
+    log.gate!.complete();
+    await load;
+
+    final previews = [
+      for (final a in await log.all())
+        if (a.meta[AttemptMeta.sight] == ShiftSightKind.preview) a,
+    ];
+    expect(previews.length, lessThanOrEqualTo(1));
+  });
+
+  test('refresh finishing after leave does not notify', () async {
+    final log = _DelayedAnalyticsLog();
+    final t = makeVm(log: log);
+
+    var notificationsAfterLeave = 0;
+    var left = false;
+    t.vm.addListener(() {
+      if (left) notificationsAfterLeave++;
+    });
+
+    log.gate = Completer<void>();
+    final refresh = t.vm.refreshAttempts();
+    await Future<void>.delayed(Duration.zero);
+
+    left = true;
+    t.vm.dispose();
+    log.gate!.complete();
+    await refresh;
+
+    expect(notificationsAfterLeave, 0);
   });
 }
