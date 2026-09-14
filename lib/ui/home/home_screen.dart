@@ -252,7 +252,8 @@ class HomeScreen extends StatelessWidget {
                   if (store.learnedUnitCount > 0 && confusableReady)
                     _NavCard(
                       icon: Icons.compare_arrows_rounded,
-                      label: AppStrings.confusableEntry,
+                      label: AppStrings.confusableAction,
+                      productName: AppStrings.confusableEntry,
                       subtitle: AppStrings.confusableSubtitle,
                       onTap: () => _startConfusable(context),
                     ),
@@ -261,7 +262,8 @@ class HomeScreen extends StatelessWidget {
                   if (store.learnedUnitCount > 0)
                     _NavCard(
                       icon: Icons.edit_note_rounded,
-                      label: AppStrings.writingEntry,
+                      label: AppStrings.writingAction,
+                      productName: AppStrings.writingEntry,
                       subtitle: AppStrings.writingSubtitle,
                       onTap: () => _startWriting(context),
                     ),

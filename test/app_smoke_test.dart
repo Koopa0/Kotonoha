@@ -89,7 +89,9 @@ void main() {
     expect(find.text(AppStrings.practicedGojuonScope), findsOneWidget);
     // The confusable drill and paper handwriting are both gated until at least
     // one lesson is learned (feature honesty: nothing to recall yet).
+    expect(find.text(AppStrings.confusableAction), findsNothing);
     expect(find.text(AppStrings.confusableEntry), findsNothing);
+    expect(find.text(AppStrings.writingAction), findsNothing);
     expect(find.text(AppStrings.writingEntry), findsNothing);
   });
 
@@ -99,8 +101,10 @@ void main() {
     await pumpApp(tester, seedLearned: true);
     expect(find.text(AppStrings.reviewKanaAction), findsOneWidget);
     expect(find.text(AppStrings.quietPracticeAction), findsOneWidget);
+    expect(find.text(AppStrings.confusableAction), findsOneWidget);
+    expect(find.text(AppStrings.confusableEntry), findsOneWidget);
 
-    await tester.tap(find.text(AppStrings.confusableEntry));
+    await tester.tap(find.text(AppStrings.confusableAction));
     await tester.pumpAndSettle();
 
     expect(find.textContaining(' / '), findsOneWidget); // quiz progress
@@ -143,7 +147,9 @@ void main() {
     // 手習い is gated on a learned lesson, so seed one (the review pool is then
     // kana the learner actually knows).
     await pumpApp(tester, seedLearned: true);
-    await tester.tap(find.text(AppStrings.writingEntry));
+    expect(find.text(AppStrings.writingAction), findsOneWidget);
+    expect(find.text(AppStrings.writingEntry), findsOneWidget);
+    await tester.tap(find.text(AppStrings.writingAction));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.writePrompt), findsOneWidget);

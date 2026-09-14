@@ -3,6 +3,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -23,6 +24,7 @@ import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
+import 'package:kotonoha/ui/writing/writing_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -145,6 +147,47 @@ void main() {
     expect(find.text(AppStrings.dictationAction), findsOneWidget);
   });
 
+  testWidgets('分辨相似假名 / 紙上默寫假名 open rooms and return with progress', (
+    tester,
+  ) async {
+    final repos = await _pumpApp(tester, seedLearned: true);
+    expect(repos.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(find.text(AppStrings.confusableAction), findsOneWidget);
+    expect(find.text(AppStrings.confusableEntry), findsOneWidget);
+    expect(find.text(AppStrings.confusableSubtitle), findsOneWidget);
+    expect(find.text(AppStrings.writingAction), findsOneWidget);
+    expect(find.text(AppStrings.writingEntry), findsOneWidget);
+    expect(find.text(AppStrings.writingSubtitle), findsOneWidget);
+    expect(find.text(AppStrings.learnNewKanaAction), findsOneWidget);
+    expect(find.text(AppStrings.reviewKanaAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.confusableAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuizScreen), findsOneWidget);
+    expect(find.text(AppStrings.quizTitleConfusable), findsOneWidget);
+    expect(find.textContaining(' / '), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(repos.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(find.text(AppStrings.confusableAction), findsOneWidget);
+    expect(find.text(AppStrings.writingAction), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.writingAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(WritingScreen), findsOneWidget);
+    expect(find.text(AppStrings.writingTitle), findsOneWidget);
+    expect(find.text(AppStrings.writePrompt), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(repos.kana.isUnitLearned('hira_row_0'), isTrue);
+    expect(find.text(AppStrings.confusableAction), findsOneWidget);
+    expect(find.text(AppStrings.writingAction), findsOneWidget);
+  });
+
   testWidgets('narrow 320 and 1.6x text keep home actions readable', (
     tester,
   ) async {
@@ -165,6 +208,10 @@ void main() {
     expect(find.text(AppStrings.quietPracticeAction), findsOneWidget);
     expect(find.text(AppStrings.meetWordsAction), findsOneWidget);
     expect(find.text(AppStrings.dictationAction), findsOneWidget);
+    expect(find.text(AppStrings.confusableAction), findsOneWidget);
+    expect(find.text(AppStrings.confusableEntry), findsOneWidget);
+    expect(find.text(AppStrings.writingAction), findsOneWidget);
+    expect(find.text(AppStrings.writingEntry), findsOneWidget);
     expect(find.text(AppStrings.practiced), findsOneWidget);
     expect(find.text(AppStrings.practicedGojuonScope), findsOneWidget);
 
@@ -173,6 +220,10 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('學新假名')), findsWidgets);
       expect(find.bySemanticsLabel(RegExp('假名複習')), findsWidgets);
       expect(find.bySemanticsLabel(RegExp('聽寫單字')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('分辨相似假名')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('紙上默寫假名')), findsWidgets);
+      _expectNameAnnouncedOnce(tester, AppStrings.confusableEntry);
+      _expectNameAnnouncedOnce(tester, AppStrings.writingEntry);
     } finally {
       handle.dispose();
     }
@@ -247,6 +298,32 @@ _pumpApp(
   );
   await tester.pumpAndSettle();
   return (kana: kana, kanji: kanji, words: words);
+}
+
+void _expectNameAnnouncedOnce(WidgetTester tester, String name) {
+  final escaped = RegExp.escape(name);
+  final repeated = RegExp('$escaped.+$escaped', dotAll: true);
+  var found = false;
+  void visit(SemanticsNode node) {
+    final label = node.getSemanticsData().label;
+    if (label.contains(name)) {
+      found = true;
+      expect(
+        repeated.hasMatch(label),
+        isFalse,
+        reason: 'screen reader repeated "$name" in "$label"',
+      );
+    }
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  final root = tester.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+  expect(root, isNotNull);
+  visit(root!);
+  expect(found, isTrue, reason: 'expected "$name" in a semantics label');
 }
 
 Future<void> _answerCurrent(WidgetTester tester) async {
