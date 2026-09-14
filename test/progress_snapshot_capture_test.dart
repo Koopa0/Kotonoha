@@ -479,7 +479,10 @@ void main() {
         words: words,
         prefs: fake,
       );
-      expect(capture.blockedStores, contains(ProgressRestoreJournal.journalKey));
+      expect(
+        capture.blockedStores,
+        contains(ProgressRestoreJournal.journalKey),
+      );
       expect(
         () => capture.exportEncoded(createdAt: now),
         throwsA(
