@@ -344,8 +344,11 @@ class _ProgressRestoreState extends State<_ProgressRestore> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text(AppStrings.restoreConfirmTitle),
-        content: Text(AppStrings.restorePreviewBody(preview.snapshot.createdAtUtc)),
+        content: Text(
+          AppStrings.restorePreviewBody(preview.snapshot.createdAtUtc),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -436,7 +439,9 @@ class _ProgressRestoreState extends State<_ProgressRestore> {
                   ),
                 ),
                 child: Text(
-                  _restoring ? AppStrings.restoreRestoring : AppStrings.restoreAction,
+                  _restoring
+                      ? AppStrings.restoreRestoring
+                      : AppStrings.restoreAction,
                 ),
               ),
             ),

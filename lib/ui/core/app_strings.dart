@@ -682,7 +682,8 @@ abstract final class AppStrings {
   static const String restoreScope =
       '可選先前保存的檔案，預覽日期與範圍後，明確確認才會取代現在的假名、課程、解鎖、漢字讀音與詞句進度。';
   static const String restoreNotIncluded =
-      '不含作答紀錄、未完成或尚未套用的手解き草稿、裝置設定；不會把匯入的熟練度當成新的答對。';
+      '不含作答紀錄、未完成或尚未套用的手解き草稿、裝置設定；不會把匯入的熟練度當成新的答對。'
+      '旅行重點與今天已做的安排會保留；仍可主動複習，明日照常接續。';
   static const String restoreAction = '選擇備份檔案';
   static const String restoreRestoring = '正在還原…';
   static const String restoreConfirmTitle = '確認取代現在的進度？';
@@ -703,6 +704,7 @@ abstract final class AppStrings {
         '${two(utc.hour)}:${two(utc.minute)}（UTC）';
     return '備份時間：$stamp\n'
         '會取代：假名熟練、已學課、已見解鎖、漢字讀音、詞句進度。\n'
-        '不含作答紀錄、未完成或尚未套用的手解き草稿、裝置設定。';
+        '不含作答紀錄、未完成或尚未套用的手解き草稿、裝置設定。\n'
+        '旅行重點與今天已做的安排會保留；仍可主動複習，明日照常接續。';
   }
 }

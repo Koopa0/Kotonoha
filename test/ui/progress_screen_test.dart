@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
@@ -17,6 +19,7 @@ import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/theme/app_theme.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +30,15 @@ import '../services/fake_snapshot_file_port.dart';
 /// Widget test: 歩み is a MAP, not a scoreboard — it shows coverage (kana met /
 /// total) and the per-status breakdown, with NO accuracy %, NO reaction time.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    final loader = FontLoader('KleeOne')
+      ..addFont(rootBundle.load('assets/fonts/KleeOne-Regular.ttf'))
+      ..addFont(rootBundle.load('assets/fonts/KleeOne-SemiBold.ttf'));
+    await loader.load();
+  });
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   Future<ProgressSnapshotExporter> defaultExporter(
@@ -70,14 +82,46 @@ void main() {
     );
   }
 
+  Future<String> encodedBackup(
+    KanaProgressRepository kana,
+    KanjiReadingRepository kanji,
+    WordProgressRepository words, {
+    DateTime? createdAt,
+  }) async {
+    final stamp = createdAt ?? DateTime.utc(2026, 9, 14, 12, 30);
+    final first = kana.allKana.first;
+    await kana.recordAnswer(first, correct: true, at: stamp);
+    await kana.markUnitLearned('hira_row_1');
+    return ProgressSnapshotRepository(
+      kana: kana,
+      kanji: kanji,
+      words: words,
+    ).exportEncoded(createdAt: stamp);
+  }
+
+  void configureNarrowLargeTextView(WidgetTester tester) {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+  }
+
   Future<void> pump(
     WidgetTester tester,
     KanaProgressRepository store, {
     ProgressSnapshotExporter? exporter,
     ProgressSnapshotRestorer? restorer,
     FakePreferencesService? prefs,
+    Size surface = const Size(420, 1800),
+    ThemeData? theme,
+    TextScaler textScaler = TextScaler.noScaling,
+    bool settle = true,
   }) async {
-    await tester.binding.setSurfaceSize(const Size(420, 1800));
+    await tester.binding.setSurfaceSize(surface);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final backing = prefs ?? await PreferencesService.create();
     final kanji = await KanjiReadingRepository.load(backing);
@@ -94,10 +138,53 @@ void main() {
             value: restorer ?? defaultRestorer(backing, store, kanji, words),
           ),
         ],
-        child: const MaterialApp(home: ProgressScreen()),
+        child: MaterialApp(
+          theme: theme,
+          home: MediaQuery(
+            data: MediaQueryData(size: surface, textScaler: textScaler),
+            child: const ProgressScreen(),
+          ),
+        ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+  }
+
+  Future<void> dragWithoutSettling(
+    WidgetTester tester,
+    Finder target,
+    Offset offset,
+  ) async {
+    final gesture = await tester.startGesture(tester.getCenter(target));
+    await gesture.moveBy(offset);
+    await gesture.up();
+    await tester.pump();
+  }
+
+  Future<void> revealOnPage(
+    WidgetTester tester,
+    Finder target, {
+    Finder? scrollable,
+  }) async {
+    final scroller = scrollable ?? find.byType(Scrollable).first;
+    for (var i = 0; i < 32; i++) {
+      if (target.hitTestable().evaluate().isNotEmpty) {
+        return;
+      }
+      await dragWithoutSettling(tester, scroller, const Offset(0, -96));
+    }
+    expect(target.hitTestable(), findsOneWidget);
+  }
+
+  Future<void> tapWithoutSettling(WidgetTester tester, Finder target) async {
+    await tester.tapAt(tester.getCenter(target));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
   }
 
   testWidgets('cold start shows 0/208 coverage and no accuracy score', (
@@ -215,6 +302,121 @@ void main() {
     expect(find.text(AppStrings.restoreNotIncluded), findsOneWidget);
     expect(find.text(AppStrings.restoreAction), findsOneWidget);
     expect(find.textContaining('完整學習歷程'), findsOneWidget);
+    expect(find.textContaining('旅行重點'), findsOneWidget);
+    expect(find.textContaining('主動複習'), findsOneWidget);
+    expect(find.textContaining('明日'), findsOneWidget);
+  });
+
+  test('restorePreviewBody mentions travel focus preservation', () {
+    final body = AppStrings.restorePreviewBody(
+      DateTime.utc(2026, 9, 14, 12, 30),
+    );
+    expect(body, contains('旅行重點'));
+    expect(body, contains('今天已做的安排'));
+    expect(body, contains('主動複習'));
+    expect(body, contains('明日'));
+    expect(body, isNot(contains('完整學習歷程')));
+  });
+
+  testWidgets('restore confirm dialog scrolls travel copy at 320x568 / 1.6x', (
+    tester,
+  ) async {
+    configureNarrowLargeTextView(tester);
+    late String backup;
+    late FakePreferencesService prefs;
+    late KanaProgressRepository store;
+    late KanjiReadingRepository kanji;
+    late WordProgressRepository words;
+    final files = FakeSnapshotFilePort();
+    await tester.runAsync(() async {
+      final sourcePrefs = FakePreferencesService();
+      final sourceKana = await KanaProgressRepository.load(sourcePrefs);
+      final sourceKanji = await KanjiReadingRepository.load(sourcePrefs);
+      final sourceWords = await WordProgressRepository.load(sourcePrefs);
+      backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+      files.pickContents = backup;
+
+      prefs = FakePreferencesService();
+      store = await KanaProgressRepository.load(prefs);
+      await store.markUnitLearned('hira_row_0');
+      kanji = await KanjiReadingRepository.load(prefs);
+      words = await WordProgressRepository.load(prefs);
+    });
+    final restorer = defaultRestorer(prefs, store, kanji, words, files: files);
+
+    await pump(
+      tester,
+      store,
+      restorer: restorer,
+      prefs: prefs,
+      surface: const Size(320, 568),
+      theme: AppTheme.light(),
+      textScaler: const TextScaler.linear(1.6),
+      settle: false,
+    );
+    await revealOnPage(tester, find.text(AppStrings.restoreAction));
+    await tapWithoutSettling(tester, find.text(AppStrings.restoreAction));
+
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(find.text(AppStrings.restoreConfirmTitle), findsOneWidget);
+    final dialogScrollable = find.descendant(
+      of: dialog,
+      matching: find.byType(Scrollable),
+    );
+    expect(dialogScrollable, findsOneWidget);
+
+    final travelTail = find.descendant(
+      of: dialog,
+      matching: find.textContaining('明日照常接續'),
+    );
+    expect(travelTail, findsOneWidget);
+    final scrollRect = tester.getRect(dialogScrollable);
+    final tailBefore = tester.getRect(travelTail);
+    expect(
+      tailBefore.bottom,
+      greaterThan(scrollRect.bottom),
+      reason: 'travel tail must start below the visible dialog viewport',
+    );
+
+    for (var i = 0; i < 24; i++) {
+      final tailRect = tester.getRect(travelTail);
+      if (tailRect.bottom <= scrollRect.bottom + 1) {
+        break;
+      }
+      await dragWithoutSettling(tester, dialogScrollable, const Offset(0, -72));
+    }
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final tailAfter = tester.getRect(travelTail);
+    expect(
+      tailAfter.bottom,
+      lessThanOrEqualTo(scrollRect.bottom + 1),
+      reason: 'scrolled travel tail must sit inside the dialog viewport',
+    );
+    expect(travelTail.hitTestable(), findsOneWidget);
+    _expectDialogBodyNotClipped(
+      tester,
+      find.descendant(of: dialog, matching: find.textContaining('備份時間')),
+    );
+    expect(
+      find.text(AppStrings.restoreConfirmNo).hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.text(AppStrings.restoreConfirmYes).hitTestable(),
+      findsOneWidget,
+    );
+
+    await tapWithoutSettling(tester, find.text(AppStrings.restoreConfirmNo));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(files.pickCalls, 1);
+    expect(store.learnedUnits, {'hira_row_0'});
+    expect(store.isUnitLearned('hira_row_1'), isFalse);
+    expect(find.text(AppStrings.restoreRestored), findsNothing);
   });
 
   testWidgets(
@@ -244,5 +446,28 @@ void main() {
       expect(button.onPressed, isNull);
       expect(files.saveCalls, 0);
     },
+  );
+}
+
+void _expectDialogBodyNotClipped(WidgetTester tester, Finder textFinder) {
+  final paragraph = tester.renderObject<RenderParagraph>(textFinder);
+  final painter = TextPainter(
+    text: paragraph.text,
+    textDirection: paragraph.textDirection,
+    textScaler: paragraph.textScaler,
+    textAlign: paragraph.textAlign,
+    locale: paragraph.locale,
+    strutStyle: paragraph.strutStyle,
+    textHeightBehavior: paragraph.textHeightBehavior,
+    textWidthBasis: paragraph.textWidthBasis,
+    maxLines: paragraph.maxLines,
+  )..layout(maxWidth: paragraph.constraints.maxWidth);
+
+  expect(
+    paragraph.size.height + 0.5,
+    greaterThanOrEqualTo(painter.height),
+    reason:
+        'dialog body clipped: box=${paragraph.size.height.toStringAsFixed(1)} '
+        'natural=${painter.height.toStringAsFixed(1)}',
   );
 }
