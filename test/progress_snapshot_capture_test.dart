@@ -4,6 +4,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
@@ -461,4 +462,34 @@ void main() {
       expect(() => stores.add('x'), throwsUnsupportedError);
     });
   });
+
+  test(
+    'restore isolation on owners blocks export when the journal gate is clear',
+    () async {
+      final fake = FakePreferencesService();
+      final (kana, kanji, words) = await loadAll(fake);
+      kana.setRestoreJournalBlocked(true);
+      kanji.setRestoreJournalBlocked(true);
+      words.setRestoreJournalBlocked(true);
+      expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+
+      final capture = ProgressSnapshotCapture(
+        kana: kana,
+        kanji: kanji,
+        words: words,
+        prefs: fake,
+      );
+      expect(capture.blockedStores, contains(ProgressRestoreJournal.journalKey));
+      expect(
+        () => capture.exportEncoded(createdAt: now),
+        throwsA(
+          isA<SnapshotExportBlocked>().having(
+            (e) => e.stores,
+            'stores',
+            contains(ProgressRestoreJournal.journalKey),
+          ),
+        ),
+      );
+    },
+  );
 }

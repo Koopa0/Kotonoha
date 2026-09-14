@@ -241,19 +241,24 @@ void main() {
 
       // The transaction's own reload threw before staging, so nothing was
       // written; the sync could not re-read durable state either, so
-      // isolation stays on until the platform reads again — the card reports
-      // the failure, the button is live again, and the banner is visible.
+      // isolation stays on until recovery succeeds — the card reports the
+      // block, the busy state is gone, and the banner is visible.
       expect(tester.takeException(), isNull);
       expect(find.text(AppStrings.restoreRestoring), findsNothing);
-      expect(find.text(AppStrings.restoreFailed), findsOneWidget);
-      expect(restoreButton(tester).onPressed, isNotNull);
+      expect(find.text(AppStrings.restoreBlocked), findsOneWidget);
+      expect(restoreButton(tester).onPressed, isNull);
       expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
       expect(find.text(AppStrings.restoreJournalRecoveryLine), findsOneWidget);
       expect(t.recovery.needsRecovery, isTrue);
       expect(t.words.isRestoreJournalBlocked, isTrue);
 
-      // Once the platform reads again, retry clears the banner and restores.
+      // Once the platform reads again, banner retry lifts isolation and restore
+      // can run.
       fake.throwReloads = false;
+      await tester.tap(find.text(AppStrings.persistRetry));
+      await settle(tester);
+      expect(t.recovery.needsRecovery, isFalse);
+      expect(restoreButton(tester).onPressed, isNotNull);
       await tapRestore(tester);
       await tester.tap(find.text(AppStrings.restoreConfirmYes));
       await settle(tester);

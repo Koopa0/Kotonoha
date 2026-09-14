@@ -1111,6 +1111,37 @@ void main() {
         throwsA(isA<ProgressRestoreJournalBlocked>()),
       );
 
+      final capture = snapshotsFor(fake, kana, kanji, words);
+      expect(capture.blockedStores, contains(ProgressRestoreJournal.journalKey));
+      expect(
+        () => capture.exportEncoded(createdAt: now),
+        throwsA(
+          isA<SnapshotExportBlocked>().having(
+            (e) => e.stores,
+            'stores',
+            contains(ProgressRestoreJournal.journalKey),
+          ),
+        ),
+      );
+      expect(restorer.isBlocked, isTrue);
+      final blockedRestore = await ProgressSnapshotRestorer(
+        capture: capture,
+        transaction: restoreFor(fake, kana, kanji, words),
+        files: FakeSnapshotFilePort(),
+      ).restore(confirm: (_) async => true);
+      expect(blockedRestore.status, SnapshotRestoreStatus.blocked);
+      expect(blockedRestore.detail, contains(ProgressRestoreJournal.journalKey));
+
+      final exporterFiles = FakeSnapshotFilePort();
+      final blockedExport = await ProgressSnapshotExporter(
+        capture: capture,
+        files: exporterFiles,
+        now: () => now,
+      ).export();
+      expect(blockedExport.status, SnapshotExportStatus.blocked);
+      expect(blockedExport.stores, contains(ProgressRestoreJournal.journalKey));
+      expect(exporterFiles.saveCalls, 0);
+
       fake.throwReloadOnAttempt.clear();
       fake.failWriteOnAttempt.clear();
       await recovery.retry();
@@ -1120,6 +1151,15 @@ void main() {
       expect(kana.learnedUnits, {'keep_me'});
       expect(kana.isRestoreJournalBlocked, isFalse);
       expect(words.isRestoreJournalBlocked, isFalse);
+      expect(capture.blockedStores, isEmpty);
+      expect(restorer.isBlocked, isFalse);
+      expect(capture.exportEncoded(createdAt: now), isNotEmpty);
+      final resumedExport = await ProgressSnapshotExporter(
+        capture: capture,
+        files: FakeSnapshotFilePort(),
+        now: () => now,
+      ).export();
+      expect(resumedExport.status, SnapshotExportStatus.saved);
       await words.introduce('word:あい', at: now);
       expect(words.statForItem('word:あい').isSeen, isTrue);
     },

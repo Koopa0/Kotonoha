@@ -58,6 +58,11 @@ class ProgressSnapshotCapture {
   /// Canonical stores still needing recovery, named by primary key. Empty
   /// when export may proceed. Unmodifiable — a caller cannot mutate the
   /// reported set.
+  ///
+  /// Restore-journal blocking comes from the on-disk journal gate and from
+  /// [KanaProgressRepository.isRestoreJournalBlocked] on each owner — the
+  /// same flag [ProgressRestoreRecovery] sets when durable state cannot be
+  /// confirmed. A pending or failed ordinary save does not set it.
   List<String> get blockedStores => List.unmodifiable([
     if (_kana.statsHealth == StoreHealth.recoveryRequired)
       ProgressStoreKeys.kanaStats,
@@ -69,9 +74,14 @@ class ProgressSnapshotCapture {
       ProgressStoreKeys.kanjiStats,
     if (_words.statsHealth == StoreHealth.recoveryRequired)
       ProgressStoreKeys.wordStats,
-    if (_prefs != null && ProgressRestoreJournal.blocksExport(_prefs))
-      ProgressRestoreJournal.journalKey,
+    if (_restoreJournalBlocksExport) ProgressRestoreJournal.journalKey,
   ]);
+
+  bool get _restoreJournalBlocksExport =>
+      _kana.isRestoreJournalBlocked ||
+      _kanji.isRestoreJournalBlocked ||
+      _words.isRestoreJournalBlocked ||
+      (_prefs != null && ProgressRestoreJournal.blocksExport(_prefs));
 
   /// Synchronously captures the five in-memory progress bodies into an
   /// immutable [ProgressSnapshot] — no await, so nothing can interleave between
