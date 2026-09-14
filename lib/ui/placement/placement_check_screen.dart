@@ -11,6 +11,7 @@ import 'package:kotonoha/domain/models/session_item.dart';
 import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/placement/placement_result_screen.dart';
@@ -143,6 +144,8 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
     required bool unprompted,
   }) async {
     if (_vm.isAnswered || _vm.isFinished || _vm.items.isEmpty) return;
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    if (recovery.needsRecovery) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     final kanaId = _vm.current.target.id;
@@ -174,6 +177,8 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
 
   void _revealAsHint() {
     if (_vm.items.isEmpty || _vm.isAnswered) return;
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    if (recovery.needsRecovery) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     _persistReveal();
@@ -185,6 +190,8 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
 
   void _revealAfterUnpromptedCommit() {
     if (_vm.items.isEmpty || _vm.isAnswered) return;
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    if (recovery.needsRecovery) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     _vm.captureUnpromptedRecall();
@@ -231,7 +238,8 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
   @override
   Widget build(BuildContext context) {
     final persist = context.watch<ProgressPersistenceController>();
-    final blocked = persist.hasWriteFailure;
+    final recovery = context.watch<ProgressRestoreRecoveryController>();
+    final blocked = persist.hasWriteFailure || recovery.needsRecovery;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.placementTitle)),
       body: SafeArea(

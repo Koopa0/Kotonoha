@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
@@ -46,6 +47,7 @@ class PlacementResultScreen extends StatefulWidget {
 class _PlacementResultScreenState extends State<PlacementResultScreen> {
   late final PlacementSummary _summary;
   late final ProgressPersistenceController _persistence;
+  late final ProgressRestoreRecoveryController _recovery;
   bool _applying = false;
   bool _draftClearIssued = false;
   bool _awaitingRetry = false;
@@ -55,6 +57,7 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
     super.initState();
     final store = context.read<KanaProgressRepository>();
     _persistence = context.read<ProgressPersistenceController>();
+    _recovery = context.read<ProgressRestoreRecoveryController>();
     _summary = PlacementCheck.summarize(
       draft: widget.draft,
       catalog: Lessons.fromKana(store.allKana),
@@ -69,6 +72,7 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
   void dispose() {
     if (_awaitingRetry) {
       _persistence.removeListener(_onPersistChanged);
+      _recovery.removeListener(_onPersistChanged);
     }
     super.dispose();
   }
@@ -76,8 +80,10 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
   void _onPersistChanged() {
     if (!_awaitingRetry || !mounted || _applying || _draftClearIssued) return;
     if (_persistence.hasWriteFailure || _persistence.isRetrying) return;
+    if (_recovery.needsRecovery || _recovery.isRetrying) return;
     _awaitingRetry = false;
     _persistence.removeListener(_onPersistChanged);
+    _recovery.removeListener(_onPersistChanged);
     _applyConfirmed(context.read<KanaProgressRepository>());
   }
 
@@ -87,6 +93,14 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
   /// leaving "draft empty / row unlearned".
   Future<void> _applyConfirmed(KanaProgressRepository store) async {
     if (_applying || _draftClearIssued || !mounted) return;
+    if (_recovery.needsRecovery) {
+      if (!_awaitingRetry) {
+        _awaitingRetry = true;
+        _persistence.addListener(_onPersistChanged);
+        _recovery.addListener(_onPersistChanged);
+      }
+      return;
+    }
     _applying = true;
     try {
       for (final lesson in _summary.confirmedLessons) {
@@ -103,6 +117,7 @@ class _PlacementResultScreenState extends State<PlacementResultScreen> {
       if (!_awaitingRetry) {
         _awaitingRetry = true;
         _persistence.addListener(_onPersistChanged);
+        _recovery.addListener(_onPersistChanged);
       }
     } finally {
       _applying = false;

@@ -7,6 +7,7 @@ import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/placement/placement_scope_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
@@ -94,7 +95,11 @@ class _PlacementEntry extends StatelessWidget {
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        onTap: () => Navigator.of(context).push(PlacementScopeScreen.route()),
+        onTap: () {
+          final recovery = context.read<ProgressRestoreRecoveryController>();
+          if (recovery.needsRecovery) return;
+          Navigator.of(context).push(PlacementScopeScreen.route());
+        },
       ),
     );
   }
