@@ -65,6 +65,73 @@ void main() {
     expect(copy.kanaBoostOn, DateTime(2026, 9, 11));
   });
 
+  test('constructor copies and seals focuses and servedOn', () {
+    final focuses = [const TravelFocus(scene: TravelSceneId.transport)];
+    final servedOn = <TravelSceneId, DateTime>{
+      TravelSceneId.transport: DateTime(2026, 9, 14),
+    };
+    final plan = TravelFocusPlan(focuses: focuses, servedOn: servedOn);
+
+    focuses.clear();
+    servedOn.clear();
+    expect(plan.isActive, isTrue);
+    expect(plan.servedOn[TravelSceneId.transport], DateTime(2026, 9, 14));
+
+    expect(() => plan.focuses.clear(), throwsUnsupportedError);
+    expect(
+      () => plan.focuses.add(const TravelFocus(scene: TravelSceneId.clothing)),
+      throwsUnsupportedError,
+    );
+    expect(
+      () => plan.focuses[0] = const TravelFocus(scene: TravelSceneId.shrine),
+      throwsUnsupportedError,
+    );
+    expect(() => plan.servedOn.clear(), throwsUnsupportedError);
+    expect(
+      () => plan.servedOn[TravelSceneId.clothing] = DateTime(2026, 9, 15),
+      throwsUnsupportedError,
+    );
+    expect(plan.focuses.single.scene, TravelSceneId.transport);
+    expect(plan.servedOn, hasLength(1));
+  });
+
+  test(
+    'fromJson, withFocuses, markKanaBoost, and markServed keep old snapshots',
+    () {
+      final decoded = TravelFocusPlan.fromJson({
+        'focuses': [
+          {'scene': 'transport'},
+        ],
+        'served': {'transport': '2026-09-14'},
+      });
+      expect(() => decoded.focuses.clear(), throwsUnsupportedError);
+      expect(() => decoded.servedOn.clear(), throwsUnsupportedError);
+
+      final original = TravelFocusPlan.empty.withFocuses(const [
+        TravelFocus(scene: TravelSceneId.transport),
+      ]);
+      final boosted = original.markKanaBoost(DateTime(2026, 9, 14, 8));
+      final served = original.markServed(
+        TravelSceneId.transport,
+        DateTime(2026, 9, 14, 9),
+      );
+      final swapped = original.withFocuses(const [
+        TravelFocus(scene: TravelSceneId.clothing),
+      ]);
+
+      expect(original.kanaBoostOn, isNull);
+      expect(original.servedOn, isEmpty);
+      expect(original.focuses.single.scene, TravelSceneId.transport);
+      expect(boosted.kanaBoostOn, DateTime(2026, 9, 14));
+      expect(boosted.focuses.single.scene, TravelSceneId.transport);
+      expect(served.servedOn[TravelSceneId.transport], DateTime(2026, 9, 14));
+      expect(served.focuses.single.scene, TravelSceneId.transport);
+      expect(swapped.focuses.single.scene, TravelSceneId.clothing);
+      expect(swapped.servedOn, isEmpty);
+      expect(original.focuses.single.scene, TravelSceneId.transport);
+    },
+  );
+
   test('restaurant and convenience ids persist and are not dropped', () {
     final original = TravelFocusPlan.empty.withFocuses(const [
       TravelFocus(scene: TravelSceneId.restaurant),

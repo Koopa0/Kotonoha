@@ -56,6 +56,59 @@ void main() {
   });
 
   test(
+    'mutating plan collections does not change live or durable state',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await TravelFocusRepository.load();
+      await repo.saveFocuses(const [
+        TravelFocus(scene: TravelSceneId.transport),
+      ]);
+      await repo.markServed(TravelSceneId.transport, DateTime(2026, 9, 14));
+      var notifications = 0;
+      repo.addListener(() => notifications++);
+
+      expect(() => repo.plan.focuses.clear(), throwsUnsupportedError);
+      expect(() => repo.plan.servedOn.clear(), throwsUnsupportedError);
+      expect(
+        () => repo.plan.focuses.add(
+          const TravelFocus(scene: TravelSceneId.clothing),
+        ),
+        throwsUnsupportedError,
+      );
+      expect(repo.plan.isActive, isTrue);
+      expect(
+        repo.plan.servedOn[TravelSceneId.transport],
+        DateTime(2026, 9, 14),
+      );
+      expect(notifications, 0);
+
+      final restarted = await TravelFocusRepository.load();
+      expect(restarted.plan, repo.plan);
+      expect(restarted.plan.isActive, isTrue);
+      expect(
+        restarted.plan.servedOn[TravelSceneId.transport],
+        DateTime(2026, 9, 14),
+      );
+    },
+  );
+
+  test('legitimate writes still notify and persist the daily cursor', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = await TravelFocusRepository.load();
+    var notifications = 0;
+    repo.addListener(() => notifications++);
+
+    await repo.saveFocuses(const [TravelFocus(scene: TravelSceneId.transport)]);
+    await repo.markServed(TravelSceneId.transport, DateTime(2026, 9, 14, 19));
+    expect(notifications, 2);
+    expect(repo.plan.focuses.single.scene, TravelSceneId.transport);
+    expect(repo.plan.servedOn[TravelSceneId.transport], DateTime(2026, 9, 14));
+
+    final restarted = await TravelFocusRepository.load();
+    expect(restarted.plan, repo.plan);
+  });
+
+  test(
     'a failed write keeps memory; flushPending lands after recovery',
     () async {
       final fake = FakePreferencesService();

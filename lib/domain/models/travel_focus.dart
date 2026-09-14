@@ -43,8 +43,21 @@ class TravelFocus {
 /// This is a plan, not mastery: clearing or swapping scenes never writes a
 /// kana or 詞と句 stat. [kanaBoostOn] / [servedOn] only remember which short
 /// Home step already ran, so tomorrow can continue the other scene.
+///
+/// [focuses] and [servedOn] are copied and sealed at construction so a caller
+/// cannot mutate this snapshot — or the repository's canonical plan — through
+/// the collections they passed in or the collections they read back.
 class TravelFocusPlan {
-  const TravelFocusPlan({
+  TravelFocusPlan({
+    List<TravelFocus> focuses = const [],
+    this.kanaBoostOn,
+    Map<TravelSceneId, DateTime> servedOn = const {},
+  }) : focuses = List<TravelFocus>.unmodifiable(List<TravelFocus>.of(focuses)),
+       servedOn = Map<TravelSceneId, DateTime>.unmodifiable(
+         Map<TravelSceneId, DateTime>.of(servedOn),
+       );
+
+  const TravelFocusPlan._({
     this.focuses = const [],
     this.kanaBoostOn,
     this.servedOn = const {},
@@ -83,17 +96,19 @@ class TravelFocusPlan {
     );
   }
 
-  static const TravelFocusPlan empty = TravelFocusPlan();
+  static const TravelFocusPlan empty = TravelFocusPlan._();
 
   static const int maxFocuses = 2;
 
   /// One or two scenes, in the order the learner picked them.
+  /// Unmodifiable; the constructor copies the input first.
   final List<TravelFocus> focuses;
 
   /// Calendar day the Home travel path already ran today's one kana boost.
   final DateTime? kanaBoostOn;
 
   /// Calendar day each scene was last continued from the Home next step.
+  /// Unmodifiable; the constructor copies the input first.
   final Map<TravelSceneId, DateTime> servedOn;
 
   bool get isActive => focuses.isNotEmpty;
