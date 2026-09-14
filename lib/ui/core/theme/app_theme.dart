@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/washi_background.dart';
@@ -30,11 +31,14 @@ abstract final class AppTheme {
       fontFamily: 'KleeOne',
       // A soft ripple rather than the M3 sparkle — quieter, like ink spreading.
       splashFactory: InkRipple.splashFactory,
-      // Pages fade-and-rise like ink settling, not platform slides.
+      // Android/macOS keep the ink fade-and-rise. iOS delegates to the official
+      // Cupertino builder (edge-swipe back recognizer) while each route paints
+      // its own opaque washi so transparent scaffolds do not ghost the page
+      // beneath during the slide.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: _InkPageTransitionsBuilder(),
-          TargetPlatform.iOS: _InkPageTransitionsBuilder(),
+          TargetPlatform.iOS: _CupertinoWashiPageTransitionsBuilder(),
           TargetPlatform.macOS: _InkPageTransitionsBuilder(),
         },
       ),
@@ -91,6 +95,41 @@ abstract final class AppTheme {
         thickness: 1,
         space: 1,
       ),
+    );
+  }
+}
+
+/// Official Cupertino push/pop, including the iOS edge-swipe back gesture.
+///
+/// Delegates the transition and recognizer to [CupertinoPageTransitionsBuilder]
+/// rather than reimplementing them. [WashiBackground] stays on the page so
+/// transparent scaffolds do not ghost the route beneath during the slide.
+class _CupertinoWashiPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _CupertinoWashiPageTransitionsBuilder();
+
+  static const _cupertino = CupertinoPageTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => _cupertino.transitionDuration;
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      _cupertino.delegatedTransition;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return _cupertino.buildTransitions(
+      route,
+      context,
+      animation,
+      secondaryAnimation,
+      WashiBackground(child: child),
     );
   }
 }
