@@ -30,6 +30,7 @@ class TravelFocusScreen extends StatefulWidget {
 class _TravelFocusScreenState extends State<TravelFocusScreen> {
   late List<TravelFocus> _draft;
   bool _limitHint = false;
+  bool _saving = false;
 
   DateTime get _now => (widget.clock ?? DateTime.now)();
 
@@ -52,6 +53,10 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   }
 
   void _toggle(TravelSceneId scene) {
+    if (_saving ||
+        context.read<ProgressPersistenceController>().hasWriteFailure) {
+      return;
+    }
     setState(() {
       if (_selected(scene)) {
         _draft = [
@@ -71,6 +76,10 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   }
 
   Future<void> _pickDate(TravelSceneId scene) async {
+    if (_saving ||
+        context.read<ProgressPersistenceController>().hasWriteFailure) {
+      return;
+    }
     final current = _focus(scene)?.date ?? TravelFocusPlan.dayOf(_now);
     final picked = await showDatePicker(
       context: context,
@@ -89,6 +98,10 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   }
 
   void _clearDate(TravelSceneId scene) {
+    if (_saving ||
+        context.read<ProgressPersistenceController>().hasWriteFailure) {
+      return;
+    }
     setState(() {
       _draft = [
         for (final f in _draft)
@@ -97,22 +110,42 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     final persist = context.read<ProgressPersistenceController>();
-    persist.trackTravelFocus(
-      context.read<TravelFocusRepository>().saveFocuses(_draft),
-    );
+    if (persist.hasWriteFailure || _saving) return;
+    setState(() => _saving = true);
+    final save = context.read<TravelFocusRepository>().saveFocuses(_draft);
+    persist.trackTravelFocus(save);
+    try {
+      await save;
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      return;
+    }
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
-  void _clear() {
+  Future<void> _clear() async {
     final persist = context.read<ProgressPersistenceController>();
-    persist.trackTravelFocus(context.read<TravelFocusRepository>().clear());
+    if (persist.hasWriteFailure || _saving) return;
+    setState(() => _saving = true);
+    final clear = context.read<TravelFocusRepository>().clear();
+    persist.trackTravelFocus(clear);
+    try {
+      await clear;
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      return;
+    }
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final persist = context.watch<ProgressPersistenceController>();
+    final blocked = persist.hasWriteFailure || _saving;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.travelFocusTitle)),
       body: SafeArea(
@@ -136,6 +169,7 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
                 scene: scene,
                 selected: _selected(scene),
                 date: _focus(scene)?.date,
+                enabled: !blocked,
                 onToggle: () => _toggle(scene),
                 onDate: _selected(scene) ? () => _pickDate(scene) : null,
                 onClearDate: _selected(scene) && _focus(scene)?.date != null
@@ -146,7 +180,7 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
             ],
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: _save,
+              onPressed: blocked ? null : _save,
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 56),
                 padding: const EdgeInsets.symmetric(
@@ -154,13 +188,17 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
                   vertical: 12,
                 ),
               ),
-              child: const Text(AppStrings.travelFocusSave),
+              child: Text(
+                _saving ? AppStrings.backupSaving : AppStrings.travelFocusSave,
+              ),
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: _clear,
+              onPressed: blocked ? null : _clear,
               style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
-              child: const Text(AppStrings.travelFocusClear),
+              child: Text(
+                _saving ? AppStrings.backupSaving : AppStrings.travelFocusClear,
+              ),
             ),
           ],
         ),
@@ -174,6 +212,7 @@ class _FocusTile extends StatelessWidget {
     required this.scene,
     required this.selected,
     required this.date,
+    required this.enabled,
     required this.onToggle,
     this.onDate,
     this.onClearDate,
@@ -182,6 +221,7 @@ class _FocusTile extends StatelessWidget {
   final TravelSceneId scene;
   final bool selected;
   final DateTime? date;
+  final bool enabled;
   final VoidCallback onToggle;
   final VoidCallback? onDate;
   final VoidCallback? onClearDate;
@@ -217,7 +257,7 @@ class _FocusTile extends StatelessWidget {
           children: [
             CheckboxListTile(
               value: selected,
-              onChanged: (_) => onToggle(),
+              onChanged: enabled ? (_) => onToggle() : null,
               contentPadding: const EdgeInsets.only(left: 8, right: 4),
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(
@@ -240,7 +280,7 @@ class _FocusTile extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     TextButton(
-                      onPressed: onDate,
+                      onPressed: enabled ? onDate : null,
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.ink,
                         padding: const EdgeInsets.symmetric(
@@ -259,7 +299,7 @@ class _FocusTile extends StatelessWidget {
                     ),
                     if (onClearDate != null)
                       TextButton(
-                        onPressed: onClearDate,
+                        onPressed: enabled ? onClearDate : null,
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.inkMuted,
                           minimumSize: const Size(48, 48),

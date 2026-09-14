@@ -80,4 +80,67 @@ void main() {
       expect(afterFlush.plan.focuses.single.scene, TravelSceneId.transport);
     },
   );
+
+  test('markKanaBoost write failure keeps memory; flushPending lands after recovery', () async {
+    final fake = FakePreferencesService();
+    final store = await TravelFocusRepository.load(fake);
+    await store.saveFocuses(const [
+      TravelFocus(scene: TravelSceneId.transport),
+    ]);
+
+    fake.failWrites.add('travel_focus_v1');
+    await expectLater(
+      store.markKanaBoost(DateTime(2026, 9, 11, 12)),
+      throwsA(isA<StoreWriteFailure>()),
+    );
+    expect(store.plan.kanaBoostOn, DateTime(2026, 9, 11));
+
+    final afterFail = await TravelFocusRepository.load(
+      FakePreferencesService.restarted(fake),
+    );
+    expect(afterFail.plan.kanaBoostOn, isNull);
+
+    fake.failWrites.clear();
+    await store.flushPending();
+    final afterFlush = await TravelFocusRepository.load(
+      FakePreferencesService.restarted(fake),
+    );
+    expect(afterFlush.plan.kanaBoostOn, DateTime(2026, 9, 11));
+  });
+
+  test(
+    'markServed write failure keeps memory; flushPending lands after recovery',
+    () async {
+      final fake = FakePreferencesService();
+      final store = await TravelFocusRepository.load(fake);
+      await store.saveFocuses(const [
+        TravelFocus(scene: TravelSceneId.transport),
+      ]);
+
+      fake.failWrites.add('travel_focus_v1');
+      await expectLater(
+        store.markServed(TravelSceneId.transport, DateTime(2026, 9, 11, 12)),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      expect(
+        store.plan.servedOn[TravelSceneId.transport],
+        DateTime(2026, 9, 11),
+      );
+
+      final afterFail = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(afterFail.plan.servedOn[TravelSceneId.transport], isNull);
+
+      fake.failWrites.clear();
+      await store.flushPending();
+      final afterFlush = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(
+        afterFlush.plan.servedOn[TravelSceneId.transport],
+        DateTime(2026, 9, 11),
+      );
+    },
+  );
 }
