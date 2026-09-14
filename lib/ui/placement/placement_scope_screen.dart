@@ -11,6 +11,7 @@ import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/placement/placement_check_screen.dart';
 import 'package:kotonoha/ui/placement/placement_result_screen.dart';
@@ -32,6 +33,8 @@ class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
   final Set<String> _selected = {};
 
   Future<void> _startNew(List<Lesson> catalog) async {
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    if (recovery.needsRecovery) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     final repo = context.read<PlacementCheckRepository>();
@@ -56,6 +59,8 @@ class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
   }
 
   void _resume() {
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    if (recovery.needsRecovery) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     final repo = context.read<PlacementCheckRepository>();
@@ -70,6 +75,8 @@ class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
   }
 
   Future<void> _discardAndStay() async {
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    if (recovery.needsRecovery) return;
     final persist = context.read<ProgressPersistenceController>();
     if (persist.hasWriteFailure) return;
     final repo = context.read<PlacementCheckRepository>();
@@ -96,12 +103,13 @@ class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
   Widget build(BuildContext context) {
     final store = context.watch<KanaProgressRepository>();
     final persist = context.watch<ProgressPersistenceController>();
+    final recovery = context.watch<ProgressRestoreRecoveryController>();
     final checks = context.watch<PlacementCheckRepository>();
     final catalog = Lessons.fromKana(store.allKana);
     final hira = catalog.where((l) => l.script == KanaScript.hiragana).toList();
     final kata = catalog.where((l) => l.script == KanaScript.katakana).toList();
     final draft = checks.draft;
-    final blocked = persist.hasWriteFailure;
+    final blocked = persist.hasWriteFailure || recovery.needsRecovery;
     final canResume = draft.hasProgress;
     final canStart = _selected.isNotEmpty && !blocked;
 

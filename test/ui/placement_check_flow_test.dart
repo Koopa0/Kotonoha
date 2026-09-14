@@ -11,6 +11,9 @@ import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
+import 'package:kotonoha/domain/models/placement_check.dart';
+import 'package:kotonoha/domain/use_cases/lessons.dart';
+import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -194,6 +197,172 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.text(AppStrings.reviewKanaAction), findsOneWidget);
   });
+
+  testWidgets(
+    'needsRecovery blocks placement flow entry and completion without false success',
+    (tester) async {
+      final repos = await _pumpApp(tester, needsRecovery: true);
+
+      // Home learning buttons are blocked
+      await tester.tap(find.text(AppStrings.learnNewKanaAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(LessonsScreen), findsNothing);
+
+      // 1. LessonsScreen directly: placement entry is blocked when needsRecovery is true
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(
+              value: repos.kana,
+            ),
+            ChangeNotifierProvider<KanjiReadingRepository>.value(
+              value: repos.kanji,
+            ),
+            ChangeNotifierProvider<WordProgressRepository>.value(
+              value: repos.words,
+            ),
+            ChangeNotifierProvider<PlacementCheckRepository>.value(
+              value: await PlacementCheckRepository.load(),
+            ),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: repos.kana.flushPending,
+                kanjiFlush: repos.kanji.flushPending,
+                wordFlush: repos.words.flushPending,
+              ),
+            ),
+            ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+              value: repos.recovery,
+            ),
+            Provider<SpeechService>.value(value: const SilentSpeechService()),
+            Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          ],
+          child: const MaterialApp(home: LessonsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(LessonsScreen), findsOneWidget);
+      await tester.tap(find.text(AppStrings.placementEntry));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlacementScopeScreen), findsNothing);
+
+      // 2. Direct PlacementScopeScreen with needsRecovery blocks starting checks
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(
+              value: repos.kana,
+            ),
+            ChangeNotifierProvider<KanjiReadingRepository>.value(
+              value: repos.kanji,
+            ),
+            ChangeNotifierProvider<WordProgressRepository>.value(
+              value: repos.words,
+            ),
+            ChangeNotifierProvider<PlacementCheckRepository>.value(
+              value: await PlacementCheckRepository.load(),
+            ),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: repos.kana.flushPending,
+                kanjiFlush: repos.kanji.flushPending,
+                wordFlush: repos.words.flushPending,
+              ),
+            ),
+            ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+              value: repos.recovery,
+            ),
+            Provider<SpeechService>.value(value: const SilentSpeechService()),
+            Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          ],
+          child: const MaterialApp(home: PlacementScopeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'あ行'));
+      await tester.pumpAndSettle();
+      // Button disabled because blocked
+      final startButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, AppStrings.placementStart),
+      );
+      expect(startButton.onPressed, isNull);
+
+      // 3. Attempting placement result screen completion under blocking journal
+      // preserves draft and does not modify learned_units (no false success)
+      final catalog = Lessons.fromKana(repos.kana.allKana);
+      final draft = PlacementCheck.record(
+        PlacementCheck.record(
+          PlacementCheck.record(
+            PlacementCheck.record(
+              PlacementCheck.record(
+                PlacementCheck.start([catalog.first])!,
+                'あ',
+                PlacementOutcome.independent,
+              ),
+              'い',
+              PlacementOutcome.independent,
+            ),
+            'う',
+            PlacementOutcome.independent,
+          ),
+          'え',
+          PlacementOutcome.independent,
+        ),
+        'お',
+        PlacementOutcome.independent,
+      );
+      final checkRepo = await PlacementCheckRepository.load();
+      await checkRepo.save(draft);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<KanaProgressRepository>.value(
+              value: repos.kana,
+            ),
+            ChangeNotifierProvider<KanjiReadingRepository>.value(
+              value: repos.kanji,
+            ),
+            ChangeNotifierProvider<WordProgressRepository>.value(
+              value: repos.words,
+            ),
+            ChangeNotifierProvider<PlacementCheckRepository>.value(
+              value: checkRepo,
+            ),
+            ChangeNotifierProvider<ProgressPersistenceController>.value(
+              value: ProgressPersistenceController(
+                kanaFlush: repos.kana.flushPending,
+                kanjiFlush: repos.kanji.flushPending,
+                wordFlush: repos.words.flushPending,
+                placementFlush: checkRepo.flushPending,
+              ),
+            ),
+            ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+              value: repos.recovery,
+            ),
+            Provider<SpeechService>.value(value: const SilentSpeechService()),
+            Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
+          ],
+          child: MaterialApp(
+            home: PlacementResultScreen(draft: draft, checks: checkRepo),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Row must NOT be marked learned, draft must NOT be cleared
+      expect(repos.kana.isUnitLearned('hira_row_0'), isFalse);
+      expect(repos.kana.learnedUnitCount, 0);
+      expect(checkRepo.draft.hasProgress, isTrue);
+
+      // 4. Retry recovery clearing needsRecovery unblocks applying and marks row learned
+      await repos.recovery.retry();
+      await tester.pumpAndSettle();
+      expect(repos.kana.isUnitLearned('hira_row_0'), isTrue);
+      expect(repos.kana.learnedUnitCount, 1);
+    },
+  );
 }
 
 Kana _kanaOf(KanaProgressRepository store, String character) =>
@@ -204,9 +373,10 @@ Future<
     KanaProgressRepository kana,
     KanjiReadingRepository kanji,
     WordProgressRepository words,
+    ProgressRestoreRecoveryController recovery,
   })
 >
-_pumpApp(WidgetTester tester) async {
+_pumpApp(WidgetTester tester, {bool needsRecovery = false}) async {
   await tester.binding.setSurfaceSize(const Size(420, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
@@ -220,6 +390,7 @@ _pumpApp(WidgetTester tester) async {
     kana: kana,
     kanji: kanji,
     words: words,
+    needsRecovery: needsRecovery,
   );
   await tester.pumpWidget(
     MultiProvider(
@@ -246,7 +417,7 @@ _pumpApp(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
-  return (kana: kana, kanji: kanji, words: words);
+  return (kana: kana, kanji: kanji, words: words, recovery: recovery);
 }
 
 Future<void> _openAoCheck(WidgetTester tester) async {
