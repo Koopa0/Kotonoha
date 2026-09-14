@@ -211,9 +211,9 @@ Future<Color> _sampleScreenPixel(WidgetTester tester, Offset position) async {
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(_iosSwipeCaptureKey),
   );
-  final image = await tester.runAsync(() => boundary.toImage());
-  final data = await tester.runAsync(() => image!.toByteData());
-  final x = position.dx.floor().clamp(0, image!.width - 1);
+  final image = await tester.runAsync(boundary.toImage);
+  final data = await tester.runAsync(image!.toByteData);
+  final x = position.dx.floor().clamp(0, image.width - 1);
   final y = position.dy.floor().clamp(0, image.height - 1);
   final offset = (y * image.width + x) * 4;
   return Color.fromARGB(
