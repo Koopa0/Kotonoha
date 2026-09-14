@@ -70,7 +70,7 @@ class ReadingStat {
     60 * 24 * 60,
   ];
 
-  /// The level at which furigana fully fades ([RubyText.furiganaOpacity]) —
+  /// The level at which furigana fully fades ([FuriganaSupport.opacity]) —
   /// reaching it by correct untimed recall means "the reading is known, the
   /// support comes off": the 名残 promise, completable without any timed beat.
   /// The schedule itself keeps climbing past it (see [kMaxLevel]).

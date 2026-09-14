@@ -7,10 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
-import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
+import 'package:kotonoha/kanji/ui/kanji_sentence_viewmodel.dart';
 import 'package:kotonoha/kanji/ui/ruby_text.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -30,6 +29,11 @@ import 'package:provider/provider.dart';
 /// screen's own, a cold self-graded read recorded against
 /// `WordProgressRepository`. So re-reading a sentence never inflates a kanji
 /// reading's mastery, and mastering a reading never marks a sentence reviewed.
+///
+/// A thin View over [KanjiSentenceViewModel]: it owns the speaker (the owned
+/// utterance, whether the app may play), the lifecycle listener, rendering
+/// and navigation. The reveal, the independence judgement, the grade and
+/// every schedule or analytics write are the ViewModel's.
 class KanjiSentenceScreen extends StatefulWidget {
   const KanjiSentenceScreen({
     required this.phrases,
@@ -74,24 +78,27 @@ class KanjiSentenceScreen extends StatefulWidget {
 }
 
 class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late final KanjiSentenceViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  int _index = 0;
-  bool _revealed = false;
-  bool _unpromptedCommit = false;
-  int _correct = 0;
-  bool _done = false;
-
-  KanjiPhrase get _current => widget.phrases[_index];
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   @override
   void initState() {
     super.initState();
+    _vm = KanjiSentenceViewModel(
+      phrases: widget.phrases,
+      words: context.read<WordProgressRepository>(),
+      kanji: context.read<KanjiReadingRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      alreadyTransferredIds: widget.alreadyTransferredIds,
+      clock: widget.clock,
+    );
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -107,6 +114,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
+    _vm.dispose();
     super.dispose();
   }
 
@@ -130,84 +138,34 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
 
   void _speak() {
     if (!mounted || !_playable || !_foreground) return;
-    unawaited(_speech.speak(_current.reading));
+    unawaited(_speech.speak(_vm.current.reading));
     _ownedPlay = _speech.generation;
   }
 
+  /// The reveal sounds the sentence — a comfort after the commit, never
+  /// evidence, so it stays the view's.
   void _reveal({required bool unpromptedCommit}) {
     _speak();
-    setState(() {
-      _revealed = true;
-      _unpromptedCommit = unpromptedCommit;
-    });
-  }
-
-  bool _independentRecall({required bool unprompted}) {
-    final repo = context.read<KanjiReadingRepository>();
-    // The commit button is only half the evidence: first-teach furigana
-    // already on the card is reading support, even if the learner pressed
-    // 「讀得出來」. Mature readings (opacity 0) stay independent.
-    final rubySupport = RubyText.hasVisibleReadingSupport(
-      _current,
-      (id) => repo.statForUnit(id).srsLevel,
-    );
-    return unprompted && !rubySupport;
-  }
-
-  void _grade({required bool correct, required bool unprompted}) {
-    final now = _clock();
-    final independent = _independentRecall(unprompted: unprompted);
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.written,
-        itemType: ItemType.kanji,
-        mode: PracticeMode.reading.name,
-        correct: correct,
-        sessionId: _sessionId,
-        meta: {'reading': _current.reading, AttemptMeta.prompted: !independent},
-      ),
-    );
-    // The sentence's own schedule — a cold self-graded read. (The per-reading
-    // kanji SRS belongs to 漢字の声 and is deliberately untouched here.)
-    // Independent confirmed-correct is the only climb, and only the first
-    // time this grind covers the id. Supported correct on a new item keeps
-    // intake (seen) without mastering. A miss always resets.
-    final words = context.read<WordProgressRepository>();
-    final persist = context.read<ProgressPersistenceController>();
-    final id = _current.progressId;
-    final canRenew = DailyBridge.shouldRenew(id, widget.alreadyTransferredIds);
-    if (!correct) {
-      persist.trackWord(words.recordAnswer(id, correct: false, at: now));
-    } else if (independent && canRenew) {
-      persist.trackWord(words.recordAnswer(id, correct: true, at: now));
-    } else if (!independent && !words.statForItem(id).isSeen) {
-      persist.trackWord(words.markIntroduced(id, at: now));
-    }
-    if (correct) _correct++;
-    if (_index + 1 >= widget.phrases.length) {
-      setState(() => _done = true);
-    } else {
-      setState(() {
-        _index++;
-        _revealed = false;
-        _unpromptedCommit = false;
-      });
-    }
+    _vm.reveal(unpromptedCommit: unpromptedCommit);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
-      headline: AppStrings.readingSummary(_correct, widget.phrases.length),
+      headline: AppStrings.readingSummary(_vm.correctCount, _vm.total),
       note: AppStrings.closing(widget.phrases.last.written, band: band),
       onDone: () => Navigator.of(context).pop(),
       // Night close grants permission to stop — suppress もう一回 at render time.
@@ -216,12 +174,13 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
   }
 
   Widget _question() {
-    final repo = context.read<KanjiReadingRepository>();
+    final current = _vm.current;
+    final revealed = _vm.isRevealed;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.phrases.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -244,12 +203,12 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: RubyText(
-                      phrase: _current,
-                      srsLevelOf: (id) => repo.statForUnit(id).srsLevel,
+                      phrase: current,
+                      srsLevelOf: _vm.srsLevelOf,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (!_revealed)
+                  if (!revealed)
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
@@ -264,7 +223,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
                   else ...[
                     const Divider(height: 36, indent: 48, endIndent: 48),
                     Text(
-                      _current.reading,
+                      current.reading,
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
@@ -273,14 +232,14 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _current.meaning,
+                      current.meaning,
                       style: const TextStyle(
                         fontSize: 18,
                         color: AppColors.ink,
                       ),
                     ),
                     SpeakButton(
-                      text: _current.reading,
+                      text: current.reading,
                       size: 28,
                       onPlay: _speak,
                     ),
@@ -293,7 +252,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: _revealed ? _gradeControls() : _revealControls(),
+          child: revealed ? _gradeControls() : _revealControls(),
         ),
       ],
     );
@@ -341,8 +300,7 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: () =>
-                _grade(correct: false, unprompted: _unpromptedCommit),
+            onPressed: () => _vm.grade(correct: false),
             child: const Text(AppStrings.iCouldnt),
           ),
         ),
@@ -353,10 +311,9 @@ class _KanjiSentenceScreenState extends State<KanjiSentenceScreen> {
               backgroundColor: AppColors.success,
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: () =>
-                _grade(correct: true, unprompted: _unpromptedCommit),
+            onPressed: () => _vm.grade(correct: true),
             child: Text(
-              _unpromptedCommit
+              _vm.unpromptedCommit
                   ? AppStrings.iReadIt
                   : AppStrings.iReadAfterHint,
             ),
