@@ -71,6 +71,55 @@ class ScriptedSpeechService implements SpeechService {
   }
 }
 
+/// Each [play] waits until [complete] or [stop]. Unlike
+/// [HangingSpeechService], a later play can wait again — needed when a
+/// background interrupt settles the first utterance and the learner
+/// replays.
+class ControllableSpeechService implements SpeechService {
+  Completer<SpeechPlaybackResult>? _pending;
+  final List<String> spoken = <String>[];
+  int stopCount = 0;
+  int _generation = 0;
+
+  bool get isPending => _pending != null && !(_pending?.isCompleted ?? true);
+
+  void complete(SpeechPlaybackResult result) {
+    final pending = _pending;
+    if (pending == null || pending.isCompleted) {
+      throw StateError('no pending play');
+    }
+    pending.complete(result);
+    _pending = null;
+  }
+
+  @override
+  Future<void> speak(String text) async {
+    await play(text);
+  }
+
+  @override
+  Future<SpeechPlaybackResult> play(String text) {
+    spoken.add(text);
+    _generation++;
+    _pending = Completer<SpeechPlaybackResult>();
+    return _pending!.future;
+  }
+
+  @override
+  int get generation => _generation;
+
+  @override
+  Future<void> stop({int? generation}) async {
+    if (generation != null && generation != _generation) return;
+    _generation++;
+    stopCount++;
+    if (_pending != null && !_pending!.isCompleted) {
+      _pending!.complete(SpeechPlaybackResult.interrupted);
+      _pending = null;
+    }
+  }
+}
+
 /// A play that stays open until [stop] or [complete].
 class HangingSpeechService implements SpeechService {
   final Completer<SpeechPlaybackResult> _completer =

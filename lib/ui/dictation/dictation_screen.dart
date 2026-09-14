@@ -20,6 +20,7 @@ import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/item_reaction_clock.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
@@ -29,13 +30,16 @@ import 'package:provider/provider.dart';
 /// 文字を起こす — dictation. Hear a word, then ASSEMBLE it from kana tiles (its
 /// own kana plus a few distractors). This is the production / encoding rep the
 /// learner is otherwise missing — recognition tells you nothing about whether he
-/// can call the written shape up himself. Records a [Attempt] (mode=dictation),
-/// rtMs = time to assemble.
+/// can call the written shape up himself. Records a [Attempt] (mode=dictation).
+///
+/// Valid [Attempt.rtMs] is foreground assemble time. Pause / hide freezes
+/// the clock — resume or same-word replay must not restart it.
 class DictationScreen extends StatefulWidget {
   const DictationScreen({
     required this.words,
     required this.title,
     this.clock,
+    this.monotonicMs,
     this.onMore,
     this.alreadyTransferredIds = const {},
     super.key,
@@ -44,8 +48,10 @@ class DictationScreen extends StatefulWidget {
   final List<Word> words;
   final String title;
 
-  /// Injectable clock so the assembled-word reaction time is testable.
+  /// Optional clock / monotonic elapsed for tests. Production leaves both
+  /// null so the screen uses [DateTime.now] and [Stopwatch].
   final DateTime Function()? clock;
+  final int Function()? monotonicMs;
 
   /// Opt-in "one more" — a fresh session (home builds it, night-suppressed).
   final VoidCallback? onMore;
@@ -59,6 +65,7 @@ class DictationScreen extends StatefulWidget {
     String title, {
     VoidCallback? onMore,
     DateTime Function()? clock,
+    int Function()? monotonicMs,
     Set<String> alreadyTransferredIds = const {},
   }) => MaterialPageRoute<void>(
     builder: (_) => DictationScreen(
@@ -66,6 +73,7 @@ class DictationScreen extends StatefulWidget {
       title: title,
       onMore: onMore,
       clock: clock,
+      monotonicMs: monotonicMs,
       alreadyTransferredIds: alreadyTransferredIds,
     ),
   );
@@ -81,6 +89,7 @@ class _DictationScreenState extends State<DictationScreen> {
 
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
+  late final ItemReactionClock _reaction;
 
   /// Picked once, at the close — an occasional classical 余韻 (often null).
   KotenLine? _share;
@@ -92,7 +101,6 @@ class _DictationScreenState extends State<DictationScreen> {
   bool _wasCorrect = false;
   int _correct = 0;
   bool _done = false;
-  int _shownAtMs = 0;
   int _playGen = 0;
   int? _ownedPlay;
   bool _blindHeard = false;
@@ -111,6 +119,10 @@ class _DictationScreenState extends State<DictationScreen> {
   void initState() {
     super.initState();
     _speech = context.read<SpeechService>();
+    _reaction = ItemReactionClock(
+      clock: widget.clock,
+      monotonicMs: widget.monotonicMs,
+    );
     _lifecycle = AppLifecycleListener(
       onInactive: _onUnanswerable,
       onHide: _onUnanswerable,
@@ -136,6 +148,9 @@ class _DictationScreenState extends State<DictationScreen> {
     // Stopping audio is independent of whether the item is already
     // assembled — a reveal replay must cancel in the background too.
     _abandonPlayback();
+    // An already-shown assemble clock stays dead. Resume / replay
+    // must not mint a fresh RT for this word.
+    _reaction.invalidate();
     if (mounted) {
       setState(() => _lastPlay = SpeechPlaybackResult.interrupted);
     }
@@ -185,7 +200,7 @@ class _DictationScreenState extends State<DictationScreen> {
     _used = List<bool>.filled(_tiles.length, false);
     _picked.clear();
     _checked = false;
-    _shownAtMs = _clock().millisecondsSinceEpoch;
+    _reaction.arm(startImmediately: true);
   }
 
   Future<void> _play() async {
@@ -242,7 +257,7 @@ class _DictationScreenState extends State<DictationScreen> {
         itemType: ItemType.word,
         mode: PracticeMode.dictation.name,
         correct: correct,
-        rtMs: now.millisecondsSinceEpoch - _shownAtMs,
+        rtMs: _reaction.elapsedMs(),
         sessionId: _sessionId,
         meta: {
           'romaji': _current.romaji,
