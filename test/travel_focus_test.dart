@@ -77,7 +77,7 @@ void main() {
     expect(plan.isActive, isTrue);
     expect(plan.servedOn[TravelSceneId.transport], DateTime(2026, 9, 14));
 
-    expect(() => plan.focuses.clear(), throwsUnsupportedError);
+    expect(plan.focuses.clear, throwsUnsupportedError);
     expect(
       () => plan.focuses.add(const TravelFocus(scene: TravelSceneId.clothing)),
       throwsUnsupportedError,
@@ -86,7 +86,7 @@ void main() {
       () => plan.focuses[0] = const TravelFocus(scene: TravelSceneId.shrine),
       throwsUnsupportedError,
     );
-    expect(() => plan.servedOn.clear(), throwsUnsupportedError);
+    expect(plan.servedOn.clear, throwsUnsupportedError);
     expect(
       () => plan.servedOn[TravelSceneId.clothing] = DateTime(2026, 9, 15),
       throwsUnsupportedError,
@@ -104,8 +104,8 @@ void main() {
         ],
         'served': {'transport': '2026-09-14'},
       });
-      expect(() => decoded.focuses.clear(), throwsUnsupportedError);
-      expect(() => decoded.servedOn.clear(), throwsUnsupportedError);
+      expect(decoded.focuses.clear, throwsUnsupportedError);
+      expect(decoded.servedOn.clear, throwsUnsupportedError);
 
       final original = TravelFocusPlan.empty.withFocuses(const [
         TravelFocus(scene: TravelSceneId.transport),

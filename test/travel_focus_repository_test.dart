@@ -67,8 +67,8 @@ void main() {
       var notifications = 0;
       repo.addListener(() => notifications++);
 
-      expect(() => repo.plan.focuses.clear(), throwsUnsupportedError);
-      expect(() => repo.plan.servedOn.clear(), throwsUnsupportedError);
+      expect(repo.plan.focuses.clear, throwsUnsupportedError);
+      expect(repo.plan.servedOn.clear, throwsUnsupportedError);
       expect(
         () => repo.plan.focuses.add(
           const TravelFocus(scene: TravelSceneId.clothing),

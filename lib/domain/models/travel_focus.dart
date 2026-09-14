@@ -57,11 +57,10 @@ class TravelFocusPlan {
          Map<TravelSceneId, DateTime>.of(servedOn),
        );
 
-  const TravelFocusPlan._({
-    this.focuses = const [],
-    this.kanaBoostOn,
-    this.servedOn = const {},
-  });
+  const TravelFocusPlan._empty()
+    : focuses = const [],
+      kanaBoostOn = null,
+      servedOn = const {};
 
   /// Honest decode: drop unknown scenes and extra rows past [maxFocuses].
   /// Duplicate scenes keep the first. Corrupt dates are ignored, not invented.
@@ -96,7 +95,7 @@ class TravelFocusPlan {
     );
   }
 
-  static const TravelFocusPlan empty = TravelFocusPlan._();
+  static const TravelFocusPlan empty = TravelFocusPlan._empty();
 
   static const int maxFocuses = 2;
 
