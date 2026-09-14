@@ -4,6 +4,7 @@
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_recovery.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 
@@ -18,10 +19,12 @@ ProgressRestoreRecoveryController recoveryForRepos({
   bool needsRecovery = false,
 }) {
   return ProgressRestoreRecoveryController(
-    prefs: prefs,
-    kana: kana,
-    kanji: kanji,
-    words: words,
+    recovery: ProgressRestoreRecovery(
+      prefs: prefs,
+      kana: kana,
+      kanji: kanji,
+      words: words,
+    ),
     needsRecovery: needsRecovery,
   );
 }

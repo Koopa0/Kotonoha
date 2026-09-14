@@ -7,16 +7,19 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
+import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/placement_check.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_recovery.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -47,13 +50,13 @@ void main() {
     return (fake, kana, kanji, words);
   }
 
-  ProgressSnapshotRepository snapshotsFor(
+  ProgressSnapshotCapture snapshotsFor(
     FakePreferencesService fake,
     KanaProgressRepository kana,
     KanjiReadingRepository kanji,
     WordProgressRepository words,
   ) {
-    return ProgressSnapshotRepository(
+    return ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -61,14 +64,14 @@ void main() {
     );
   }
 
-  ProgressSnapshotRestoreRepository restoreFor(
+  ProgressRestoreTransaction restoreFor(
     FakePreferencesService fake,
     KanaProgressRepository kana,
     KanjiReadingRepository kanji,
     WordProgressRepository words, {
     PlacementCheckRepository? placement,
   }) {
-    return ProgressSnapshotRestoreRepository(
+    return ProgressRestoreTransaction(
       prefs: fake,
       kana: kana,
       kanji: kanji,
@@ -125,7 +128,7 @@ void main() {
     WordProgressRepository words,
   ) async {
     await kana.markUnitLearned('hira_row_1');
-    return ProgressSnapshotRepository(
+    return ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -145,7 +148,7 @@ void main() {
     await kana.markUnlockSeen('words');
     await kanji.recordAnswer(jinReading, correct: true, at: now);
     await words.recordAnswer('word:いぬ', correct: true, at: now);
-    return ProgressSnapshotRepository(
+    return ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -194,10 +197,12 @@ void main() {
     required bool needsRecovery,
   }) {
     return ProgressRestoreRecoveryController(
-      prefs: fake,
-      kana: kana,
-      kanji: kanji,
-      words: words,
+      recovery: ProgressRestoreRecovery(
+        prefs: fake,
+        kana: kana,
+        kanji: kanji,
+        words: words,
+      ),
       needsRecovery: needsRecovery,
     );
   }
@@ -243,6 +248,44 @@ void main() {
     expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
   });
 
+  test('result reports whether the transaction ran', () async {
+    final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+    final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+    final (fake, kana, kanji, words) = await loadAll();
+    final files = FakeSnapshotFilePort();
+    final restorer = ProgressSnapshotRestorer(
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
+      files: files,
+    );
+
+    files.nextPick = SnapshotPickOutcome.cancelled;
+    var result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.cancelled);
+    expect(result.ranTransaction, isFalse);
+
+    files.nextPick = SnapshotPickOutcome.failed;
+    result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.failed);
+    expect(result.ranTransaction, isFalse);
+
+    files
+      ..nextPick = SnapshotPickOutcome.picked
+      ..pickContents = 'not json';
+    result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.invalid);
+    expect(result.ranTransaction, isFalse);
+
+    files.pickContents = backup;
+    result = await restorer.restore(confirm: (_) async => false);
+    expect(result.status, SnapshotRestoreStatus.cancelled);
+    expect(result.ranTransaction, isFalse);
+
+    result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.restored);
+    expect(result.ranTransaction, isTrue);
+  });
+
   test('cancelled confirm performs zero writes', () async {
     final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
     final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
@@ -252,8 +295,8 @@ void main() {
 
     final files = FakeSnapshotFilePort()..pickContents = backup;
     final restorer = ProgressSnapshotRestorer(
-      snapshots: snapshotsFor(fake, kana, kanji, words),
-      restore: restoreFor(fake, kana, kanji, words),
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
       files: files,
     );
 
@@ -294,9 +337,7 @@ void main() {
       await kana.markUnitLearned('keep_me');
       final before = primaryRaws(fake);
 
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
-        1,
-      };
+      fake.failWriteOnAttempt[ProgressStoreKeys.seenUnlocks] = {1};
       final restore = restoreFor(fake, kana, kanji, words);
       final preview = restore.previewEncoded(backup)!;
 
@@ -321,12 +362,8 @@ void main() {
       await kana.markUnitLearned('keep_me');
       final before = primaryRaws(fake);
 
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
-        1,
-      };
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
-        3,
-      };
+      fake.failWriteOnAttempt[ProgressStoreKeys.seenUnlocks] = {1};
+      fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {3};
       final restore = restoreFor(fake, kana, kanji, words);
       final preview = restore.previewEncoded(backup)!;
 
@@ -341,8 +378,8 @@ void main() {
         contains(ProgressRestoreJournal.journalKey),
       );
       expect(
-        fake.durable[ProgressSnapshotRepository.learnedUnitsStore],
-        isNot(before[ProgressSnapshotRepository.learnedUnitsStore]),
+        fake.durable[ProgressStoreKeys.learnedUnits],
+        isNot(before[ProgressStoreKeys.learnedUnits]),
       );
       expect(
         kana.learnedUnits,
@@ -357,54 +394,48 @@ void main() {
     },
   );
 
-  test(
-    'failed restore with blocking journal syncs recovery controller',
-    () async {
-      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
-          await loadAll();
-      final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+  test('failed restore with blocking journal blocks learning; recovery owner syncs', () async {
+    final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+    final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
 
-      final (fake, kana, kanji, words) = await loadAll();
-      await kana.markUnitLearned('keep_me');
+    final (fake, kana, kanji, words) = await loadAll();
+    await kana.markUnitLearned('keep_me');
 
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
-        1,
-      };
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
-        3,
-      };
+    fake.failWriteOnAttempt[ProgressStoreKeys.seenUnlocks] = {1};
+    fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {3};
 
-      final recovery = recoveryFor(
-        fake,
-        kana,
-        kanji,
-        words,
-        needsRecovery: false,
-      );
-      expect(recovery.needsRecovery, isFalse);
-      expect(kana.isRestoreJournalBlocked, isFalse);
+    final recovery = recoveryFor(
+      fake,
+      kana,
+      kanji,
+      words,
+      needsRecovery: false,
+    );
+    expect(recovery.needsRecovery, isFalse);
+    expect(kana.isRestoreJournalBlocked, isFalse);
 
-      final files = FakeSnapshotFilePort()..pickContents = backup;
-      final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
-        files: files,
-        recovery: recovery,
-      );
+    final files = FakeSnapshotFilePort()..pickContents = backup;
+    final restorer = ProgressSnapshotRestorer(
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
+      files: files,
+    );
 
-      final result = await restorer.restore(confirm: (_) async => true);
+    final result = await restorer.restore(confirm: (_) async => true);
+    // The view that issued the restore hands the outcome to the recovery
+    // owner; the transaction itself already blocked the repositories.
+    await recovery.syncFromPlatform();
 
-      expect(result.status, SnapshotRestoreStatus.failed);
-      expect(recovery.needsRecovery, isTrue);
-      expect(kana.isRestoreJournalBlocked, isTrue);
-      expect(kanji.isRestoreJournalBlocked, isTrue);
-      expect(words.isRestoreJournalBlocked, isTrue);
-      await expectLater(
-        words.recordAnswer('word:いぬ', correct: true, at: now),
-        throwsA(isA<ProgressRestoreJournalBlocked>()),
-      );
-    },
-  );
+    expect(result.status, SnapshotRestoreStatus.failed);
+    expect(recovery.needsRecovery, isTrue);
+    expect(kana.isRestoreJournalBlocked, isTrue);
+    expect(kanji.isRestoreJournalBlocked, isTrue);
+    expect(words.isRestoreJournalBlocked, isTrue);
+    await expectLater(
+      words.recordAnswer('word:いぬ', correct: true, at: now),
+      throwsA(isA<ProgressRestoreJournalBlocked>()),
+    );
+  });
 
   test(
     'platform write throw during apply syncs recovery and blocks learning',
@@ -416,10 +447,8 @@ void main() {
       final (fake, kana, kanji, words) = await loadAll();
       await kana.markUnitLearned('keep_me');
 
-      fake.throwWrites.add(ProgressSnapshotRepository.seenUnlocksStore);
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
-        3,
-      };
+      fake.throwWrites.add(ProgressStoreKeys.seenUnlocks);
+      fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {3};
 
       final recovery = recoveryFor(
         fake,
@@ -430,13 +459,15 @@ void main() {
       );
       final files = FakeSnapshotFilePort()..pickContents = backup;
       final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
         files: files,
-        recovery: recovery,
       );
 
       final result = await restorer.restore(confirm: (_) async => true);
+      // The view that issued the restore hands the outcome to the recovery
+      // owner; the transaction itself already blocked the repositories.
+      await recovery.syncFromPlatform();
 
       expect(result.status, SnapshotRestoreStatus.failed);
       expect(recovery.needsRecovery, isTrue);
@@ -474,12 +505,8 @@ void main() {
       final (fake, kana, kanji, words) = await loadAll();
       await kana.markUnitLearned('keep_me');
 
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
-        1,
-      };
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
-        3,
-      };
+      fake.failWriteOnAttempt[ProgressStoreKeys.seenUnlocks] = {1};
+      fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {3};
 
       final recovery = recoveryFor(
         fake,
@@ -490,13 +517,15 @@ void main() {
       );
       final files = FakeSnapshotFilePort()..pickContents = backup;
       final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
         files: files,
-        recovery: recovery,
       );
 
       final result = await restorer.restore(confirm: (_) async => true);
+      // The view that issued the restore hands the outcome to the recovery
+      // owner; the transaction itself already blocked the repositories.
+      await recovery.syncFromPlatform();
 
       expect(result.status, SnapshotRestoreStatus.failed);
       expect(recovery.needsRecovery, isTrue);
@@ -530,12 +559,8 @@ void main() {
       final (fake, kana, kanji, words) = await loadAll();
       await kana.markUnitLearned('keep_me');
 
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.seenUnlocksStore] = {
-        1,
-      };
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
-        3,
-      };
+      fake.failWriteOnAttempt[ProgressStoreKeys.seenUnlocks] = {1};
+      fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {3};
       final restore = restoreFor(fake, kana, kanji, words);
       final preview = restore.previewEncoded(backup)!;
 
@@ -581,19 +606,18 @@ void main() {
         },
       }),
     );
-    fake.durable[ProgressSnapshotRepository.kanaStatsStore] =
-        '{"partial":true}';
-    fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
+    fake.durable[ProgressStoreKeys.kanaStats] = '{"partial":true}';
+    fake.durable[ProgressStoreKeys.learnedUnits] =
         '["hira_row_0","a_unit_no_longer_in_any_dataset"]';
 
     final restarted = FakePreferencesService.restarted(fake)
-      ..failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {1};
+      ..failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {1};
     await ProgressRestoreJournal.recoverIfNeeded(restarted);
 
     expect(restarted.durable[ProgressRestoreJournal.journalKey], isNotNull);
     expect(ProgressRestoreJournal.blocksExport(restarted), isTrue);
     expect(
-      restarted.durable[ProgressSnapshotRepository.learnedUnitsStore],
+      restarted.durable[ProgressStoreKeys.learnedUnits],
       '["hira_row_0","a_unit_no_longer_in_any_dataset"]',
     );
   });
@@ -610,8 +634,8 @@ void main() {
 
       final files = FakeSnapshotFilePort()..pickContents = backup;
       final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
         files: files,
       );
 
@@ -641,8 +665,8 @@ void main() {
 
       final files = FakeSnapshotFilePort()..pickContents = backup;
       final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
         files: files,
       );
       final result = await restorer.restore(confirm: (_) async => true);
@@ -680,8 +704,7 @@ void main() {
           },
         }),
       );
-      fake.durable[ProgressSnapshotRepository.kanaStatsStore] =
-          '{"partial":true}';
+      fake.durable[ProgressStoreKeys.kanaStats] = '{"partial":true}';
 
       await ProgressRestoreJournal.recoverIfNeeded(fake);
 
@@ -722,7 +745,7 @@ void main() {
 
     final files = FakeSnapshotFilePort();
     final exporter = ProgressSnapshotExporter(
-      snapshots: snapshots,
+      capture: snapshots,
       files: files,
       now: () => now,
     );
@@ -800,8 +823,8 @@ void main() {
       final a = kana.allKana.first;
       final wordGate = PlatformGate();
       final kanaGate = PlatformGate();
-      fake.writeGates[ProgressSnapshotRepository.wordStatsStore] = wordGate;
-      fake.writeGates[ProgressSnapshotRepository.kanaStatsStore] = kanaGate;
+      fake.writeGates[ProgressStoreKeys.wordStats] = wordGate;
+      fake.writeGates[ProgressStoreKeys.kanaStats] = kanaGate;
 
       final wordPending = words.recordAnswer(
         'word:いぬ',
@@ -846,7 +869,7 @@ void main() {
     'stale gated word write alone cannot overwrite restored progress',
     () async {
       await staleGatedRestoreProbe(
-        gatedStore: ProgressSnapshotRepository.wordStatsStore,
+        gatedStore: ProgressStoreKeys.wordStats,
         startPendingWrite: (kana, kanji, words) =>
             words.recordAnswer('word:いぬ', correct: false, at: now),
         expectedZeroTrack: 2,
@@ -861,7 +884,7 @@ void main() {
           await loadAll();
       final a = sourceKana.allKana.first;
       await staleGatedRestoreProbe(
-        gatedStore: ProgressSnapshotRepository.kanaStatsStore,
+        gatedStore: ProgressStoreKeys.kanaStats,
         startPendingWrite: (kana, kanji, words) =>
             kana.recordAnswer(a, correct: false, at: now),
         expectedZeroTrack: 0,
@@ -943,8 +966,7 @@ void main() {
       await kana.markUnitLearned('keep_me');
       final before = primaryRaws(fake);
 
-      fake.durable[ProgressSnapshotRepository.kanaStatsStore] =
-          '{"partial":true}';
+      fake.durable[ProgressStoreKeys.kanaStats] = '{"partial":true}';
       fake.seed(
         ProgressRestoreJournal.journalKey,
         jsonEncode(<String, Object?>{
@@ -955,9 +977,7 @@ void main() {
           },
         }),
       );
-      fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {
-        2,
-      };
+      fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {2};
 
       final recovery = await ProgressRestoreJournal.recoverIfNeeded(fake);
       expect(recovery.needsRecovery, isTrue);
@@ -1016,8 +1036,8 @@ void main() {
 
       final files = FakeSnapshotFilePort()..pickContents = backup;
       final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
         files: files,
       );
 
@@ -1025,14 +1045,121 @@ void main() {
 
       expect(result.status, SnapshotRestoreStatus.failed);
       expect(kana.learnedUnits, isEmpty);
-      expect(
-        fake.durable[ProgressSnapshotRepository.learnedUnitsStore],
-        isNull,
-      );
+      expect(fake.durable[ProgressStoreKeys.learnedUnits], isNull);
       expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
       expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
     },
   );
+
+  test('committed marker write failure with reload throw keeps blocking until retry', () async {
+    final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+    final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+
+    final (fake, kana, kanji, words) = await loadAll();
+    await kana.markUnitLearned('keep_me');
+    fake.failWriteOnAttempt[ProgressRestoreJournal.journalKey] = {7};
+    // apply() reloads once; the three owners reload in parallel, then
+    // abortAndRollback and the outer catch each reload again — every
+    // post-commit reload must throw so cache stays optimistic.
+    fake.throwReloadOnAttempt.addAll({2, 3, 4, 5, 6});
+
+    final recovery = recoveryFor(
+      fake,
+      kana,
+      kanji,
+      words,
+      needsRecovery: false,
+    );
+    final files = FakeSnapshotFilePort()..pickContents = backup;
+    final restorer = ProgressSnapshotRestorer(
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
+      files: files,
+    );
+
+    final result = await restorer.restore(confirm: (_) async => true);
+
+    expect(result.status, SnapshotRestoreStatus.failed);
+    expect(result.ranTransaction, isTrue);
+
+    final cachedJournal = jsonDecode(
+      fake.cache[ProgressRestoreJournal.journalKey]!,
+    ) as Map<String, dynamic>;
+    final durableJournal = jsonDecode(
+      fake.durable[ProgressRestoreJournal.journalKey]!,
+    ) as Map<String, dynamic>;
+    expect(cachedJournal['phase'], RestoreJournalPhase.committed.name);
+    expect(durableJournal['phase'], RestoreJournalPhase.applying.name);
+    expect(
+      fake.durable[ProgressStoreKeys.learnedUnits],
+      contains('hira_row_0'),
+    );
+
+    // Optimistic cache alone would lift blocking; durable is still mixed.
+    expect(ProgressRestoreJournal.blocksExport(fake), isFalse);
+    fake.throwReloadOnAttempt.add(7);
+    await recovery.syncFromPlatform();
+    expect(recovery.needsRecovery, isTrue);
+    expect(kana.isRestoreJournalBlocked, isTrue);
+    expect(kanji.isRestoreJournalBlocked, isTrue);
+    expect(words.isRestoreJournalBlocked, isTrue);
+    await expectLater(
+      words.introduce('word:あい', at: now),
+      throwsA(isA<ProgressRestoreJournalBlocked>()),
+    );
+
+    final capture = snapshotsFor(fake, kana, kanji, words);
+    expect(capture.blockedStores, contains(ProgressRestoreJournal.journalKey));
+    expect(
+      () => capture.exportEncoded(createdAt: now),
+      throwsA(
+        isA<SnapshotExportBlocked>().having(
+          (e) => e.stores,
+          'stores',
+          contains(ProgressRestoreJournal.journalKey),
+        ),
+      ),
+    );
+    expect(restorer.isBlocked, isTrue);
+    final blockedRestore = await ProgressSnapshotRestorer(
+      capture: capture,
+      transaction: restoreFor(fake, kana, kanji, words),
+      files: FakeSnapshotFilePort(),
+    ).restore(confirm: (_) async => true);
+    expect(blockedRestore.status, SnapshotRestoreStatus.blocked);
+    expect(blockedRestore.detail, contains(ProgressRestoreJournal.journalKey));
+
+    final exporterFiles = FakeSnapshotFilePort();
+    final blockedExport = await ProgressSnapshotExporter(
+      capture: capture,
+      files: exporterFiles,
+      now: () => now,
+    ).export();
+    expect(blockedExport.status, SnapshotExportStatus.blocked);
+    expect(blockedExport.stores, contains(ProgressRestoreJournal.journalKey));
+    expect(exporterFiles.saveCalls, 0);
+
+    fake.throwReloadOnAttempt.clear();
+    fake.failWriteOnAttempt.clear();
+    await recovery.retry();
+
+    expect(recovery.needsRecovery, isFalse);
+    expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+    expect(kana.learnedUnits, {'keep_me'});
+    expect(kana.isRestoreJournalBlocked, isFalse);
+    expect(words.isRestoreJournalBlocked, isFalse);
+    expect(capture.blockedStores, isEmpty);
+    expect(restorer.isBlocked, isFalse);
+    expect(capture.exportEncoded(createdAt: now), isNotEmpty);
+    final resumedExport = await ProgressSnapshotExporter(
+      capture: capture,
+      files: FakeSnapshotFilePort(),
+      now: () => now,
+    ).export();
+    expect(resumedExport.status, SnapshotExportStatus.saved);
+    await words.introduce('word:あい', at: now);
+    expect(words.statForItem('word:あい').isSeen, isTrue);
+  });
 
   test('journal remove before-effect throw still restores memory when committed durable', () async {
     final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
@@ -1043,8 +1170,8 @@ void main() {
 
     final files = FakeSnapshotFilePort()..pickContents = backup;
     final restorer = ProgressSnapshotRestorer(
-      snapshots: snapshotsFor(fake, kana, kanji, words),
-      restore: restoreFor(fake, kana, kanji, words),
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
       files: files,
     );
 
@@ -1068,8 +1195,8 @@ void main() {
 
       final files = FakeSnapshotFilePort()..pickContents = backup;
       final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words),
+        capture: snapshotsFor(fake, kana, kanji, words),
+        transaction: restoreFor(fake, kana, kanji, words),
         files: files,
       );
 
@@ -1114,8 +1241,8 @@ void main() {
     final (fake, kana, kanji, words) = await loadAll();
     final files = FakeSnapshotFilePort()..pickContents = backup;
     final restorer = ProgressSnapshotRestorer(
-      snapshots: snapshotsFor(fake, kana, kanji, words),
-      restore: restoreFor(fake, kana, kanji, words),
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
       files: files,
     );
 
@@ -1161,8 +1288,8 @@ void main() {
 
     final files = FakeSnapshotFilePort()..pickContents = backup;
     final restorer = ProgressSnapshotRestorer(
-      snapshots: snapshotsFor(fake, kana, kanji, words),
-      restore: restoreFor(fake, kana, kanji, words, placement: checks),
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words, placement: checks),
       files: files,
     );
 
@@ -1174,35 +1301,30 @@ void main() {
     expect(kana.learnedUnits, isEmpty);
   });
 
-  test(
-    'placement discard pending survives restart and clears stale draft on bootstrap',
-    () async {
-      final (fake, kana, kanji, words) = await loadAll();
-      await seedCompleteAoDraft(fake);
-      fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
-          '["hira_row_1"]';
-      fake.seed(ProgressRestorePlacementDiscard.pendingKey, 'pending');
+  test('placement discard pending survives restart and clears stale draft on bootstrap', () async {
+    final (fake, kana, kanji, words) = await loadAll();
+    await seedCompleteAoDraft(fake);
+    fake.durable[ProgressStoreKeys.learnedUnits] = '["hira_row_1"]';
+    fake.seed(ProgressRestorePlacementDiscard.pendingKey, 'pending');
 
-      final restarted = FakePreferencesService.restarted(fake);
-      await ProgressRestorePlacementDiscard.recoverIfNeeded(restarted);
-      final reloadedChecks = await PlacementCheckRepository.load(restarted);
-      final reloadedKana = await KanaProgressRepository.load(restarted);
+    final restarted = FakePreferencesService.restarted(fake);
+    await ProgressRestorePlacementDiscard.recoverIfNeeded(restarted);
+    final reloadedChecks = await PlacementCheckRepository.load(restarted);
+    final reloadedKana = await KanaProgressRepository.load(restarted);
 
-      expect(ProgressRestorePlacementDiscard.isPending(restarted), isFalse);
-      expect(reloadedChecks.draft.hasProgress, isFalse);
-      expect(restarted.durable['placement_check_v1'], isNull);
-      expect(reloadedKana.learnedUnits, {'hira_row_1'});
-      expect(reloadedKana.isUnitLearned('hira_row_0'), isFalse);
-    },
-  );
+    expect(ProgressRestorePlacementDiscard.isPending(restarted), isFalse);
+    expect(reloadedChecks.draft.hasProgress, isFalse);
+    expect(restarted.durable['placement_check_v1'], isNull);
+    expect(reloadedKana.learnedUnits, {'hira_row_1'});
+    expect(reloadedKana.isUnitLearned('hira_row_0'), isFalse);
+  });
 
   test(
     'committed journal with placement discard flag migrates marker on restart',
     () async {
       final (fake, kana, kanji, words) = await loadAll();
       await seedCompleteAoDraft(fake);
-      fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
-          '["hira_row_1"]';
+      fake.durable[ProgressStoreKeys.learnedUnits] = '["hira_row_1"]';
       fake.seed(
         ProgressRestoreJournal.journalKey,
         jsonEncode(<String, Object?>{
@@ -1273,13 +1395,7 @@ void main() {
       final beforePlacement = fake.durable['placement_check_v1'];
       fake.failRemoves.add(PlacementCheckRepository.storageKey);
 
-      final restore = restoreFor(
-        fake,
-        kana,
-        kanji,
-        words,
-        placement: checks,
-      );
+      final restore = restoreFor(fake, kana, kanji, words, placement: checks);
       final preview = restore.previewEncoded(backup)!;
 
       await expectLater(
@@ -1295,130 +1411,115 @@ void main() {
     },
   );
 
-  test(
-    'placement discard failure reports failed restore without changing learned set',
-    () async {
-      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
-          await loadAll();
-      final backup = await encodedBackupLearnedHiraRow1Only(
-        sourceKana,
-        sourceKanji,
-        sourceWords,
-      );
+  test('placement discard failure reports failed restore without changing learned set', () async {
+    final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+    final backup = await encodedBackupLearnedHiraRow1Only(
+      sourceKana,
+      sourceKanji,
+      sourceWords,
+    );
 
-      final (fake, kana, kanji, words) = await loadAll();
-      final checks = await seedCompleteAoDraft(fake);
-      fake.failRemoves.add(PlacementCheckRepository.storageKey);
+    final (fake, kana, kanji, words) = await loadAll();
+    final checks = await seedCompleteAoDraft(fake);
+    fake.failRemoves.add(PlacementCheckRepository.storageKey);
 
-      final files = FakeSnapshotFilePort()..pickContents = backup;
-      final restorer = ProgressSnapshotRestorer(
-        snapshots: snapshotsFor(fake, kana, kanji, words),
-        restore: restoreFor(fake, kana, kanji, words, placement: checks),
-        files: files,
-      );
+    final files = FakeSnapshotFilePort()..pickContents = backup;
+    final restorer = ProgressSnapshotRestorer(
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words, placement: checks),
+      files: files,
+    );
 
-      final result = await restorer.restore(confirm: (_) async => true);
+    final result = await restorer.restore(confirm: (_) async => true);
 
-      expect(result.status, SnapshotRestoreStatus.failed);
-      expect(kana.learnedUnits, isEmpty);
-      expect(checks.draft.isComplete, isTrue);
-      expect(fake.durable['placement_check_v1'], isNotNull);
-    },
-  );
+    expect(result.status, SnapshotRestoreStatus.failed);
+    expect(kana.learnedUnits, isEmpty);
+    expect(checks.draft.isComplete, isTrue);
+    expect(fake.durable['placement_check_v1'], isNotNull);
+  });
 
-  test(
-    'recoverIfNeeded rolls back primaries and placement after interrupted discard',
-    () async {
-      final (fake, kana, kanji, words) = await loadAll();
-      final checks = await seedCompleteAoDraft(fake);
-      await kana.markUnitLearned('keep_me');
-      final before = primaryRaws(fake);
-      final beforePlacement = fake.durable['placement_check_v1'];
+  test('recoverIfNeeded rolls back primaries and placement after interrupted discard', () async {
+    final (fake, kana, kanji, words) = await loadAll();
+    final checks = await seedCompleteAoDraft(fake);
+    await kana.markUnitLearned('keep_me');
+    final before = primaryRaws(fake);
+    final beforePlacement = fake.durable['placement_check_v1'];
 
-      fake.seed(
-        ProgressRestoreJournal.journalKey,
-        jsonEncode(<String, Object?>{
-          'phase': RestoreJournalPhase.applying.name,
-          'rollback': before,
-          'staging': <String, String>{
-            for (final key in RestoreJournalStores.all) key: '{"partial":true}',
-          },
-          'placementRollback': {
-            for (final key in PlacementCheckRepository.durableKeys)
-              key: fake.durable[key],
-          },
-        }),
-      );
-      fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
-          '["hira_row_1"]';
-      await checks.discardForRestore();
+    fake.seed(
+      ProgressRestoreJournal.journalKey,
+      jsonEncode(<String, Object?>{
+        'phase': RestoreJournalPhase.applying.name,
+        'rollback': before,
+        'staging': <String, String>{
+          for (final key in RestoreJournalStores.all) key: '{"partial":true}',
+        },
+        'placementRollback': {
+          for (final key in PlacementCheckRepository.durableKeys)
+            key: fake.durable[key],
+        },
+      }),
+    );
+    fake.durable[ProgressStoreKeys.learnedUnits] = '["hira_row_1"]';
+    await checks.discardForRestore();
 
-      await ProgressRestoreJournal.recoverIfNeeded(fake);
+    await ProgressRestoreJournal.recoverIfNeeded(fake);
 
-      expect(primaryRaws(fake), before);
-      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
-      expect(fake.durable['placement_check_v1'], beforePlacement);
+    expect(primaryRaws(fake), before);
+    expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+    expect(fake.durable['placement_check_v1'], beforePlacement);
 
-      final reloadedChecks = await PlacementCheckRepository.load(
-        FakePreferencesService.restarted(fake),
-      );
-      expect(reloadedChecks.draft.isComplete, isTrue);
-    },
-  );
+    final reloadedChecks = await PlacementCheckRepository.load(
+      FakePreferencesService.restarted(fake),
+    );
+    expect(reloadedChecks.draft.isComplete, isTrue);
+  });
 
-  test(
-    'failed restore after pending placement save keeps complete draft on disk and memory',
-    () async {
-      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
-          await loadAll();
-      final backup = await encodedBackupLearnedHiraRow1Only(
-        sourceKana,
-        sourceKanji,
-        sourceWords,
-      );
+  test('failed restore after pending placement save keeps complete draft on disk and memory', () async {
+    final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+    final backup = await encodedBackupLearnedHiraRow1Only(
+      sourceKana,
+      sourceKanji,
+      sourceWords,
+    );
 
-      final (fake, kana, kanji, words) = await loadAll();
-      final (checks, partialDraft) = await seedPartialAoDraft(
-        fake,
-        answeredCount: 4,
-      );
-      final kanaRepo = await KanaProgressRepository.load(fake);
-      final ao = Lessons.fromKana(kanaRepo.allKana)
-          .firstWhere((lesson) => lesson.id == 'hira_row_0');
-      final fifth = ao.kana[4];
-      final completeDraft = PlacementCheck.record(
-        partialDraft,
-        fifth.id,
-        PlacementOutcome.independent,
-      );
-      expect(completeDraft.isComplete, isTrue);
+    final (fake, kana, kanji, words) = await loadAll();
+    final (checks, partialDraft) = await seedPartialAoDraft(
+      fake,
+      answeredCount: 4,
+    );
+    final kanaRepo = await KanaProgressRepository.load(fake);
+    final ao = Lessons.fromKana(kanaRepo.allKana)
+        .firstWhere((lesson) => lesson.id == 'hira_row_0');
+    final fifth = ao.kana[4];
+    final completeDraft = PlacementCheck.record(
+      partialDraft,
+      fifth.id,
+      PlacementOutcome.independent,
+    );
+    expect(completeDraft.isComplete, isTrue);
 
-      final lastGoodGate = PlatformGate();
-      fake.writeGates[PlacementCheckRepository.lastGoodKey] = lastGoodGate;
-      final save = checks.save(completeDraft);
-      await lastGoodGate.entered;
+    final lastGoodGate = PlatformGate();
+    fake.writeGates[PlacementCheckRepository.lastGoodKey] = lastGoodGate;
+    final save = checks.save(completeDraft);
+    await lastGoodGate.entered;
 
-      fake.failRemoves.add(PlacementCheckRepository.storageKey);
-      final restore = restoreFor(fake, kana, kanji, words, placement: checks);
-      final preview = restore.previewEncoded(backup)!;
-      final restoreFuture = restore.apply(preview.snapshot);
+    fake.failRemoves.add(PlacementCheckRepository.storageKey);
+    final restore = restoreFor(fake, kana, kanji, words, placement: checks);
+    final preview = restore.previewEncoded(backup)!;
+    final restoreFuture = restore.apply(preview.snapshot);
 
-      lastGoodGate.release();
-      await expectLater(
-        save,
-        completes,
-      );
-      await expectLater(
-        restoreFuture,
-        throwsA(isA<RestoreJournalWriteFailure>()),
-      );
+    lastGoodGate.release();
+    await expectLater(save, completes);
+    await expectLater(
+      restoreFuture,
+      throwsA(isA<RestoreJournalWriteFailure>()),
+    );
 
-      expect(checks.draft.isComplete, isTrue);
-      expect(fake.durable['placement_check_v1'], isNotNull);
-      final restarted = FakePreferencesService.restarted(fake);
-      final freshChecks = await PlacementCheckRepository.load(restarted);
-      expect(freshChecks.draft.isComplete, isTrue);
-      expect(kana.learnedUnits, isEmpty);
-    },
-  );
+    expect(checks.draft.isComplete, isTrue);
+    expect(fake.durable['placement_check_v1'], isNotNull);
+    final restarted = FakePreferencesService.restarted(fake);
+    final freshChecks = await PlacementCheckRepository.load(restarted);
+    expect(freshChecks.draft.isComplete, isTrue);
+    expect(kana.learnedUnits, isEmpty);
+  });
 }

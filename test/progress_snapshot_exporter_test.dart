@@ -3,12 +3,13 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -39,11 +40,7 @@ void main() {
     FakeSnapshotFilePort files,
   ) {
     return ProgressSnapshotExporter(
-      snapshots: ProgressSnapshotRepository(
-        kana: kana,
-        kanji: kanji,
-        words: words,
-      ),
+      capture: ProgressSnapshotCapture(kana: kana, kanji: kanji, words: words),
       files: files,
       now: () => now,
     );
@@ -157,10 +154,7 @@ void main() {
     final exporter = exporterFor(kana, kanji, words, files);
 
     expect(exporter.isBlocked, isTrue);
-    expect(
-      exporter.blockedStores,
-      contains(ProgressSnapshotRepository.kanaStatsStore),
-    );
+    expect(exporter.blockedStores, contains(ProgressStoreKeys.kanaStats));
     final result = await exporter.export();
 
     expect(result.status, SnapshotExportStatus.blocked);

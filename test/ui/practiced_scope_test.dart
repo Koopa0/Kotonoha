@@ -4,15 +4,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -234,7 +234,7 @@ Future<void> _pumpProgress(
   final backing = await PreferencesService.create();
   final kanji = await KanjiReadingRepository.load(backing);
   final words = await WordProgressRepository.load(backing);
-  final snapshots = ProgressSnapshotRepository(
+  final snapshots = ProgressSnapshotCapture(
     kana: store,
     kanji: kanji,
     words: words,
@@ -247,14 +247,14 @@ Future<void> _pumpProgress(
         Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
         Provider<ProgressSnapshotExporter>.value(
           value: ProgressSnapshotExporter(
-            snapshots: snapshots,
+            capture: snapshots,
             files: FakeSnapshotFilePort(),
           ),
         ),
         Provider<ProgressSnapshotRestorer>.value(
           value: ProgressSnapshotRestorer(
-            snapshots: snapshots,
-            restore: ProgressSnapshotRestoreRepository(
+            capture: snapshots,
+            transaction: ProgressRestoreTransaction(
               prefs: backing,
               kana: store,
               kanji: kanji,

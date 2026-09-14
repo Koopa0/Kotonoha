@@ -6,19 +6,20 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_theme.dart';
 import 'package:kotonoha/ui/progress/progress_screen.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/fake_preferences_service.dart';
 import '../services/fake_snapshot_file_port.dart';
+import '../support/restore_recovery_test_support.dart';
 
 /// Widget test: 歩み is a MAP, not a scoreboard — it shows coverage (kana met /
 /// total) and the per-status breakdown, with NO accuracy %, NO reaction time.
@@ -48,11 +50,7 @@ void main() {
     final kanji = await KanjiReadingRepository.load();
     final words = await WordProgressRepository.load();
     return ProgressSnapshotExporter(
-      snapshots: ProgressSnapshotRepository(
-        kana: store,
-        kanji: kanji,
-        words: words,
-      ),
+      capture: ProgressSnapshotCapture(kana: store, kanji: kanji, words: words),
       files: files ?? FakeSnapshotFilePort(),
     );
   }
@@ -64,15 +62,15 @@ void main() {
     WordProgressRepository words, {
     FakeSnapshotFilePort? files,
   }) {
-    final snapshots = ProgressSnapshotRepository(
+    final snapshots = ProgressSnapshotCapture(
       kana: store,
       kanji: kanji,
       words: words,
       prefs: prefs,
     );
     return ProgressSnapshotRestorer(
-      snapshots: snapshots,
-      restore: ProgressSnapshotRestoreRepository(
+      capture: snapshots,
+      transaction: ProgressRestoreTransaction(
         prefs: prefs,
         kana: store,
         kanji: kanji,
@@ -92,7 +90,7 @@ void main() {
     final first = kana.allKana.first;
     await kana.recordAnswer(first, correct: true, at: stamp);
     await kana.markUnitLearned('hira_row_1');
-    return ProgressSnapshotRepository(
+    return ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -136,6 +134,14 @@ void main() {
           ),
           Provider<ProgressSnapshotRestorer>.value(
             value: restorer ?? defaultRestorer(backing, store, kanji, words),
+          ),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recoveryForRepos(
+              prefs: backing,
+              kana: store,
+              kanji: kanji,
+              words: words,
+            ),
           ),
         ],
         child: MaterialApp(
@@ -430,7 +436,7 @@ void main() {
       expect(store.statsHealth, StoreHealth.recoveryRequired);
       final files = FakeSnapshotFilePort();
       final exporter = ProgressSnapshotExporter(
-        snapshots: ProgressSnapshotRepository(
+        capture: ProgressSnapshotCapture(
           kana: store,
           kanji: kanji,
           words: words,

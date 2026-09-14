@@ -3,14 +3,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/use_cases/self_portrait.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:provider/provider.dart';
@@ -370,16 +371,26 @@ class _ProgressRestoreState extends State<_ProgressRestore> {
       _restoring = true;
       _status = null;
     });
-    final result = await context.read<ProgressSnapshotRestorer>().restore(
-      confirm: _confirm,
-    );
-    if (!mounted) return;
-    setState(() {
-      _restoring = false;
-      _status = result.status == SnapshotRestoreStatus.cancelled
-          ? null
-          : result.status;
-    });
+    final restorer = context.read<ProgressSnapshotRestorer>();
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    SnapshotRestoreResult? result;
+    try {
+      result = await restorer.restore(confirm: _confirm);
+      // Only a run transaction can leave a journal behind; cancel, invalid,
+      // blocked and a failed pick never touched the platform. The recovery
+      // owner re-reads it whether or not this screen is still mounted.
+      if (result.ranTransaction) await recovery.syncFromPlatform();
+    } finally {
+      // Whatever happened above, the button comes back: a restore is always
+      // retryable from here, and the card reports the transaction's outcome.
+      if (mounted) {
+        final status = result?.status;
+        setState(() {
+          _restoring = false;
+          _status = status == SnapshotRestoreStatus.cancelled ? null : status;
+        });
+      }
+    }
   }
 
   @override

@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
 
 /// What happened when the learner asked to keep a snapshot file.
 enum SnapshotExportStatus {
@@ -35,22 +35,22 @@ class SnapshotExportResult {
   final String? detail;
 }
 
-/// Captures via the existing snapshot repository, then offers the encoded
-/// bytes to a [SnapshotFilePort]. It never writes a progress store, never
-/// flushes, and never applies a snapshot — restore is a later PR.
+/// Captures via [ProgressSnapshotCapture], then offers the encoded bytes to a
+/// [SnapshotFilePort]. It never writes a progress store, never flushes, and
+/// never applies a snapshot — that is [ProgressSnapshotRestorer].
 class ProgressSnapshotExporter {
   ProgressSnapshotExporter({
-    required this._snapshots,
+    required this._capture,
     required this._files,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
-  final ProgressSnapshotRepository _snapshots;
+  final ProgressSnapshotCapture _capture;
   final SnapshotFilePort _files;
   final DateTime Function() _now;
 
   /// Stores that would make [export] refuse. Same set [capture] checks.
-  List<String> get blockedStores => _snapshots.blockedStores;
+  List<String> get blockedStores => _capture.blockedStores;
 
   bool get isBlocked => blockedStores.isNotEmpty;
 
@@ -70,7 +70,7 @@ class ProgressSnapshotExporter {
     final createdAt = _now().toUtc();
     final String encoded;
     try {
-      encoded = _snapshots.exportEncoded(createdAt: createdAt);
+      encoded = _capture.exportEncoded(createdAt: createdAt);
     } on SnapshotExportBlocked catch (error) {
       return SnapshotExportResult(
         SnapshotExportStatus.blocked,

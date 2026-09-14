@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
 
@@ -28,9 +29,9 @@ class WordProgressRepository extends ChangeNotifier {
   ) : _stats = stats.value,
       statsHealth = stats.health;
 
-  static const String _storageKey = 'word_stats_v1';
-  static const String _lastGoodKey = 'word_stats_last_good_v1';
-  static const String _quarantineKey = 'word_stats_quarantine_v1';
+  static const String _storageKey = ProgressStoreKeys.wordStats;
+  static const String _lastGoodKey = ProgressStoreKeys.wordStatsLastGood;
+  static const String _quarantineKey = ProgressStoreKeys.wordStatsQuarantine;
 
   /// Kept for [PreferencesService.reload] — the only trustworthy read path
   /// after a failed platform write/remove (legacy cache divergence).

@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
@@ -15,9 +13,12 @@ import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_recovery.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
@@ -47,11 +48,15 @@ Future<Widget> bootstrap({
   final store = await KanaProgressRepository.load(resolvedPrefs);
   final kanji = await KanjiReadingRepository.load(resolvedPrefs);
   final words = await WordProgressRepository.load(resolvedPrefs);
+  // Cross-owner recovery is a use case; the controller is what the UI
+  // observes and retries through.
   final restoreRecovery = ProgressRestoreRecoveryController(
-    prefs: resolvedPrefs,
-    kana: store,
-    kanji: kanji,
-    words: words,
+    recovery: ProgressRestoreRecovery(
+      prefs: resolvedPrefs,
+      kana: store,
+      kanji: kanji,
+      words: words,
+    ),
     needsRecovery: journalRecovery.needsRecovery,
   );
   final checks = await PlacementCheckRepository.load(resolvedPrefs);
@@ -82,6 +87,14 @@ Future<Widget> bootstrap({
   // still tracks [AnalyticsLog.record] itself and must not also use
   // [recordObserved], or the same future would be notified twice.
   bindObservedWriteNotify(resolvedAnalytics, persistence.trackAnalytics);
+  // The one read across the three progress owners, shared by backup and
+  // restore. Stateless: it never caches a snapshot.
+  final capture = ProgressSnapshotCapture(
+    kana: store,
+    kanji: kanji,
+    words: words,
+    prefs: resolvedPrefs,
+  );
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
@@ -99,24 +112,14 @@ Future<Widget> bootstrap({
       Provider<AnalyticsLog>.value(value: resolvedAnalytics),
       Provider<ProgressSnapshotExporter>.value(
         value: ProgressSnapshotExporter(
-          snapshots: ProgressSnapshotRepository(
-            kana: store,
-            kanji: kanji,
-            words: words,
-            prefs: resolvedPrefs,
-          ),
+          capture: capture,
           files: FilePickerSnapshotPort(),
         ),
       ),
       Provider<ProgressSnapshotRestorer>.value(
         value: ProgressSnapshotRestorer(
-          snapshots: ProgressSnapshotRepository(
-            kana: store,
-            kanji: kanji,
-            words: words,
-            prefs: resolvedPrefs,
-          ),
-          restore: ProgressSnapshotRestoreRepository(
+          capture: capture,
+          transaction: ProgressRestoreTransaction(
             prefs: resolvedPrefs,
             kana: store,
             kanji: kanji,
@@ -124,7 +127,6 @@ Future<Widget> bootstrap({
             placement: checks,
           ),
           files: FilePickerSnapshotPort(),
-          recovery: restoreRecovery,
         ),
       ),
     ],

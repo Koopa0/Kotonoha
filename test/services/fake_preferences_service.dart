@@ -50,6 +50,10 @@ class FakePreferencesService implements PreferencesService {
   final Map<String, PlatformGate> removeGates = <String, PlatformGate>{};
   PlatformGate? reloadGate;
   bool throwReloads = false;
+
+  /// 1-based reload attempt indices that throw after the gate passes.
+  final Set<int> throwReloadOnAttempt = <int>{};
+  int _reloadAttempts = 0;
   final List<String> writeLog = <String>[];
   bool sawOverlap = false;
   int _inFlight = 0;
@@ -104,7 +108,10 @@ class FakePreferencesService implements PreferencesService {
   Future<void> reload() async {
     final gate = reloadGate;
     if (gate != null) await gate.pass();
-    if (throwReloads) throw StateError('reload threw');
+    final attempt = ++_reloadAttempts;
+    if (throwReloadOnAttempt.contains(attempt) || throwReloads) {
+      throw StateError('reload threw');
+    }
     cache
       ..clear()
       ..addAll(durable);

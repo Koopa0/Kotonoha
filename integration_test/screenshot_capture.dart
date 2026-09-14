@@ -7,20 +7,21 @@ import 'package:integration_test/integration_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/listening_session.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_recovery.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -73,11 +74,19 @@ Future<void> main() async {
     final travel = await TravelFocusRepository.load();
     final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(prefs);
     final restoreRecovery = ProgressRestoreRecoveryController(
-      prefs: prefs,
+      recovery: ProgressRestoreRecovery(
+        prefs: prefs,
+        kana: store,
+        kanji: kanji,
+        words: words,
+      ),
+      needsRecovery: journalRecovery.needsRecovery,
+    );
+    final capture = ProgressSnapshotCapture(
       kana: store,
       kanji: kanji,
       words: words,
-      needsRecovery: journalRecovery.needsRecovery,
+      prefs: prefs,
     );
     final persistence = ProgressPersistenceController(
       kanaFlush: store.flushPending,
@@ -114,24 +123,14 @@ Future<void> main() async {
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
           Provider<ProgressSnapshotExporter>.value(
             value: ProgressSnapshotExporter(
-              snapshots: ProgressSnapshotRepository(
-                kana: store,
-                kanji: kanji,
-                words: words,
-                prefs: prefs,
-              ),
+              capture: capture,
               files: FilePickerSnapshotPort(),
             ),
           ),
           Provider<ProgressSnapshotRestorer>.value(
             value: ProgressSnapshotRestorer(
-              snapshots: ProgressSnapshotRepository(
-                kana: store,
-                kanji: kanji,
-                words: words,
-                prefs: prefs,
-              ),
-              restore: ProgressSnapshotRestoreRepository(
+              capture: capture,
+              transaction: ProgressRestoreTransaction(
                 prefs: prefs,
                 kana: store,
                 kanji: kanji,
@@ -139,7 +138,6 @@ Future<void> main() async {
                 placement: checks,
               ),
               files: FilePickerSnapshotPort(),
-              recovery: restoreRecovery,
             ),
           ),
         ],
