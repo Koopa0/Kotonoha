@@ -165,6 +165,8 @@ void main() {
     expect(find.text(AppStrings.quietPracticeAction), findsOneWidget);
     expect(find.text(AppStrings.meetWordsAction), findsOneWidget);
     expect(find.text(AppStrings.dictationAction), findsOneWidget);
+    expect(find.text(AppStrings.practiced), findsOneWidget);
+    expect(find.text(AppStrings.practicedGojuonScope), findsOneWidget);
 
     final handle = tester.ensureSemantics();
     try {

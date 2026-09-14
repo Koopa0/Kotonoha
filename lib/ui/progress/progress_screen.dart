@@ -47,6 +47,8 @@ class ProgressScreen extends StatelessWidget {
                         : store.seenCount / store.totalCount,
                     centerLabel: '${store.seenCount}/${store.totalCount}',
                     caption: AppStrings.practiced,
+                    title: AppStrings.practicedAllKanaScope,
+                    footnote: AppStrings.practicedAllKanaHint,
                   ),
                 ),
                 const SizedBox(height: 28),

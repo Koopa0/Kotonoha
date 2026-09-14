@@ -209,6 +209,7 @@ class HomeScreen extends StatelessWidget {
                     value: gojuon.isEmpty ? 0 : gojuonSeen / gojuon.length,
                     centerLabel: '$gojuonSeen/${gojuon.length}',
                     caption: AppStrings.practiced,
+                    title: AppStrings.practicedGojuonScope,
                   ),
                 ),
                 const SizedBox(height: 12),

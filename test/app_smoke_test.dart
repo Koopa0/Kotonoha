@@ -85,6 +85,8 @@ void main() {
     expect(find.text(AppStrings.learnHiragana), findsOneWidget);
     expect(find.text(AppStrings.progress), findsOneWidget);
     expect(find.text('0/92'), findsOneWidget); // ring tracks the 92 gojūon
+    expect(find.text(AppStrings.practiced), findsOneWidget);
+    expect(find.text(AppStrings.practicedGojuonScope), findsOneWidget);
     // The confusable drill and paper handwriting are both gated until at least
     // one lesson is learned (feature honesty: nothing to recall yet).
     expect(find.text(AppStrings.confusableEntry), findsNothing);

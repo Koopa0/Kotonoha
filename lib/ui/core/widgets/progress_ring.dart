@@ -8,12 +8,17 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 
 /// A calm circular progress ring with a value in the center. Animates smoothly
 /// to [value] (a fraction in [0, 1]).
+///
+/// [caption] stays inside the circle. Optional [title] / [footnote] sit
+/// beside it so a longer scope name never has to be forced into the ring.
 class ProgressRing extends StatelessWidget {
   const ProgressRing({
     required this.value,
     required this.centerLabel,
     super.key,
     this.caption,
+    this.title,
+    this.footnote,
     this.size = 148,
     this.color = AppColors.accent,
   });
@@ -21,12 +26,14 @@ class ProgressRing extends StatelessWidget {
   final double value;
   final String centerLabel;
   final String? caption;
+  final String? title;
+  final String? footnote;
   final double size;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
+    final ring = TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: value.clamp(0, 1)),
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeOutCubic,
@@ -68,6 +75,37 @@ class ProgressRing extends StatelessWidget {
           ),
         );
       },
+    );
+    if (title == null && footnote == null) return ring;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ring,
+        if (title != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            title!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.ink,
+            ),
+          ),
+        ],
+        if (footnote != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            footnote!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: AppColors.inkMuted,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
