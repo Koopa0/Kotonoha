@@ -2,25 +2,27 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
-import 'package:kotonoha/domain/data/info_drill_dataset.dart';
 import 'package:kotonoha/domain/models/info_drill.dart';
 import 'package:kotonoha/domain/use_cases/info_session.dart';
-import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
+import 'package:kotonoha/ui/info/info_hub_viewmodel.dart';
 import 'package:kotonoha/ui/info/info_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
 
 /// Learn-then-practice door for travel amount / time / headcount extraction.
-class InfoHubScreen extends StatelessWidget {
+///
+/// A thin View over [InfoHubViewModel]: it renders the doors and navigates.
+/// Which doors are open and how each session behind them is composed are
+/// the ViewModel's.
+class InfoHubScreen extends StatefulWidget {
   const InfoHubScreen({
     this.clock,
     this.drills,
@@ -37,8 +39,6 @@ class InfoHubScreen extends StatelessWidget {
   final String purpose;
   final String meetTitle;
   final String entryName;
-
-  List<InfoDrill> get _drills => drills ?? kInfoDrills;
 
   static Route<void> route({
     DateTime Function()? clock,
@@ -61,114 +61,114 @@ class InfoHubScreen extends StatelessWidget {
     ),
   );
 
-  Set<String> _learnedChars(BuildContext context) =>
-      StudySet.learned(context.read<KanaProgressRepository>())
-          .map((k) => k.character)
-          .toSet();
+  @override
+  State<InfoHubScreen> createState() => _InfoHubScreenState();
+}
 
-  InfoSessionView _view(BuildContext context) {
-    final kana = context.watch<KanaProgressRepository>();
-    final words = context.watch<WordProgressRepository>();
-    return InfoSession.inspect(
-      learnedChars: StudySet.learned(kana).map((k) => k.character).toSet(),
-      stats: words.stats,
-      drills: _drills,
+class _InfoHubScreenState extends State<InfoHubScreen> {
+  late final InfoHubViewModel _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = InfoHubViewModel(
+      kana: context.read<KanaProgressRepository>(),
+      words: context.read<WordProgressRepository>(),
+      drills: widget.drills,
     );
   }
 
   @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final view = _view(context);
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          children: [
-            Text(
-              purpose,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 16,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              view.canPractice
-                  ? AppStrings.infoReadyHint
-                  : AppStrings.infoMeetHint,
-              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
-            ),
-            if (view.needsKanaFirst || view.missingUnits.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              const Text(
-                AppStrings.infoNeedKana,
-                style: TextStyle(color: AppColors.inkMuted, height: 1.5),
-              ),
-              if (view.missingUnits.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  AppStrings.infoMissingKana(
-                    view.missingUnits.take(8).join(' '),
-                  ),
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ],
-            const SizedBox(height: 24),
-            if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
-              _ActionButton(
-                key: const ValueKey<String>('info-learn-kana'),
-                label: AppStrings.travelSceneLearnAction,
-                productName: AppStrings.continueLearning,
-                onPressed: () =>
-                    Navigator.of(context).push(LessonsScreen.route()),
-              ),
-            if (view.canMeet) ...[
-              if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
-                const SizedBox(height: 12),
-              _ActionButton(
-                key: const ValueKey<String>('info-meet'),
-                label: AppStrings.travelSceneMeetAction,
-                productName: AppStrings.ferryEntry,
-                onPressed: () => _startMeet(context),
-              ),
-            ],
-            if (view.canPractice) ...[
-              const SizedBox(height: 12),
-              _ActionButton(
-                key: const ValueKey<String>('info-start'),
-                label: AppStrings.infoStartAction,
-                productName: entryName,
-                kind: _ActionKind.outlined,
-                onPressed: () => _startPractice(context),
-              ),
-            ],
-          ],
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _doors(_vm.view),
         ),
       ),
     );
   }
 
-  void _startMeet(BuildContext context, {bool replace = false}) {
-    final learned = _learnedChars(context);
-    final stats = context.read<WordProgressRepository>().stats;
-    final words = InfoSession.composeIntroWords(
-      learnedChars: learned,
-      stats: stats,
-      drills: _drills,
+  Widget _doors(InfoSessionView view) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      children: [
+        Text(
+          widget.purpose,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 16,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          view.canPractice ? AppStrings.infoReadyHint : AppStrings.infoMeetHint,
+          style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+        ),
+        if (view.needsKanaFirst || view.missingUnits.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const Text(
+            AppStrings.infoNeedKana,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          if (view.missingUnits.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              AppStrings.infoMissingKana(view.missingUnits.take(8).join(' ')),
+              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+          ],
+        ],
+        const SizedBox(height: 24),
+        if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
+          _ActionButton(
+            key: const ValueKey<String>('info-learn-kana'),
+            label: AppStrings.travelSceneLearnAction,
+            productName: AppStrings.continueLearning,
+            onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+          ),
+        if (view.canMeet) ...[
+          if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
+            const SizedBox(height: 12),
+          _ActionButton(
+            key: const ValueKey<String>('info-meet'),
+            label: AppStrings.travelSceneMeetAction,
+            productName: AppStrings.ferryEntry,
+            onPressed: _startMeet,
+          ),
+        ],
+        if (view.canPractice) ...[
+          const SizedBox(height: 12),
+          _ActionButton(
+            key: const ValueKey<String>('info-start'),
+            label: AppStrings.infoStartAction,
+            productName: widget.entryName,
+            kind: _ActionKind.outlined,
+            onPressed: _startPractice,
+          ),
+        ],
+      ],
     );
+  }
+
+  void _startMeet({bool replace = false}) {
+    final words = _vm.composeIntroWords();
     if (words.isNotEmpty) {
       final route = FerryScreen.route(
         words,
-        meetTitle,
-        clock: clock,
-        onMore: () => _continueMeet(context),
+        widget.meetTitle,
+        clock: widget.clock,
+        onMore: _continueMeet,
       );
       unawaited(
         replace
@@ -177,17 +177,13 @@ class InfoHubScreen extends StatelessWidget {
       );
       return;
     }
-    final phrases = InfoSession.composeIntroPhrases(
-      learnedChars: learned,
-      stats: stats,
-      drills: _drills,
-    );
+    final phrases = _vm.composeIntroPhrases();
     if (phrases.isNotEmpty) {
       final route = ReadingScreen.route(
         phrases,
-        meetTitle,
-        clock: clock,
-        onMore: () => _continueMeet(context),
+        widget.meetTitle,
+        clock: widget.clock,
+        onMore: _continueMeet,
       );
       unawaited(
         replace
@@ -199,33 +195,21 @@ class InfoHubScreen extends StatelessWidget {
     if (replace) Navigator.of(context).pop();
   }
 
-  void _continueMeet(BuildContext context) {
-    final learned = _learnedChars(context);
-    final stats = context.read<WordProgressRepository>().stats;
-    final leftover = InfoSession.unreadRequired(
-      learnedChars: learned,
-      stats: stats,
-      drills: _drills,
-    );
-    if (leftover.isNotEmpty) {
-      _startMeet(context, replace: true);
+  void _continueMeet() {
+    if (_vm.hasUnreadRequired) {
+      _startMeet(replace: true);
       return;
     }
     Navigator.of(context).pop();
   }
 
-  void _startPractice(BuildContext context, {bool replace = false}) {
-    final drills = InfoSession.compose(
-      learnedChars: _learnedChars(context),
-      rng: Random(),
-      stats: context.read<WordProgressRepository>().stats,
-      drills: _drills,
-    );
+  void _startPractice({bool replace = false}) {
+    final drills = _vm.composePractice();
     if (drills.isEmpty) return;
     final route = InfoScreen.route(
       drills,
-      clock: clock,
-      onMore: () => _startPractice(context, replace: true),
+      clock: widget.clock,
+      onMore: () => _startPractice(replace: true),
     );
     unawaited(
       replace

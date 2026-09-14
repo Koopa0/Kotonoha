@@ -2,25 +2,28 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/domain/models/reply_drill.dart';
 import 'package:kotonoha/domain/use_cases/reply_session.dart';
-import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
+import 'package:kotonoha/ui/reply/reply_hub_viewmodel.dart';
 import 'package:kotonoha/ui/reply/reply_screen.dart';
 import 'package:provider/provider.dart';
 
 /// Learn-then-practice door for station or clothing replies. Isolated from #47
 /// [TravelScene] membership and #48 換句.
-class ReplyHubScreen extends StatelessWidget {
+///
+/// A thin View over [ReplyHubViewModel]: it renders the doors and navigates.
+/// Which doors are open and how each session behind them is composed are
+/// the ViewModel's.
+class ReplyHubScreen extends StatefulWidget {
   const ReplyHubScreen({
     this.scene = ReplySceneId.station,
     this.clock,
@@ -38,7 +41,30 @@ class ReplyHubScreen extends StatelessWidget {
     settings: RouteSettings(name: 'reply-hub-${scene.name}'),
   );
 
-  String get _purpose => switch (scene) {
+  @override
+  State<ReplyHubScreen> createState() => _ReplyHubScreenState();
+}
+
+class _ReplyHubScreenState extends State<ReplyHubScreen> {
+  late final ReplyHubViewModel _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = ReplyHubViewModel(
+      scene: widget.scene,
+      kana: context.read<KanaProgressRepository>(),
+      words: context.read<WordProgressRepository>(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
+
+  String get _purpose => switch (widget.scene) {
     ReplySceneId.station => AppStrings.replyPurpose,
     ReplySceneId.clothing => AppStrings.replyClothingPurpose,
     ReplySceneId.restaurant => AppStrings.replyRestaurantPurpose,
@@ -48,7 +74,7 @@ class ReplyHubScreen extends StatelessWidget {
     ReplySceneId.help => AppStrings.replyHelpPurpose,
   };
 
-  String get _meetHint => switch (scene) {
+  String get _meetHint => switch (widget.scene) {
     ReplySceneId.station => AppStrings.replyMeetHint,
     ReplySceneId.clothing => AppStrings.replyClothingMeetHint,
     ReplySceneId.restaurant => AppStrings.replyRestaurantMeetHint,
@@ -58,7 +84,7 @@ class ReplyHubScreen extends StatelessWidget {
     ReplySceneId.help => AppStrings.replyHelpMeetHint,
   };
 
-  String get _meetTitle => switch (scene) {
+  String get _meetTitle => switch (widget.scene) {
     ReplySceneId.station => AppStrings.replyMeetTitle,
     ReplySceneId.clothing => AppStrings.replyClothingMeetTitle,
     ReplySceneId.restaurant => AppStrings.replyRestaurantMeetTitle,
@@ -68,112 +94,91 @@ class ReplyHubScreen extends StatelessWidget {
     ReplySceneId.help => AppStrings.replyHelpMeetTitle,
   };
 
-  Set<String> _learnedChars(BuildContext context) =>
-      StudySet.learned(context.read<KanaProgressRepository>())
-          .map((k) => k.character)
-          .toSet();
-
-  ReplySessionView _view(BuildContext context) {
-    final kana = context.watch<KanaProgressRepository>();
-    final words = context.watch<WordProgressRepository>();
-    return ReplySession.inspect(
-      scene: scene,
-      learnedChars: StudySet.learned(kana).map((k) => k.character).toSet(),
-      stats: words.stats,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final view = _view(context);
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.replyTitle)),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          children: [
-            Text(
-              _purpose,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 16,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              view.canPractice ? AppStrings.replyReadyHint : _meetHint,
-              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
-            ),
-            if (view.needsKanaFirst || view.missingUnits.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              const Text(
-                AppStrings.replyNeedKana,
-                style: TextStyle(color: AppColors.inkMuted, height: 1.5),
-              ),
-              if (view.missingUnits.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  AppStrings.replyMissingKana(
-                    view.missingUnits.take(8).join(' '),
-                  ),
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ],
-            const SizedBox(height: 24),
-            if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
-              _ActionButton(
-                key: const ValueKey<String>('reply-learn-kana'),
-                label: AppStrings.travelSceneLearnAction,
-                productName: AppStrings.continueLearning,
-                onPressed: () =>
-                    Navigator.of(context).push(LessonsScreen.route()),
-              ),
-            if (view.canMeet) ...[
-              if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
-                const SizedBox(height: 12),
-              _ActionButton(
-                key: const ValueKey<String>('reply-meet'),
-                label: AppStrings.travelSceneMeetAction,
-                productName: AppStrings.ferryEntry,
-                onPressed: () => _startMeet(context),
-              ),
-            ],
-            if (view.canPractice) ...[
-              const SizedBox(height: 12),
-              _ActionButton(
-                key: const ValueKey<String>('reply-start'),
-                label: AppStrings.replyStartAction,
-                productName: AppStrings.replyEntry,
-                kind: _ActionKind.outlined,
-                onPressed: () => _startPractice(context),
-              ),
-            ],
-          ],
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _doors(_vm.view),
         ),
       ),
     );
   }
 
-  void _startMeet(BuildContext context, {bool replace = false}) {
-    final learned = _learnedChars(context);
-    final stats = context.read<WordProgressRepository>().stats;
-    final words = ReplySession.composeIntroWords(
-      scene: scene,
-      learnedChars: learned,
-      stats: stats,
+  Widget _doors(ReplySessionView view) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      children: [
+        Text(
+          _purpose,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 16,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          view.canPractice ? AppStrings.replyReadyHint : _meetHint,
+          style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+        ),
+        if (view.needsKanaFirst || view.missingUnits.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const Text(
+            AppStrings.replyNeedKana,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+          if (view.missingUnits.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              AppStrings.replyMissingKana(view.missingUnits.take(8).join(' ')),
+              style: const TextStyle(color: AppColors.inkMuted, height: 1.5),
+            ),
+          ],
+        ],
+        const SizedBox(height: 24),
+        if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
+          _ActionButton(
+            key: const ValueKey<String>('reply-learn-kana'),
+            label: AppStrings.travelSceneLearnAction,
+            productName: AppStrings.continueLearning,
+            onPressed: () => Navigator.of(context).push(LessonsScreen.route()),
+          ),
+        if (view.canMeet) ...[
+          if (view.needsKanaFirst || view.missingUnits.isNotEmpty)
+            const SizedBox(height: 12),
+          _ActionButton(
+            key: const ValueKey<String>('reply-meet'),
+            label: AppStrings.travelSceneMeetAction,
+            productName: AppStrings.ferryEntry,
+            onPressed: _startMeet,
+          ),
+        ],
+        if (view.canPractice) ...[
+          const SizedBox(height: 12),
+          _ActionButton(
+            key: const ValueKey<String>('reply-start'),
+            label: AppStrings.replyStartAction,
+            productName: AppStrings.replyEntry,
+            kind: _ActionKind.outlined,
+            onPressed: _startPractice,
+          ),
+        ],
+      ],
     );
+  }
+
+  void _startMeet({bool replace = false}) {
+    final words = _vm.composeIntroWords();
     if (words.isNotEmpty) {
       final route = FerryScreen.route(
         words,
         _meetTitle,
-        clock: clock,
-        onMore: () => _continueMeet(context),
+        clock: widget.clock,
+        onMore: _continueMeet,
       );
       unawaited(
         replace
@@ -182,17 +187,13 @@ class ReplyHubScreen extends StatelessWidget {
       );
       return;
     }
-    final phrases = ReplySession.composeIntroPhrases(
-      scene: scene,
-      learnedChars: learned,
-      stats: stats,
-    );
+    final phrases = _vm.composeIntroPhrases();
     if (phrases.isNotEmpty) {
       final route = ReadingScreen.route(
         phrases,
         _meetTitle,
-        clock: clock,
-        onMore: () => _continueMeet(context),
+        clock: widget.clock,
+        onMore: _continueMeet,
       );
       unawaited(
         replace
@@ -204,34 +205,22 @@ class ReplyHubScreen extends StatelessWidget {
     if (replace) Navigator.of(context).pop();
   }
 
-  void _continueMeet(BuildContext context) {
-    final learned = _learnedChars(context);
-    final stats = context.read<WordProgressRepository>().stats;
-    final leftover = ReplySession.unreadRequired(
-      scene: scene,
-      learnedChars: learned,
-      stats: stats,
-    );
-    if (leftover.isNotEmpty) {
-      _startMeet(context, replace: true);
+  void _continueMeet() {
+    if (_vm.hasUnreadRequired) {
+      _startMeet(replace: true);
       return;
     }
     Navigator.of(context).pop();
   }
 
-  void _startPractice(BuildContext context, {bool replace = false}) {
-    final drills = ReplySession.compose(
-      scene: scene,
-      learnedChars: _learnedChars(context),
-      rng: Random(),
-      stats: context.read<WordProgressRepository>().stats,
-    );
+  void _startPractice({bool replace = false}) {
+    final drills = _vm.composePractice();
     if (drills.isEmpty) return;
     final route = ReplyScreen.route(
       drills,
-      scene: scene,
-      clock: clock,
-      onMore: () => _startPractice(context, replace: true),
+      scene: widget.scene,
+      clock: widget.clock,
+      onMore: () => _startPractice(replace: true),
     );
     unawaited(
       replace

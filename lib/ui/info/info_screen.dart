@@ -2,20 +2,18 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/info_drill.dart';
-import 'package:kotonoha/domain/use_cases/reply_session.dart';
 import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_grid.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:kotonoha/ui/info/info_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Hear a travel line, pick the heard amount, time, or headcount.
@@ -23,13 +21,13 @@ import 'package:provider/provider.dart';
 /// Playback success is heard evidence. Seeing Japanese or a meaning hint is
 /// recorded separately. A correct tap is never spoken-production evidence,
 /// and this room does not write 詞と句 SRS.
+///
+/// A thin View over [InfoViewModel]: it owns playback (generations, the
+/// owned utterance, in-flight state), the lifecycle listener, rendering and
+/// navigation. What a completed play *means*, the pick and every analytics
+/// write are the ViewModel's; the view reports play outcomes and interrupts.
 class InfoScreen extends StatefulWidget {
-  const InfoScreen({
-    required this.drills,
-    this.clock,
-    this.onMore,
-    super.key,
-  });
+  const InfoScreen({required this.drills, this.clock, this.onMore, super.key});
 
   final List<InfoDrill> drills;
   final DateTime Function()? clock;
@@ -49,29 +47,17 @@ class InfoScreen extends StatefulWidget {
 }
 
 class _InfoScreenState extends State<InfoScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  final Random _rng = Random();
-
+  late final InfoViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-
-  int _index = 0;
-  bool _heard = false;
-  bool _sawText = false;
-  bool _hinted = false;
   bool _playing = false;
-  bool _done = false;
-  String? _answerPick;
-  int _heardAtMs = 0;
   int _playGen = 0;
-  SpeechPlaybackResult? _lastPlay;
-  late List<String> _answerOrder;
+  int _shownIndex = 0;
+  bool _closed = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
-
-  InfoDrill get _current => widget.drills[_index];
 
   bool get _foreground {
     final state = WidgetsBinding.instance.lifecycleState;
@@ -81,8 +67,13 @@ class _InfoScreenState extends State<InfoScreen> {
   @override
   void initState() {
     super.initState();
+    _vm = InfoViewModel(
+      drills: widget.drills,
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      clock: widget.clock,
+    )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
-    _shuffleChoices();
     _lifecycle = AppLifecycleListener(
       onInactive: _onBackgrounded,
       onHide: _onBackgrounded,
@@ -92,7 +83,7 @@ class _InfoScreenState extends State<InfoScreen> {
     );
     _playable = _foreground;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _done) return;
+      if (!mounted || _vm.isFinished) return;
       _scheduleAutoplay();
     });
   }
@@ -101,20 +92,18 @@ class _InfoScreenState extends State<InfoScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
   void _onBackgrounded() {
     _playable = false;
-    unawaited(_interrupt());
+    _interrupt();
   }
 
   void _onResumed() {
     _playable = true;
-  }
-
-  void _shuffleChoices() {
-    _answerOrder = List<String>.of(_current.answerChoices)..shuffle(_rng);
   }
 
   void _abandonPlayback() {
@@ -126,42 +115,56 @@ class _InfoScreenState extends State<InfoScreen> {
     }
   }
 
-  Future<void> _interrupt() async {
+  void _interrupt() {
     _abandonPlayback();
+    _vm.noteInterrupted();
     if (!mounted) return;
-    setState(() {
-      _playing = false;
-      _lastPlay = SpeechPlaybackResult.interrupted;
-    });
+    setState(() => _playing = false);
   }
 
   void _scheduleAutoplay() {
-    if (!mounted || _done) return;
+    if (!mounted || _vm.isFinished) return;
     if (!_playable || !_foreground) return;
     unawaited(_play());
   }
 
-  Future<void> _play() async {
-    if (!mounted || _done) return;
-    if (!_playable || !_foreground) return;
-    final itemId = _current.id;
-    final gen = ++_playGen;
-    setState(() => _playing = true);
-    final pending = _speech.play(_current.say);
-    _ownedPlay = _speech.generation;
-    final result = await pending;
-    if (!mounted || _done || gen != _playGen || _current.id != itemId) {
+  /// Session transitions are the ViewModel's; what they mean for the
+  /// utterance is the view's. A new drill drops the old play and auto-plays
+  /// once it has a frame; the close leaves the last utterance behind.
+  void _onChanged() {
+    if (_vm.isFinished) {
+      if (_closed) return;
+      _closed = true;
+      _abandonPlayback();
       return;
     }
-    setState(() {
-      _playing = false;
-      _lastPlay = result;
-      if (result != SpeechPlaybackResult.played) return;
-      _heard = true;
-      if (_heardAtMs == 0) {
-        _heardAtMs = _clock().millisecondsSinceEpoch;
-      }
+    if (_vm.index == _shownIndex) return;
+    _shownIndex = _vm.index;
+    _abandonPlayback();
+    setState(() => _playing = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _vm.isFinished) return;
+      _scheduleAutoplay();
     });
+  }
+
+  Future<void> _play() async {
+    if (!mounted || _vm.isFinished) return;
+    if (!_playable || !_foreground) return;
+    final itemIndex = _vm.index;
+    final gen = ++_playGen;
+    setState(() => _playing = true);
+    final pending = _speech.play(_vm.current.say);
+    _ownedPlay = _speech.generation;
+    final result = await pending;
+    if (!mounted ||
+        _vm.isFinished ||
+        gen != _playGen ||
+        _vm.index != itemIndex) {
+      return;
+    }
+    setState(() => _playing = false);
+    _vm.notePlayback(itemIndex: itemIndex, result: result);
   }
 
   String _promptFor(InfoKind kind) => switch (kind) {
@@ -170,87 +173,16 @@ class _InfoScreenState extends State<InfoScreen> {
     InfoKind.personCount => AppStrings.infoPersonPrompt,
   };
 
-  void _pickAnswer(String choice) {
-    if (_answerPick != null) return;
-    final correct = choice == _current.correctAnswer;
-    final evidence = ReplyEvidence.classify(
-      heard: _heard,
-      sawText: _sawText,
-      usedHint: _hinted,
-      correct: correct,
-    );
-    _log(choice: choice, evidence: evidence);
-    setState(() => _answerPick = choice);
-  }
-
-  void _log({required String choice, required String evidence}) {
-    final now = _clock();
-    final scored = _heard;
-    final correct =
-        evidence == ReplyEvidence.independent ||
-        evidence == ReplyEvidence.peeked ||
-        evidence == ReplyEvidence.hinted;
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.id,
-        itemType: ItemType.word,
-        mode: PracticeMode.info.name,
-        correct: scored && correct,
-        rtMs: scored && _heardAtMs != 0
-            ? now.millisecondsSinceEpoch - _heardAtMs
-            : 0,
-        sessionId: _sessionId,
-        meta: {
-          AttemptMeta.beat: _current.kind.name,
-          AttemptMeta.evidence: evidence,
-          AttemptMeta.heard: _heard,
-          AttemptMeta.prompted: _sawText,
-          AttemptMeta.hinted: _hinted,
-          AttemptMeta.scored: scored,
-          AttemptMeta.playback:
-              (_lastPlay ?? SpeechPlaybackResult.interrupted).name,
-          if (!correct && choice.isNotEmpty) AttemptMeta.distractor: choice,
-        },
-      ),
-    );
-  }
-
-  void _advance() {
-    if (_index + 1 >= widget.drills.length) {
-      _abandonPlayback();
-      setState(() => _done = true);
-      return;
-    }
-    _abandonPlayback();
-    setState(() {
-      _index++;
-      _heard = false;
-      _sawText = false;
-      _hinted = false;
-      _playing = false;
-      _answerPick = null;
-      _heardAtMs = 0;
-      _lastPlay = null;
-      _shuffleChoices();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _done) return;
-      _scheduleAutoplay();
-    });
-  }
-
-  void _skipUnheard() {
-    if (_heard || _answerPick != null) return;
-    _log(choice: '', evidence: ReplyEvidence.unheard);
-    _advance();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.infoTitle)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
@@ -269,7 +201,7 @@ class _InfoScreenState extends State<InfoScreen> {
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.drills.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -312,12 +244,13 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Widget _cardBody() {
+    final current = _vm.current;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          _current.sceneZh,
+          current.sceneZh,
           key: const ValueKey<String>('info-scene'),
           textAlign: TextAlign.center,
           style: const TextStyle(
@@ -344,7 +277,7 @@ class _InfoScreenState extends State<InfoScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          _promptFor(_current.kind),
+          _promptFor(current.kind),
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.inkMuted, fontSize: 15),
         ),
@@ -358,10 +291,10 @@ class _InfoScreenState extends State<InfoScreen> {
             height: 1.4,
           ),
         ),
-        if (_sawText) ...[
+        if (_vm.sawText) ...[
           const SizedBox(height: 16),
           Text(
-            _current.promptKana,
+            current.promptKana,
             key: const ValueKey<String>('info-prompt-kana'),
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -373,7 +306,7 @@ class _InfoScreenState extends State<InfoScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            _current.promptRomaji,
+            current.promptRomaji,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppColors.accent,
@@ -382,10 +315,10 @@ class _InfoScreenState extends State<InfoScreen> {
             ),
           ),
         ],
-        if (_hinted) ...[
+        if (_vm.hinted) ...[
           const SizedBox(height: 8),
           Text(
-            _current.promptMeaning,
+            current.promptMeaning,
             key: const ValueKey<String>('info-prompt-meaning'),
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.ink, fontSize: 16),
@@ -408,13 +341,13 @@ class _InfoScreenState extends State<InfoScreen> {
         AnswerOptionGrid(
           crossAxisCount: 1,
           children: [
-            for (final option in _answerOrder)
+            for (final option in _vm.answerOrder)
               AnswerOptionButton(
                 key: ValueKey<String>('info-choice-$option'),
                 label: option,
                 fontSize: 18,
                 state: _optionState(option),
-                onTap: _answerPick == null ? () => _pickAnswer(option) : null,
+                onTap: _vm.isAnswered ? null : () => _vm.pickAnswer(option),
               ),
           ],
         ),
@@ -423,10 +356,9 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   OptionState _optionState(String option) {
-    final pick = _answerPick;
-    final correct = _current.correctAnswer;
+    final pick = _vm.answerPick;
     if (pick == null) return OptionState.idle;
-    if (option == correct) {
+    if (_vm.isCorrect(option)) {
       return option == pick ? OptionState.correct : OptionState.revealed;
     }
     if (option == pick) return OptionState.wrong;
@@ -434,8 +366,8 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   String? get _blockMessage {
-    if (_heard) return null;
-    return switch (_lastPlay) {
+    if (_vm.isHeard) return null;
+    return switch (_vm.lastPlay) {
       SpeechPlaybackResult.unavailable => AppStrings.listeningUnavailable,
       SpeechPlaybackResult.failed => AppStrings.listeningFailed,
       SpeechPlaybackResult.interrupted => AppStrings.listeningInterrupted,
@@ -445,7 +377,7 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Widget _controls() {
-    if (_answerPick == null) {
+    if (!_vm.isAnswered) {
       return Column(
         children: [
           Row(
@@ -453,7 +385,7 @@ class _InfoScreenState extends State<InfoScreen> {
               Expanded(
                 child: OutlinedButton(
                   key: const ValueKey<String>('info-hint'),
-                  onPressed: () => setState(() => _hinted = true),
+                  onPressed: _vm.showHint,
                   child: const Text(AppStrings.infoHint),
                 ),
               ),
@@ -461,13 +393,13 @@ class _InfoScreenState extends State<InfoScreen> {
               Expanded(
                 child: OutlinedButton(
                   key: const ValueKey<String>('info-show-text'),
-                  onPressed: () => setState(() => _sawText = true),
+                  onPressed: _vm.showText,
                   child: const Text(AppStrings.infoShowText),
                 ),
               ),
             ],
           ),
-          if (!_heard) ...[
+          if (!_vm.isHeard) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -477,7 +409,7 @@ class _InfoScreenState extends State<InfoScreen> {
                   side: const BorderSide(color: AppColors.hairline),
                   foregroundColor: AppColors.inkMuted,
                 ),
-                onPressed: _skipUnheard,
+                onPressed: _vm.skipUnheard,
                 child: const Text(AppStrings.listeningSkip),
               ),
             ),
@@ -489,7 +421,7 @@ class _InfoScreenState extends State<InfoScreen> {
       width: double.infinity,
       child: FilledButton(
         key: const ValueKey<String>('info-next'),
-        onPressed: _advance,
+        onPressed: _vm.advance,
         child: const Text(AppStrings.listeningNext),
       ),
     );
