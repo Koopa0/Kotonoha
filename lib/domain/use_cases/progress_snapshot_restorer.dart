@@ -30,11 +30,22 @@ enum SnapshotRestoreStatus {
 
 /// Typed result of [ProgressSnapshotRestorer.restore].
 class SnapshotRestoreResult {
-  const SnapshotRestoreResult(this.status, {this.preview, this.detail});
+  const SnapshotRestoreResult(
+    this.status, {
+    this.preview,
+    this.detail,
+    this.ranTransaction = false,
+  });
 
   final SnapshotRestoreStatus status;
   final ProgressRestorePreview? preview;
   final String? detail;
+
+  /// True once [ProgressRestoreTransaction.apply] was entered — restored, or
+  /// failed after validation and confirmation. Only such a result can have
+  /// left a journal behind; cancel, invalid, blocked and a failed pick never
+  /// touched the platform, so the caller has nothing to re-read.
+  final bool ranTransaction;
 }
 
 /// Picks a file, previews it, and — after explicit confirmation — applies the
@@ -43,7 +54,7 @@ class SnapshotRestoreResult {
 /// The transaction leaves the progress owners consistent with durable storage
 /// on every outcome. What the UI shows about a journal left behind is the
 /// app-scoped recovery owner's; the view that issued the restore refreshes it
-/// once this returns.
+/// when the result reports [SnapshotRestoreResult.ranTransaction].
 class ProgressSnapshotRestorer {
   ProgressSnapshotRestorer({
     required this._capture,
@@ -106,11 +117,16 @@ class ProgressSnapshotRestorer {
         detail: error is RestoreJournalWriteFailure
             ? error.key
             : error.toString(),
+        ranTransaction: true,
       );
     }
     final status = _transaction.placementDiscardPending
         ? SnapshotRestoreStatus.restoredPlacementDiscardPending
         : SnapshotRestoreStatus.restored;
-    return SnapshotRestoreResult(status, preview: preview);
+    return SnapshotRestoreResult(
+      status,
+      preview: preview,
+      ranTransaction: true,
+    );
   }
 }

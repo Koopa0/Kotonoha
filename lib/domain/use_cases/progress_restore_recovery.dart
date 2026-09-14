@@ -38,8 +38,17 @@ class ProgressRestoreRecovery {
   /// Re-reads durable storage and re-applies write blocking to the three
   /// owners. Returns whether a blocking journal remains — an in-session
   /// restore that aborted mid-way leaves one behind.
+  ///
+  /// Never throws: when the platform read itself fails, the verdict comes
+  /// from the cached journal — the same view the transaction just wrote
+  /// through — so blocking is still applied and a caller's busy state can
+  /// always be released.
   Future<bool> syncFromPlatform() async {
-    await prefs.reload();
+    try {
+      await prefs.reload();
+    } on Object {
+      // Cached verdict below; a failed read must not drop blocking.
+    }
     final needs = needsRecovery;
     applyBlocking(needs);
     return needs;

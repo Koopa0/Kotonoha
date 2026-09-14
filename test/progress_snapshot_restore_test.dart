@@ -11,6 +11,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/progress_store_keys.dart';
+import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/domain/use_cases/placement_check.dart';
@@ -245,6 +246,44 @@ void main() {
     expect(restore.previewEncoded('not json'), isNull);
     expect(primaryRaws(fake), before);
     expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+  });
+
+  test('result reports whether the transaction ran', () async {
+    final (sourceFake, sourceKana, sourceKanji, sourceWords) = await loadAll();
+    final backup = await encodedBackup(sourceKana, sourceKanji, sourceWords);
+    final (fake, kana, kanji, words) = await loadAll();
+    final files = FakeSnapshotFilePort();
+    final restorer = ProgressSnapshotRestorer(
+      capture: snapshotsFor(fake, kana, kanji, words),
+      transaction: restoreFor(fake, kana, kanji, words),
+      files: files,
+    );
+
+    files.nextPick = SnapshotPickOutcome.cancelled;
+    var result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.cancelled);
+    expect(result.ranTransaction, isFalse);
+
+    files.nextPick = SnapshotPickOutcome.failed;
+    result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.failed);
+    expect(result.ranTransaction, isFalse);
+
+    files
+      ..nextPick = SnapshotPickOutcome.picked
+      ..pickContents = 'not json';
+    result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.invalid);
+    expect(result.ranTransaction, isFalse);
+
+    files.pickContents = backup;
+    result = await restorer.restore(confirm: (_) async => false);
+    expect(result.status, SnapshotRestoreStatus.cancelled);
+    expect(result.ranTransaction, isFalse);
+
+    result = await restorer.restore(confirm: (_) async => true);
+    expect(result.status, SnapshotRestoreStatus.restored);
+    expect(result.ranTransaction, isTrue);
   });
 
   test('cancelled confirm performs zero writes', () async {

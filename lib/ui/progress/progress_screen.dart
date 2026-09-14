@@ -373,17 +373,24 @@ class _ProgressRestoreState extends State<_ProgressRestore> {
     });
     final restorer = context.read<ProgressSnapshotRestorer>();
     final recovery = context.read<ProgressRestoreRecoveryController>();
-    final result = await restorer.restore(confirm: _confirm);
-    // Whatever the outcome, the app-scoped recovery owner re-reads the
-    // journal so the banner reflects a restore that left progress blocked.
-    await recovery.syncFromPlatform();
-    if (!mounted) return;
-    setState(() {
-      _restoring = false;
-      _status = result.status == SnapshotRestoreStatus.cancelled
-          ? null
-          : result.status;
-    });
+    SnapshotRestoreResult? result;
+    try {
+      result = await restorer.restore(confirm: _confirm);
+      // Only a run transaction can leave a journal behind; cancel, invalid,
+      // blocked and a failed pick never touched the platform. The recovery
+      // owner re-reads it whether or not this screen is still mounted.
+      if (result.ranTransaction) await recovery.syncFromPlatform();
+    } finally {
+      // Whatever happened above, the button comes back: a restore is always
+      // retryable from here, and the card reports the transaction's outcome.
+      if (mounted) {
+        final status = result?.status;
+        setState(() {
+          _restoring = false;
+          _status = status == SnapshotRestoreStatus.cancelled ? null : status;
+        });
+      }
+    }
   }
 
   @override
