@@ -3,7 +3,6 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -303,27 +302,16 @@ _pumpApp(
 void _expectNameAnnouncedOnce(WidgetTester tester, String name) {
   final escaped = RegExp.escape(name);
   final repeated = RegExp('$escaped.+$escaped', dotAll: true);
-  var found = false;
-  void visit(SemanticsNode node) {
-    final label = node.getSemanticsData().label;
-    if (label.contains(name)) {
-      found = true;
-      expect(
-        repeated.hasMatch(label),
-        isFalse,
-        reason: 'screen reader repeated "$name" in "$label"',
-      );
-    }
-    node.visitChildren((child) {
-      visit(child);
-      return true;
-    });
+  final finder = find.bySemanticsLabel(RegExp(escaped));
+  expect(finder, findsWidgets, reason: 'expected "$name" in a semantics label');
+  for (final element in finder.evaluate()) {
+    final label = tester.getSemantics(find.byWidget(element.widget)).label;
+    expect(
+      repeated.hasMatch(label),
+      isFalse,
+      reason: 'screen reader repeated "$name" in "$label"',
+    );
   }
-
-  final root = tester.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
-  expect(root, isNotNull);
-  visit(root!);
-  expect(found, isTrue, reason: 'expected "$name" in a semantics label');
 }
 
 Future<void> _answerCurrent(WidgetTester tester) async {
