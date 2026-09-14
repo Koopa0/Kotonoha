@@ -8,10 +8,15 @@ import 'package:kotonoha/domain/models/travel_scene_id.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/travel/travel_focus_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Editor for the retained 1–2 travel focuses. Saving, switching, or
 /// clearing writes only the plan — never kana or 詞と句 mastery.
+///
+/// A thin View over [TravelFocusViewModel]: it renders the tiles, shows the
+/// date picker, and pops once a write landed. The draft, the two-focus
+/// limit and the save / clear writes are the ViewModel's.
 class TravelFocusScreen extends StatefulWidget {
   const TravelFocusScreen({this.clock, super.key});
 
@@ -28,181 +33,111 @@ class TravelFocusScreen extends StatefulWidget {
 }
 
 class _TravelFocusScreenState extends State<TravelFocusScreen> {
-  late List<TravelFocus> _draft;
-  bool _limitHint = false;
-  bool _saving = false;
-
-  DateTime get _now => (widget.clock ?? DateTime.now)();
+  late final TravelFocusViewModel _vm;
 
   @override
   void initState() {
     super.initState();
-    _draft = List<TravelFocus>.of(
-      context.read<TravelFocusRepository>().plan.focuses,
+    _vm = TravelFocusViewModel(
+      focuses: context.read<TravelFocusRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      clock: widget.clock,
     );
   }
 
-  bool _selected(TravelSceneId scene) =>
-      _draft.any((focus) => focus.scene == scene);
-
-  TravelFocus? _focus(TravelSceneId scene) {
-    for (final focus in _draft) {
-      if (focus.scene == scene) return focus;
-    }
-    return null;
-  }
-
-  void _toggle(TravelSceneId scene) {
-    if (_saving ||
-        context.read<ProgressPersistenceController>().hasWriteFailure) {
-      return;
-    }
-    setState(() {
-      if (_selected(scene)) {
-        _draft = [
-          for (final f in _draft)
-            if (f.scene != scene) f,
-        ];
-        _limitHint = false;
-        return;
-      }
-      if (_draft.length >= TravelFocusPlan.maxFocuses) {
-        _limitHint = true;
-        return;
-      }
-      _draft = [..._draft, TravelFocus(scene: scene)];
-      _limitHint = false;
-    });
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
   }
 
   Future<void> _pickDate(TravelSceneId scene) async {
-    if (_saving ||
-        context.read<ProgressPersistenceController>().hasWriteFailure) {
-      return;
-    }
-    final current = _focus(scene)?.date ?? TravelFocusPlan.dayOf(_now);
+    if (_vm.isBlocked) return;
+    final now = _vm.now;
     final picked = await showDatePicker(
       context: context,
-      initialDate: current,
-      firstDate: DateTime(_now.year - 1),
-      lastDate: DateTime(_now.year + 2, 12, 31),
+      initialDate: _vm.initialDateFor(scene),
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2, 12, 31),
       helpText: AppStrings.travelFocusDateLabel,
     );
     if (!mounted || picked == null) return;
-    setState(() {
-      _draft = [
-        for (final f in _draft)
-          if (f.scene == scene) TravelFocus(scene: scene, date: picked) else f,
-      ];
-    });
-  }
-
-  void _clearDate(TravelSceneId scene) {
-    if (_saving ||
-        context.read<ProgressPersistenceController>().hasWriteFailure) {
-      return;
-    }
-    setState(() {
-      _draft = [
-        for (final f in _draft)
-          if (f.scene == scene) TravelFocus(scene: scene) else f,
-      ];
-    });
+    _vm.setDate(scene, picked);
   }
 
   Future<void> _save() async {
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure || _saving) return;
-    setState(() => _saving = true);
-    final save = context.read<TravelFocusRepository>().saveFocuses(_draft);
-    persist.trackTravelFocus(save);
-    try {
-      await save;
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      return;
-    }
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (await _vm.save() && mounted) Navigator.of(context).pop();
   }
 
   Future<void> _clear() async {
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure || _saving) return;
-    setState(() => _saving = true);
-    final clear = context.read<TravelFocusRepository>().clear();
-    persist.trackTravelFocus(clear);
-    try {
-      await clear;
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      return;
-    }
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (await _vm.clear() && mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final persist = context.watch<ProgressPersistenceController>();
-    final blocked = persist.hasWriteFailure || _saving;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.travelFocusTitle)),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          children: [
-            const Text(
-              AppStrings.travelFocusHint,
-              style: TextStyle(color: AppColors.inkMuted, height: 1.5),
-            ),
-            if (_limitHint) ...[
-              const SizedBox(height: 10),
-              const Text(
-                AppStrings.travelFocusLimit,
-                style: TextStyle(color: AppColors.inkMuted, height: 1.5),
-              ),
-            ],
-            const SizedBox(height: 16),
-            for (final scene in TravelSceneId.values) ...[
-              _FocusTile(
-                scene: scene,
-                selected: _selected(scene),
-                date: _focus(scene)?.date,
-                enabled: !blocked,
-                onToggle: () => _toggle(scene),
-                onDate: _selected(scene) ? () => _pickDate(scene) : null,
-                onClearDate: _selected(scene) && _focus(scene)?.date != null
-                    ? () => _clearDate(scene)
-                    : null,
-              ),
-              const SizedBox(height: 12),
-            ],
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: blocked ? null : _save,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(double.infinity, 56),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              child: Text(
-                _saving ? AppStrings.backupSaving : AppStrings.travelFocusSave,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: blocked ? null : _clear,
-              style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
-              child: Text(
-                _saving ? AppStrings.backupSaving : AppStrings.travelFocusClear,
-              ),
-            ),
-          ],
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _editor(),
         ),
       ),
+    );
+  }
+
+  Widget _editor() {
+    final blocked = _vm.isBlocked;
+    final saving = _vm.isSaving;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      children: [
+        const Text(
+          AppStrings.travelFocusHint,
+          style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+        ),
+        if (_vm.showsLimitHint) ...[
+          const SizedBox(height: 10),
+          const Text(
+            AppStrings.travelFocusLimit,
+            style: TextStyle(color: AppColors.inkMuted, height: 1.5),
+          ),
+        ],
+        const SizedBox(height: 16),
+        for (final scene in TravelSceneId.values) ...[
+          _FocusTile(
+            scene: scene,
+            selected: _vm.isSelected(scene),
+            date: _vm.dateOf(scene),
+            enabled: !blocked,
+            onToggle: () => _vm.toggle(scene),
+            onDate: _vm.isSelected(scene) ? () => _pickDate(scene) : null,
+            onClearDate: _vm.isSelected(scene) && _vm.dateOf(scene) != null
+                ? () => _vm.clearDate(scene)
+                : null,
+          ),
+          const SizedBox(height: 12),
+        ],
+        const SizedBox(height: 8),
+        FilledButton(
+          onPressed: blocked ? null : _save,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(double.infinity, 56),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          child: Text(
+            saving ? AppStrings.backupSaving : AppStrings.travelFocusSave,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: blocked ? null : _clear,
+          style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
+          child: Text(
+            saving ? AppStrings.backupSaving : AppStrings.travelFocusClear,
+          ),
+        ),
+      ],
     );
   }
 }
