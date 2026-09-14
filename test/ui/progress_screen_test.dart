@@ -215,6 +215,20 @@ void main() {
     expect(find.text(AppStrings.restoreNotIncluded), findsOneWidget);
     expect(find.text(AppStrings.restoreAction), findsOneWidget);
     expect(find.textContaining('完整學習歷程'), findsOneWidget);
+    expect(find.textContaining('旅行重點'), findsOneWidget);
+    expect(find.textContaining('主動複習'), findsOneWidget);
+    expect(find.textContaining('明日'), findsOneWidget);
+  });
+
+  test('restorePreviewBody mentions travel focus preservation', () {
+    final body = AppStrings.restorePreviewBody(
+      DateTime.utc(2026, 9, 14, 12, 30),
+    );
+    expect(body, contains('旅行重點'));
+    expect(body, contains('今天已做的安排'));
+    expect(body, contains('主動複習'));
+    expect(body, contains('明日'));
+    expect(body, isNot(contains('完整學習歷程')));
   });
 
   testWidgets(
