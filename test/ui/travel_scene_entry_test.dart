@@ -639,12 +639,33 @@ void main() {
     expect(find.text(AppStrings.travelSceneAction), findsOneWidget);
   });
 
-  testWidgets('transport hub does not surface the clothing reply door', (
+  testWidgets('transport hub opens the station reply room, not clothing copy', (
     tester,
   ) async {
     await pumpHub(tester, scene: TravelSceneId.transport);
-    expect(find.text(AppStrings.replyAction), findsNothing);
+    expect(find.text(AppStrings.replyAction), findsOneWidget);
     expect(find.text(AppStrings.replyHelpAction), findsNothing);
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReplyHubScreen), findsOneWidget);
+    expect(find.text(AppStrings.replyPurpose), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingPurpose), findsNothing);
+    expect(find.text('しちゃくして いいですか'), findsNothing);
+  });
+
+  testWidgets('transport hub reply gates practice until station phrases are met', (
+    tester,
+  ) async {
+    final repos = await pumpHub(tester, scene: TravelSceneId.transport);
+    for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+      await repos.kana.markUnitLearned(lesson.id);
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.replyAction));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.replyStartAction), findsNothing);
+    expect(find.text(AppStrings.travelSceneMeetAction), findsOneWidget);
+    expect(find.text(AppStrings.replyClothingPurpose), findsNothing);
   });
 
   testWidgets('shrine hub opens the scoped reply room, not station copy', (
