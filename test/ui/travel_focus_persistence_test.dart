@@ -50,13 +50,10 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final effectivePrefs = prefs ?? FakePreferencesService();
-    final effectiveKana =
-        await KanaProgressRepository.load(effectivePrefs);
+    final effectiveKana = await KanaProgressRepository.load(effectivePrefs);
     final kanji = await KanjiReadingRepository.load(effectivePrefs);
-    final effectiveWords =
-        await WordProgressRepository.load(effectivePrefs);
-    final effectiveChecks =
-        await PlacementCheckRepository.load(effectivePrefs);
+    final effectiveWords = await WordProgressRepository.load(effectivePrefs);
+    final effectiveChecks = await PlacementCheckRepository.load(effectivePrefs);
     final effectiveTravel =
         travel ?? await TravelFocusRepository.load(effectivePrefs);
 
@@ -120,11 +117,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    return (
-      prefs: effectivePrefs,
-      travel: effectiveTravel,
-      persist: persist,
-    );
+    return (prefs: effectivePrefs, travel: effectiveTravel, persist: persist);
   }
 
   Future<_AppHarness> seedPartialTransport(WidgetTester tester) async {
@@ -143,68 +136,85 @@ void main() {
     return pumpHarness(tester, prefs: effectivePrefs);
   }
 
-  group('TravelFocusScreen persistence (#132)', () {
-    testWidgets(
-      'save blocks duplicate submit while write is pending',
-      (tester) async {
-        final gate = PlatformGate();
-        final prefs = FakePreferencesService();
-        prefs.writeGates['travel_focus_v1'] = gate;
-        final harness = await pumpHarness(tester, prefs: prefs);
+  Future<void> _openTravelFocusEditor(WidgetTester tester) async {
+    await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
+    await tester.tap(find.text(AppStrings.travelFocusAction));
+    await tester.pumpAndSettle();
+    expect(find.byType(TravelFocusScreen), findsOneWidget);
+  }
 
-        await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
-        await tester.tap(find.text(AppStrings.travelFocusAction));
-        await tester.pumpAndSettle();
-        expect(find.byType(TravelFocusScreen), findsOneWidget);
-
-        await tester.tap(
-          find.widgetWithText(
-            CheckboxListTile,
-            AppStrings.travelSceneTransport,
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text(AppStrings.travelFocusSave));
-        await tester.pump();
-
-        final saveBtn = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, AppStrings.backupSaving),
-        );
-        expect(saveBtn.onPressed, isNull);
-        expect(find.text(AppStrings.backupSaving), findsWidgets);
-
-        final clearBtn = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, AppStrings.backupSaving),
-        );
-        expect(clearBtn.onPressed, isNull);
-
-        gate.release();
-        for (var i = 0; i < 8; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-          if (find.byType(TravelFocusScreen).evaluate().isEmpty) break;
-        }
-        expect(find.byType(TravelFocusScreen), findsNothing);
-      },
+  Future<void> _selectTransport(WidgetTester tester) async {
+    await tester.tap(
+      find.widgetWithText(CheckboxListTile, AppStrings.travelSceneTransport),
     );
+    await tester.pumpAndSettle();
+  }
+
+  group('TravelFocusScreen persistence (#132)', () {
+    testWidgets('save success pops after write confirms', (tester) async {
+      final harness = await pumpHarness(tester);
+      await _openTravelFocusEditor(tester);
+      await _selectTransport(tester);
+
+      await tester.tap(find.text(AppStrings.travelFocusSave));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TravelFocusScreen), findsNothing);
+      final reloaded = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(harness.prefs),
+      );
+      expect(reloaded.plan.focuses.single.scene, TravelSceneId.transport);
+    });
+
+    testWidgets('save blocks duplicate submit while write is pending', (
+      tester,
+    ) async {
+      final gate = PlatformGate();
+      final prefs = FakePreferencesService();
+      prefs.writeGates['travel_focus_v1'] = gate;
+      final harness = await pumpHarness(tester, prefs: prefs);
+
+      await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
+      await tester.tap(find.text(AppStrings.travelFocusAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(TravelFocusScreen), findsOneWidget);
+
+      await tester.tap(
+        find.widgetWithText(CheckboxListTile, AppStrings.travelSceneTransport),
+      );
+      await tester.pumpAndSettle();
+
+      final gateReached = gate.entered;
+      await tester.tap(find.text(AppStrings.travelFocusSave));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+      await gateReached.timeout(const Duration(seconds: 3));
+
+      final saveBtn = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, AppStrings.backupSaving),
+      );
+      expect(saveBtn.onPressed, isNull);
+      expect(find.text(AppStrings.backupSaving), findsWidgets);
+
+      final clearBtn = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, AppStrings.backupSaving),
+      );
+      expect(clearBtn.onPressed, isNull);
+
+      gate.release();
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find.byType(TravelFocusScreen).evaluate().isEmpty) break;
+      }
+      expect(find.byType(TravelFocusScreen), findsNothing);
+    });
 
     testWidgets(
       'save write failure stays on screen, blocks buttons; retry flushes and pops',
       (tester) async {
         final harness = await pumpHarness(tester);
-
-        await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
-        await tester.tap(find.text(AppStrings.travelFocusAction));
-        await tester.pumpAndSettle();
-        expect(find.byType(TravelFocusScreen), findsOneWidget);
-
-        await tester.tap(
-          find.widgetWithText(
-            CheckboxListTile,
-            AppStrings.travelSceneTransport,
-          ),
-        );
-        await tester.pumpAndSettle();
+        await _openTravelFocusEditor(tester);
+        await _selectTransport(tester);
 
         harness.prefs.failWrites.add('travel_focus_v1');
         await tester.tap(find.text(AppStrings.travelFocusSave));
@@ -243,6 +253,38 @@ void main() {
           reloadedAfterRetry.plan.focuses.single.scene,
           TravelSceneId.transport,
         );
+
+        await tester.tap(find.text(AppStrings.travelFocusSave));
+        await tester.pumpAndSettle();
+        expect(find.byType(TravelFocusScreen), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'save write throw stays on screen with draft intact; retry flushes and pops',
+      (tester) async {
+        final harness = await pumpHarness(tester);
+        await _openTravelFocusEditor(tester);
+        await _selectTransport(tester);
+
+        harness.prefs.throwWrites.add('travel_focus_v1');
+        await tester.tap(find.text(AppStrings.travelFocusSave));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TravelFocusScreen), findsOneWidget);
+        expect(find.text(AppStrings.persistFailedLine), findsOneWidget);
+        expect(harness.persist.hasWriteFailure, isTrue);
+        expect(
+          harness.travel.plan.focuses.single.scene,
+          TravelSceneId.transport,
+        );
+
+        harness.prefs.throwWrites.clear();
+        await tester.tap(find.text(AppStrings.persistRetry));
+        await tester.pumpAndSettle();
+
+        expect(harness.persist.hasWriteFailure, isFalse);
+        expect(find.byType(TravelFocusScreen), findsOneWidget);
 
         await tester.tap(find.text(AppStrings.travelFocusSave));
         await tester.pumpAndSettle();
