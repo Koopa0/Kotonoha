@@ -53,6 +53,10 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   }
 
   void _toggle(TravelSceneId scene) {
+    if (_saving ||
+        context.read<ProgressPersistenceController>().hasWriteFailure) {
+      return;
+    }
     setState(() {
       if (_selected(scene)) {
         _draft = [
@@ -72,6 +76,10 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   }
 
   Future<void> _pickDate(TravelSceneId scene) async {
+    if (_saving ||
+        context.read<ProgressPersistenceController>().hasWriteFailure) {
+      return;
+    }
     final current = _focus(scene)?.date ?? TravelFocusPlan.dayOf(_now);
     final picked = await showDatePicker(
       context: context,
@@ -90,6 +98,10 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
   }
 
   void _clearDate(TravelSceneId scene) {
+    if (_saving ||
+        context.read<ProgressPersistenceController>().hasWriteFailure) {
+      return;
+    }
     setState(() {
       _draft = [
         for (final f in _draft)
@@ -157,6 +169,7 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
                 scene: scene,
                 selected: _selected(scene),
                 date: _focus(scene)?.date,
+                enabled: !blocked,
                 onToggle: () => _toggle(scene),
                 onDate: _selected(scene) ? () => _pickDate(scene) : null,
                 onClearDate: _selected(scene) && _focus(scene)?.date != null
@@ -199,6 +212,7 @@ class _FocusTile extends StatelessWidget {
     required this.scene,
     required this.selected,
     required this.date,
+    required this.enabled,
     required this.onToggle,
     this.onDate,
     this.onClearDate,
@@ -207,6 +221,7 @@ class _FocusTile extends StatelessWidget {
   final TravelSceneId scene;
   final bool selected;
   final DateTime? date;
+  final bool enabled;
   final VoidCallback onToggle;
   final VoidCallback? onDate;
   final VoidCallback? onClearDate;
@@ -242,7 +257,7 @@ class _FocusTile extends StatelessWidget {
           children: [
             CheckboxListTile(
               value: selected,
-              onChanged: (_) => onToggle(),
+              onChanged: enabled ? (_) => onToggle() : null,
               contentPadding: const EdgeInsets.only(left: 8, right: 4),
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(
@@ -265,7 +280,7 @@ class _FocusTile extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     TextButton(
-                      onPressed: onDate,
+                      onPressed: enabled ? onDate : null,
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.ink,
                         padding: const EdgeInsets.symmetric(
@@ -284,7 +299,7 @@ class _FocusTile extends StatelessWidget {
                     ),
                     if (onClearDate != null)
                       TextButton(
-                        onPressed: onClearDate,
+                        onPressed: enabled ? onClearDate : null,
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.inkMuted,
                           minimumSize: const Size(48, 48),

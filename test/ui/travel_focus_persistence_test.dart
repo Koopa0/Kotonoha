@@ -136,16 +136,23 @@ void main() {
     return pumpHarness(tester, prefs: effectivePrefs);
   }
 
-  Future<void> _openTravelFocusEditor(WidgetTester tester) async {
+  Future<void> openTravelFocusEditor(WidgetTester tester) async {
     await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
     await tester.tap(find.text(AppStrings.travelFocusAction));
     await tester.pumpAndSettle();
     expect(find.byType(TravelFocusScreen), findsOneWidget);
   }
 
-  Future<void> _selectTransport(WidgetTester tester) async {
+  Future<void> selectTransport(WidgetTester tester) async {
     await tester.tap(
       find.widgetWithText(CheckboxListTile, AppStrings.travelSceneTransport),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> selectClothing(WidgetTester tester) async {
+    await tester.tap(
+      find.widgetWithText(CheckboxListTile, AppStrings.travelSceneClothing),
     );
     await tester.pumpAndSettle();
   }
@@ -153,8 +160,8 @@ void main() {
   group('TravelFocusScreen persistence (#132)', () {
     testWidgets('save success pops after write confirms', (tester) async {
       final harness = await pumpHarness(tester);
-      await _openTravelFocusEditor(tester);
-      await _selectTransport(tester);
+      await openTravelFocusEditor(tester);
+      await selectTransport(tester);
 
       await tester.tap(find.text(AppStrings.travelFocusSave));
       await tester.pumpAndSettle();
@@ -172,7 +179,7 @@ void main() {
       final gate = PlatformGate();
       final prefs = FakePreferencesService();
       prefs.writeGates['travel_focus_v1'] = gate;
-      final harness = await pumpHarness(tester, prefs: prefs);
+      await pumpHarness(tester, prefs: prefs);
 
       await tester.ensureVisible(find.text(AppStrings.travelFocusAction));
       await tester.tap(find.text(AppStrings.travelFocusAction));
@@ -210,11 +217,76 @@ void main() {
     });
 
     testWidgets(
+      'save pending blocks draft edits; persisted plan matches pre-save draft',
+      (tester) async {
+        final gate = PlatformGate();
+        final prefs = FakePreferencesService();
+        prefs.writeGates['travel_focus_v1'] = gate;
+        final harness = await pumpHarness(tester, prefs: prefs);
+
+        await openTravelFocusEditor(tester);
+        await selectTransport(tester);
+
+        final gateReached = gate.entered;
+        await tester.tap(find.text(AppStrings.travelFocusSave));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1));
+        await gateReached.timeout(const Duration(seconds: 3));
+
+        final clothingTile = tester.widget<CheckboxListTile>(
+          find.widgetWithText(CheckboxListTile, AppStrings.travelSceneClothing),
+        );
+        expect(clothingTile.onChanged, isNull);
+        expect(clothingTile.value, isFalse);
+
+        await selectClothing(tester);
+        expect(
+          tester
+              .widget<CheckboxListTile>(
+                find.widgetWithText(
+                  CheckboxListTile,
+                  AppStrings.travelSceneClothing,
+                ),
+              )
+              .value,
+          isFalse,
+        );
+
+        final transportDateBtn = find.descendant(
+          of: find.ancestor(
+            of: find.widgetWithText(
+              CheckboxListTile,
+              AppStrings.travelSceneTransport,
+            ),
+            matching: find.byType(Card),
+          ),
+          matching: find.widgetWithText(
+            TextButton,
+            '${AppStrings.travelFocusDateLabel} · ${AppStrings.travelFocusDateUnset}',
+          ),
+        );
+        expect(tester.widget<TextButton>(transportDateBtn).onPressed, isNull);
+
+        gate.release();
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          if (find.byType(TravelFocusScreen).evaluate().isEmpty) break;
+        }
+        expect(find.byType(TravelFocusScreen), findsNothing);
+
+        final reloaded = await TravelFocusRepository.load(
+          FakePreferencesService.restarted(harness.prefs),
+        );
+        expect(reloaded.plan.focuses.single.scene, TravelSceneId.transport);
+      },
+    );
+
+    testWidgets(
       'save write failure stays on screen, blocks buttons; retry flushes and pops',
       (tester) async {
         final harness = await pumpHarness(tester);
-        await _openTravelFocusEditor(tester);
-        await _selectTransport(tester);
+        await openTravelFocusEditor(tester);
+        await selectTransport(tester);
 
         harness.prefs.failWrites.add('travel_focus_v1');
         await tester.tap(find.text(AppStrings.travelFocusSave));
@@ -234,6 +306,11 @@ void main() {
         );
         expect(clearBtn.onPressed, isNull);
 
+        final clothingTile = tester.widget<CheckboxListTile>(
+          find.widgetWithText(CheckboxListTile, AppStrings.travelSceneClothing),
+        );
+        expect(clothingTile.onChanged, isNull);
+
         final restarted = await TravelFocusRepository.load(
           FakePreferencesService.restarted(harness.prefs),
         );
@@ -245,6 +322,11 @@ void main() {
 
         expect(harness.persist.hasWriteFailure, isFalse);
         expect(find.text(AppStrings.persistFailedLine), findsNothing);
+
+        final clothingTileAfterRetry = tester.widget<CheckboxListTile>(
+          find.widgetWithText(CheckboxListTile, AppStrings.travelSceneClothing),
+        );
+        expect(clothingTileAfterRetry.onChanged, isNotNull);
 
         final reloadedAfterRetry = await TravelFocusRepository.load(
           FakePreferencesService.restarted(harness.prefs),
@@ -264,8 +346,8 @@ void main() {
       'save write throw stays on screen with draft intact; retry flushes and pops',
       (tester) async {
         final harness = await pumpHarness(tester);
-        await _openTravelFocusEditor(tester);
-        await _selectTransport(tester);
+        await openTravelFocusEditor(tester);
+        await selectTransport(tester);
 
         harness.prefs.throwWrites.add('travel_focus_v1');
         await tester.tap(find.text(AppStrings.travelFocusSave));
