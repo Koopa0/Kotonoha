@@ -97,22 +97,40 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     final persist = context.read<ProgressPersistenceController>();
-    persist.trackTravelFocus(
-      context.read<TravelFocusRepository>().saveFocuses(_draft),
-    );
+    if (persist.hasWriteFailure) return;
+    final save = context.read<TravelFocusRepository>().saveFocuses(_draft);
+    persist.trackTravelFocus(save);
+    try {
+      await save;
+    } catch (_) {
+      if (mounted) setState(() {});
+      return;
+    }
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
-  void _clear() {
+  Future<void> _clear() async {
     final persist = context.read<ProgressPersistenceController>();
-    persist.trackTravelFocus(context.read<TravelFocusRepository>().clear());
+    if (persist.hasWriteFailure) return;
+    final clear = context.read<TravelFocusRepository>().clear();
+    persist.trackTravelFocus(clear);
+    try {
+      await clear;
+    } catch (_) {
+      if (mounted) setState(() {});
+      return;
+    }
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final persist = context.watch<ProgressPersistenceController>();
+    final blocked = persist.hasWriteFailure;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.travelFocusTitle)),
       body: SafeArea(
@@ -146,7 +164,7 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
             ],
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: _save,
+              onPressed: blocked ? null : _save,
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 56),
                 padding: const EdgeInsets.symmetric(
@@ -158,7 +176,7 @@ class _TravelFocusScreenState extends State<TravelFocusScreen> {
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: _clear,
+              onPressed: blocked ? null : _clear,
               style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
               child: const Text(AppStrings.travelFocusClear),
             ),

@@ -80,4 +80,50 @@ void main() {
       expect(afterFlush.plan.focuses.single.scene, TravelSceneId.transport);
     },
   );
+
+  test(
+    'markKanaBoost write failure rolls back memory and leaves disk empty',
+    () async {
+      final fake = FakePreferencesService();
+      final store = await TravelFocusRepository.load(fake);
+      await store.saveFocuses(const [
+        TravelFocus(scene: TravelSceneId.transport),
+      ]);
+
+      fake.failWrites.add('travel_focus_v1');
+      await expectLater(
+        store.markKanaBoost(DateTime(2026, 9, 11, 12)),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      expect(store.plan.kanaBoostOn, isNull);
+
+      final reloaded = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(reloaded.plan.kanaBoostOn, isNull);
+    },
+  );
+
+  test(
+    'markServed write failure rolls back memory and leaves disk empty',
+    () async {
+      final fake = FakePreferencesService();
+      final store = await TravelFocusRepository.load(fake);
+      await store.saveFocuses(const [
+        TravelFocus(scene: TravelSceneId.transport),
+      ]);
+
+      fake.failWrites.add('travel_focus_v1');
+      await expectLater(
+        store.markServed(TravelSceneId.transport, DateTime(2026, 9, 11, 12)),
+        throwsA(isA<StoreWriteFailure>()),
+      );
+      expect(store.plan.servedOn[TravelSceneId.transport], isNull);
+
+      final reloaded = await TravelFocusRepository.load(
+        FakePreferencesService.restarted(fake),
+      );
+      expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
+    },
+  );
 }
