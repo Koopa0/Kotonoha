@@ -26,79 +26,90 @@ import '../support/restore_recovery_test_support.dart';
 /// production App / Home / Lessons / AppTheme — not iPhone device acceptance
 /// (that remains #13).
 void main() {
-  setUp(() {
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-  });
-
-  tearDown(() {
-    debugDefaultTargetPlatformOverride = null;
-  });
-
   testWidgets('iOS Home→Lessons edge swipe pops back to Home', (tester) async {
-    await _pumpApp(tester);
+    await _runIos(() async {
+      await _pumpApp(tester);
 
-    await tester.tap(find.text(AppStrings.learnNewKanaAction));
-    await tester.pumpAndSettle();
-    expect(find.byType(LessonsScreen), findsOneWidget);
+      await tester.tap(find.text(AppStrings.learnNewKanaAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(LessonsScreen), findsOneWidget);
 
-    await _edgeSwipeBack(tester);
-    expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.byType(LessonsScreen), findsNothing);
+      await _edgeSwipeBack(tester);
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(LessonsScreen), findsNothing);
+    });
   });
 
   testWidgets('iOS Home→Lessons short edge swipe cancels and stays', (
     tester,
   ) async {
-    await _pumpApp(tester);
+    await _runIos(() async {
+      await _pumpApp(tester);
 
-    await tester.tap(find.text(AppStrings.learnNewKanaAction));
-    await tester.pumpAndSettle();
-    expect(find.byType(LessonsScreen), findsOneWidget);
+      await tester.tap(find.text(AppStrings.learnNewKanaAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(LessonsScreen), findsOneWidget);
 
-    await _edgeSwipeCancel(tester);
-    expect(find.byType(LessonsScreen), findsOneWidget);
-    expect(find.byType(HomeScreen), findsNothing);
+      await _edgeSwipeCancel(tester);
+      expect(find.byType(LessonsScreen), findsOneWidget);
+      expect(find.byType(HomeScreen), findsNothing);
+    });
   });
 
   testWidgets('iOS Lessons AppBar back still returns Home', (tester) async {
-    await _pumpApp(tester);
+    await _runIos(() async {
+      await _pumpApp(tester);
 
-    await tester.tap(find.text(AppStrings.learnNewKanaAction));
-    await tester.pumpAndSettle();
-    expect(find.byType(LessonsScreen), findsOneWidget);
+      await tester.tap(find.text(AppStrings.learnNewKanaAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(LessonsScreen), findsOneWidget);
 
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.byType(LessonsScreen), findsNothing);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(LessonsScreen), findsNothing);
+    });
   });
 
   testWidgets(
     'iOS Study あ行 swipe-back stops leftover audio; cancel keeps the card',
     (tester) async {
-      final speech = HangingSpeechService();
-      await _pumpApp(tester, speech: speech);
+      await _runIos(() async {
+        final speech = HangingSpeechService();
+        await _pumpApp(tester, speech: speech);
 
-      await tester.tap(find.text(AppStrings.learnNewKanaAction));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('あ行'));
-      await tester.pumpAndSettle();
-      expect(find.byType(StudyScreen), findsOneWidget);
-      expect(speech.spoken, ['あ']);
-      expect(speech.stopCount, 0);
+        await tester.tap(find.text(AppStrings.learnNewKanaAction));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('あ行'));
+        await tester.pumpAndSettle();
+        expect(find.byType(StudyScreen), findsOneWidget);
+        expect(speech.spoken, ['あ']);
+        expect(speech.stopCount, 0);
 
-      await _edgeSwipeCancel(tester);
-      expect(find.byType(StudyScreen), findsOneWidget);
-      expect(find.byType(LessonsScreen), findsNothing);
-      expect(speech.stopCount, 0);
-      expect(speech.spoken, ['あ']);
+        await _edgeSwipeCancel(tester);
+        expect(find.byType(StudyScreen), findsOneWidget);
+        expect(find.byType(LessonsScreen), findsNothing);
+        expect(speech.stopCount, 0);
+        expect(speech.spoken, ['あ']);
 
-      await _edgeSwipeBack(tester);
-      expect(find.byType(LessonsScreen), findsOneWidget);
-      expect(find.byType(StudyScreen), findsNothing);
-      expect(speech.stopCount, greaterThan(0));
+        await _edgeSwipeBack(tester);
+        expect(find.byType(LessonsScreen), findsOneWidget);
+        expect(find.byType(StudyScreen), findsNothing);
+        expect(speech.stopCount, greaterThan(0));
+      });
     },
   );
+}
+
+/// Binding checks foundation debug vars after the test body, so the override
+/// must be cleared before [_runIos] returns — not in package:test tearDown.
+Future<void> _runIos(Future<void> Function() body) async {
+  debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
 }
 
 Future<void> _edgeSwipeBack(WidgetTester tester) async {

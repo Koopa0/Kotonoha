@@ -28,13 +28,13 @@ abstract final class AppTheme {
       fontFamily: 'KleeOne',
       // A soft ripple rather than the M3 sparkle — quieter, like ink spreading.
       splashFactory: InkRipple.splashFactory,
-      // Android/macOS keep the ink fade-and-rise. iOS must use the official
-      // Cupertino builder so MaterialPageRoute still installs the edge-swipe
-      // back gesture; a custom builder cannot recreate that recognizer.
+      // Android/macOS keep the ink fade-and-rise. iOS is omitted so
+      // PageTransitionsTheme falls back to the official Cupertino builder
+      // (and its edge-swipe back recognizer). A custom builder cannot
+      // recreate that gesture.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: _InkPageTransitionsBuilder(),
-          TargetPlatform.iOS: _CupertinoWashiPageTransitionsBuilder(),
           TargetPlatform.macOS: _InkPageTransitionsBuilder(),
         },
       ),
@@ -87,32 +87,6 @@ abstract final class AppTheme {
         thickness: 1,
         space: 1,
       ),
-    );
-  }
-}
-
-/// Official Cupertino push/pop, including the iOS edge-swipe back gesture.
-///
-/// Delegates the transition and recognizer to [CupertinoPageTransitionsBuilder]
-/// rather than reimplementing them. [WashiBackground] stays on the page so
-/// transparent scaffolds do not ghost the route beneath during the slide.
-class _CupertinoWashiPageTransitionsBuilder extends PageTransitionsBuilder {
-  const _CupertinoWashiPageTransitionsBuilder();
-
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    return const CupertinoPageTransitionsBuilder().buildTransitions(
-      route,
-      context,
-      animation,
-      secondaryAnimation,
-      WashiBackground(child: child),
     );
   }
 }
