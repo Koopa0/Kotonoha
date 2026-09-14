@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security policy
+    url: https://github.com/Koopa0/Kotonoha/security/policy
+    about: Report security vulnerabilities privately. Do not post personal learning records or credentials.

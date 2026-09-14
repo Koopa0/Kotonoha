@@ -1,65 +1,47 @@
-<div align="center">
-  <img src="assets/icon/app_icon.png" width="104" alt="言の葉" />
-</div>
+<h1><img src="assets/icon/app_icon.png" width="36" height="36" alt=""> 言の葉 · Kotonoha</h1>
 
-# 言の葉 · Kotonoha
+[English](README.md) | [繁體中文](README.zh-TW.md) | 日本語
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · **日本語**
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+繁体字中国語の読者に向けた日本語学習アプリです。かな、単語、短い文、聞き取り、
+語句の中の漢字の読みを練習できます。
 
-繁体字中国語の読者のための、日本語の読みを練習するアプリです。
-ひらがな・カタカナに慣れるところから、単語、短い文、先に聴いてから明かす聞き取り、
-そして語句の中の漢字の読みへ進みます。一回の練習は短く、画面は静かに。
-点数や連続記録、報酬を追いかける仕組みはありません。
+## 練習できること
 
-## だれのためのものか
+- **かな**：ひらがなとカタカナを一行ずつ学び、似た字形を見分けます。
+  選択問題から、ヒントなしで読みを思い出す練習へ進みます。
+- **単語と文**：音から単語を学び、かなを並べて表記を確かめます。
+  文の中の語を入れ替えて、読みと意味をそれぞれ確認できます。
+- **聞き取り**：学んだ駅の表現を先に聴き、文字を表示してからもう一度聴けます。
+- **旅行の場面**：交通、服の買い物、神社や城、テーマパークの行列で使う語句を練習します。
+  重点を一つか二つ選び、次の練習につなげられます。
+- **漢字の読み**：単語や文の中で読みを学び、思い出す練習ができます。
+- **進捗**：練習した範囲を確認し、かな・漢字・語句の進捗をファイルに保存、復元できます。
+  解答履歴は含みません。
 
-繁体字中国語は読める。日本語の文字を、少しずつ読めるようにしたい。
-文法の講義ではなく、点数表でもなく、有料教材の全文や人の声の録音を
-そのまま入れるアプリでもありません。
+進捗は端末に保存されます。アカウントは不要で、広告もありません。
+日本語の発音には端末にインストールされた音声を使い、オフライン再生の可否は音声によって異なります。
 
-## 練習の進み方
+## 画面
 
-手解きは、かなを一行ずつ紹介します。今日の稽古は、すでに出会ったかなを復習します。
-慣れたかなは選択肢を離れ、読みを思い出します。そのかなを使う、すでに出会った語や
-読める短い文があれば、短い橋渡しが続くことがあります。毎回あるとは限りません。
-使える語句がなければ、その回はかなのまま終わります。
-
-かなが語になるところまで来ると、渡し舟は耳から単語を紹介し、文字起こしは
-自分で組み立て、**聞き取り**（先に聴いてから明かす）はすでに出会った駅の言葉を
-流し、文字は隠し、明かしてからもう一度聴きます。
-旅の場面では、交通・購衣・神社古城・入園や行列など、いま使う目的を選んで
-先に出会い、それから思い出したり聴いたりします。
-旅行の重点を一つか二つ残しておくと、ホームは必要な仮名の補強を一回してから
-選んだ場面へ続きます。すべての仮名を先に終えなくても構いません。
-換句は、オリジナルの変化文で語を入れ替え、読みと意味を分けて自分で確かめます。
-変化文は翌日に残して確認することもできます。
-システムの採点ではありません。漢字の声は、アプリの語句の中で
-読みを教え、思い出します。一字ずつ切り離したカードではありません。
-似た字形、紙に書く、五十音図、短い文、漢字かな交じり文の部屋は、
-使えるようになったときに開きます。歩みは、出会った範囲の地図であり、成績表ではありません。
-
-発音には端末の日本語読み上げ（TTS）を使います。使える声やオフライン再生は、
-入っている音声によって違います。進捗は端末に残します。歩みは仮名・漢字・語句の進度をファイルに保存できます（解答履歴は含みません）。アカウントは不要で、広告もありません。
+アプリの表示は繁体字中国語と日本語です。以下はサンプルの進捗です。
 
 <p align="center">
-  <img src="screenshots/01-home.png" width="280" alt="ホーム：見本の進捗と現在の入口">
-  <img src="screenshots/02-listening.png" width="280" alt="聞き取り：先に聴いてから明かす">
+  <a href="screenshots/01-home.png"><img src="screenshots/01-home.png" width="240" alt="ホーム：かなの進捗サンプル"></a>
+  <a href="screenshots/02-listening.png"><img src="screenshots/02-listening.png" width="240" alt="聞き取り：先に聴き、文字を表示"></a>
 </p>
 <p align="center">
-  ホーム · 見本の進捗&emsp;·&emsp;聞き取り — 先に聴き、それから明かす
-</p>
-<p align="center">
-  <img src="screenshots/03-kanji.png" width="280" alt="漢字の声：文の中で読みを教える">
-  <img src="screenshots/04-progress.png" width="280" alt="歩み：見本の接触範囲">
-</p>
-<p align="center">
-  漢字の声 — 語句の中の読み&emsp;·&emsp;歩み — 範囲であり、点数ではない
+  <a href="screenshots/03-kanji.png"><img src="screenshots/03-kanji.png" width="240" alt="漢字：文の中で読みを学ぶ"></a>
+  <a href="screenshots/04-progress.png"><img src="screenshots/04-progress.png" width="240" alt="進捗：練習した範囲と学習状況"></a>
 </p>
 
-Flutter 製。Android と iOS に対応しています。
+## 開発状況
+
+Android・iOS 向けに開発中です。実機へのインストールと音声の検証は継続中です。
+不具合や改善案は [Issues](https://github.com/Koopa0/Kotonoha/issues) にお寄せください。
 
 ## ライセンス
 
-アプリ：[MIT](LICENSE) · © 2026 Koopa。Klee One フォント：[SIL OFL 1.1](assets/fonts/OFL.txt)。
+[MIT](LICENSE)。Klee One フォント：[SIL Open Font License 1.1](assets/fonts/OFL.txt)。

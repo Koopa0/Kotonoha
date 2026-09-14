@@ -1,69 +1,50 @@
-<div align="center">
-  <img src="assets/icon/app_icon.png" width="104" alt="言の葉" />
-</div>
+<h1><img src="assets/icon/app_icon.png" width="36" height="36" alt=""> 言の葉 · Kotonoha</h1>
 
-# 言の葉 · Kotonoha
+English | [繁體中文](README.zh-TW.md) | [日本語](README.JP.md)
 
-**English** · [繁體中文](README.zh-TW.md) · [日本語](README.JP.md)
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+A Japanese learning app for Traditional Chinese readers. Practice kana,
+words, short sentences, listening, and kanji readings in context.
 
-A Japanese reading practice app for Traditional Chinese readers. Meet hiragana
-and katakana first, then step into words, short sentences, listen-first
-practice, and kanji readings. Sessions stay short. The interface stays quiet.
-There are no scores, streaks, or rewards to chase.
+## What you can practice
 
-## Who it is for
+- **Kana.** Learn hiragana and katakana a row at a time, compare similar
+  characters, and move from multiple choice to recalling readings without hints.
+- **Words and sentences.** Learn vocabulary by ear, assemble its spelling,
+  and check the reading and meaning of a sentence after a word changes.
+- **Listening.** Hear familiar station phrases before revealing the text,
+  then listen again.
+- **Travel.** Practice transport, clothes shopping, shrines and castles, and
+  park queues. Choose one or two travel focuses to guide your next practice.
+- **Kanji readings.** Learn and recall readings within words and sentences.
+- **Progress.** See which material you have practiced and save or restore
+  kana, kanji, and word progress through a file. Answer history is not included.
 
-If you already read Traditional Chinese and want Japanese writing to become
-readable — not a grammar course, not a scoreboard, and not a content library
-of paid textbooks or human recordings.
+Progress stays on your device. No account or ads. Japanese pronunciation uses
+your device's installed voices; offline playback depends on the voice available.
 
-## How practice unfolds
+## Screenshots
 
-手解き introduces kana a row at a time. 今日の稽古 reviews kana you have
-already met: familiar ones leave multiple choice and ask for an unprompted
-reading. When a word or sentence that reuses those kana is available, a short
-transfer item may follow. It is not promised every time — if nothing readable
-is ready, the review stays with kana.
-
-Once those kana can spell a word, 渡し舟 introduces it by ear, 文字起こし
-asks you to assemble it, and **聞き取り** (先聽再揭曉) plays a station phrase
-you have already met, hides the text, then lets you reveal and hear it again.
-旅の場面 lets you pick a travel purpose — transit, clothing, shrines, or
-park queues — meet those items first, then recall or listen.
-You can keep one or two travel focuses; Home then runs one needed kana
-boost and continues the chosen scene, without waiting for every kana row.
-換句 swaps a word in an original sentence so you can check the reading and
-the sense separately, or keep the swapped line for the next day; that check
-is self-graded, not a system score.
-漢字の声 teaches and recalls readings inside the app's own words and
-sentences, not as isolated characters. Other rooms — look-alike kana, paper
-recall, a kana chart, short phrases, mixed-script sentences — open when you
-can use them. 歩み is a map of coverage, not a grade.
-
-Pronunciation uses the device's Japanese text-to-speech engine. Which voices
-exist, and whether they work offline, depends on what is installed. Progress
-stays on the device. 歩み can save kana, kanji, and word progress as a file;
-it does not include answer history. No account, no ads.
+The app interface uses Traditional Chinese and Japanese. These screenshots
+show sample progress.
 
 <p align="center">
-  <img src="screenshots/01-home.png" width="280" alt="Home with sample coverage and current action names">
-  <img src="screenshots/02-listening.png" width="280" alt="聞き取り: listen first, then reveal">
+  <a href="screenshots/01-home.png"><img src="screenshots/01-home.png" width="240" alt="Home: sample kana progress"></a>
+  <a href="screenshots/02-listening.png"><img src="screenshots/02-listening.png" width="240" alt="Listening: hear the phrase before revealing its text"></a>
 </p>
 <p align="center">
-  Home · sample progress&emsp;·&emsp;聞き取り — listen, then reveal
-</p>
-<p align="center">
-  <img src="screenshots/03-kanji.png" width="280" alt="漢字の声 teaching a reading inside a sentence">
-  <img src="screenshots/04-progress.png" width="280" alt="歩み coverage map with sample progress">
-</p>
-<p align="center">
-  漢字の声 — a reading in its sentence&emsp;·&emsp;歩み — coverage, not a score
+  <a href="screenshots/03-kanji.png"><img src="screenshots/03-kanji.png" width="240" alt="Kanji: learn a reading in a sentence"></a>
+  <a href="screenshots/04-progress.png"><img src="screenshots/04-progress.png" width="240" alt="Progress: practiced material and learning status"></a>
 </p>
 
-Built with Flutter for Android and iOS.
+## Status
+
+Under development for Android and iOS. Phone installation and audio validation
+are still in progress. Report problems or suggest improvements in
+[Issues](https://github.com/Koopa0/Kotonoha/issues).
 
 ## License
 
-App: [MIT](LICENSE) · © 2026 Koopa. Klee One font: [SIL OFL 1.1](assets/fonts/OFL.txt).
+[MIT](LICENSE). Klee One font: [SIL Open Font License 1.1](assets/fonts/OFL.txt).
