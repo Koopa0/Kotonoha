@@ -69,7 +69,11 @@ abstract final class AppTheme {
           backgroundColor: AppColors.buttonFill,
           foregroundColor: AppColors.onButton,
           minimumSize: const Size.fromHeight(56),
-          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontFamily: 'KleeOne',
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
