@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/kanji/domain/data/kanji_dataset.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_entry.dart';
@@ -25,9 +26,9 @@ class KanjiReadingRepository extends ChangeNotifier {
   ) : _stats = stats.value,
       statsHealth = stats.health;
 
-  static const String _storageKey = 'kanji_units_v1';
-  static const String _lastGoodKey = 'kanji_units_last_good_v1';
-  static const String _quarantineKey = 'kanji_units_quarantine_v1';
+  static const String _storageKey = ProgressStoreKeys.kanjiStats;
+  static const String _lastGoodKey = ProgressStoreKeys.kanjiStatsLastGood;
+  static const String _quarantineKey = ProgressStoreKeys.kanjiStatsQuarantine;
 
   /// Kept for [PreferencesService.reload] — the only trustworthy read path
   /// after a failed platform write/remove (legacy cache divergence).

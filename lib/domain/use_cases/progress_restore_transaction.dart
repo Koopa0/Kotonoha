@@ -5,12 +5,12 @@ import 'dart:convert';
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
@@ -22,10 +22,14 @@ class ProgressRestorePreview {
   final ProgressSnapshot snapshot;
 }
 
-/// Applies a validated [ProgressSnapshot] through [ProgressRestoreJournal].
-/// Memory is replaced only after every primary write succeeds.
-class ProgressSnapshotRestoreRepository {
-  ProgressSnapshotRestoreRepository({
+/// Applies a validated [ProgressSnapshot] through [ProgressRestoreJournal]:
+/// the one write that spans the three progress owners and the placement
+/// draft, so it is a use case rather than a repository. Memory is replaced
+/// only after every primary write succeeds; on any failure the owners are
+/// re-read from durable storage and refuse learning writes while a blocking
+/// journal remains.
+class ProgressRestoreTransaction {
+  ProgressRestoreTransaction({
     required this._prefs,
     required this._kana,
     required this._kanji,
@@ -41,19 +45,6 @@ class ProgressSnapshotRestoreRepository {
   final PlacementCheckRepository? _placement;
   final ProgressSnapshotCodec _codec;
   final ProgressRestoreJournal _journal;
-
-  static const _auxiliaryKeys = <String>[
-    'kana_stats_last_good_v1',
-    'kana_stats_quarantine_v1',
-    'learned_units_last_good_v1',
-    'learned_units_quarantine_v1',
-    'seen_unlocks_last_good_v1',
-    'seen_unlocks_quarantine_v1',
-    'kanji_units_last_good_v1',
-    'kanji_units_quarantine_v1',
-    'word_stats_last_good_v1',
-    'word_stats_quarantine_v1',
-  ];
 
   /// Strict decode only — zero preference writes.
   ProgressRestorePreview? previewEncoded(String raw) {
@@ -87,7 +78,7 @@ class ProgressSnapshotRestoreRepository {
         for (final key in RestoreJournalStores.all) {
           await _journal.applyPrimary(key, staging[key]!);
         }
-        for (final key in _auxiliaryKeys) {
+        for (final key in ProgressStoreKeys.portableAuxiliary) {
           if (!await _prefs.remove(key)) {
             throw RestoreJournalWriteFailure(key);
           }
@@ -167,7 +158,7 @@ class ProgressSnapshotRestoreRepository {
     final placement = _placement;
     if (placement == null || !placement.draft.hasProgress) return null;
     return {
-      for (final key in PlacementCheckRepository.durableKeys)
+      for (final key in ProgressStoreKeys.placementDurable)
         key: _prefs.readString(key),
     };
   }
@@ -198,19 +189,17 @@ class ProgressSnapshotRestoreRepository {
 
   Map<String, String> _encodeStaging(ProgressSnapshot snapshot) {
     return <String, String>{
-      ProgressSnapshotRepository.kanaStatsStore: jsonEncode(
+      ProgressStoreKeys.kanaStats: jsonEncode(
         snapshot.kanaStats.map((k, v) => MapEntry(k, v.toJson())),
       ),
-      ProgressSnapshotRepository.learnedUnitsStore: jsonEncode(
+      ProgressStoreKeys.learnedUnits: jsonEncode(
         snapshot.learnedUnits.toList(),
       ),
-      ProgressSnapshotRepository.seenUnlocksStore: jsonEncode(
-        snapshot.seenUnlocks.toList(),
-      ),
-      ProgressSnapshotRepository.kanjiStatsStore: jsonEncode(
+      ProgressStoreKeys.seenUnlocks: jsonEncode(snapshot.seenUnlocks.toList()),
+      ProgressStoreKeys.kanjiStats: jsonEncode(
         snapshot.kanjiReadingStats.map((k, v) => MapEntry(k, v.toJson())),
       ),
-      ProgressSnapshotRepository.wordStatsStore: jsonEncode(
+      ProgressStoreKeys.wordStats: jsonEncode(
         snapshot.wordStats.map((k, v) => MapEntry(k, v.toJson())),
       ),
     };

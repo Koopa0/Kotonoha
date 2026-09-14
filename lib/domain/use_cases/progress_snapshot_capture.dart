@@ -6,6 +6,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
@@ -28,7 +29,8 @@ class SnapshotExportBlocked implements Exception {
 }
 
 /// Captures the app's in-memory canonical progress into a portable
-/// [ProgressSnapshot] and encodes it.
+/// [ProgressSnapshot] and encodes it — the one read that spans the three
+/// progress owners, so it is a use case rather than a fourth repository.
 ///
 /// It reads the three source repositories' current in-memory state — it never
 /// writes, flushes, removes a key, or notifies a listener. In particular it does
@@ -36,11 +38,10 @@ class SnapshotExportBlocked implements Exception {
 /// succeeded: a mutation that is committed to memory but whose platform write
 /// failed or is still gated is included, because that is the truth the learner
 /// sees. Applying a snapshot back into the stores is deliberately OUT OF SCOPE
-/// here — this owns capture + encode only. The restore transaction (journal +
-/// rollback of these five primaries) lands in a follow-up on the same ticket;
-/// it must not change this capture contract.
-class ProgressSnapshotRepository {
-  ProgressSnapshotRepository({
+/// here — this owns capture + encode only; [ProgressRestoreTransaction] owns
+/// the journalled replace and must not change this capture contract.
+class ProgressSnapshotCapture {
+  ProgressSnapshotCapture({
     required this._kana,
     required this._kanji,
     required this._words,
@@ -54,25 +55,20 @@ class ProgressSnapshotRepository {
   final PreferencesService? _prefs;
   final ProgressSnapshotCodec _codec;
 
-  /// Primary keys of the five snapshot bodies — the same identities the
-  /// source repositories own. Restore must replace exactly these, and an
-  /// unresolved restore journal must name them when it blocks export.
-  static const String kanaStatsStore = 'kana_stats_v1';
-  static const String learnedUnitsStore = 'learned_units_v1';
-  static const String seenUnlocksStore = 'seen_unlocks_v1';
-  static const String kanjiStatsStore = 'kanji_units_v1';
-  static const String wordStatsStore = 'word_stats_v1';
-
-  /// Canonical stores still needing recovery. Empty when export may proceed.
-  /// Unmodifiable — a caller cannot mutate the reported set.
+  /// Canonical stores still needing recovery, named by primary key. Empty
+  /// when export may proceed. Unmodifiable — a caller cannot mutate the
+  /// reported set.
   List<String> get blockedStores => List.unmodifiable([
-    if (_kana.statsHealth == StoreHealth.recoveryRequired) kanaStatsStore,
+    if (_kana.statsHealth == StoreHealth.recoveryRequired)
+      ProgressStoreKeys.kanaStats,
     if (_kana.learnedUnitsHealth == StoreHealth.recoveryRequired)
-      learnedUnitsStore,
+      ProgressStoreKeys.learnedUnits,
     if (_kana.seenUnlocksHealth == StoreHealth.recoveryRequired)
-      seenUnlocksStore,
-    if (_kanji.statsHealth == StoreHealth.recoveryRequired) kanjiStatsStore,
-    if (_words.statsHealth == StoreHealth.recoveryRequired) wordStatsStore,
+      ProgressStoreKeys.seenUnlocks,
+    if (_kanji.statsHealth == StoreHealth.recoveryRequired)
+      ProgressStoreKeys.kanjiStats,
+    if (_words.statsHealth == StoreHealth.recoveryRequired)
+      ProgressStoreKeys.wordStats,
     if (_prefs != null && ProgressRestoreJournal.blocksExport(_prefs))
       ProgressRestoreJournal.journalKey,
   ]);

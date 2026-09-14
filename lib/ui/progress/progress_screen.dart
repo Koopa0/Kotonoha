@@ -3,14 +3,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
-import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
-import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_exporter.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/use_cases/self_portrait.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:provider/provider.dart';
@@ -370,9 +371,12 @@ class _ProgressRestoreState extends State<_ProgressRestore> {
       _restoring = true;
       _status = null;
     });
-    final result = await context.read<ProgressSnapshotRestorer>().restore(
-      confirm: _confirm,
-    );
+    final restorer = context.read<ProgressSnapshotRestorer>();
+    final recovery = context.read<ProgressRestoreRecoveryController>();
+    final result = await restorer.restore(confirm: _confirm);
+    // Whatever the outcome, the app-scoped recovery owner re-reads the
+    // journal so the banner reflects a restore that left progress blocked.
+    await recovery.syncFromPlatform();
     if (!mounted) return;
     setState(() {
       _restoring = false;

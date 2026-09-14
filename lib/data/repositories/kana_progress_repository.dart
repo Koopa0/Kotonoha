@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/data/confusable_sets.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
@@ -32,15 +33,20 @@ class KanaProgressRepository extends ChangeNotifier {
       _seenUnlocks = unlocks.value,
       seenUnlocksHealth = unlocks.health;
 
-  static const String _storageKey = 'kana_stats_v1';
-  static const String _statsLastGoodKey = 'kana_stats_last_good_v1';
-  static const String _statsQuarantineKey = 'kana_stats_quarantine_v1';
-  static const String _learnedKey = 'learned_units_v1';
-  static const String _learnedLastGoodKey = 'learned_units_last_good_v1';
-  static const String _learnedQuarantineKey = 'learned_units_quarantine_v1';
-  static const String _seenUnlocksKey = 'seen_unlocks_v1';
-  static const String _seenUnlocksLastGoodKey = 'seen_unlocks_last_good_v1';
-  static const String _seenUnlocksQuarantineKey = 'seen_unlocks_quarantine_v1';
+  static const String _storageKey = ProgressStoreKeys.kanaStats;
+  static const String _statsLastGoodKey = ProgressStoreKeys.kanaStatsLastGood;
+  static const String _statsQuarantineKey =
+      ProgressStoreKeys.kanaStatsQuarantine;
+  static const String _learnedKey = ProgressStoreKeys.learnedUnits;
+  static const String _learnedLastGoodKey =
+      ProgressStoreKeys.learnedUnitsLastGood;
+  static const String _learnedQuarantineKey =
+      ProgressStoreKeys.learnedUnitsQuarantine;
+  static const String _seenUnlocksKey = ProgressStoreKeys.seenUnlocks;
+  static const String _seenUnlocksLastGoodKey =
+      ProgressStoreKeys.seenUnlocksLastGood;
+  static const String _seenUnlocksQuarantineKey =
+      ProgressStoreKeys.seenUnlocksQuarantine;
 
   /// Kept for [PreferencesService.reload] — the only trustworthy read path
   /// after a failed platform write/remove (legacy cache divergence).

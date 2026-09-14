@@ -1,11 +1,10 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/snapshot_file_port.dart';
-import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
 
 /// What happened when the learner asked to restore from a snapshot file.
 enum SnapshotRestoreStatus {
@@ -39,23 +38,26 @@ class SnapshotRestoreResult {
 }
 
 /// Picks a file, previews it, and — after explicit confirmation — applies the
-/// five portable bodies through [ProgressSnapshotRestoreRepository].
+/// five portable bodies through [ProgressRestoreTransaction].
+///
+/// The transaction leaves the progress owners consistent with durable storage
+/// on every outcome. What the UI shows about a journal left behind is the
+/// app-scoped recovery owner's; the view that issued the restore refreshes it
+/// once this returns.
 class ProgressSnapshotRestorer {
   ProgressSnapshotRestorer({
-    required this._snapshots,
-    required this._restore,
+    required this._capture,
+    required this._transaction,
     required this._files,
-    this._recovery,
   });
 
-  final ProgressSnapshotRepository _snapshots;
-  final ProgressSnapshotRestoreRepository _restore;
+  final ProgressSnapshotCapture _capture;
+  final ProgressRestoreTransaction _transaction;
   final SnapshotFilePort _files;
-  final ProgressRestoreRecoveryController? _recovery;
 
   /// Stores that block restore (unfinished journal only — recoveryRequired may
   /// be fixed by a successful restore).
-  List<String> get blockedStores => _snapshots.blockedStores
+  List<String> get blockedStores => _capture.blockedStores
       .where((s) => s == ProgressRestoreJournal.journalKey)
       .toList(growable: false);
 
@@ -83,7 +85,7 @@ class ProgressSnapshotRestorer {
         break;
     }
 
-    final preview = _restore.previewEncoded(pick.contents!);
+    final preview = _transaction.previewEncoded(pick.contents!);
     if (preview == null) {
       return const SnapshotRestoreResult(SnapshotRestoreStatus.invalid);
     }
@@ -95,23 +97,18 @@ class ProgressSnapshotRestorer {
       );
     }
 
-    Object? applyError;
     try {
-      await _restore.apply(preview.snapshot);
+      await _transaction.apply(preview.snapshot);
     } catch (error) {
-      applyError = error;
-    }
-    await _recovery?.syncFromPlatform();
-    if (applyError != null) {
       return SnapshotRestoreResult(
         SnapshotRestoreStatus.failed,
         preview: preview,
-        detail: applyError is RestoreJournalWriteFailure
-            ? applyError.key
-            : applyError.toString(),
+        detail: error is RestoreJournalWriteFailure
+            ? error.key
+            : error.toString(),
       );
     }
-    final status = _restore.placementDiscardPending
+    final status = _transaction.placementDiscardPending
         ? SnapshotRestoreStatus.restoredPlacementDiscardPending
         : SnapshotRestoreStatus.restored;
     return SnapshotRestoreResult(status, preview: preview);

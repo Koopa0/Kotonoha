@@ -14,9 +14,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -400,8 +400,7 @@ void main() {
     final before = {
       for (final key in RestoreJournalStores.all) key: fake.durable[key],
     };
-    fake.durable[ProgressSnapshotRepository.kanaStatsStore] =
-        '{"partial":true}';
+    fake.durable[ProgressStoreKeys.kanaStats] = '{"partial":true}';
     fake.seed(
       ProgressRestoreJournal.journalKey,
       jsonEncode(<String, Object?>{
@@ -412,12 +411,12 @@ void main() {
         },
       }),
     );
-    fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {2};
+    fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {2};
     await ProgressRestoreJournal.recoverIfNeeded(fake);
     final kana = await KanaProgressRepository.load(fake);
     final kanji = await KanjiReadingRepository.load(fake);
     final words = await WordProgressRepository.load(fake);
-    final recovery = ProgressRestoreRecoveryController(
+    final recovery = recoveryForRepos(
       prefs: fake,
       kana: kana,
       kanji: kanji,
@@ -439,7 +438,7 @@ void main() {
 
   test('restore journal retry failure keeps needsRecovery', () async {
     final (recovery, fake) = await blockingRecoverySetup();
-    fake.failWriteOnAttempt[ProgressSnapshotRepository.learnedUnitsStore] = {3};
+    fake.failWriteOnAttempt[ProgressStoreKeys.learnedUnits] = {3};
 
     await recovery.retry();
 

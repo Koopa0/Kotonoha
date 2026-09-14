@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 
@@ -19,15 +20,12 @@ class PlacementCheckRepository extends ChangeNotifier {
     : _draft = loaded.value,
       health = loaded.health;
 
-  static const String storageKey = 'placement_check_v1';
-  static const String lastGoodKey = 'placement_check_last_good_v1';
-  static const String quarantineKey = 'placement_check_quarantine_v1';
+  static const String storageKey = ProgressStoreKeys.placementCheck;
+  static const String lastGoodKey = ProgressStoreKeys.placementCheckLastGood;
+  static const String quarantineKey =
+      ProgressStoreKeys.placementCheckQuarantine;
 
-  static const List<String> durableKeys = <String>[
-    storageKey,
-    lastGoodKey,
-    quarantineKey,
-  ];
+  static const List<String> durableKeys = ProgressStoreKeys.placementDurable;
 
   final RecoverableStore<PlacementDraft> _store;
   PlacementDraft _draft;

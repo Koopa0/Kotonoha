@@ -3,10 +3,9 @@
 
 import 'dart:convert';
 
-import 'package:kotonoha/data/repositories/placement_check_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 
 /// Phases of an in-flight progress restore. Only [committed] (or a cleared
 /// journal after it) is finished. Anything else on the next [recoverIfNeeded]
@@ -44,21 +43,16 @@ class RestoreJournalRecoveryResult {
 }
 
 /// Primary keys participating in a restore transaction — the same five bodies
-/// [ProgressSnapshotRepository] captures.
+/// a snapshot captures ([ProgressStoreKeys.portableBodies]). The journal knows
+/// the names only; it never depends on the repositories that own them.
 abstract final class RestoreJournalStores {
-  static const all = <String>[
-    ProgressSnapshotRepository.kanaStatsStore,
-    ProgressSnapshotRepository.learnedUnitsStore,
-    ProgressSnapshotRepository.seenUnlocksStore,
-    ProgressSnapshotRepository.kanjiStatsStore,
-    ProgressSnapshotRepository.wordStatsStore,
-  ];
+  static const all = ProgressStoreKeys.portableBodies;
 }
 
 /// Placement draft keys snapshotted when a restore must invalidate a stale
 /// check. Rolled back with the five primaries when commit never lands.
 abstract final class RestoreJournalPlacementStores {
-  static const all = PlacementCheckRepository.durableKeys;
+  static const all = ProgressStoreKeys.placementDurable;
 }
 
 class _ValidatedJournal {
@@ -87,7 +81,7 @@ class _ValidatedJournal {
 class ProgressRestoreJournal {
   ProgressRestoreJournal(this._prefs);
 
-  static const String journalKey = 'progress_restore_journal_v1';
+  static const String journalKey = ProgressStoreKeys.restoreJournal;
 
   final PreferencesService _prefs;
 
@@ -129,9 +123,7 @@ class ProgressRestoreJournal {
       return const RestoreJournalRecoveryResult(needsRecovery: true);
     }
     await journal._removeJournalBestEffort();
-    return RestoreJournalRecoveryResult(
-      needsRecovery: blocksExport(prefs),
-    );
+    return RestoreJournalRecoveryResult(needsRecovery: blocksExport(prefs));
   }
 
   bool get _rawPresent => _prefs.readString(journalKey) != null;
@@ -243,7 +235,9 @@ class ProgressRestoreJournal {
     return await _rollbackPlacement(parsed.placementRollback);
   }
 
-  Future<bool> _rollbackPlacement(Map<String, String?>? placementRollback) async {
+  Future<bool> _rollbackPlacement(
+    Map<String, String?>? placementRollback,
+  ) async {
     if (placementRollback == null) return true;
     for (final key in RestoreJournalPlacementStores.all) {
       if (!placementRollback.containsKey(key)) return false;

@@ -2,30 +2,26 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/foundation.dart';
-import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/word_progress_repository.dart';
-import 'package:kotonoha/data/services/preferences_service.dart';
-import 'package:kotonoha/data/services/progress_restore_journal.dart';
-import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_recovery.dart';
 
-/// App-scoped owner of restore-journal startup recovery. When
-/// [ProgressRestoreJournal.recoverIfNeeded] cannot finish, the three progress
-/// repositories refuse normal learning writes until [retry] succeeds.
+/// App-scoped, observable owner of restore-journal recovery as the UI sees
+/// it: whether a blocking journal remains ([needsRecovery]) and whether a
+/// [retry] is in flight. The cross-owner work — re-reading the journal,
+/// reloading the three progress repositories, refusing learning writes — is
+/// [ProgressRestoreRecovery]'s; this only records the outcome and notifies.
+///
+/// Lifetime above any route, so the banner and the placement screens read one
+/// truth. [syncFromPlatform] is how the view that ran an in-session restore
+/// hands the outcome back.
 class ProgressRestoreRecoveryController extends ChangeNotifier {
   ProgressRestoreRecoveryController({
-    required this._prefs,
-    required this._kana,
-    required this._kanji,
-    required this._words,
+    required this._recovery,
     required bool needsRecovery,
   }) : _needsRecovery = needsRecovery {
-    _applyBlocking(needsRecovery);
+    _recovery.applyBlocking(needsRecovery);
   }
 
-  final PreferencesService _prefs;
-  final KanaProgressRepository _kana;
-  final KanjiReadingRepository _kanji;
-  final WordProgressRepository _words;
+  final ProgressRestoreRecovery _recovery;
 
   bool _needsRecovery;
   bool _retrying = false;
@@ -38,9 +34,7 @@ class ProgressRestoreRecoveryController extends ChangeNotifier {
   /// Re-reads the journal from durable storage and applies blocking when an
   /// in-session restore leaves progress in a mixed or unfinished state.
   Future<void> syncFromPlatform() async {
-    await _prefs.reload();
-    final needs = ProgressRestoreJournal.needsRecovery(_prefs);
-    _applyBlocking(needs);
+    final needs = await _recovery.syncFromPlatform();
     if (needs == _needsRecovery) return;
     _needsRecovery = needs;
     notifyListeners();
@@ -51,25 +45,11 @@ class ProgressRestoreRecoveryController extends ChangeNotifier {
     _retrying = true;
     notifyListeners();
     try {
-      final result = await ProgressRestoreJournal.recoverIfNeeded(_prefs);
-      if (!result.needsRecovery) {
-        await Future.wait([
-          _kana.reloadFromPlatform(),
-          _kanji.reloadFromPlatform(),
-          _words.reloadFromPlatform(),
-        ]);
-        _needsRecovery = false;
-        _applyBlocking(false);
-      }
+      final needs = await _recovery.recover();
+      if (!needs) _needsRecovery = false;
     } finally {
       _retrying = false;
       notifyListeners();
     }
-  }
-
-  void _applyBlocking(bool blocked) {
-    _kana.setRestoreJournalBlocked(blocked);
-    _kanji.setRestoreJournalBlocked(blocked);
-    _words.setRestoreJournalBlocked(blocked);
   }
 }

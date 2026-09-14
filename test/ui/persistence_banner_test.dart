@@ -19,6 +19,7 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/use_cases/progress_restore_recovery.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -175,10 +176,12 @@ void main() {
       final kanji = await KanjiReadingRepository.load(fake);
       final words = await WordProgressRepository.load(fake);
       final recovery = _TrackingRestoreRecoveryController(
-        prefs: fake,
-        kana: kana,
-        kanji: kanji,
-        words: words,
+        recovery: ProgressRestoreRecovery(
+          prefs: fake,
+          kana: kana,
+          kanji: kanji,
+          words: words,
+        ),
         needsRecovery: true,
       );
       final owner = ownerFor(kana, kanji);
@@ -209,10 +212,7 @@ void main() {
 class _TrackingRestoreRecoveryController
     extends ProgressRestoreRecoveryController {
   _TrackingRestoreRecoveryController({
-    required super.prefs,
-    required super.kana,
-    required super.kanji,
-    required super.words,
+    required super.recovery,
     required super.needsRecovery,
   });
 

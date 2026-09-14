@@ -3,10 +3,10 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
-import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
+import 'package:kotonoha/domain/use_cases/progress_snapshot_capture.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -44,7 +44,7 @@ void main() {
     await kanji.recordAnswer(jinReading, correct: true, at: now);
     await words.recordAnswer('word:いぬ', correct: true, at: now);
 
-    final snap = ProgressSnapshotRepository(
+    final snap = ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -67,7 +67,7 @@ void main() {
     final (kana, kanji, words) = await loadAll(fake);
     await kana.markUnitLearned('a_unit_no_longer_in_any_dataset');
 
-    final snap = ProgressSnapshotRepository(
+    final snap = ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -87,7 +87,7 @@ void main() {
     await expectLater(mutation, throwsA(isA<StoreWriteFailure>()));
 
     // The failed mutation still lives in memory → capture includes it.
-    final snap = ProgressSnapshotRepository(
+    final snap = ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -113,7 +113,7 @@ void main() {
     final pending = kana.recordAnswer(a, correct: true, at: now);
     await gate.entered; // frozen inside the platform write, not yet acked
 
-    final snap = ProgressSnapshotRepository(
+    final snap = ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -132,7 +132,7 @@ void main() {
       final a = kana.allKana.first;
       await kana.recordAnswer(a, correct: true, at: now);
 
-      final repo = ProgressSnapshotRepository(
+      final repo = ProgressSnapshotCapture(
         kana: kana,
         kanji: kanji,
         words: words,
@@ -153,7 +153,7 @@ void main() {
   test('legal empty stores export a valid empty snapshot', () async {
     final fake = FakePreferencesService();
     final (kana, kanji, words) = await loadAll(fake);
-    final repo = ProgressSnapshotRepository(
+    final repo = ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -176,7 +176,7 @@ void main() {
         final (kana, kanji, words) = await loadAll(fake);
         expect(kana.statsHealth, StoreHealth.recoveryRequired);
 
-        final repo = ProgressSnapshotRepository(
+        final repo = ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -202,7 +202,7 @@ void main() {
         final (kana, kanji, words) = await loadAll(fake);
         expect(kanji.statsHealth, StoreHealth.recoveryRequired);
 
-        final repo = ProgressSnapshotRepository(
+        final repo = ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -232,7 +232,7 @@ void main() {
         final (kana, kanji, words) = await loadAll(fake);
         expect(words.statsHealth, StoreHealth.recoveryRequired);
 
-        final repo = ProgressSnapshotRepository(
+        final repo = ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -257,7 +257,7 @@ void main() {
       final (kana, kanji, words) = await loadAll(fake);
       expect(kana.statsHealth, StoreHealth.salvaged);
 
-      final snap = ProgressSnapshotRepository(
+      final snap = ProgressSnapshotCapture(
         kana: kana,
         kanji: kanji,
         words: words,
@@ -281,7 +281,7 @@ void main() {
       final durableBefore = Map<String, String>.of(fake.durable);
       final writeLogBefore = List<String>.of(fake.writeLog);
 
-      ProgressSnapshotRepository(
+      ProgressSnapshotCapture(
         kana: kana,
         kanji: kanji,
         words: words,
@@ -311,7 +311,7 @@ void main() {
 
     // capture() returns a value synchronously (not a Future), so nothing can
     // interleave between reading the kana and the kanji memory.
-    final snap = ProgressSnapshotRepository(
+    final snap = ProgressSnapshotCapture(
       kana: kana,
       kanji: kanji,
       words: words,
@@ -335,7 +335,7 @@ void main() {
       final (kana, kanji, words) = await loadAll(fake);
       expect(kana.learnedUnitsHealth, StoreHealth.recoveryRequired);
       expect(
-        () => ProgressSnapshotRepository(
+        () => ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -356,7 +356,7 @@ void main() {
       final (kana, kanji, words) = await loadAll(fake);
       expect(kana.seenUnlocksHealth, StoreHealth.recoveryRequired);
       expect(
-        () => ProgressSnapshotRepository(
+        () => ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -378,7 +378,7 @@ void main() {
       fake.seed('kanji_units_v1', 'not json');
       final (kana, kanji, words) = await loadAll(fake);
       expect(
-        () => ProgressSnapshotRepository(
+        () => ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -405,7 +405,7 @@ void main() {
         fake.seed('kana_stats_last_good_v1', '{"あ":{"s":3,"c":2,"w":1}}');
         final (kana, kanji, words) = await loadAll(fake);
         expect(kana.statsHealth, StoreHealth.restored);
-        final snap = ProgressSnapshotRepository(
+        final snap = ProgressSnapshotCapture(
           kana: kana,
           kanji: kanji,
           words: words,
@@ -421,7 +421,7 @@ void main() {
       fake.failWrites.add('kana_stats_quarantine_v1');
       final (kana, kanji, words) = await loadAll(fake);
       expect(kana.statsHealth, StoreHealth.preservationPending);
-      final snap = ProgressSnapshotRepository(
+      final snap = ProgressSnapshotCapture(
         kana: kana,
         kanji: kanji,
         words: words,
@@ -436,7 +436,7 @@ void main() {
         fake.seed('kana_stats_v1', 'not json');
         final (kana, kanji, words) = await loadAll(fake);
         try {
-          ProgressSnapshotRepository(
+          ProgressSnapshotCapture(
             kana: kana,
             kanji: kanji,
             words: words,
@@ -452,7 +452,7 @@ void main() {
       final fake = FakePreferencesService();
       fake.seed('kana_stats_v1', 'not json');
       final (kana, kanji, words) = await loadAll(fake);
-      final stores = ProgressSnapshotRepository(
+      final stores = ProgressSnapshotCapture(
         kana: kana,
         kanji: kanji,
         words: words,

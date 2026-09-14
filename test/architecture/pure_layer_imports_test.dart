@@ -33,17 +33,75 @@ void main() {
     );
   });
 
-  test('repositories never import use_cases (the dependency points one way)', () {
+  test(
+    'the data layer never imports use_cases (the dependency points one way)',
+    () {
+      final offenders = _scan(
+        dirs: ['lib/data', 'lib/kanji/data'],
+        forbidden: RegExp('''^\\s*(?:import|export)\\s+['"].*use_cases/'''),
+      );
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'a use_case MAY depend on a repository or service, never the '
+            'reverse — found:\n${offenders.join('\n')}',
+      );
+    },
+  );
+
+  test('the data layer never imports the UI layer', () {
     final offenders = _scan(
-      dirs: ['lib/data/repositories', 'lib/kanji/data/repositories'],
-      forbidden: RegExp('''^\\s*import\\s+['"].*use_cases/'''),
+      dirs: ['lib/data', 'lib/kanji/data'],
+      forbidden: RegExp(
+        '''^\\s*(?:import|export)\\s+['"]package:kotonoha/(?:kanji/)?ui/''',
+      ),
     );
     expect(
       offenders,
       isEmpty,
       reason:
-          'a use_case MAY depend on a repository, never the reverse — found:\n'
-          '${offenders.join('\n')}',
+          'data must not know the widgets or controllers that observe it — '
+          'found:\n${offenders.join('\n')}',
+    );
+  });
+
+  test('services never import repositories (services sit below them)', () {
+    final offenders = _scan(
+      dirs: ['lib/data/services'],
+      forbidden: RegExp('''^\\s*(?:import|export)\\s+['"].*repositories/'''),
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'a service wraps a platform source or a storage contract; the '
+          'journal and the store keys must not depend on the repositories '
+          'that own them — found:\n${offenders.join('\n')}',
+    );
+  });
+
+  test('the data layer has no import cycles', () {
+    final files = _dartFilesUnder(['lib/data', 'lib/kanji/data']);
+    final edges = <String, List<String>>{};
+    final pattern = RegExp(
+      '''^\\s*(?:import|export)\\s+['"]package:kotonoha/((?:kanji/)?data/[^'"]+)['"]''',
+    );
+    for (final file in files) {
+      final from = file.path.replaceFirst(RegExp('^lib/'), '');
+      edges[from] = [
+        for (final line in file.readAsLinesSync())
+          if (pattern.firstMatch(line) case final m?) m.group(1)!,
+      ];
+    }
+    final cycle = _firstCycle(edges);
+    expect(
+      cycle,
+      isNull,
+      reason:
+          'the backup / restore layer once had journal → repository → journal; '
+          'a cycle means two files own each other — found:\n'
+          '${cycle?.join(' → ')}',
     );
   });
 
@@ -166,4 +224,34 @@ List<String> _scan({required List<String> dirs, required RegExp forbidden}) {
     }
   }
   return offenders;
+}
+
+/// The first import cycle in [edges] as a path that starts and ends on the
+/// same file, or null when the graph is acyclic. Plain DFS with a grey set.
+List<String>? _firstCycle(Map<String, List<String>> edges) {
+  final done = <String>{};
+  final stack = <String>[];
+  final onStack = <String>{};
+  List<String>? visit(String node) {
+    if (onStack.contains(node)) {
+      return [...stack.sublist(stack.indexOf(node)), node];
+    }
+    if (done.contains(node)) return null;
+    stack.add(node);
+    onStack.add(node);
+    for (final next in edges[node] ?? const <String>[]) {
+      final found = visit(next);
+      if (found != null) return found;
+    }
+    stack.removeLast();
+    onStack.remove(node);
+    done.add(node);
+    return null;
+  }
+
+  for (final node in edges.keys) {
+    final found = visit(node);
+    if (found != null) return found;
+  }
+  return null;
 }
