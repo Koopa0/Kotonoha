@@ -200,6 +200,9 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(
+            value: await KanaProgressRepository.load(),
+          ),
           ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: persistence,
@@ -245,6 +248,9 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(
+            value: await KanaProgressRepository.load(),
+          ),
           ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
           ChangeNotifierProvider<ProgressPersistenceController>.value(
             value: persistence,

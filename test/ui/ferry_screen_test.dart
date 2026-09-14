@@ -277,9 +277,21 @@ void main() {
         zhNote: '中文直覺的「廁紙」,日文是別的詞。',
       ),
     );
+    final wordRepo = await WordProgressRepository.load();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(
+            value: await KanaProgressRepository.load(),
+          ),
+          ChangeNotifierProvider<WordProgressRepository>.value(value: wordRepo),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: () async {},
+              kanjiFlush: () async {},
+              wordFlush: wordRepo.flushPending,
+            ),
+          ),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
         ],
