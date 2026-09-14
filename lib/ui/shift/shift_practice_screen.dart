@@ -9,6 +9,7 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/shift_session.dart';
+import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';

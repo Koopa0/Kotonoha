@@ -47,7 +47,7 @@ void main() {
     );
   });
 
-  test('ViewModels hold no Timer / Navigator / BuildContext (the View owns those)', () {
+  test('ViewModels hold no view dependencies (widgets, timers, or navigation)', () {
     // Match the current naming convention. If the convention ever changes the
     // scanned-files assertion below fails loudly instead of the guard silently
     // matching nothing.
@@ -61,7 +61,9 @@ void main() {
           'no *viewmodel.dart files found — the naming convention moved '
           'and this guard is scanning nothing; update the glob',
     );
-    final forbidden = RegExp(r'\b(Timer\s*[.(]|Navigator\.|BuildContext\b)');
+    final forbidden = RegExp(
+      r"""\b(Timer\s*[.(]|Navigator\.|BuildContext\b)|^\s*(?:import|export)\s+['"].*(?:/widgets/|_screen\.dart|package:flutter/(?:material|cupertino|widgets)\.dart)""",
+    );
     final offenders = <String>[];
     for (final file in viewmodelFiles) {
       for (final line in file.readAsLinesSync()) {
@@ -76,7 +78,7 @@ void main() {
       offenders,
       isEmpty,
       reason:
-          'ViewModels are pure ChangeNotifiers — cosmetic delays and routing '
+          'ViewModels must not depend on widgets — cosmetic delays and routing '
           'belong to the View. Found:\n${offenders.join('\n')}',
     );
   });
