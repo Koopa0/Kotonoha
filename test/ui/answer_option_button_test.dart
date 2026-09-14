@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 
 void main() {

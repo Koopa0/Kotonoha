@@ -15,6 +15,7 @@ import 'package:kotonoha/kanji/domain/use_cases/kanji_prompt.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 import 'package:kotonoha/kanji/kanji_mode.dart';
+import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';

@@ -9,8 +9,8 @@ import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
 import 'package:kotonoha/domain/models/session_item.dart';
+import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
-import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 
 /// Owns the state and logic of one session: the cursor, the selected answer,
 /// scoring, persistence, and analytics. Mode is per-item (so an adaptive

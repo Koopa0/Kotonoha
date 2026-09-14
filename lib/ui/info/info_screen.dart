@@ -10,6 +10,7 @@ import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/info_drill.dart';
 import 'package:kotonoha/domain/use_cases/reply_session.dart';
+import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
