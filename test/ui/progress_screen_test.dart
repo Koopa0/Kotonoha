@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
@@ -394,6 +395,10 @@ void main() {
       reason: 'scrolled travel tail must sit inside the dialog viewport',
     );
     expect(travelTail.hitTestable(), findsOneWidget);
+    _expectDialogBodyNotClipped(
+      tester,
+      find.descendant(of: dialog, matching: find.textContaining('備份時間')),
+    );
     expect(
       find.text(AppStrings.restoreConfirmNo).hitTestable(),
       findsOneWidget,
@@ -441,5 +446,28 @@ void main() {
       expect(button.onPressed, isNull);
       expect(files.saveCalls, 0);
     },
+  );
+}
+
+void _expectDialogBodyNotClipped(WidgetTester tester, Finder textFinder) {
+  final paragraph = tester.renderObject<RenderParagraph>(textFinder);
+  final painter = TextPainter(
+    text: paragraph.text,
+    textDirection: paragraph.textDirection,
+    textScaler: paragraph.textScaler,
+    textAlign: paragraph.textAlign,
+    locale: paragraph.locale,
+    strutStyle: paragraph.strutStyle,
+    textHeightBehavior: paragraph.textHeightBehavior,
+    textWidthBasis: paragraph.textWidthBasis,
+    maxLines: paragraph.maxLines,
+  )..layout(maxWidth: paragraph.constraints.maxWidth);
+
+  expect(
+    paragraph.size.height + 0.5,
+    greaterThanOrEqualTo(painter.height),
+    reason:
+        'dialog body clipped: box=${paragraph.size.height.toStringAsFixed(1)} '
+        'natural=${painter.height.toStringAsFixed(1)}',
   );
 }
