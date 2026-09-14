@@ -6,12 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/use_cases/kana_tokenizer.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/dictation/dictation_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
@@ -19,6 +21,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/fake_tts_client.dart';
+import '../support/restore_recovery_test_support.dart';
 
 DateTime _noon() => DateTime(2026, 9, 11, 12);
 
@@ -34,6 +37,12 @@ Future<void> _pumpHome(
   required WordProgressRepository words,
 }) async {
   final kanji = await KanjiReadingRepository.load();
+  final recovery = recoveryForRepos(
+    prefs: await PreferencesService.create(),
+    kana: kana,
+    kanji: kanji,
+    words: words,
+  );
   await tester.binding.setSurfaceSize(const Size(420, 2600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -48,6 +57,9 @@ Future<void> _pumpHome(
             kanjiFlush: kanji.flushPending,
             wordFlush: words.flushPending,
           ),
+        ),
+        ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+          value: recovery,
         ),
         Provider<SpeechService>.value(
           value: ScriptedSpeechService(const [SpeechPlaybackResult.played]),

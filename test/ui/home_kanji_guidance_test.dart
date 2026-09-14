@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/phrase_dataset.dart';
 import 'package:kotonoha/domain/data/word_dataset.dart';
@@ -18,10 +19,13 @@ import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
 import 'package:kotonoha/kanji/ui/kanji_quiz_screen.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/widgets/answer_option_button.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 /// #15: Home guidance → tap → the kanji session the line promised.
 void main() {
@@ -82,6 +86,12 @@ void main() {
     })
     repos,
   ) async {
+    final recovery = recoveryForRepos(
+      prefs: await PreferencesService.create(),
+      kana: repos.kana,
+      kanji: repos.kanji,
+      words: repos.words,
+    );
     await tester.binding.setSurfaceSize(const Size(420, 2000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -102,6 +112,9 @@ void main() {
               kanjiFlush: repos.kanji.flushPending,
               wordFlush: repos.words.flushPending,
             ),
+          ),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
           ),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
           Provider<AnalyticsLog>.value(value: InMemoryAnalyticsLog()),

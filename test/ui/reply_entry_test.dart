@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/use_cases/lessons.dart';
@@ -13,6 +14,7 @@ import 'package:kotonoha/domain/use_cases/reply_session.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
+import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
@@ -23,6 +25,8 @@ import 'package:kotonoha/ui/shift/shift_focus_screen.dart';
 import 'package:kotonoha/ui/travel/travel_scene_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/restore_recovery_test_support.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -35,9 +39,16 @@ void main() {
     })
   >
   pumpHome(WidgetTester tester) async {
-    final kana = await KanaProgressRepository.load();
-    final words = await WordProgressRepository.load();
-    final kanji = await KanjiReadingRepository.load();
+    final prefs = await PreferencesService.create();
+    final kana = await KanaProgressRepository.load(prefs);
+    final words = await WordProgressRepository.load(prefs);
+    final kanji = await KanjiReadingRepository.load(prefs);
+    final recovery = recoveryForRepos(
+      prefs: prefs,
+      kana: kana,
+      kanji: kanji,
+      words: words,
+    );
     final analytics = InMemoryAnalyticsLog();
     await tester.binding.setSurfaceSize(const Size(420, 3200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -53,6 +64,9 @@ void main() {
               kanjiFlush: kanji.flushPending,
               wordFlush: words.flushPending,
             ),
+          ),
+          ChangeNotifierProvider<ProgressRestoreRecoveryController>.value(
+            value: recovery,
           ),
           Provider<SpeechService>.value(value: const SilentSpeechService()),
           Provider<AnalyticsLog>.value(value: analytics),
