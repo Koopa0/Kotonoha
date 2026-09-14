@@ -168,7 +168,7 @@ class ProgressRestoreJournal {
       'phase': RestoreJournalPhase.staging.name,
       'rollback': rollback,
       'staging': stagingEncoded,
-      if (placementRollback != null) 'placementRollback': placementRollback,
+      'placementRollback': ?placementRollback,
     });
   }
 
