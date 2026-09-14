@@ -70,6 +70,19 @@ class _PersistenceBannerState extends State<PersistenceBanner> {
   }
 
   Widget? _banner(ProgressPersistenceController controller) {
+    // A blocking journal recovery outranks runtime write failures.
+    final restoreRecovery = context.watch<ProgressRestoreRecoveryController>();
+    if (restoreRecovery.needsRecovery) {
+      final retrying = restoreRecovery.isRetrying;
+      return _PersistenceSurface(
+        message: AppStrings.restoreJournalRecoveryLine,
+        detail: AppStrings.restoreJournalRecoveryDetail,
+        actionLabel: retrying
+            ? AppStrings.persistRetrying
+            : AppStrings.persistRetry,
+        onAction: retrying ? null : restoreRecovery.retry,
+      );
+    }
     // A live write failure outranks the informational recovery notice.
     if (controller.hasWriteFailure) {
       final retrying = controller.isRetrying;
@@ -82,18 +95,6 @@ class _PersistenceBannerState extends State<PersistenceBanner> {
         // Disabled while a retry is in flight, so a second tap is visibly not a
         // live button rather than silently swallowed.
         onAction: retrying ? null : controller.retry,
-      );
-    }
-    final restoreRecovery = context.watch<ProgressRestoreRecoveryController>();
-    if (restoreRecovery.needsRecovery) {
-      final retrying = restoreRecovery.isRetrying;
-      return _PersistenceSurface(
-        message: AppStrings.restoreJournalRecoveryLine,
-        detail: AppStrings.restoreJournalRecoveryDetail,
-        actionLabel: retrying
-            ? AppStrings.persistRetrying
-            : AppStrings.persistRetry,
-        onAction: retrying ? null : restoreRecovery.retry,
       );
     }
     final copy = _recoveryCopy(controller.recoveryNotice);
