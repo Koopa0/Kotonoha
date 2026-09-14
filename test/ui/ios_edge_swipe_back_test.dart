@@ -13,6 +13,7 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
+import 'package:kotonoha/ui/core/widgets/progress_ring.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/study/study_screen.dart';
@@ -39,6 +40,32 @@ void main() {
       expect(find.byType(LessonsScreen), findsNothing);
     });
   });
+
+  testWidgets(
+    'iOS Lessons mid edge swipe keeps opaque washi (no Home bleed-through)',
+    (tester) async {
+      await _runIos(() async {
+        await _pumpApp(tester);
+
+        await tester.tap(find.text(AppStrings.learnNewKanaAction));
+        await tester.pumpAndSettle();
+        expect(find.byType(LessonsScreen), findsOneWidget);
+        expect(find.byType(ProgressRing), findsNothing);
+
+        final gesture = await tester.startGesture(const Offset(1, 300));
+        await gesture.moveBy(const Offset(140, 0));
+        await tester.pump();
+
+        expect(find.byType(LessonsScreen), findsOneWidget);
+        expect(find.byType(ProgressRing), findsNothing);
+        expect(find.text(AppStrings.learnNewKanaAction), findsNothing);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(find.byType(LessonsScreen), findsOneWidget);
+      });
+    },
+  );
 
   testWidgets('iOS Home→Lessons short edge swipe cancels and stays', (
     tester,
