@@ -7,14 +7,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
-import 'package:kotonoha/kanji/domain/models/kanji_reading_question.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 import 'package:kotonoha/kanji/domain/use_cases/kanji_prompt.dart';
-import 'package:kotonoha/kanji/domain/use_cases/kanji_reading_quiz.dart';
-import 'package:kotonoha/kanji/domain/use_cases/kanji_units.dart';
-import 'package:kotonoha/kanji/kanji_mode.dart';
+import 'package:kotonoha/kanji/ui/kanji_quiz_viewmodel.dart';
 import 'package:kotonoha/ui/core/answer_option_state.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -34,6 +30,11 @@ import 'package:provider/provider.dart';
 /// the same run. The meaning is never glossed while asking: a 漢字-literate
 /// reader already owns it, and the only thing missing is the sound. No score
 /// on screen, no clock; the per-unit Leitner advances either way.
+///
+/// A thin View over [KanjiQuizViewModel]: it owns the speaker (the owned
+/// utterance, whether the app may play), the lifecycle listener, rendering
+/// and navigation. The route (teach vs. recall), the question, the verdict
+/// and every schedule or analytics write are the ViewModel's.
 class KanjiQuizScreen extends StatefulWidget {
   KanjiQuizScreen({
     required this.units,
@@ -61,33 +62,27 @@ class KanjiQuizScreen extends StatefulWidget {
 }
 
 class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late final KanjiQuizViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  int _index = 0;
-  bool _done = false;
+  int _shownIndex = 0;
+  bool _shownAnswered = false;
 
-  // Captured once on entering a unit: a teach beat flips isSeen, so the route
-  // must not be re-derived from the live stat mid-beat. Each unit appears at
-  // most once per session (KanjiSession.compose is one-pass), so a unit is
-  // taught XOR recalled in a session — teach-before-test holds by construction.
-  bool _isTeach = true;
-  Set<String> _validReadings = const {};
-  KanjiReadingQuestion? _question; // recall only
-  int? _picked; // recall: chosen option index, null until committed
-
-  int _graded = 0; // recall beats answered
-  int _correct = 0; // recall beats answered correctly
-
-  KanjiUnit get _current => widget.units[_index];
-  String get _spoken => _current.reading;
-  bool get _isLast => _index + 1 >= widget.units.length;
+  String get _spoken => _vm.current.reading;
 
   @override
   void initState() {
     super.initState();
+    _vm = KanjiQuizViewModel(
+      units: widget.units,
+      kanji: context.read<KanjiReadingRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      rng: widget.rng,
+    )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -97,7 +92,6 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
       onResume: _onResumed,
     );
     _playable = _foreground;
-    _route();
     WidgetsBinding.instance.addPostFrameCallback((_) => _speakIfTeach());
   }
 
@@ -105,6 +99,8 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
@@ -126,26 +122,10 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     }
   }
 
-  void _route() {
-    final repo = context.read<KanjiReadingRepository>();
-    final p = _current;
-    _isTeach = !repo.statForUnit(p.id).isSeen;
-    _picked = null;
-    _validReadings = KanjiPrompt.validReadings(p);
-    _question = _isTeach
-        ? null
-        : const KanjiReadingQuiz().buildQuestion(
-            p,
-            widget.units,
-            repo.allKanji,
-            widget.rng,
-          );
-  }
-
   // Ear-first: the reading is heard on a teach beat. Recall stays silent until
   // the learner has chosen (cold), so the sound can't give the answer away.
   void _speakIfTeach() {
-    if (!_isTeach || !mounted) return;
+    if (!_vm.isTeach || !mounted) return;
     _speak(_spoken);
   }
 
@@ -155,149 +135,42 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
     _ownedPlay = _speech.generation;
   }
 
-  void _advance() {
-    if (_isLast) {
-      setState(() => _done = true);
+  /// Session transitions are the ViewModel's; what they mean for the
+  /// utterance is the view's. A new unit speaks its teach beat once it has a
+  /// frame; a recall choice sounds the confirmed reading.
+  void _onChanged() {
+    if (_vm.isFinished) return;
+    if (_vm.index != _shownIndex) {
+      _shownIndex = _vm.index;
+      _shownAnswered = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _speakIfTeach());
       return;
     }
-    _index++;
-    _route(); // read the repo + build the question outside setState
-    setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) => _speakIfTeach());
-  }
-
-  void _logAttempt({
-    required bool correct,
-    required String beat,
-    required DateTime now,
-    String? chosen,
-    KanjiUnit? item,
-    String? scheduledId,
-    bool scored = true,
-  }) {
-    final p = item ?? _current;
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: p.id,
-        itemType: ItemType.kanji,
-        mode: KanjiMode.kanjiReading.name,
-        correct: correct,
-        sessionId: _sessionId,
-        meta: {
-          'written': p.written,
-          'reading': p.reading,
-          // Separates honest encodes from graded recalls in the stream, so a
-          // teach exposure is never read as a passed test.
-          'beat': beat,
-          'chosen': ?chosen,
-          if (scheduledId != null && scheduledId != p.id)
-            'scheduled': scheduledId,
-          if (!scored) 'scored': false,
-        },
-      ),
-    );
-  }
-
-  // TEACH 次へ: record an honest ENCODE (untimed correct → isSeen, so it returns
-  // as a recall in a future session). Not a graded test, not counted in the score.
-  // Untimed by design — there is no clock anywhere on this screen: ReadingStat is
-  // a plain untimed Leitner (its RT/CVRT machinery was retired 2026-06-03; kanji
-  // mastery is retrieval, not a reflex — see furigana_terminal_fade_test).
-  void _teachNext() {
-    final now = DateTime.now();
-    context.read<ProgressPersistenceController>().trackKanji(
-      context.read<KanjiReadingRepository>().recordAnswer(
-        _current.id,
-        correct: true,
-        at: now,
-      ),
-    );
-    _logAttempt(correct: true, beat: 'teach', now: now);
-    _advance();
-  }
-
-  // RECALL pick: graded but untimed (latencyMs null — no clock; see _teachNext),
-  // then the sound confirms AFTER the choice.
-  //
-  // A legal alternate (毎年 → ねん while the stem asked とし) is not a miss,
-  // but it is also not retrieval of the scheduled reading. Credit the
-  // harvested sibling when that reading is already seen; otherwise accept
-  // without moving anyone's Leitner. A real miss still lands on [_current].
-  void _answer(int i) {
-    if (_picked != null) return;
-    final now = DateTime.now();
-    final chosen = _question!.options[i];
-    final target = _current;
-    final legal = _validReadings.contains(chosen);
-    final repo = context.read<KanjiReadingRepository>();
-
-    final KanjiUnit eventUnit;
-    final String? scoreId;
-    final bool scoreCorrect;
-    String? scheduledId;
-
-    if (!legal) {
-      eventUnit = target;
-      scoreId = target.id;
-      scoreCorrect = false;
-    } else if (chosen == target.reading) {
-      eventUnit = target;
-      scoreId = target.id;
-      scoreCorrect = true;
-    } else {
-      final sibling = KanjiPrompt.creditedUnit(
-        target,
-        chosen,
-        corpus: kKanjiUnits,
-      );
-      scheduledId = target.id;
-      eventUnit =
-          sibling ??
-          KanjiUnit(
-            written: target.written,
-            reading: chosen,
-            example: target.example,
-          );
-      final canCredit = sibling != null && repo.statForUnit(sibling.id).isSeen;
-      scoreId = canCredit ? sibling.id : null;
-      scoreCorrect = true;
+    if (_vm.isAnswered && !_shownAnswered) {
+      _shownAnswered = true;
+      _speak(_vm.confirmedReading!);
     }
-
-    if (scoreId != null) {
-      context.read<ProgressPersistenceController>().trackKanji(
-        repo.recordAnswer(scoreId, correct: scoreCorrect, at: now),
-      );
-    }
-    _logAttempt(
-      item: eventUnit,
-      correct: legal,
-      beat: 'recall',
-      now: now,
-      chosen: chosen,
-      scheduledId: scheduledId,
-      scored: scoreId != null,
-    );
-    _speak(legal ? chosen : target.reading);
-    setState(() {
-      _graded++;
-      if (legal) _correct++;
-      _picked = i;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _session()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _session(),
+        ),
+      ),
     );
   }
 
   Widget _summary() => SessionSummary(
     // A teach-only first session has nothing graded — show no count (never a
     // hollow 0/0), just the closing fact.
-    headline: _graded == 0 ? '' : AppStrings.readingSummary(_correct, _graded),
+    headline: _vm.gradedCount == 0
+        ? ''
+        : AppStrings.readingSummary(_vm.correctCount, _vm.gradedCount),
     note: AppStrings.closingNote(
       widget.units.first.written,
       band: ClosingBand.forHour(DateTime.now().hour),
@@ -306,12 +179,13 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   );
 
   Widget _session() {
-    final answered = _picked != null;
+    final isTeach = _vm.isTeach;
+    final answered = _vm.isAnswered;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.units.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -323,7 +197,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
             child: Column(
               children: [
                 _card(),
-                if (!_isTeach) ...[const SizedBox(height: 20), _options()],
+                if (!isTeach) ...[const SizedBox(height: 20), _options()],
               ],
             ),
           ),
@@ -332,15 +206,15 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           // Teach + recall-answered advance with a button; while a recall is
           // still being asked, the option grid is the only action.
-          child: (_isTeach || answered)
+          child: (isTeach || answered)
               ? SizedBox(
                   height: 54,
                   child: FilledButton(
-                    onPressed: _isTeach ? _teachNext : _advance,
+                    onPressed: isTeach ? _vm.teachNext : _vm.advance,
                     // A teach beat just moves on (an all-teach session has no
                     // results); a recall on the last prompt closes the session.
                     child: Text(
-                      !_isTeach && _isLast
+                      !isTeach && _vm.isLastItem
                           ? AppStrings.seeResults
                           : AppStrings.kanjiNext,
                     ),
@@ -353,7 +227,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   }
 
   Widget _card() {
-    final p = _current;
+    final p = _vm.current;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -387,11 +261,11 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   // being told ひ. The Chinese gloss stays off until after the choice. RECALL
   // once ANSWERED reveals the reading and the same context as confirmation.
   List<Widget> _cardDetail(KanjiUnit p) {
-    if (_isTeach) {
+    if (_vm.isTeach) {
       return [
         // The kana inks in beneath the word while the sound still rings.
         _InkIn(
-          key: ValueKey(_index),
+          key: ValueKey(_vm.index),
           child: Text(
             p.reading,
             style: const TextStyle(
@@ -412,7 +286,7 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
         ),
       ];
     }
-    if (_picked == null) {
+    if (!_vm.isAnswered) {
       return [
         const SizedBox(height: 8),
         _PromptStem(unit: p),
@@ -458,7 +332,8 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
   ];
 
   Widget _options() {
-    final q = _question!;
+    final q = _vm.question!;
+    final answered = _vm.isAnswered;
     return AnswerOptionGrid(
       children: [
         for (var i = 0; i < q.options.length; i++)
@@ -466,18 +341,18 @@ class _KanjiQuizScreenState extends State<KanjiQuizScreen> {
             label: q.options[i],
             state: _optionState(i),
             fontSize: 34,
-            onTap: _picked == null ? () => _answer(i) : null,
+            onTap: answered ? null : () => _vm.answer(i),
           ),
       ],
     );
   }
 
   OptionState _optionState(int i) {
-    if (_picked == null) return OptionState.idle;
-    final q = _question!;
-    final accepted = _validReadings.contains(q.options[i]);
-    if (i == _picked && accepted) return OptionState.correct;
-    if (i == _picked) return OptionState.wrong;
+    final picked = _vm.picked;
+    if (picked == null) return OptionState.idle;
+    final accepted = _vm.acceptsOption(i);
+    if (i == picked && accepted) return OptionState.correct;
+    if (i == picked) return OptionState.wrong;
     if (accepted) return OptionState.revealed;
     return OptionState.dimmed;
   }

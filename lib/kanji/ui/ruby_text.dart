@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
-import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
+import 'package:kotonoha/kanji/domain/use_cases/furigana_support.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 
 /// Renders a [KanjiPhrase] with furigana above each kanji — and fades that
@@ -21,34 +21,17 @@ class RubyText extends StatelessWidget {
   final int Function(String unitId) srsLevelOf;
   final double fontSize;
 
-  /// Full furigana while a reading is new, thinning as it matures, and GONE once
-  /// it reaches [ReadingStat.kFuriganaFadeLevel] — a level every reading reaches
-  /// by correct (untimed) recall alone. Bound to that named constant on purpose:
-  /// the terminal fade was once gated one step ABOVE the reachable ceiling, so it
-  /// never completed in real play (furigana froze half-faded). The SCHEDULE now
-  /// climbs past the fade level (to [ReadingStat.kMaxLevel]) without moving it.
-  ///
-  /// An unpractised unit has no stat and so level 0: full support. The app
-  /// never fades a reading it has not actually drilled.
-  static double furiganaOpacity(int srsLevel) {
-    if (srsLevel >= ReadingStat.kFuriganaFadeLevel) {
-      return 0; // known — the support comes off (was once unreachable)
-    }
-    if (srsLevel <= 0) return 1; // brand new — full support
-    if (srsLevel == 1) return 0.7; // first recalls — thinning
-    return 0.4; // one below the cap — faint
-  }
+  /// The fade rule is [FuriganaSupport.opacity] — a learning rule, kept in
+  /// the domain so the sentence ViewModel can read it without this widget.
+  static double furiganaOpacity(int srsLevel) =>
+      FuriganaSupport.opacity(srsLevel);
 
   /// True when any kanji run still shows furigana — the sentence already
   /// offered a reading, so a later「讀得出來」is not an independent recall.
   static bool hasVisibleReadingSupport(
     KanjiPhrase phrase,
     int Function(String unitId) srsLevelOf,
-  ) {
-    return phrase.segments.any(
-      (s) => s.isKanji && furiganaOpacity(srsLevelOf(s.unitId!)) > 0,
-    );
-  }
+  ) => FuriganaSupport.hasVisibleReadingSupport(phrase, srsLevelOf);
 
   /// The maturity of the practice unit this run belongs to — the word, not the
   /// character, so 学校 fades as 学校 and knowing 先生 fades nothing in 学生.
