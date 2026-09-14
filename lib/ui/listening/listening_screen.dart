@@ -2,35 +2,28 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/data/koten_dataset.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
-import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
-import 'package:kotonoha/domain/models/season.dart';
-import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
-import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
-import 'package:kotonoha/ui/core/item_reaction_clock.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
+import 'package:kotonoha/ui/listening/listening_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// 聞き取り — listen first, recall unaided, reveal, then rehear.
 ///
-/// Only a completed play *before* reveal is unprompted listening evidence.
-/// A first success after the answer is visible is prompted practice: it may
-/// be logged, but it cannot backfill a blind success or move SRS.
-///
-/// Valid [Attempt.rtMs] starts on the first completed blind hear. Pause /
-/// hide freezes the clock — resume or same-item replay must not restart it.
+/// A thin View over [ListeningViewModel]: it owns playback (generations, the
+/// owned utterance, in-flight state and the last result), the lifecycle
+/// observer, rendering and navigation. What a completed play *means* — blind
+/// evidence, prompted practice, or nothing — and every schedule or analytics
+/// write is the ViewModel's; the view only reports completed foreground
+/// plays and interrupts to it.
 class ListeningScreen extends StatefulWidget {
   const ListeningScreen({
     required this.items,
@@ -47,7 +40,7 @@ class ListeningScreen extends StatefulWidget {
   final String title;
 
   /// Optional clock / monotonic elapsed for tests. Production leaves both
-  /// null so the screen uses [DateTime.now] and [Stopwatch].
+  /// null so the view-model uses [DateTime.now] and [Stopwatch].
   final DateTime Function()? clock;
   final int Function()? monotonicMs;
 
@@ -87,39 +80,35 @@ class ListeningScreen extends StatefulWidget {
 
 class _ListeningScreenState extends State<ListeningScreen>
     with WidgetsBindingObserver {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  final Random _rng = Random();
-
+  late final ListeningViewModel _vm;
   late final SpeechService _speech;
-  late final ItemReactionClock _reaction;
   int? _ownedPlay;
-
-  int _index = 0;
-  bool _revealed = false;
-  bool _blindHeard = false;
-  bool _promptedHeard = false;
-  bool _playing = false;
-  bool _done = false;
   int _playGen = 0;
-  String? _heardItemId;
+  int _shownIndex = 0;
+  bool _playing = false;
+  bool _closed = false;
   SpeechPlaybackResult? _lastPlay;
-  KotenLine? _share;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
-  ReadingItem get _current => widget.items[_index];
-
   /// Speakable form — layout spaces removed.
-  String get _say => _current.displayText.replaceAll(' ', '');
+  String get _say => _vm.current.displayText.replaceAll(' ', '');
 
   @override
   void initState() {
     super.initState();
-    _speech = context.read<SpeechService>();
-    _reaction = ItemReactionClock(
+    _vm = ListeningViewModel(
+      items: widget.items,
+      words: context.read<WordProgressRepository>(),
+      kana: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      alreadyTransferredIds: widget.alreadyTransferredIds,
       clock: widget.clock,
       monotonicMs: widget.monotonicMs,
-    );
+    )..addListener(_onChanged);
+    _speech = context.read<SpeechService>();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_play());
@@ -130,20 +119,22 @@ class _ListeningScreenState extends State<ListeningScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _abandonPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) return;
-    unawaited(_interrupt());
+    _interrupt();
   }
 
   /// Cancels this screen's in-flight playback and drops its local generation.
   ///
   /// Item switches must not wait for the next frame's [_play]: a late
   /// completion in that gap would still match [_playGen] and read the
-  /// next item's `_revealed == false`.
+  /// next item's unrevealed state.
   ///
   /// [SpeechService.stop] is scoped to [_ownedPlay] so a leaving
   /// `pushReplacement` cannot cancel the new route's utterance.
@@ -156,11 +147,11 @@ class _ListeningScreenState extends State<ListeningScreen>
     }
   }
 
-  Future<void> _interrupt() async {
+  void _interrupt() {
     _abandonPlayback();
     // An already-opened hear clock stays dead. Resume / replay must
     // not mint a fresh RT for this item.
-    _reaction.invalidate();
+    _vm.noteInterrupted();
     if (!mounted) return;
     setState(() {
       _playing = false;
@@ -168,127 +159,65 @@ class _ListeningScreenState extends State<ListeningScreen>
     });
   }
 
+  /// Session transitions are the ViewModel's; what they mean for the
+  /// utterance is the view's. A new item drops the old play and auto-plays
+  /// once it has a frame; the close leaves the last utterance behind and
+  /// reports the official finish.
+  void _onChanged() {
+    if (_vm.isFinished) {
+      if (_closed) return;
+      _closed = true;
+      _abandonPlayback();
+      widget.onFinished?.call();
+      return;
+    }
+    if (_vm.index == _shownIndex) return;
+    _shownIndex = _vm.index;
+    _abandonPlayback();
+    setState(() {
+      _playing = false;
+      _lastPlay = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _vm.isFinished) return;
+      unawaited(_play());
+    });
+  }
+
   Future<void> _play() async {
-    if (!mounted || _done) return;
-    final itemId = _current.progressId;
-    final startedBlind = !_revealed;
+    if (!mounted || _vm.isFinished) return;
+    final itemIndex = _vm.index;
+    final startedBlind = !_vm.isRevealed;
     final gen = ++_playGen;
     setState(() => _playing = true);
     final pending = _speech.play(_say);
     _ownedPlay = _speech.generation;
     final result = await pending;
-    if (!mounted || _done || gen != _playGen || _current.progressId != itemId) {
+    if (!mounted ||
+        _vm.isFinished ||
+        gen != _playGen ||
+        _vm.index != itemIndex) {
       return;
     }
     setState(() {
       _playing = false;
       _lastPlay = result;
-      if (result != SpeechPlaybackResult.played) return;
-      if (startedBlind && !_revealed) {
-        _blindHeard = true;
-        _heardItemId = itemId;
-        // First completed foreground hear. Already-invalid clocks stay
-        // null — a later replay does not move the start.
-        _reaction.start();
-      } else {
-        _promptedHeard = true;
-      }
     });
-  }
-
-  void _reveal() {
-    setState(() => _revealed = true);
-  }
-
-  void _gradeBlind(bool correct) {
-    if (!_blindHeard || _heardItemId != _current.progressId) return;
-    _advance(recordMastery: true, correct: correct);
-  }
-
-  void _skipUnheard() {
-    if (_blindHeard || _promptedHeard) return;
-    _advance(recordMastery: false, correct: false);
-  }
-
-  void _continuePrompted() {
-    if (_blindHeard || !_promptedHeard) return;
-    _advance(recordMastery: false, correct: false, prompted: true);
-  }
-
-  void _advance({
-    required bool recordMastery,
-    required bool correct,
-    bool prompted = false,
-  }) {
-    final now = _clock();
-    if (recordMastery || prompted) {
-      context.read<AnalyticsLog>().recordObserved(
-        Attempt(
-          ts: now.millisecondsSinceEpoch,
-          itemId: _current.displayText,
-          itemType: ItemType.word,
-          mode: PracticeMode.listening.name,
-          correct: recordMastery && correct,
-          rtMs: recordMastery ? _reaction.elapsedMs() : 0,
-          sessionId: _sessionId,
-          meta: {
-            'romaji': _current.romaji,
-            AttemptMeta.playback: SpeechPlaybackResult.played.name,
-            AttemptMeta.heard: true,
-            AttemptMeta.prompted: prompted,
-            AttemptMeta.scored: recordMastery,
-          },
-        ),
-      );
+    if (result == SpeechPlaybackResult.played) {
+      _vm.noteHeard(itemIndex: itemIndex, startedBlind: startedBlind);
     }
-    if (recordMastery) {
-      final words = context.read<WordProgressRepository>();
-      final persist = context.read<ProgressPersistenceController>();
-      final id = _current.progressId;
-      // A miss always resets. Unprompted correct climbs only the first
-      // time this grind covers the id — wrap-around practice may repeat
-      // the item but must not farm the schedule.
-      if (!correct) {
-        persist.trackWord(words.recordAnswer(id, correct: false, at: now));
-      } else if (DailyBridge.shouldRenew(id, widget.alreadyTransferredIds)) {
-        persist.trackWord(words.recordAnswer(id, correct: true, at: now));
-      }
-    }
-    if (_index + 1 >= widget.items.length) {
-      final store = context.read<KanaProgressRepository>();
-      _share = KotenShare.pick(
-        pool: kKoten,
-        seenKanaCount: store.seenCount,
-        rng: _rng,
-        season: Season.forMonth(now.month),
-      );
-      _abandonPlayback();
-      setState(() => _done = true);
-      widget.onFinished?.call();
-      return;
-    }
-    _abandonPlayback();
-    setState(() {
-      _index++;
-      _revealed = false;
-      _blindHeard = false;
-      _promptedHeard = false;
-      _playing = false;
-      _heardItemId = null;
-      _lastPlay = null;
-      _reaction.arm();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _done) return;
-      unawaited(_play());
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
@@ -296,21 +225,23 @@ class _ListeningScreenState extends State<ListeningScreen>
     final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
       headline: AppStrings.listeningClose,
-      note: _share == null
+      note: _vm.share == null
           ? AppStrings.closing(widget.items.last.displayText, band: band)
           : null,
-      share: _share,
+      share: _vm.share,
       onDone: () => Navigator.of(context).pop(),
       onMore: band == ClosingBand.day ? widget.onMore : null,
     );
   }
 
   Widget _question() {
+    final current = _vm.current;
+    final revealed = _vm.isRevealed;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.items.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -342,12 +273,12 @@ class _ListeningScreenState extends State<ListeningScreen>
                             IconButton.filled(
                               key: const ValueKey<String>('listening-replay'),
                               onPressed: () => unawaited(_play()),
-                              iconSize: _revealed ? 34 : 56,
+                              iconSize: revealed ? 34 : 56,
                               tooltip: AppStrings.replaySound,
                               style: IconButton.styleFrom(
                                 backgroundColor: AppColors.accentSoft,
                                 foregroundColor: AppColors.accent,
-                                padding: EdgeInsets.all(_revealed ? 14 : 22),
+                                padding: EdgeInsets.all(revealed ? 14 : 22),
                               ),
                               icon: Icon(
                                 _playing
@@ -357,7 +288,7 @@ class _ListeningScreenState extends State<ListeningScreen>
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              _revealed
+                              revealed
                                   ? AppStrings.listeningRehear
                                   : AppStrings.listeningPrompt,
                               textAlign: TextAlign.center,
@@ -366,7 +297,7 @@ class _ListeningScreenState extends State<ListeningScreen>
                                 fontSize: 15,
                               ),
                             ),
-                            if (!_revealed) ...[
+                            if (!revealed) ...[
                               const SizedBox(height: 8),
                               const Text(
                                 AppStrings.listeningRecall,
@@ -377,10 +308,10 @@ class _ListeningScreenState extends State<ListeningScreen>
                                 ),
                               ),
                             ],
-                            if (_revealed) ...[
+                            if (revealed) ...[
                               const SizedBox(height: 20),
                               Text(
-                                _current.displayText,
+                                current.displayText,
                                 key: const ValueKey<String>('listening-answer'),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
@@ -392,7 +323,7 @@ class _ListeningScreenState extends State<ListeningScreen>
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                _current.romaji,
+                                current.romaji,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   color: AppColors.accent,
@@ -402,7 +333,7 @@ class _ListeningScreenState extends State<ListeningScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _current.meaning,
+                                current.meaning,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   color: AppColors.ink,
@@ -441,37 +372,39 @@ class _ListeningScreenState extends State<ListeningScreen>
     );
   }
 
+  /// Why the current item cannot be graded, if it cannot. Hearing state is
+  /// the ViewModel's; the last playback result is this view's.
   String? get _blockMessage {
-    if (_blindHeard) return null;
-    if (_promptedHeard) return AppStrings.listeningPrompted;
+    if (_vm.blindHeard) return null;
+    if (_vm.promptedHeard) return AppStrings.listeningPrompted;
     return switch (_lastPlay) {
       SpeechPlaybackResult.unavailable => AppStrings.listeningUnavailable,
       SpeechPlaybackResult.failed => AppStrings.listeningFailed,
       SpeechPlaybackResult.interrupted => AppStrings.listeningInterrupted,
       SpeechPlaybackResult.played => null,
-      null => _revealed ? AppStrings.listeningInterrupted : null,
+      null => _vm.isRevealed ? AppStrings.listeningInterrupted : null,
     };
   }
 
   Widget _controls() {
-    if (!_revealed) {
+    if (!_vm.isRevealed) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
           key: const ValueKey<String>('listening-reveal'),
-          onPressed: _reveal,
+          onPressed: _vm.reveal,
           child: const Text(AppStrings.listeningReveal),
         ),
       );
     }
-    if (_blindHeard) {
+    if (_vm.blindHeard) {
       return Column(
         children: [
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-              onPressed: () => _gradeBlind(true),
+              onPressed: () => _vm.gradeBlind(correct: true),
               child: const Text(AppStrings.listeningHeard),
             ),
           ),
@@ -486,19 +419,19 @@ class _ListeningScreenState extends State<ListeningScreen>
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: () => _gradeBlind(false),
+              onPressed: () => _vm.gradeBlind(correct: false),
               child: const Text(AppStrings.listeningMissed),
             ),
           ),
         ],
       );
     }
-    if (_promptedHeard) {
+    if (_vm.promptedHeard) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
           key: const ValueKey<String>('listening-next'),
-          onPressed: _continuePrompted,
+          onPressed: _vm.continuePrompted,
           child: const Text(AppStrings.listeningNext),
         ),
       );
@@ -514,7 +447,7 @@ class _ListeningScreenState extends State<ListeningScreen>
             borderRadius: BorderRadius.circular(16),
           ),
         ),
-        onPressed: _skipUnheard,
+        onPressed: _vm.skipUnheard,
         child: const Text(AppStrings.listeningSkip),
       ),
     );

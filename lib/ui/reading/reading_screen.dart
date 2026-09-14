@@ -2,20 +2,13 @@
 // SPDX-License-Identifier: MIT
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/data/koten_dataset.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
-import 'package:kotonoha/domain/models/koten.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
-import 'package:kotonoha/domain/models/season.dart';
-import 'package:kotonoha/domain/use_cases/daily_bridge.dart';
-import 'package:kotonoha/domain/use_cases/koten_share.dart';
 import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
@@ -23,13 +16,14 @@ import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/reading/reading_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Contextual reading practice over [ReadingItem]s (the 黙読 sentence track): read
 /// the kana, reveal the reading + meaning, hear it (the ear is the real grader),
-/// and self-grade. Records a reading [Attempt] to the analytics stream
-/// (itemType=word, mode=reading); it deliberately does NOT touch per-kana SRS —
-/// reading fluency is a different signal from single-kana recognition.
+/// and self-grade. A thin View over [ReadingViewModel]: it renders the session
+/// state, forwards taps, owns the speaker and its lifecycle, and navigates.
+/// Grading, schedule writes and the reading [Attempt] live on the ViewModel.
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({
     required this.items,
@@ -87,31 +81,31 @@ class ReadingScreen extends StatefulWidget {
 }
 
 class _ReadingScreenState extends State<ReadingScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  final Random _rng = Random();
+  late final ReadingViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
   bool _playable = true;
-  int _index = 0;
-  bool _revealed = false;
-  bool _unpromptedCommit = false;
-  int _correct = 0;
-  bool _done = false;
-
-  /// Picked once, at the close — an occasional classical 余韻 (often null).
-  KotenLine? _share;
-
-  ReadingItem get _current => widget.items[_index];
+  bool _closed = false;
 
   DateTime Function() get _clock => widget.clock ?? DateTime.now;
 
   /// Speakable form — layout spaces removed.
-  String get _say => _current.displayText.replaceAll(' ', '');
+  String get _say => _vm.current.displayText.replaceAll(' ', '');
 
   @override
   void initState() {
     super.initState();
+    _vm = ReadingViewModel(
+      items: widget.items,
+      words: context.read<WordProgressRepository>(),
+      kana: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+      alreadyTransferredIds: widget.alreadyTransferredIds,
+      clock: widget.clock,
+    )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -127,6 +121,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
@@ -148,6 +144,15 @@ class _ReadingScreenState extends State<ReadingScreen> {
     }
   }
 
+  /// The close is the ViewModel's decision; leaving the last utterance
+  /// behind and reporting the official finish are the view's.
+  void _onChanged() {
+    if (!_vm.isFinished || _closed) return;
+    _closed = true;
+    _abandonOwnedPlayback();
+    widget.onFinished?.call();
+  }
+
   void _speak() {
     if (!mounted || !_playable || !_foreground || widget.quiet) return;
     unawaited(_speech.speak(_say));
@@ -156,78 +161,32 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   void _reveal({required bool unpromptedCommit}) {
     _speak();
-    setState(() {
-      _revealed = true;
-      _unpromptedCommit = unpromptedCommit;
-    });
-  }
-
-  void _grade({required bool correct, required bool unprompted}) {
-    final now = _clock();
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.displayText,
-        itemType: ItemType.word,
-        mode: PracticeMode.reading.name,
-        correct: correct,
-        sessionId: _sessionId,
-        meta: {'romaji': _current.romaji, AttemptMeta.prompted: !unprompted},
-      ),
-    );
-    final words = context.read<WordProgressRepository>();
-    final persist = context.read<ProgressPersistenceController>();
-    final id = _current.progressId;
-    final canRenew = DailyBridge.shouldRenew(id, widget.alreadyTransferredIds);
-    // Unprompted confirmed-correct is the only climb, and only the first
-    // time this grind covers the id. Prompted correct on a new item keeps
-    // intake (seen) without mastering. A miss always resets.
-    if (!correct) {
-      persist.trackWord(words.recordAnswer(id, correct: false, at: now));
-    } else if (unprompted && canRenew) {
-      persist.trackWord(words.recordAnswer(id, correct: true, at: now));
-    } else if (!unprompted && !words.statForItem(id).isSeen) {
-      persist.trackWord(words.markIntroduced(id, at: now));
-    }
-    if (correct) _correct++;
-    if (_index + 1 >= widget.items.length) {
-      final store = context.read<KanaProgressRepository>();
-      _share = KotenShare.pick(
-        pool: kKoten,
-        seenKanaCount: store.seenCount,
-        rng: _rng,
-        season: Season.forMonth(now.month),
-      );
-      _abandonOwnedPlayback();
-      setState(() => _done = true);
-      widget.onFinished?.call();
-    } else {
-      setState(() {
-        _index++;
-        _revealed = false;
-        _unpromptedCommit = false;
-      });
-    }
+    _vm.reveal(unpromptedCommit: unpromptedCommit);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
   Widget _summary() {
     final band = ClosingBand.forHour(_clock().hour);
     return SessionSummary(
-      headline: AppStrings.readingSummary(_correct, widget.items.length),
+      headline: AppStrings.readingSummary(_vm.correctCount, _vm.total),
       // The classical 余韻 (when picked) replaces the close note — so only
       // compute the note when no share will lead.
-      note: _share == null
+      note: _vm.share == null
           ? AppStrings.closing(widget.items.last.displayText, band: band)
           : null,
-      share: _share,
+      share: _vm.share,
       onDone: () => Navigator.of(context).pop(),
       // At night the close grants permission to stop — suppress もう一回 here, at
       // render time, so a session that began in daylight still hides it at dusk.
@@ -236,13 +195,14 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   Widget _question() {
+    final current = _vm.current;
     // Phrases wrap at the same learner scale; only the starting size differs.
     final big = _say.length <= 4;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          AppStrings.itemProgress(_index + 1, widget.items.length),
+          AppStrings.itemProgress(_vm.index + 1, _vm.total),
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -283,7 +243,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                                       horizontal: 4,
                                     ),
                                     child: Text(
-                                      _current.displayText,
+                                      current.displayText,
                                       textAlign: TextAlign.center,
                                       softWrap: true,
                                       style: TextStyle(
@@ -295,7 +255,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  if (!_revealed)
+                                  if (!_vm.isRevealed)
                                     const Padding(
                                       padding: EdgeInsets.symmetric(
                                         horizontal: 8,
@@ -316,7 +276,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                                       endIndent: 24,
                                     ),
                                     Text(
-                                      _current.romaji,
+                                      current.romaji,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontSize: 26,
@@ -326,7 +286,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      _current.meaning,
+                                      current.meaning,
                                       key: const ValueKey<String>(
                                         'reading-meaning',
                                       ),
@@ -343,7 +303,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                                         onPlay: _speak,
                                       ),
                                     for (final p in Particles.particlesIn(
-                                      _current.displayText,
+                                      current.displayText,
                                     ))
                                       if (AppStrings.particleGloss(p)
                                           case final gloss?)
@@ -370,7 +330,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                             ),
                           ),
                         ),
-                        _revealed ? _gradeControls() : _revealControls(),
+                        _vm.isRevealed ? _gradeControls() : _revealControls(),
                       ],
                     ),
                   ),
@@ -425,8 +385,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: () =>
-                _grade(correct: false, unprompted: _unpromptedCommit),
+            onPressed: () => _vm.grade(correct: false),
             child: const Text(AppStrings.iCouldnt),
           ),
         ),
@@ -437,10 +396,9 @@ class _ReadingScreenState extends State<ReadingScreen> {
               backgroundColor: AppColors.success,
               minimumSize: const Size.fromHeight(54),
             ),
-            onPressed: () =>
-                _grade(correct: true, unprompted: _unpromptedCommit),
+            onPressed: () => _vm.grade(correct: true),
             child: Text(
-              _unpromptedCommit
+              _vm.unpromptedCommit
                   ? AppStrings.iReadIt
                   : AppStrings.iReadAfterHint,
             ),
