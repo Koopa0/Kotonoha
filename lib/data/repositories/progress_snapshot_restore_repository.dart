@@ -67,12 +67,16 @@ class ProgressSnapshotRestoreRepository {
   /// Throws [RestoreJournalWriteFailure] after rolling primaries back. Validation
   /// must happen before calling — this does not re-decode.
   Future<void> apply(ProgressSnapshot snapshot) async {
+    final placement = _placement;
     await Future.wait([
       _kana.prepareForRestore(),
       _kanji.prepareForRestore(),
       _words.prepareForRestore(),
+      if (placement != null) placement.prepareForRestore(),
     ]);
     try {
+      await _prefs.reload();
+      await _syncPlacementFromDurable();
       final staging = _encodeStaging(snapshot);
       final placementRollback = _capturePlacementRollback();
       try {
@@ -124,6 +128,7 @@ class ProgressSnapshotRestoreRepository {
       _kana.finishRestore();
       _kanji.finishRestore();
       _words.finishRestore();
+      _placement?.finishRestore();
     }
   }
 

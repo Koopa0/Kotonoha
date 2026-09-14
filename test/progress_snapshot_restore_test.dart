@@ -97,6 +97,28 @@ void main() {
     return checks;
   }
 
+  Future<(PlacementCheckRepository, PlacementDraft)> seedPartialAoDraft(
+    FakePreferencesService fake, {
+    required int answeredCount,
+  }) async {
+    final checks = await PlacementCheckRepository.load(fake);
+    final kana = await KanaProgressRepository.load(fake);
+    final ao = Lessons.fromKana(kana.allKana)
+        .firstWhere((lesson) => lesson.id == 'hira_row_0');
+    var draft = PlacementCheck.start([ao])!;
+    final answered = ao.kana.take(answeredCount);
+    for (final kanaRow in answered) {
+      draft = PlacementCheck.record(
+        draft,
+        kanaRow.id,
+        PlacementOutcome.independent,
+      );
+    }
+    await checks.save(draft);
+    expect(checks.draft.isComplete, isFalse);
+    return (checks, draft);
+  }
+
   Future<String> encodedBackupLearnedHiraRow1Only(
     KanaProgressRepository kana,
     KanjiReadingRepository kanji,
@@ -1341,6 +1363,62 @@ void main() {
         FakePreferencesService.restarted(fake),
       );
       expect(reloadedChecks.draft.isComplete, isTrue);
+    },
+  );
+
+  test(
+    'failed restore after pending placement save keeps complete draft on disk and memory',
+    () async {
+      final (sourceFake, sourceKana, sourceKanji, sourceWords) =
+          await loadAll();
+      final backup = await encodedBackupLearnedHiraRow1Only(
+        sourceKana,
+        sourceKanji,
+        sourceWords,
+      );
+
+      final (fake, kana, kanji, words) = await loadAll();
+      final (checks, partialDraft) = await seedPartialAoDraft(
+        fake,
+        answeredCount: 4,
+      );
+      final kanaRepo = await KanaProgressRepository.load(fake);
+      final ao = Lessons.fromKana(kanaRepo.allKana)
+          .firstWhere((lesson) => lesson.id == 'hira_row_0');
+      final fifth = ao.kana[4];
+      final completeDraft = PlacementCheck.record(
+        partialDraft,
+        fifth.id,
+        PlacementOutcome.independent,
+      );
+      expect(completeDraft.isComplete, isTrue);
+
+      final lastGoodGate = PlatformGate();
+      fake.writeGates[PlacementCheckRepository.lastGoodKey] = lastGoodGate;
+      final save = checks.save(completeDraft);
+      await lastGoodGate.entered;
+
+      fake.failRemoves.add(PlacementCheckRepository.storageKey);
+      final restore = restoreFor(fake, kana, kanji, words, placement: checks);
+      final preview = restore.previewEncoded(backup)!;
+      final restoreFuture = restore.apply(preview.snapshot);
+
+      lastGoodGate.release();
+      await expectLater(
+        save,
+        completes,
+      );
+      await expectLater(
+        restoreFuture,
+        throwsA(isA<RestoreJournalWriteFailure>()),
+      );
+
+      expect(checks.draft.isComplete, isTrue);
+      expect(fake.durable['placement_check_v1'], isNotNull);
+      final restarted = FakePreferencesService.restarted(fake);
+      final freshChecks = await PlacementCheckRepository.load(restarted);
+      expect(freshChecks.draft.isComplete, isTrue);
+      expect(kana.learnedUnits, isEmpty);
     },
   );
 }
