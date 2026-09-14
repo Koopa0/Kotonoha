@@ -136,6 +136,7 @@ Future<void> main() async {
                 kana: store,
                 kanji: kanji,
                 words: words,
+                placement: checks,
               ),
               files: FilePickerSnapshotPort(),
               recovery: restoreRecovery,

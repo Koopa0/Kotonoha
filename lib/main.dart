@@ -119,6 +119,7 @@ Future<Widget> bootstrap({
             kana: store,
             kanji: kanji,
             words: words,
+            placement: checks,
           ),
           files: FilePickerSnapshotPort(),
           recovery: restoreRecovery,

@@ -57,7 +57,20 @@ class PlacementCheckRepository extends ChangeNotifier {
 
   Future<void> clear() => save(PlacementDraft.empty);
 
+  /// Drops any placement draft after a committed progress restore. The
+  /// snapshot's five portable bodies are authoritative; a complete draft from
+  /// before restore must not re-apply learned rows on the results screen.
+  Future<void> discardAfterRestore() => _serialized(_discardAfterRestore);
+
   Future<void> flushPending() => _serialized(_flush);
+
+  Future<void> _discardAfterRestore() async {
+    await _store.removeAll();
+    _draft = PlacementDraft.empty;
+    _gen++;
+    _persistedGen = _gen;
+    notifyListeners();
+  }
 
   Future<void> _serialized(Future<void> Function() action) {
     final run = _tail.then((_) => action());

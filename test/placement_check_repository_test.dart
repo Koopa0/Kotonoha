@@ -40,6 +40,17 @@ void main() {
     expect(store.health, StoreHealth.recoveryRequired);
   });
 
+  test('discardAfterRestore removes a complete draft from disk', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await PlacementCheckRepository.load();
+    await store.save(PlacementCheck.start([ao])!);
+    await store.discardAfterRestore();
+    expect(store.draft.hasProgress, isFalse);
+
+    final reloaded = await PlacementCheckRepository.load();
+    expect(reloaded.draft.hasProgress, isFalse);
+  });
+
   test('clear removes the in-progress check', () async {
     SharedPreferences.setMockInitialValues({});
     final store = await PlacementCheckRepository.load();

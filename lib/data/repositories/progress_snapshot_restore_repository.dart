@@ -4,10 +4,12 @@
 import 'dart:convert';
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
@@ -27,13 +29,16 @@ class ProgressSnapshotRestoreRepository {
     required this._kana,
     required this._kanji,
     required this._words,
+    PlacementCheckRepository? placement,
     this._codec = const ProgressSnapshotCodec(),
-  }) : _journal = ProgressRestoreJournal(_prefs);
+  }) : _journal = ProgressRestoreJournal(_prefs),
+       _placement = placement;
 
   final PreferencesService _prefs;
   final KanaProgressRepository _kana;
   final KanjiReadingRepository _kanji;
   final WordProgressRepository _words;
+  final PlacementCheckRepository? _placement;
   final ProgressSnapshotCodec _codec;
   final ProgressRestoreJournal _journal;
 
@@ -80,6 +85,7 @@ class ProgressSnapshotRestoreRepository {
           }
         }
         await _journal.commit();
+        await _discardPlacementDraftAfterCommit();
       } on RestoreJournalWriteFailure {
         await _syncMemoryFromDurable();
         try {
@@ -93,6 +99,7 @@ class ProgressSnapshotRestoreRepository {
       } catch (_) {
         await _prefs.reload();
         if (_isDurableCommitted()) {
+          await _discardPlacementDraftAfterCommit();
           _applyToMemory(snapshot);
           return;
         }
@@ -138,6 +145,16 @@ class ProgressSnapshotRestoreRepository {
     _kana.setRestoreJournalBlocked(blocked);
     _kanji.setRestoreJournalBlocked(blocked);
     _words.setRestoreJournalBlocked(blocked);
+  }
+
+  Future<void> _discardPlacementDraftAfterCommit() async {
+    final placement = _placement;
+    if (placement == null) return;
+    try {
+      await placement.discardAfterRestore();
+    } on StoreWriteFailure catch (error) {
+      throw RestoreJournalWriteFailure(error.key);
+    }
   }
 
   void _applyToMemory(ProgressSnapshot snapshot) {
