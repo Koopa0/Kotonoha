@@ -55,8 +55,11 @@ class TravelFocusRepository extends ChangeNotifier {
     return _serialized(_flush);
   }
 
-  Future<void> saveFocuses(Iterable<TravelFocus> focuses) =>
-      save(_plan.withFocuses(focuses));
+  Future<void> saveFocuses(Iterable<TravelFocus> focuses) {
+    final next = _plan.withFocuses(focuses);
+    if (!next.isActive) return clear();
+    return save(next);
+  }
 
   Future<void> markKanaBoost(DateTime now) => save(_plan.markKanaBoost(now));
 

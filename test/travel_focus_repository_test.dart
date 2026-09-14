@@ -36,6 +36,41 @@ void main() {
     );
   });
 
+  test('saveFocuses with no scenes clears the daily cursor like clear', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await TravelFocusRepository.load();
+    await store.saveFocuses(const [TravelFocus(scene: TravelSceneId.shrine)]);
+    await store.markKanaBoost(DateTime(2026, 9, 11, 8));
+    await store.markServed(TravelSceneId.shrine, DateTime(2026, 9, 11, 9));
+
+    await store.saveFocuses(const []);
+    expect(store.plan, TravelFocusPlan.empty);
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan, TravelFocusPlan.empty);
+  });
+
+  test('non-empty saveFocuses keeps the daily cursor', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await TravelFocusRepository.load();
+    await store.saveFocuses(const [TravelFocus(scene: TravelSceneId.transport)]);
+    await store.markKanaBoost(DateTime(2026, 9, 11, 8));
+    await store.markServed(TravelSceneId.transport, DateTime(2026, 9, 11, 9));
+
+    await store.saveFocuses([
+      TravelFocus(scene: TravelSceneId.transport, date: DateTime(2026, 9, 18)),
+      const TravelFocus(scene: TravelSceneId.clothing),
+    ]);
+    expect(store.plan.kanaBoostOn, DateTime(2026, 9, 11));
+    expect(
+      store.plan.servedOn[TravelSceneId.transport],
+      DateTime(2026, 9, 11),
+    );
+
+    final reloaded = await TravelFocusRepository.load();
+    expect(reloaded.plan, store.plan);
+  });
+
   test('clear removes the plan and a later load stays empty', () async {
     SharedPreferences.setMockInitialValues({});
     final store = await TravelFocusRepository.load();
