@@ -5,22 +5,24 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
-import 'package:kotonoha/domain/models/session_item.dart';
-import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/placement/placement_check_viewmodel.dart';
 import 'package:kotonoha/ui/placement/placement_result_screen.dart';
-import 'package:kotonoha/ui/quiz/quiz_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Answer-first check. The reading stays hidden until the learner commits,
-/// asks for a hint, or says they do not know. Uses [QuizViewModel] as-is
-/// (#41/#43 RT rules, prompted vs independent). No listening items.
+/// asks for a hint, or says they do not know. No listening items.
+///
+/// A thin View over [PlacementCheckViewModel]: it owns the lifecycle
+/// listener and what visibility means for the item on screen, renders,
+/// and navigates to the results. The draft and its saves, the reveal, the
+/// outcome and the graded recall (#41/#43 RT rules, prompted vs.
+/// independent) are the ViewModel's.
 class PlacementCheckScreen extends StatefulWidget {
   const PlacementCheckScreen({
     required this.draft,
@@ -56,54 +58,35 @@ class PlacementCheckScreen extends StatefulWidget {
 }
 
 class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
-  late PlacementDraft _draft;
-  late final QuizViewModel _vm;
+  late final PlacementCheckViewModel _vm;
   late final AppLifecycleListener _lifecycle;
   bool _navigated = false;
   bool _answerable = true;
   AppLifecycleState _lifecycleState =
       WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
-  bool _recallRevealed = false;
-  bool _recallUnpromptedCommit = false;
 
   @override
   void initState() {
     super.initState();
-    _draft = widget.draft;
-    final store = context.read<KanaProgressRepository>();
-    final pending = PlacementCheck.pendingTargets(_draft, store.allKana);
-    _vm = QuizViewModel(
-      items: [
-        for (final question in PlacementCheck.questions(pending))
-          SessionItem(question: question, mode: PracticeMode.placementCheck),
-      ],
-      repository: store,
+    _vm = PlacementCheckViewModel(
+      draft: widget.draft,
+      checks: widget.checks,
+      kana: context.read<KanaProgressRepository>(),
       persistence: context.read<ProgressPersistenceController>(),
+      recovery: context.read<ProgressRestoreRecoveryController>(),
       analytics: context.read<AnalyticsLog>(),
-      sessionId: 'placement-${DateTime.now().millisecondsSinceEpoch}',
       clock: widget.clock,
       monotonicMs: widget.monotonicMs,
     )..addListener(_onChanged);
     _lifecycle = AppLifecycleListener(onStateChange: _onLifecycleState);
-    _syncHintedPresentation();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_vm.items.isEmpty) {
+      if (_vm.isEmpty) {
         _goToResults();
         return;
       }
       _reportPresentation();
     });
-  }
-
-  bool get _currentHinted =>
-      _vm.items.isNotEmpty && _draft.isHinted(_vm.current.target.id);
-
-  void _syncHintedPresentation() {
-    if (_vm.items.isEmpty || _vm.isAnswered) return;
-    if (!_currentHinted) return;
-    _recallRevealed = true;
-    _recallUnpromptedCommit = false;
   }
 
   bool get _isVisible =>
@@ -113,18 +96,14 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
   void _onLifecycleState(AppLifecycleState state) {
     _lifecycleState = state;
     _answerable = state == AppLifecycleState.resumed;
-    if (!_answerable) {
-      _vm.noteUnanswerable();
-      _schedulePresentationReport();
-      return;
-    }
+    if (!_answerable) _vm.noteUnanswerable();
     _schedulePresentationReport();
   }
 
+  /// Visibility is the view's: what the item can count as while it is on
+  /// screen is reported to the ViewModel after each frame.
   void _reportPresentation() {
-    if (!mounted || _vm.items.isEmpty || _vm.isAnswered || _vm.isFinished) {
-      return;
-    }
+    if (!mounted || _vm.isEmpty || _vm.isAnswered || _vm.isFinished) return;
     if (!_isVisible) return;
     if (_answerable) {
       _vm.noteAnswerablePresentation();
@@ -139,91 +118,17 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
     });
   }
 
-  Future<void> _noteOutcome({
-    required bool correct,
-    required bool unprompted,
-  }) async {
-    if (_vm.isAnswered || _vm.isFinished || _vm.items.isEmpty) return;
-    final recovery = context.read<ProgressRestoreRecoveryController>();
-    if (recovery.needsRecovery) return;
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
-    final kanaId = _vm.current.target.id;
-    // Same-visit 讀得出來 commit stays independent even though the reading
-    // is now persisted as exposure. After leave / reload the commit flag
-    // is gone; a persisted reveal is prompted-only and must not start a
-    // new unprompted RT.
-    final independent = unprompted && _recallUnpromptedCommit;
-    _vm.gradeRecall(correct: correct, unprompted: independent);
-    _draft = PlacementCheck.record(
-      _draft,
-      kanaId,
-      PlacementCheck.outcomeFor(
-        correct: correct,
-        unprompted: independent,
-        hinted: !independent && _draft.isHinted(kanaId),
-      ),
-    );
-    persist.trackPlacement(widget.checks.save(_draft));
-  }
-
-  void _persistReveal() {
-    final kanaId = _vm.current.target.id;
-    _draft = PlacementCheck.noteHinted(_draft, kanaId);
-    context.read<ProgressPersistenceController>().trackPlacement(
-      widget.checks.save(_draft),
-    );
-  }
-
-  void _revealAsHint() {
-    if (_vm.items.isEmpty || _vm.isAnswered) return;
-    final recovery = context.read<ProgressRestoreRecoveryController>();
-    if (recovery.needsRecovery) return;
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
-    _persistReveal();
-    setState(() {
-      _recallUnpromptedCommit = false;
-      _recallRevealed = true;
-    });
-  }
-
-  void _revealAfterUnpromptedCommit() {
-    if (_vm.items.isEmpty || _vm.isAnswered) return;
-    final recovery = context.read<ProgressRestoreRecoveryController>();
-    if (recovery.needsRecovery) return;
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
-    _vm.captureUnpromptedRecall();
-    setState(() {
-      _recallUnpromptedCommit = true;
-      _recallRevealed = true;
-    });
-    // Persist exposure so leave / reload cannot restart a first
-    // unprompted round. Same-visit confirm still uses the commit flag.
-    _persistReveal();
-  }
-
   void _onChanged() {
-    if (!_answerable) {
-      _vm.noteUnanswerable();
-    }
+    if (!_answerable) _vm.noteUnanswerable();
     _schedulePresentationReport();
-    if (!_vm.isAnswered) {
-      _recallRevealed = false;
-      _recallUnpromptedCommit = false;
-      _syncHintedPresentation();
-    }
-    if (_vm.isFinished) {
-      _goToResults();
-    }
+    if (_vm.isFinished) _goToResults();
   }
 
   void _goToResults() {
     if (_navigated) return;
     _navigated = true;
     Navigator.of(context).pushReplacement(
-      PlacementResultScreen.route(draft: _draft, checks: widget.checks),
+      PlacementResultScreen.route(draft: _vm.draft, checks: widget.checks),
     );
   }
 
@@ -237,19 +142,22 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final persist = context.watch<ProgressPersistenceController>();
-    final recovery = context.watch<ProgressRestoreRecoveryController>();
-    final blocked = persist.hasWriteFailure || recovery.needsRecovery;
+    // Watched for rebuilds only; whether a write is allowed is the
+    // ViewModel's call.
+    context.watch<ProgressPersistenceController>();
+    context.watch<ProgressRestoreRecoveryController>();
+    final blocked = _vm.isBlocked;
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.placementTitle)),
       body: SafeArea(
         child: ListenableBuilder(
           listenable: _vm,
           builder: (context, _) {
-            if (_vm.items.isEmpty || _vm.isFinished) {
+            if (_vm.isEmpty || _vm.isFinished) {
               return const SizedBox.shrink();
             }
             final q = _vm.current;
+            final revealed = _vm.isRevealed;
             return Column(
               children: [
                 Padding(
@@ -294,14 +202,14 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                                   color: AppColors.ink,
                                 ),
                               ),
-                              if (_recallRevealed) ...[
+                              if (revealed) ...[
                                 const SizedBox(height: 8),
                                 SpeakButton(text: q.target.character, size: 30),
                               ],
                             ],
                           ),
                         ),
-                        if (_recallRevealed) ...[
+                        if (revealed) ...[
                           const SizedBox(height: 16),
                           Text(
                             q.correctAnswer,
@@ -338,8 +246,8 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
   }
 
   Widget _actions({required bool blocked}) {
-    if (_recallRevealed) {
-      final unprompted = _recallUnpromptedCommit;
+    if (_vm.isRevealed) {
+      final unprompted = _vm.isUnpromptedCommit;
       return Row(
         children: [
           Expanded(
@@ -352,9 +260,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: blocked
-                  ? null
-                  : () => _noteOutcome(correct: false, unprompted: unprompted),
+              onPressed: blocked ? null : () => _vm.noteOutcome(correct: false),
               child: const Text(AppStrings.iCouldnt),
             ),
           ),
@@ -365,9 +271,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                 backgroundColor: AppColors.success,
                 minimumSize: const Size.fromHeight(54),
               ),
-              onPressed: blocked
-                  ? null
-                  : () => _noteOutcome(correct: true, unprompted: unprompted),
+              onPressed: blocked ? null : () => _vm.noteOutcome(correct: true),
               child: Text(
                 unprompted ? AppStrings.iReadIt : AppStrings.iReadAfterHint,
               ),
@@ -388,7 +292,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: blocked ? null : _revealAsHint,
+                onPressed: blocked ? null : _vm.revealAsHint,
                 child: const Text(AppStrings.recallHint),
               ),
             ),
@@ -398,7 +302,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
                 ),
-                onPressed: blocked ? null : _revealAfterUnpromptedCommit,
+                onPressed: blocked ? null : _vm.revealAfterUnpromptedCommit,
                 child: const Text(AppStrings.iReadUnprompted),
               ),
             ),
@@ -406,12 +310,7 @@ class _PlacementCheckScreenState extends State<PlacementCheckScreen> {
         ),
         const SizedBox(height: 10),
         TextButton(
-          onPressed: blocked
-              ? null
-              : () {
-                  _revealAsHint();
-                  _noteOutcome(correct: false, unprompted: true);
-                },
+          onPressed: blocked ? null : _vm.markUnknown,
           style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
           child: const Text(AppStrings.placementUnknown),
         ),
