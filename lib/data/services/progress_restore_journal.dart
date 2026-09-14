@@ -3,8 +3,10 @@
 
 import 'dart:convert';
 
+import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 
 /// Phases of an in-flight progress restore. Only [committed] (or a cleared
 /// journal after it) is finished. Anything else on the next [recoverIfNeeded]
@@ -53,16 +55,26 @@ abstract final class RestoreJournalStores {
   ];
 }
 
+/// Placement draft keys snapshotted when a restore must invalidate a stale
+/// check. Rolled back with the five primaries when commit never lands.
+abstract final class RestoreJournalPlacementStores {
+  static const all = PlacementCheckRepository.durableKeys;
+}
+
 class _ValidatedJournal {
   const _ValidatedJournal({
     required this.phase,
     required this.rollback,
     this.staging,
+    this.placementRollback,
+    this.placementDiscardPending = false,
   });
 
   final RestoreJournalPhase phase;
   final Map<String, String?> rollback;
   final Map<String, String>? staging;
+  final Map<String, String?>? placementRollback;
+  final bool placementDiscardPending;
 }
 
 /// `progress_restore_journal_v1` — coordinates staging, applying, rollback and
@@ -106,6 +118,9 @@ class ProgressRestoreJournal {
       return RestoreJournalRecoveryResult.ok;
     }
     if (parsed.phase == RestoreJournalPhase.committed) {
+      if (parsed.placementDiscardPending) {
+        await ProgressRestorePlacementDiscard.markPending(prefs);
+      }
       await journal._removeJournalBestEffort();
       return RestoreJournalRecoveryResult.ok;
     }
@@ -137,7 +152,13 @@ class ProgressRestoreJournal {
 
   /// Begins staging: snapshot current primaries for rollback and persist the
   /// encoded replacements. Does not touch primaries yet.
-  Future<void> beginStaging(Map<String, String> stagingEncoded) async {
+  ///
+  /// When [placementRollback] is set, the restore must clear that draft before
+  /// [commit] and roll it back with the primaries if the transaction aborts.
+  Future<void> beginStaging(
+    Map<String, String> stagingEncoded, {
+    Map<String, String?>? placementRollback,
+  }) async {
     assert(stagingEncoded.keys.toSet().containsAll(RestoreJournalStores.all));
     final rollback = <String, String?>{};
     for (final key in RestoreJournalStores.all) {
@@ -147,6 +168,7 @@ class ProgressRestoreJournal {
       'phase': RestoreJournalPhase.staging.name,
       'rollback': rollback,
       'staging': stagingEncoded,
+      'placementRollback': ?placementRollback,
     });
   }
 
@@ -162,18 +184,28 @@ class ProgressRestoreJournal {
   /// Records a durable committed decision, then removes the journal. Cleanup
   /// may fail after [committed] is already durable — that still counts as
   /// success. Throws when the committed marker never lands on durable storage.
-  Future<void> commit() async {
+  ///
+  /// When [recordPlacementDiscardPending] is true, the committed journal and
+  /// [ProgressRestorePlacementDiscard.pendingKey] both record that any
+  /// pre-restore placement draft must be cleared before it can be resumed.
+  Future<void> commit({bool recordPlacementDiscardPending = false}) async {
     final doc = _document;
     if (doc == null) {
       throw RestoreJournalWriteFailure(journalKey);
     }
     doc['phase'] = RestoreJournalPhase.committed.name;
+    if (recordPlacementDiscardPending) {
+      doc['placementDiscardPending'] = true;
+    }
     if (!await _prefs.writeString(journalKey, jsonEncode(doc))) {
       throw RestoreJournalWriteFailure(journalKey);
     }
     await _prefs.reload();
     if (_validated?.phase != RestoreJournalPhase.committed) {
       throw RestoreJournalWriteFailure(journalKey);
+    }
+    if (recordPlacementDiscardPending) {
+      await ProgressRestorePlacementDiscard.markPending(_prefs);
     }
     try {
       if (!await _prefs.remove(journalKey)) {
@@ -202,6 +234,20 @@ class ProgressRestoreJournal {
 
     for (final key in RestoreJournalStores.all) {
       final raw = parsed.rollback[key];
+      if (raw == null) {
+        if (!await _prefs.remove(key)) return false;
+      } else {
+        if (!await _prefs.writeString(key, raw)) return false;
+      }
+    }
+    return await _rollbackPlacement(parsed.placementRollback);
+  }
+
+  Future<bool> _rollbackPlacement(Map<String, String?>? placementRollback) async {
+    if (placementRollback == null) return true;
+    for (final key in RestoreJournalPlacementStores.all) {
+      if (!placementRollback.containsKey(key)) return false;
+      final raw = placementRollback[key];
       if (raw == null) {
         if (!await _prefs.remove(key)) return false;
       } else {
@@ -304,10 +350,33 @@ class ProgressRestoreJournal {
         }
       }
 
+      Map<String, String?>? placementRollback;
+      final placementRaw = decoded['placementRollback'];
+      if (placementRaw != null) {
+        if (placementRaw is! Map) return null;
+        placementRollback = <String, String?>{};
+        for (final key in RestoreJournalPlacementStores.all) {
+          if (!placementRaw.containsKey(key)) return null;
+          final value = placementRaw[key];
+          if (value is String) {
+            placementRollback[key] = value;
+          } else if (value == null) {
+            placementRollback[key] = null;
+          } else {
+            return null;
+          }
+        }
+      }
+
+      final placementDiscardPending =
+          decoded['placementDiscardPending'] == true;
+
       return _ValidatedJournal(
         phase: phase,
         rollback: rollback,
         staging: staging,
+        placementRollback: placementRollback,
+        placementDiscardPending: placementDiscardPending,
       );
     } on FormatException {
       return null;

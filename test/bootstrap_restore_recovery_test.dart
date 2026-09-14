@@ -7,9 +7,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/main.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
@@ -63,6 +65,31 @@ void main() {
       ProgressRestoreJournal.journalKey: 'not json',
     });
   }
+
+  testWidgets(
+    'placement discard pending clears stale draft without blocking bootstrap',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'learned_units_v1': '["hira_row_1"]',
+        'placement_check_v1':
+            '{"records":[{"kanaId":"あ","outcome":"independent"}],'
+            '"pendingKanaIds":[],"scopeLessonIds":["hira_row_0"]}',
+        ProgressRestorePlacementDiscard.pendingKey: 'pending',
+      });
+      await tester.binding.setSurfaceSize(const Size(420, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await mountBootstrap(tester);
+
+      expect(find.text(AppStrings.appTitle), findsOneWidget);
+      expect(find.text(AppStrings.restoreJournalRecoveryLine), findsNothing);
+      final root = tester.element(find.text(AppStrings.appTitle));
+      final checks = root.read<PlacementCheckRepository>();
+      final kana = root.read<KanaProgressRepository>();
+      expect(checks.draft.hasProgress, isFalse);
+      expect(kana.learnedUnits, {'hira_row_1'});
+    },
+  );
 
   testWidgets('bootstrap pumps with production restore-recovery provider', (
     tester,

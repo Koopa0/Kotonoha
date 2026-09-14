@@ -675,13 +675,15 @@ abstract final class AppStrings {
   static const String restoreScope =
       '可選先前保存的檔案，預覽日期與範圍後，明確確認才會取代現在的假名、課程、解鎖、漢字讀音與詞句進度。';
   static const String restoreNotIncluded =
-      '不含作答紀錄、未完成的回合或裝置設定；不會把匯入的熟練度當成新的答對。';
+      '不含作答紀錄、未完成或尚未套用的手解き草稿、裝置設定；不會把匯入的熟練度當成新的答對。';
   static const String restoreAction = '選擇備份檔案';
   static const String restoreRestoring = '正在還原…';
   static const String restoreConfirmTitle = '確認取代現在的進度？';
   static const String restoreConfirmYes = '取代現在的進度';
   static const String restoreConfirmNo = '取消';
   static const String restoreRestored = '已還原這五份進度。';
+  static const String restoreRestoredPlacementDiscardPending =
+      '已還原這五份進度；先前未完成的手解き草稿尚待清除，重新啟動後會再試，暫時不能從那份草稿套用。';
   static const String restoreInvalid = '這個檔案不能還原。';
   static const String restoreFailed = '這次沒能還原，原本的進度沒有變。';
   static const String restoreBlocked = '上次的還原還沒處理完，暫時不能繼續。';
@@ -694,6 +696,6 @@ abstract final class AppStrings {
         '${two(utc.hour)}:${two(utc.minute)}（UTC）';
     return '備份時間：$stamp\n'
         '會取代：假名熟練、已學課、已見解鎖、漢字讀音、詞句進度。\n'
-        '不含作答紀錄、未完成回合或裝置設定。';
+        '不含作答紀錄、未完成或尚未套用的手解き草稿、裝置設定。';
   }
 }

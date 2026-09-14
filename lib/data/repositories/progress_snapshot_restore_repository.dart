@@ -4,11 +4,14 @@
 import 'dart:convert';
 
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
+import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
+import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
 import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 
@@ -27,6 +30,7 @@ class ProgressSnapshotRestoreRepository {
     required this._kana,
     required this._kanji,
     required this._words,
+    this._placement,
     this._codec = const ProgressSnapshotCodec(),
   }) : _journal = ProgressRestoreJournal(_prefs);
 
@@ -34,6 +38,7 @@ class ProgressSnapshotRestoreRepository {
   final KanaProgressRepository _kana;
   final KanjiReadingRepository _kanji;
   final WordProgressRepository _words;
+  final PlacementCheckRepository? _placement;
   final ProgressSnapshotCodec _codec;
   final ProgressRestoreJournal _journal;
 
@@ -62,15 +67,23 @@ class ProgressSnapshotRestoreRepository {
   /// Throws [RestoreJournalWriteFailure] after rolling primaries back. Validation
   /// must happen before calling — this does not re-decode.
   Future<void> apply(ProgressSnapshot snapshot) async {
+    final placement = _placement;
     await Future.wait([
       _kana.prepareForRestore(),
       _kanji.prepareForRestore(),
       _words.prepareForRestore(),
+      if (placement != null) placement.prepareForRestore(),
     ]);
     try {
+      await _prefs.reload();
+      await _syncPlacementFromDurable();
       final staging = _encodeStaging(snapshot);
+      final placementRollback = _capturePlacementRollback();
       try {
-        await _journal.beginStaging(staging);
+        await _journal.beginStaging(
+          staging,
+          placementRollback: placementRollback,
+        );
         for (final key in RestoreJournalStores.all) {
           await _journal.applyPrimary(key, staging[key]!);
         }
@@ -78,6 +91,9 @@ class ProgressSnapshotRestoreRepository {
           if (!await _prefs.remove(key)) {
             throw RestoreJournalWriteFailure(key);
           }
+        }
+        if (placementRollback != null) {
+          await _discardPlacementDraftBeforeCommit();
         }
         await _journal.commit();
       } on RestoreJournalWriteFailure {
@@ -88,6 +104,7 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         await _syncMemoryFromDurable();
+        await _syncPlacementFromDurable();
         _syncJournalWriteBlocking();
         rethrow;
       } catch (_) {
@@ -102,6 +119,7 @@ class ProgressSnapshotRestoreRepository {
           // Journal stays blocking — primaries may still be mixed on disk.
         }
         await _syncMemoryFromDurable();
+        await _syncPlacementFromDurable();
         _syncJournalWriteBlocking();
         rethrow;
       }
@@ -110,6 +128,7 @@ class ProgressSnapshotRestoreRepository {
       _kana.finishRestore();
       _kanji.finishRestore();
       _words.finishRestore();
+      _placement?.finishRestore();
     }
   }
 
@@ -138,6 +157,33 @@ class ProgressSnapshotRestoreRepository {
     _kana.setRestoreJournalBlocked(blocked);
     _kanji.setRestoreJournalBlocked(blocked);
     _words.setRestoreJournalBlocked(blocked);
+  }
+
+  /// Whether a committed restore still owes placement-draft cleanup.
+  bool get placementDiscardPending =>
+      ProgressRestorePlacementDiscard.isPending(_prefs);
+
+  Map<String, String?>? _capturePlacementRollback() {
+    final placement = _placement;
+    if (placement == null || !placement.draft.hasProgress) return null;
+    return {
+      for (final key in PlacementCheckRepository.durableKeys)
+        key: _prefs.readString(key),
+    };
+  }
+
+  Future<void> _discardPlacementDraftBeforeCommit() async {
+    final placement = _placement;
+    if (placement == null) return;
+    try {
+      await placement.discardForRestore();
+    } on StoreWriteFailure catch (error) {
+      throw RestoreJournalWriteFailure(error.key);
+    }
+  }
+
+  Future<void> _syncPlacementFromDurable() async {
+    await _placement?.reloadFromPlatform();
   }
 
   void _applyToMemory(ProgressSnapshot snapshot) {

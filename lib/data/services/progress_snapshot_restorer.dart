@@ -12,6 +12,10 @@ enum SnapshotRestoreStatus {
   /// Every primary was replaced and memory updated.
   restored,
 
+  /// Primaries were replaced but a pre-restore placement draft still needs
+  /// durable cleanup — progress did change; bootstrap will retry discard.
+  restoredPlacementDiscardPending,
+
   /// The picker was dismissed before reading.
   cancelled,
 
@@ -107,9 +111,9 @@ class ProgressSnapshotRestorer {
             : applyError.toString(),
       );
     }
-    return SnapshotRestoreResult(
-      SnapshotRestoreStatus.restored,
-      preview: preview,
-    );
+    final status = _restore.placementDiscardPending
+        ? SnapshotRestoreStatus.restoredPlacementDiscardPending
+        : SnapshotRestoreStatus.restored;
+    return SnapshotRestoreResult(status, preview: preview);
   }
 }

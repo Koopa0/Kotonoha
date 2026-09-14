@@ -14,6 +14,7 @@ import 'package:kotonoha/data/services/analytics_opener.dart';
 import 'package:kotonoha/data/services/file_picker_snapshot_port.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
@@ -42,6 +43,7 @@ Future<Widget> bootstrap({
   final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
     resolvedPrefs,
   );
+  await ProgressRestorePlacementDiscard.recoverIfNeeded(resolvedPrefs);
   final store = await KanaProgressRepository.load(resolvedPrefs);
   final kanji = await KanjiReadingRepository.load(resolvedPrefs);
   final words = await WordProgressRepository.load(resolvedPrefs);
@@ -119,6 +121,7 @@ Future<Widget> bootstrap({
             kana: store,
             kanji: kanji,
             words: words,
+            placement: checks,
           ),
           files: FilePickerSnapshotPort(),
           recovery: restoreRecovery,
