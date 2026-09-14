@@ -229,9 +229,12 @@ Future<Color> _sampleScreenPixel(WidgetTester tester, Offset position) async {
 }
 
 bool _colorsNear(Color a, Color b, {int tolerance = 10}) {
-  return (a.red - b.red).abs() <= tolerance &&
-      (a.green - b.green).abs() <= tolerance &&
-      (a.blue - b.blue).abs() <= tolerance;
+  int channel(int argb, int shift) => (argb >> shift) & 0xFF;
+  final av = a.toARGB32();
+  final bv = b.toARGB32();
+  return (channel(av, 16) - channel(bv, 16)).abs() <= tolerance &&
+      (channel(av, 8) - channel(bv, 8)).abs() <= tolerance &&
+      (channel(av, 0) - channel(bv, 0)).abs() <= tolerance;
 }
 
 Future<void> _pumpApp(WidgetTester tester, {SpeechService? speech}) async {
