@@ -9,8 +9,10 @@ import 'package:kotonoha/ui/core/widgets/washi_background.dart';
 abstract final class AppTheme {
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(seedColor: AppColors.accent).copyWith(
-      primary: AppColors.accent,
+      primary: AppColors.buttonFill,
+      onPrimary: AppColors.onButton,
       primaryContainer: AppColors.accentSoft,
+      onPrimaryContainer: AppColors.accent,
       surface: AppColors.card,
       onSurface: AppColors.ink,
       onSurfaceVariant: AppColors.inkMuted,
@@ -64,8 +66,8 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.accent,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.buttonFill,
+          foregroundColor: AppColors.onButton,
           minimumSize: const Size.fromHeight(56),
           textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(

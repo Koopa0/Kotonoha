@@ -271,7 +271,7 @@ class _ActionButton extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: kind == _ActionKind.filled
-                ? Colors.white.withValues(alpha: 0.82)
+                ? AppColors.onButtonMuted
                 : AppColors.inkMuted,
           ),
         ),
