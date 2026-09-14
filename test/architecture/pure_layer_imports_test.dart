@@ -83,6 +83,43 @@ void main() {
     );
   });
 
+  test('migrated feature views leave progress and analytics writes to their ViewModel', () {
+    // Screens already split into View / ViewModel (#149). Grow this list as
+    // each batch lands; a listed file that moves fails loudly instead of the
+    // guard silently scanning nothing. A view may still *inject* a repository
+    // or the analytics log into its ViewModel — it must never mutate one.
+    const migratedViews = [
+      'lib/ui/quiz/quiz_screen.dart',
+      'lib/ui/reading/reading_screen.dart',
+      'lib/ui/listening/listening_screen.dart',
+    ];
+    final forbidden = RegExp(
+      r'\.(recordAnswer|recordPromptedPractice|markIntroduced|introduce|'
+      'markUnitLearned|recordObserved|record|trackKana|trackKanji|trackWord|'
+      r'trackPlacement|trackAnalytics|trackTravelFocus)\s*\(',
+    );
+    final offenders = <String>[];
+    for (final path in migratedViews) {
+      final file = File(path);
+      expect(file.existsSync(), isTrue, reason: 'missing migrated view: $path');
+      for (final line in file.readAsLinesSync()) {
+        final t = line.trimLeft();
+        if (t.startsWith('//') || t.startsWith('*')) continue;
+        if (forbidden.hasMatch(line)) {
+          offenders.add('$path: ${line.trim()}');
+        }
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'learning evidence, schedule writes and analytics belong to the '
+          'feature ViewModel, not the widget State — found:\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
   test('the UI layer never touches platform packages directly (services wrap them)', () {
     final offenders = _scan(
       dirs: ['lib/ui', 'lib/kanji/ui'],
