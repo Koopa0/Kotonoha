@@ -11,6 +11,7 @@ import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_restore_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/progress_snapshot_exporter.dart';
 import 'package:kotonoha/data/services/progress_snapshot_restorer.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
@@ -1150,6 +1151,57 @@ void main() {
     expect(fake.durable['placement_check_v1'], beforePlacement);
     expect(kana.learnedUnits, isEmpty);
   });
+
+  test(
+    'placement discard pending survives restart and clears stale draft on bootstrap',
+    () async {
+      final (fake, kana, kanji, words) = await loadAll();
+      await seedCompleteAoDraft(fake);
+      fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
+          '["hira_row_1"]';
+      fake.seed(ProgressRestorePlacementDiscard.pendingKey, 'pending');
+
+      final restarted = FakePreferencesService.restarted(fake);
+      await ProgressRestorePlacementDiscard.recoverIfNeeded(restarted);
+      final reloadedChecks = await PlacementCheckRepository.load(restarted);
+      final reloadedKana = await KanaProgressRepository.load(restarted);
+
+      expect(ProgressRestorePlacementDiscard.isPending(restarted), isFalse);
+      expect(reloadedChecks.draft.hasProgress, isFalse);
+      expect(restarted.durable['placement_check_v1'], isNull);
+      expect(reloadedKana.learnedUnits, {'hira_row_1'});
+      expect(reloadedKana.isUnitLearned('hira_row_0'), isFalse);
+    },
+  );
+
+  test(
+    'committed journal with placement discard flag migrates marker on restart',
+    () async {
+      final (fake, kana, kanji, words) = await loadAll();
+      await seedCompleteAoDraft(fake);
+      fake.durable[ProgressSnapshotRepository.learnedUnitsStore] =
+          '["hira_row_1"]';
+      fake.seed(
+        ProgressRestoreJournal.journalKey,
+        jsonEncode(<String, Object?>{
+          'phase': RestoreJournalPhase.committed.name,
+          'placementDiscardPending': true,
+          'rollback': <String, String?>{
+            for (final key in RestoreJournalStores.all) key: null,
+          },
+        }),
+      );
+
+      await ProgressRestoreJournal.recoverIfNeeded(fake);
+      await ProgressRestorePlacementDiscard.recoverIfNeeded(fake);
+
+      expect(fake.durable[ProgressRestoreJournal.journalKey], isNull);
+      expect(ProgressRestorePlacementDiscard.isPending(fake), isFalse);
+      expect(fake.durable['placement_check_v1'], isNull);
+      final reloaded = await PlacementCheckRepository.load(fake);
+      expect(reloaded.draft.hasProgress, isFalse);
+    },
+  );
 
   test(
     'failed restore before commit keeps a complete placement draft',

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 
@@ -47,7 +48,11 @@ class PlacementCheckRepository extends ChangeNotifier {
       empty: () => PlacementDraft.empty,
       decode: _decode,
     );
-    return PlacementCheckRepository._(store, await store.load());
+    final loaded = await store.load();
+    final draft = ProgressRestorePlacementDiscard.isPending(service)
+        ? PlacementDraft.empty
+        : loaded.value;
+    return PlacementCheckRepository._(store, StoreLoad(loaded.health, draft));
   }
 
   PlacementDraft get draft => _draft;
@@ -70,6 +75,15 @@ class PlacementCheckRepository extends ChangeNotifier {
 
   /// Re-reads the draft from durable storage after a restore rollback.
   Future<void> reloadFromPlatform() => _serialized(_reloadFromPlatform);
+
+  /// Hides a stale draft in memory when durable discard is still pending.
+  /// Does not touch disk — bootstrap recovery will finish removal.
+  void hideDraftWhileDiscardPending() {
+    if (!_draft.hasProgress) return;
+    _draft = PlacementDraft.empty;
+    _gen++;
+    notifyListeners();
+  }
 
   Future<void> flushPending() => _serialized(_flush);
 

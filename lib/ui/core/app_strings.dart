@@ -682,6 +682,8 @@ abstract final class AppStrings {
   static const String restoreConfirmYes = '取代現在的進度';
   static const String restoreConfirmNo = '取消';
   static const String restoreRestored = '已還原這五份進度。';
+  static const String restoreRestoredPlacementDiscardPending =
+      '已還原這五份進度；先前未完成的手解き草稿尚待清除，重新啟動後會再試，暫時不能從那份草稿套用。';
   static const String restoreInvalid = '這個檔案不能還原。';
   static const String restoreFailed = '這次沒能還原，原本的進度沒有變。';
   static const String restoreBlocked = '上次的還原還沒處理完，暫時不能繼續。';

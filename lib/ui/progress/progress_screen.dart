@@ -457,6 +457,8 @@ class _ProgressRestoreState extends State<_ProgressRestore> {
 
   String _copyFor(SnapshotRestoreStatus status) => switch (status) {
     SnapshotRestoreStatus.restored => AppStrings.restoreRestored,
+    SnapshotRestoreStatus.restoredPlacementDiscardPending =>
+      AppStrings.restoreRestoredPlacementDiscardPending,
     SnapshotRestoreStatus.invalid => AppStrings.restoreInvalid,
     SnapshotRestoreStatus.failed => AppStrings.restoreFailed,
     SnapshotRestoreStatus.blocked => AppStrings.restoreBlocked,

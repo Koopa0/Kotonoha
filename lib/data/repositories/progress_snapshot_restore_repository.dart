@@ -9,6 +9,7 @@ import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 import 'package:kotonoha/data/services/progress_snapshot_codec.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/progress_snapshot.dart';
@@ -152,6 +153,10 @@ class ProgressSnapshotRestoreRepository {
     _kanji.setRestoreJournalBlocked(blocked);
     _words.setRestoreJournalBlocked(blocked);
   }
+
+  /// Whether a committed restore still owes placement-draft cleanup.
+  bool get placementDiscardPending =>
+      ProgressRestorePlacementDiscard.isPending(_prefs);
 
   Map<String, String?>? _capturePlacementRollback() {
     final placement = _placement;

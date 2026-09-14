@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
 import 'package:kotonoha/data/repositories/progress_snapshot_repository.dart';
 import 'package:kotonoha/data/services/preferences_service.dart';
+import 'package:kotonoha/data/services/progress_restore_placement_discard.dart';
 
 /// Phases of an in-flight progress restore. Only [committed] (or a cleared
 /// journal after it) is finished. Anything else on the next [recoverIfNeeded]
@@ -66,12 +67,14 @@ class _ValidatedJournal {
     required this.rollback,
     this.staging,
     this.placementRollback,
+    this.placementDiscardPending = false,
   });
 
   final RestoreJournalPhase phase;
   final Map<String, String?> rollback;
   final Map<String, String>? staging;
   final Map<String, String?>? placementRollback;
+  final bool placementDiscardPending;
 }
 
 /// `progress_restore_journal_v1` — coordinates staging, applying, rollback and
@@ -115,6 +118,9 @@ class ProgressRestoreJournal {
       return RestoreJournalRecoveryResult.ok;
     }
     if (parsed.phase == RestoreJournalPhase.committed) {
+      if (parsed.placementDiscardPending) {
+        await ProgressRestorePlacementDiscard.markPending(prefs);
+      }
       await journal._removeJournalBestEffort();
       return RestoreJournalRecoveryResult.ok;
     }
@@ -178,18 +184,28 @@ class ProgressRestoreJournal {
   /// Records a durable committed decision, then removes the journal. Cleanup
   /// may fail after [committed] is already durable — that still counts as
   /// success. Throws when the committed marker never lands on durable storage.
-  Future<void> commit() async {
+  ///
+  /// When [recordPlacementDiscardPending] is true, the committed journal and
+  /// [ProgressRestorePlacementDiscard.pendingKey] both record that any
+  /// pre-restore placement draft must be cleared before it can be resumed.
+  Future<void> commit({bool recordPlacementDiscardPending = false}) async {
     final doc = _document;
     if (doc == null) {
       throw RestoreJournalWriteFailure(journalKey);
     }
     doc['phase'] = RestoreJournalPhase.committed.name;
+    if (recordPlacementDiscardPending) {
+      doc['placementDiscardPending'] = true;
+    }
     if (!await _prefs.writeString(journalKey, jsonEncode(doc))) {
       throw RestoreJournalWriteFailure(journalKey);
     }
     await _prefs.reload();
     if (_validated?.phase != RestoreJournalPhase.committed) {
       throw RestoreJournalWriteFailure(journalKey);
+    }
+    if (recordPlacementDiscardPending) {
+      await ProgressRestorePlacementDiscard.markPending(_prefs);
     }
     try {
       if (!await _prefs.remove(journalKey)) {
@@ -352,11 +368,15 @@ class ProgressRestoreJournal {
         }
       }
 
+      final placementDiscardPending =
+          decoded['placementDiscardPending'] == true;
+
       return _ValidatedJournal(
         phase: phase,
         rollback: rollback,
         staging: staging,
         placementRollback: placementRollback,
+        placementDiscardPending: placementDiscardPending,
       );
     } on FormatException {
       return null;
