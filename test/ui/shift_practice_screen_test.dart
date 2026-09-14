@@ -307,9 +307,8 @@ void main() {
       analytics.senseGate!.complete();
       await tester.pumpAndSettle();
 
-      final senses = _grades(await analytics.all()).where(
-        (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
-      );
+      final senses = _grades(await analytics.all())
+          .where((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name);
       expect(senses, hasLength(1));
       expect(senses.single.meta[AttemptMeta.beat], ShiftBeat.base.name);
       expect(find.text('あおい うみ'), findsOneWidget);
@@ -350,9 +349,8 @@ void main() {
     analytics.senseGate!.complete();
     await tester.pumpAndSettle();
 
-    final senses = _grades(await analytics.all()).where(
-      (a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name,
-    );
+    final senses = _grades(await analytics.all())
+        .where((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name);
     expect(senses, hasLength(1));
     expect(find.text(AppStrings.shiftClose), findsOneWidget);
   });
@@ -1069,6 +1067,80 @@ void main() {
       expect(words.stats, isEmpty);
     },
   );
+
+  testWidgets(
+    'leaving practice during a slow sense write does not advance the beat',
+    (tester) async {
+      final analytics = _GatedAnalyticsLog();
+      final drill = ShiftSession.drillById('i-adj-aoi-noun')!;
+      await tester.pumpWidget(
+        _harness(
+          analytics: analytics,
+          child: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).push(
+                    ShiftPracticeScreen.route(
+                      drill,
+                      clock: () => DateTime(2026, 9, 10, 10),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(AppStrings.iReadUnprompted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.iReadIt));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.shiftSenseReady));
+      await tester.pumpAndSettle();
+
+      analytics.senseGate = Completer<void>();
+      await tester.tap(find.text(AppStrings.shiftSenseOk));
+      await tester.pump();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('open'), findsOneWidget);
+      analytics.senseGate!.complete();
+      await tester.pumpAndSettle();
+
+      final all = await analytics.all();
+      final senses = _grades(all)
+          .where((a) => a.meta[AttemptMeta.evidence] == ShiftCheck.sense.name);
+      final sights = all.where(
+        (a) => a.meta[AttemptMeta.sight] == ShiftSightKind.practice,
+      );
+      expect(senses, hasLength(1));
+      expect(sights.map((a) => a.meta[AttemptMeta.beat]), [
+        ShiftBeat.base.name,
+      ]);
+      expect(find.text('あおい うみ'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('leaving picker during reload does not throw', (tester) async {
+    final analytics = _GatedFlushAnalyticsLog();
+    await tester.binding.setSurfaceSize(const Size(420, 2000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _harness(analytics: analytics, child: const ShiftFocusScreen()),
+    );
+    analytics.flushGate = Completer<void>();
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    analytics.flushGate!.complete();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 }
 
 /// Holds [record] on sense rows until [senseGate] completes — reproduces a
@@ -1099,6 +1171,30 @@ class _GatedAnalyticsLog implements AnalyticsLog {
   Future<void> flushPending() async {}
 }
 
+/// Holds [flushPending] until [flushGate] completes — reproduces a slow
+/// authoritative read while the picker is left.
+class _GatedFlushAnalyticsLog implements AnalyticsLog {
+  final List<Attempt> _items = [];
+  Completer<void>? flushGate;
+
+  @override
+  int get unpersistedCount => 0;
+
+  @override
+  Future<void> record(Attempt attempt) async => _items.add(attempt);
+
+  @override
+  Future<List<Attempt>> all() async => List.unmodifiable(_items);
+
+  @override
+  Future<int> count() async => _items.length;
+
+  @override
+  Future<void> flushPending() async {
+    if (flushGate != null) await flushGate!.future;
+  }
+}
+
 List<Attempt> _grades(List<Attempt> all) => [
   for (final attempt in all)
     if (attempt.meta[AttemptMeta.scored] != false &&
@@ -1119,6 +1215,14 @@ Widget _harness({
     providers: [
       if (words != null)
         ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+      ChangeNotifierProvider<ProgressPersistenceController>.value(
+        value: ProgressPersistenceController(
+          kanaFlush: () async {},
+          kanjiFlush: () async {},
+          wordFlush: () async {},
+          analyticsFlush: analytics.flushPending,
+        ),
+      ),
       Provider<SpeechService>.value(value: speech),
       Provider<AnalyticsLog>.value(value: analytics),
     ],
