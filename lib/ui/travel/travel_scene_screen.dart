@@ -158,10 +158,10 @@ class TravelSceneHub extends StatelessWidget {
   };
 
   ReplySceneId? get _replyScene => switch (scene) {
+    TravelSceneId.transport => ReplySceneId.station,
     TravelSceneId.clothing => ReplySceneId.clothing,
     TravelSceneId.restaurant => ReplySceneId.restaurant,
     TravelSceneId.convenience => ReplySceneId.convenience,
-    TravelSceneId.transport ||
     TravelSceneId.shrine ||
     TravelSceneId.parkQueue ||
     TravelSceneId.hotel => null,
