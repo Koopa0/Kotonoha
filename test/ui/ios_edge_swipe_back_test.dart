@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-import 'dart:ui' as ui;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -97,7 +95,7 @@ void main() {
           tester,
           _lessonsMidSwipeOpaqueProbe,
         );
-        expect(probeColor.alpha, 255);
+        expect(probeColor.a, 1.0);
         expect(
           _colorsNear(probeColor, AppColors.accent),
           isFalse,
@@ -213,12 +211,10 @@ Future<Color> _sampleScreenPixel(WidgetTester tester, Offset position) async {
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(_iosSwipeCaptureKey),
   );
-  final image = await tester.runAsync(() => boundary.toImage(pixelRatio: 1));
-  final data = await tester.runAsync(
-    () => image!.toByteData(format: ui.ImageByteFormat.rawRgba),
-  );
+  final image = await tester.runAsync(() => boundary.toImage());
+  final data = await tester.runAsync(() => image!.toByteData());
   final x = position.dx.floor().clamp(0, image!.width - 1);
-  final y = position.dy.floor().clamp(0, image!.height - 1);
+  final y = position.dy.floor().clamp(0, image.height - 1);
   final offset = (y * image.width + x) * 4;
   return Color.fromARGB(
     data!.getUint8(offset + 3),
