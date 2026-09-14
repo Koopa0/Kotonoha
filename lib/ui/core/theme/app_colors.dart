@@ -11,8 +11,21 @@ import 'package:kotonoha/domain/models/kana_stat.dart';
 /// palette of *The Garden of Words*: celadon green, pine ink, soft mist.
 abstract final class AppColors {
   // Brand — celadon / 青磁, like a leaf after rain.
-  static const Color accent = Color(0xFF5E9387); // primary
+  static const Color accent = Color(0xFF5E9387); // decorative celadon
   static const Color accentSoft = Color(0xFFE2EDEA); // soft fills
+
+  /// Filled-button fill. Same celadon hue as [accent], darkened so 12px
+  /// on-button type meets 4.5:1 — including the quieter Japanese line —
+  /// in rest, pressed, and focused states after Material's onPrimary
+  /// overlay. [accent] stays decorative (chips, dots, soft fills).
+  static const Color buttonFill = Color(0xFF34514A);
+
+  /// On-button ink. [ColorScheme.onPrimary] and FilledButton foreground.
+  static const Color onButton = Color(0xFFFFFFFF);
+
+  /// Quieter on-button copy (Japanese room names). Still ≥4.5:1 on
+  /// [buttonFill] after Material's ~12% onPrimary overlay.
+  static Color get onButtonMuted => onButton.withValues(alpha: 0.82);
 
   /// Warm light through leaves (木漏れ日) — the ONLY "reward" colour. Reserved
   /// for light moments (the wordmark underline, a session's closing glow), never

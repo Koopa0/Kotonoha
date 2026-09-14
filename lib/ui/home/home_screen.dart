@@ -323,8 +323,9 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.shiftSubtitle,
                     onTap: () => _guardLearning(
                       context,
-                      () => Navigator.of(context)
-                          .push(ShiftFocusScreen.route(clock: clock)),
+                      () =>
+                          Navigator.of(context)
+                              .push(ShiftFocusScreen.route(clock: clock)),
                     ),
                   ),
                   // Isolated travel-purpose picker. Does not change 渡し舟 /
@@ -336,8 +337,8 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.travelSceneSubtitle,
                     onTap: () => _guardLearning(
                       context,
-                      () => Navigator.of(context)
-                          .push(TravelSceneScreen.route()),
+                      () =>
+                          Navigator.of(context).push(TravelSceneScreen.route()),
                     ),
                   ),
                   _NavCard(
@@ -349,8 +350,9 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.travelFocusSubtitle,
                     onTap: () => _guardLearning(
                       context,
-                      () => Navigator.of(context)
-                          .push(TravelFocusScreen.route(clock: clock)),
+                      () =>
+                          Navigator.of(context)
+                              .push(TravelFocusScreen.route(clock: clock)),
                     ),
                   ),
                   // Isolated from #47 scene membership and #9 聞き取り self-grade.
@@ -361,8 +363,9 @@ class HomeScreen extends StatelessWidget {
                     subtitle: AppStrings.replySubtitle,
                     onTap: () => _guardLearning(
                       context,
-                      () => Navigator.of(context)
-                          .push(ReplyHubScreen.route(clock: clock)),
+                      () =>
+                          Navigator.of(context)
+                              .push(ReplyHubScreen.route(clock: clock)),
                     ),
                   ),
                 ]),
@@ -1365,7 +1368,7 @@ class _HeroAction extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: switch (kind) {
-              _HeroKind.filled => Colors.white.withValues(alpha: 0.82),
+              _HeroKind.filled => AppColors.onButtonMuted,
               _HeroKind.outlined || _HeroKind.text => AppColors.inkMuted,
             },
           ),
