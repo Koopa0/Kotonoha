@@ -4,21 +4,23 @@
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/placement_check_repository.dart';
-import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
-import 'package:kotonoha/domain/use_cases/lessons.dart';
-import 'package:kotonoha/domain/use_cases/placement_check.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/placement/placement_check_screen.dart';
 import 'package:kotonoha/ui/placement/placement_result_screen.dart';
+import 'package:kotonoha/ui/placement/placement_scope_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// The learner names rows they have already met. Beginners stay on 手解き;
 /// this screen never marks a row fluent by itself.
+///
+/// A thin View over [PlacementScopeViewModel]: it renders the rows and
+/// navigates on each command's outcome. The selection, the draft's start /
+/// resume / discard and whether writes are allowed are the ViewModel's.
 class PlacementScopeScreen extends StatefulWidget {
   const PlacementScopeScreen({super.key});
 
@@ -30,179 +32,141 @@ class PlacementScopeScreen extends StatefulWidget {
 }
 
 class _PlacementScopeScreenState extends State<PlacementScopeScreen> {
-  final Set<String> _selected = {};
+  late final PlacementScopeViewModel _vm;
 
-  Future<void> _startNew(List<Lesson> catalog) async {
-    final recovery = context.read<ProgressRestoreRecoveryController>();
-    if (recovery.needsRecovery) return;
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
-    final repo = context.read<PlacementCheckRepository>();
-    final selected = [
-      for (final lesson in catalog)
-        if (_selected.contains(lesson.id)) lesson,
-    ];
-    final draft = PlacementCheck.start(selected);
-    if (draft == null) return;
-    final save = repo.save(draft);
-    persist.trackPlacement(save);
-    try {
-      await save;
-    } catch (_) {
-      // Banner owns the failure. Do not open a check whose draft is not on
-      // disk — resume from this screen after retry, never silently.
-      if (mounted) setState(() {});
-      return;
-    }
-    if (!mounted) return;
-    _openCheck(draft);
-  }
-
-  void _resume() {
-    final recovery = context.read<ProgressRestoreRecoveryController>();
-    if (recovery.needsRecovery) return;
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
-    final repo = context.read<PlacementCheckRepository>();
-    final draft = repo.draft;
-    if (!draft.hasProgress) return;
-    if (draft.isComplete) {
-      Navigator.of(context)
-          .push(PlacementResultScreen.route(draft: draft, checks: repo));
-      return;
-    }
-    if (draft.isInProgress) _openCheck(draft);
-  }
-
-  Future<void> _discardAndStay() async {
-    final recovery = context.read<ProgressRestoreRecoveryController>();
-    if (recovery.needsRecovery) return;
-    final persist = context.read<ProgressPersistenceController>();
-    if (persist.hasWriteFailure) return;
-    final repo = context.read<PlacementCheckRepository>();
-    final clear = repo.clear();
-    persist.trackPlacement(clear);
-    try {
-      await clear;
-    } catch (_) {
-      // In-memory is empty; retry flushes that empty draft. Stay put.
-    }
-    if (mounted) setState(() {});
-  }
-
-  void _openCheck(PlacementDraft draft) {
-    Navigator.of(context).push(
-      PlacementCheckScreen.route(
-        draft: draft,
-        checks: context.read<PlacementCheckRepository>(),
-      ),
+  @override
+  void initState() {
+    super.initState();
+    _vm = PlacementScopeViewModel(
+      kana: context.read<KanaProgressRepository>(),
+      checks: context.read<PlacementCheckRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      recovery: context.read<ProgressRestoreRecoveryController>(),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final store = context.watch<KanaProgressRepository>();
-    final persist = context.watch<ProgressPersistenceController>();
-    final recovery = context.watch<ProgressRestoreRecoveryController>();
-    final checks = context.watch<PlacementCheckRepository>();
-    final catalog = Lessons.fromKana(store.allKana);
-    final hira = catalog.where((l) => l.script == KanaScript.hiragana).toList();
-    final kata = catalog.where((l) => l.script == KanaScript.katakana).toList();
-    final draft = checks.draft;
-    final blocked = persist.hasWriteFailure || recovery.needsRecovery;
-    final canResume = draft.hasProgress;
-    final canStart = _selected.isNotEmpty && !blocked;
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
 
+  Future<void> _startNew() async {
+    final draft = await _vm.startNew();
+    if (!mounted || draft == null) return;
+    _openCheck(draft);
+  }
+
+  void _resume() {
+    switch (_vm.resume()) {
+      case PlacementResume.results:
+        Navigator.of(context).push(
+          PlacementResultScreen.route(draft: _vm.draft, checks: _vm.checks),
+        );
+      case PlacementResume.check:
+        _openCheck(_vm.draft);
+      case null:
+        return;
+    }
+  }
+
+  void _openCheck(PlacementDraft draft) {
+    Navigator.of(context)
+        .push(PlacementCheckScreen.route(draft: draft, checks: _vm.checks));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.placementTitle)),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                children: [
-                  const Text(
-                    AppStrings.placementIntro,
-                    style: TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 16,
-                      height: 1.55,
-                    ),
-                  ),
-                  if (canResume) ...[
-                    const SizedBox(height: 16),
-                    _ResumeCard(
-                      finished: draft.isComplete,
-                      onResume: blocked ? null : _resume,
-                      onDiscard: blocked ? null : _discardAndStay,
-                    ),
-                  ],
-                  if (hira.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    const _SectionHeader(AppStrings.hiraganaSection),
-                    for (final lesson in hira) ...[
-                      _ScopeTile(
-                        lesson: lesson,
-                        learned: store.isUnitLearned(lesson.id),
-                        selected: _selected.contains(lesson.id),
-                        onChanged: (on) => setState(() {
-                          if (on) {
-                            _selected.add(lesson.id);
-                          } else {
-                            _selected.remove(lesson.id);
-                          }
-                        }),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                  ],
-                  if (kata.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const _SectionHeader(AppStrings.katakanaSection),
-                    for (final lesson in kata) ...[
-                      _ScopeTile(
-                        lesson: lesson,
-                        learned: store.isUnitLearned(lesson.id),
-                        selected: _selected.contains(lesson.id),
-                        onChanged: (on) => setState(() {
-                          if (on) {
-                            _selected.add(lesson.id);
-                          } else {
-                            _selected.remove(lesson.id);
-                          }
-                        }),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                  ],
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!canStart)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        AppStrings.placementNeedSelection,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.inkMuted),
-                      ),
-                    ),
-                  FilledButton(
-                    onPressed: canStart ? () => _startNew(catalog) : null,
-                    child: const Text(AppStrings.placementStart),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _body(),
         ),
       ),
+    );
+  }
+
+  Widget _body() {
+    final hira = _vm.hiragana;
+    final kata = _vm.katakana;
+    final blocked = _vm.isBlocked;
+    final canResume = _vm.canResume;
+    final canStart = _vm.canStart;
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            children: [
+              const Text(
+                AppStrings.placementIntro,
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 16,
+                  height: 1.55,
+                ),
+              ),
+              if (canResume) ...[
+                const SizedBox(height: 16),
+                _ResumeCard(
+                  finished: _vm.isResumeFinished,
+                  onResume: blocked ? null : _resume,
+                  onDiscard: blocked ? null : _vm.discardAndStay,
+                ),
+              ],
+              if (hira.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                const _SectionHeader(AppStrings.hiraganaSection),
+                for (final lesson in hira) ...[
+                  _ScopeTile(
+                    lesson: lesson,
+                    learned: _vm.isUnitLearned(lesson.id),
+                    selected: _vm.isSelected(lesson.id),
+                    onChanged: (on) => _vm.setSelected(lesson.id, selected: on),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+              if (kata.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const _SectionHeader(AppStrings.katakanaSection),
+                for (final lesson in kata) ...[
+                  _ScopeTile(
+                    lesson: lesson,
+                    learned: _vm.isUnitLearned(lesson.id),
+                    selected: _vm.isSelected(lesson.id),
+                    onChanged: (on) => _vm.setSelected(lesson.id, selected: on),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!canStart)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    AppStrings.placementNeedSelection,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.inkMuted),
+                  ),
+                ),
+              FilledButton(
+                onPressed: canStart ? _startNew : null,
+                child: const Text(AppStrings.placementStart),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

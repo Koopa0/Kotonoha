@@ -1,26 +1,26 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
-import 'package:kotonoha/domain/use_cases/lessons.dart';
-import 'package:kotonoha/domain/use_cases/quiz_engine.dart';
-import 'package:kotonoha/domain/use_cases/study_set.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
 import 'package:kotonoha/ui/quiz/quiz_screen.dart';
+import 'package:kotonoha/ui/result/quiz_result_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// End-of-session screen. For a plain review it shows score + missed kana; for
 /// a lesson test it also decides pass/fail and marks the lesson learned.
+///
+/// A thin View over [QuizResultViewModel]: it renders the close and
+/// navigates. The pass gate, the one-time learned-row write and how the
+/// follow-up sessions are composed are the ViewModel's.
 class QuizResultScreen extends StatefulWidget {
   const QuizResultScreen({
     required this.result,
@@ -52,53 +52,39 @@ class QuizResultScreen extends StatefulWidget {
 }
 
 class _QuizResultScreenState extends State<QuizResultScreen> {
-  bool _lessonPassed = false;
-
-  bool get _isLesson => widget.lesson != null;
+  late final QuizResultViewModel _vm;
 
   @override
   void initState() {
     super.initState();
-    if (_isLesson) {
-      _lessonPassed = Lessons.isPassed(widget.lesson!, widget.result);
-      if (_lessonPassed) {
-        // Persist after the first frame to avoid notifying during build; the
-        // app-scoped owner observes the write so a failure survives even if
-        // this screen is popped before it settles.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!context.mounted) return;
-          context.read<ProgressPersistenceController>().trackKana(
-            context.read<KanaProgressRepository>().markUnitLearned(
-              widget.lesson!.id,
-            ),
-          );
-        });
-      }
+    _vm = QuizResultViewModel(
+      result: widget.result,
+      lesson: widget.lesson,
+      kana: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+    );
+    if (_vm.lessonPassed) {
+      // Persist after the first frame to avoid notifying during build; the
+      // app-scoped owner observes the write so a failure survives even if
+      // this screen is popped before it settles.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _vm.applyLessonPass();
+      });
     }
   }
 
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
+
   void _retryLesson() {
-    final store = context.read<KanaProgressRepository>();
     final lesson = widget.lesson!;
-    final rng = Random();
-    final learned = Lessons.fromKana(store.allKana)
-        .where(
-          (l) =>
-              l.id != lesson.id &&
-              l.script == lesson.script &&
-              store.isUnitLearned(l.id),
-        )
-        .expand((l) => l.kana)
-        .toList();
-    final questions = Lessons.composeTest(
-      lesson: lesson,
-      learnedOtherKana: learned,
-      pool: StudySet.lessonTestPool(store, lesson),
-      random: rng,
-    );
     Navigator.of(context).pushReplacement(
       QuizScreen.route(
-        questions: questions,
+        questions: _vm.composeRetry(),
         title: lesson.title,
         mode: PracticeMode.lessonTest,
         lesson: lesson,
@@ -106,18 +92,10 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     );
   }
 
-  void _reviewMissed(List<Kana> missed) {
-    final store = context.read<KanaProgressRepository>();
-    final questions = const QuizEngine().generateSession(
-      targets: missed,
-      // learned only; the engine scopes distractors per target script.
-      allKana: StudySet.reviewPool(store),
-      length: missed.length,
-      random: Random(),
-    );
+  void _reviewMissed() {
     Navigator.of(context).pushReplacement(
       QuizScreen.route(
-        questions: questions,
+        questions: _vm.composeMissedReview(),
         title: AppStrings.quizTitleMissed,
         mode: PracticeMode.missed,
       ),
@@ -133,8 +111,8 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
   @override
   Widget build(BuildContext context) {
     final result = widget.result;
-    final missed = result.missedKana;
-    final perfect = missed.isEmpty;
+    final missed = _vm.missed;
+    final perfect = _vm.isPerfect;
 
     return Scaffold(
       appBar: AppBar(
@@ -216,21 +194,21 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
   }
 
   List<Widget> _actions(List<Kana> missed) {
-    if (_isLesson) {
+    if (_vm.isLesson) {
       return [
-        if (!_lessonPassed)
+        if (!_vm.lessonPassed)
           FilledButton(
             onPressed: _retryLesson,
             child: const Text(AppStrings.retryLesson),
           ),
-        if (!_lessonPassed) const SizedBox(height: 12),
+        if (!_vm.lessonPassed) const SizedBox(height: 12),
         _outlined(AppStrings.backToLessons, _backToLessons),
       ];
     }
     return [
       if (missed.isNotEmpty) ...[
         FilledButton(
-          onPressed: () => _reviewMissed(missed),
+          onPressed: _reviewMissed,
           child: Text(AppStrings.reviewMissedKana(missed.length)),
         ),
         const SizedBox(height: 12),
@@ -264,8 +242,8 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
   /// whether the row is learned); every other session closes on the same calm,
   /// performance-invariant line — the score never tiers the words.
   String _note() {
-    if (_isLesson) {
-      return _lessonPassed
+    if (_vm.isLesson) {
+      return _vm.lessonPassed
           ? AppStrings.lessonPassed
           : AppStrings.lessonNotPassed;
     }

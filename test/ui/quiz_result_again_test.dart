@@ -3,13 +3,17 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/lesson.dart';
 import 'package:kotonoha/domain/models/quiz_question.dart';
 import 'package:kotonoha/domain/models/quiz_result.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
+import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/result/quiz_result_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   // An empty answer list is a finished session with nothing missed — a "perfect"
@@ -27,7 +31,23 @@ void main() {
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
-    await tester.pumpWidget(MaterialApp(home: child));
+    SharedPreferences.setMockInitialValues({});
+    final store = await KanaProgressRepository.load();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
+          ChangeNotifierProvider<ProgressPersistenceController>.value(
+            value: ProgressPersistenceController(
+              kanaFlush: store.flushPending,
+              kanjiFlush: () async {},
+              wordFlush: () async {},
+            ),
+          ),
+        ],
+        child: MaterialApp(home: child),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 

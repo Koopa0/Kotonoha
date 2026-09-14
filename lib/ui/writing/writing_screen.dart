@@ -7,18 +7,22 @@ import 'package:flutter/material.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
-import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/writing/writing_viewmodel.dart';
 import 'package:provider/provider.dart';
 
 /// Handwriting recall: show a romaji prompt, the learner writes the kana on
 /// paper (their 習字本), then reveals the answer and self-grades. Combines
 /// retrieval + generation + handwriting — the strongest memory path.
+///
+/// A thin View over [WritingViewModel]: it owns the speaker and the
+/// lifecycle listener, renders, and navigates. The reveal, the self-grade
+/// and every schedule or analytics write are the ViewModel's.
 class WritingScreen extends StatefulWidget {
   const WritingScreen({required this.targets, required this.title, super.key});
 
@@ -35,20 +39,23 @@ class WritingScreen extends StatefulWidget {
 }
 
 class _WritingScreenState extends State<WritingScreen> {
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late final WritingViewModel _vm;
   late final SpeechService _speech;
   late final AppLifecycleListener _lifecycle;
   int? _ownedPlay;
-  int _index = 0;
-  bool _revealed = false;
-  int _correct = 0;
-  bool _done = false;
-
-  Kana get _current => widget.targets[_index];
+  int _shownIndex = 0;
+  bool _closed = false;
 
   @override
   void initState() {
     super.initState();
+    _vm = WritingViewModel(
+      targets: widget.targets,
+      kana: context.read<KanaProgressRepository>(),
+      persistence: context.read<ProgressPersistenceController>(),
+      analytics: context.read<AnalyticsLog>(),
+      sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+    )..addListener(_onChanged);
     _speech = context.read<SpeechService>();
     _lifecycle = AppLifecycleListener(
       onInactive: _abandonOwnedPlayback,
@@ -62,6 +69,8 @@ class _WritingScreenState extends State<WritingScreen> {
   void dispose() {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
+    _vm.removeListener(_onChanged);
+    _vm.dispose();
     super.dispose();
   }
 
@@ -74,51 +83,39 @@ class _WritingScreenState extends State<WritingScreen> {
   }
 
   void _speak() {
-    unawaited(_speech.speak(_current.character));
+    unawaited(_speech.speak(_vm.current.character));
     _ownedPlay = _speech.generation;
   }
 
-  void _grade(bool correct) {
-    final now = DateTime.now();
-    context.read<ProgressPersistenceController>().trackKana(
-      context.read<KanaProgressRepository>().recordAnswer(
-        _current,
-        correct: correct,
-        at: now,
-      ),
-    );
-    context.read<AnalyticsLog>().recordObserved(
-      Attempt(
-        ts: now.millisecondsSinceEpoch,
-        itemId: _current.id,
-        mode: PracticeMode.writing.name,
-        correct: correct,
-        sessionId: _sessionId,
-        meta: const {AttemptMeta.direction: 'write'},
-      ),
-    );
-    if (correct) _correct++;
-    _abandonOwnedPlayback();
-    if (_index + 1 >= widget.targets.length) {
-      setState(() => _done = true);
-    } else {
-      setState(() {
-        _index++;
-        _revealed = false;
-      });
+  /// A grade leaves the kana behind: the owned utterance goes with it,
+  /// whether the next kana or the close follows.
+  void _onChanged() {
+    if (_vm.isFinished) {
+      if (_closed) return;
+      _closed = true;
+      _abandonOwnedPlayback();
+      return;
     }
+    if (_vm.index == _shownIndex) return;
+    _shownIndex = _vm.index;
+    _abandonOwnedPlayback();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: SafeArea(child: _done ? _summary() : _question()),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => _vm.isFinished ? _summary() : _question(),
+        ),
+      ),
     );
   }
 
   Widget _summary() => SessionSummary(
-    headline: AppStrings.writingSummary(_correct, widget.targets.length),
+    headline: AppStrings.writingSummary(_vm.correctCount, _vm.total),
     note: AppStrings.closingNote(
       widget.targets.first.character,
       band: ClosingBand.forHour(DateTime.now().hour),
@@ -127,11 +124,13 @@ class _WritingScreenState extends State<WritingScreen> {
   );
 
   Widget _question() {
+    final current = _vm.current;
+    final revealed = _vm.isRevealed;
     return Column(
       children: [
         const SizedBox(height: 8),
         Text(
-          '${_index + 1} / ${widget.targets.length}',
+          '${_vm.index + 1} / ${_vm.total}',
           style: const TextStyle(
             color: AppColors.inkMuted,
             fontWeight: FontWeight.w600,
@@ -152,7 +151,7 @@ class _WritingScreenState extends State<WritingScreen> {
                 children: [
                   const Spacer(),
                   Text(
-                    _current.romaji,
+                    current.romaji,
                     style: const TextStyle(
                       fontSize: 56,
                       fontWeight: FontWeight.w700,
@@ -160,12 +159,12 @@ class _WritingScreenState extends State<WritingScreen> {
                     ),
                   ),
                   SpeakButton(
-                    text: _current.character,
+                    text: current.character,
                     size: 30,
                     onPlay: _speak,
                   ),
                   const SizedBox(height: 12),
-                  if (!_revealed)
+                  if (!revealed)
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
@@ -180,7 +179,7 @@ class _WritingScreenState extends State<WritingScreen> {
                   else ...[
                     const Divider(height: 40, indent: 40, endIndent: 40),
                     Text(
-                      _current.character,
+                      current.character,
                       style: const TextStyle(
                         fontSize: 120,
                         height: 1.0,
@@ -196,7 +195,7 @@ class _WritingScreenState extends State<WritingScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: _revealed
+          child: revealed
               ? Row(
                   children: [
                     Expanded(
@@ -209,7 +208,7 @@ class _WritingScreenState extends State<WritingScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        onPressed: () => _grade(false),
+                        onPressed: () => _vm.grade(correct: false),
                         child: const Text(AppStrings.iMissed),
                       ),
                     ),
@@ -220,7 +219,7 @@ class _WritingScreenState extends State<WritingScreen> {
                           backgroundColor: AppColors.success,
                           minimumSize: const Size.fromHeight(54),
                         ),
-                        onPressed: () => _grade(true),
+                        onPressed: () => _vm.grade(correct: true),
                         child: const Text(AppStrings.iGotIt),
                       ),
                     ),
@@ -229,7 +228,7 @@ class _WritingScreenState extends State<WritingScreen> {
               : SizedBox(
                   height: 54,
                   child: FilledButton(
-                    onPressed: () => setState(() => _revealed = true),
+                    onPressed: _vm.reveal,
                     child: const Text(AppStrings.revealAnswer),
                   ),
                 ),
