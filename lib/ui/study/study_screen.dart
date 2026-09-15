@@ -172,6 +172,7 @@ class _StudyScreenState extends State<StudyScreen> {
     _lifecycle.dispose();
     _abandonOwnedPlayback();
     _controller.dispose();
+    _vm.dispose();
     super.dispose();
   }
 
