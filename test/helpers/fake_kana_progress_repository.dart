@@ -86,8 +86,11 @@ class FakeKanaProgressRepository extends KanaProgressRepository {
   Future<void> markUnitLearned(String unitId) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
-    if (_learnedUnits.add(unitId)) notifyListeners();
-    return _enqueueFlush();
+    if (_learnedUnits.add(unitId)) {
+      _dirty = true;
+      notifyListeners();
+    }
+    return _serialized(_flush);
   }
 
   @override
@@ -100,8 +103,11 @@ class FakeKanaProgressRepository extends KanaProgressRepository {
   Future<void> markUnlockSeen(String id) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
-    if (_seenUnlocks.add(id)) notifyListeners();
-    return _enqueueFlush();
+    if (_seenUnlocks.add(id)) {
+      _dirty = true;
+      notifyListeners();
+    }
+    return _serialized(_flush);
   }
 
   @override
@@ -159,8 +165,9 @@ class FakeKanaProgressRepository extends KanaProgressRepository {
       intervalScale: scale,
       listening: listening,
     );
+    _dirty = true;
     notifyListeners();
-    return _enqueueFlush();
+    return _serialized(_flush);
   }
 
   @override
@@ -168,12 +175,15 @@ class FakeKanaProgressRepository extends KanaProgressRepository {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
     _stats[kana.id] = statFor(kana).recordPromptedPractice(at: at);
+    _dirty = true;
     notifyListeners();
-    return _enqueueFlush();
+    return _serialized(_flush);
   }
 
+  /// Retries a dirty persist without applying a new mutation. Clean is a
+  /// no-op — this must not mark the owner dirty just to join the queue.
   @override
-  Future<void> flushPending() => _enqueueFlush();
+  Future<void> flushPending() => _serialized(_flush);
 
   @override
   Future<void> prepareForRestore() async {
@@ -235,13 +245,22 @@ class FakeKanaProgressRepository extends KanaProgressRepository {
     _stats.clear();
     _learnedUnits.clear();
     _seenUnlocks.clear();
+    _dirty = true;
     notifyListeners();
-    return _enqueueFlush();
+    return _serialized(_flush);
   }
 
-  Future<void> _enqueueFlush() {
-    _dirty = true;
-    final run = _tail.then((_) => _flush());
+  /// Joins the serialized persist queue without applying a domain mutation.
+  /// Refuses while a restore is in flight or the journal still blocks
+  /// writes — the same gates [LocalKanaProgressRepository] uses.
+  Future<void> _serialized(Future<void> Function() action) {
+    if (_restoreJournalBlocksWrites) {
+      return Future<void>.error(const ProgressRestoreJournalBlocked());
+    }
+    if (_restoreLocked) {
+      return Future<void>.error(const ProgressRestoreInProgress());
+    }
+    final run = _tail.then((_) => action());
     _tail = run.then<void>((_) {}, onError: (Object _) {});
     return run;
   }

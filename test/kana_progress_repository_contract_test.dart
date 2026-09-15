@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
+import 'package:kotonoha/data/services/progress_restore_journal.dart';
+import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
@@ -135,6 +137,75 @@ void main() {
       await fake.reloadFromPlatform();
       expect(fake.statFor(first).srsLevel, 1);
     });
+  });
+
+  group('flushPending contract', () {
+    // The same three probes against Local and Fake. A substitute that
+    // marks flush dirty or ignores restore / journal blocks would let
+    // later retry tests pass on one owner and fail on the other.
+    final cases =
+        <
+          ({
+            String name,
+            Future<({KanaProgressRepository owner, void Function() failWrites})>
+            Function()
+            create,
+          })
+        >[
+          (
+            name: 'local',
+            create: () async {
+              final prefs = FakePreferencesService();
+              final owner = await KanaProgressRepository.load(prefs);
+              return (
+                owner: owner,
+                failWrites: () {
+                  prefs.failWrites.addAll(const [
+                    ProgressStoreKeys.kanaStats,
+                    ProgressStoreKeys.learnedUnits,
+                    ProgressStoreKeys.seenUnlocks,
+                  ]);
+                },
+              );
+            },
+          ),
+          (
+            name: 'fake',
+            create: () async {
+              final owner = FakeKanaProgressRepository();
+              return (owner: owner, failWrites: () => owner.failWrites = true);
+            },
+          ),
+        ];
+
+    for (final spec in cases) {
+      group(spec.name, () {
+        test('a clean owner is a no-op when writes are unavailable', () async {
+          final t = await spec.create();
+          t.failWrites();
+          await t.owner.flushPending();
+          expect(t.owner.stats, isEmpty);
+        });
+
+        test('prepareForRestore refuses flushPending', () async {
+          final t = await spec.create();
+          await t.owner.prepareForRestore();
+          await expectLater(
+            t.owner.flushPending(),
+            throwsA(isA<ProgressRestoreInProgress>()),
+          );
+        });
+
+        test('a blocked restore journal refuses flushPending', () async {
+          final t = await spec.create();
+          t.owner.setRestoreJournalBlocked(true);
+          await expectLater(
+            t.owner.flushPending(),
+            throwsA(isA<ProgressRestoreJournalBlocked>()),
+          );
+        });
+      });
+    }
   });
 
   group('formal composition identity', () {
