@@ -5,11 +5,14 @@ are supplied. It follows the [Flutter architecture guide][guide] and
 [recommendations][rec]; the sections below record where Kotonoha follows them,
 and where it deliberately does not and why.
 
-Every rule here has an executable guard in
-[`test/architecture/pure_layer_imports_test.dart`](test/architecture/pure_layer_imports_test.dart).
-A rule that only lives in prose is a rule that quietly rots, so the table in
-[Guards](#guards) maps each rule to the test that fails when it is broken. If
-you change a rule here, change its guard in the same commit.
+The [Guards](#guards) table maps each import and composition-root rule to
+the test in
+[`test/architecture/pure_layer_imports_test.dart`](test/architecture/pure_layer_imports_test.dart)
+that enforces it. That file walks the source tree at test time and checks the
+listed conventions only; it does not prove ViewModel lifecycle, repository
+immutability, or runtime identity. Those have separate tests (see
+[Testing](#testing)). If you change a guarded rule here, change its guard in
+the same commit.
 
 [guide]: https://docs.flutter.dev/app-architecture/guide
 [rec]: https://docs.flutter.dev/app-architecture/recommendations
@@ -17,7 +20,19 @@ you change a rule here, change its guard in the same commit.
 
 ## Layers
 
-Dependencies point one way: **UI → domain → data**. Nothing points back.
+Dependencies point one way from presentation through use cases to truth
+owners:
+
+- **UI → use cases → repositories and services.** Views and ViewModels call
+  use cases; use cases coordinate repositories and services. Data does not
+  import use cases or UI.
+- **Repositories and services → pure domain values.** Models, stats and
+  datasets in `lib/domain/models/`, `lib/domain/data/` and `lib/kanji/domain/`
+  are shared vocabulary. A repository may import these to type its store (for
+  example `Kana`, `KanaStat` and `kana_dataset` in
+  `kana_progress_repository.dart`). That is not a layer violation.
+
+Nothing in those dependency arrows points back.
 
 | Layer | Directory | Owns |
 | --- | --- | --- |
@@ -75,9 +90,14 @@ Each kind of data has exactly one truth owner. A repository owns loading,
 caching, retry, durability, and notification for its own data, and nothing else.
 
 What a repository hands out is a snapshot the caller cannot write through.
-Collections are returned unmodifiable, and a value already handed out does not
-change when the owner writes the next one. `test/repository_ownership_test.dart`
-asserts both halves for every collection the repositories expose.
+Collections should be returned unmodifiable, and a value already handed out
+should not change when the owner writes the next one.
+[`test/repository_ownership_test.dart`](test/repository_ownership_test.dart)
+checks that contract where it matters most: kana, word, travel and placement
+collections in steady use, and kanji stats on a cold store. It does not replay
+every owner write for every collection; `gojuonKana` is allowed to return a
+fresh, independently mutable list because it does not expose the owner's
+catalogue.
 
 Coordination across two owners is a use case, never a repository reaching for a
 sibling. `ProgressSnapshotCapture` and `ProgressRestoreTransaction` are the
@@ -100,10 +120,10 @@ dependencies are created. It loads every repository, opens the analytics log and
 the speech service, wires the two persistence controllers, and provides all of
 them above the app.
 
-Eleven owners are registered there today: the four progress repositories plus
-the placement and travel repositories, the persistence and restore-recovery
-controllers, the speech service, the analytics log, and the snapshot exporter
-and restorer.
+Eleven objects are registered there today: the three progress repositories
+(kana, kanji reading and words), the placement and travel repositories, the
+persistence and restore-recovery controllers, the speech service, the analytics
+log, and the snapshot exporter and restorer.
 
 Two rules follow:
 
