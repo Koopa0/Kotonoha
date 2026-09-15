@@ -149,8 +149,8 @@ Two rules follow:
    ran a different product. Production tests and screenshot fixtures use the
    same dependency contract `bootstrap()` does.
 
-`bootstrap()` takes `prefs`, `speech` and `analytics` as test seams only.
-Production `main()` leaves them null.
+`bootstrap()` takes `prefs`, `speech`, `analytics` and `kana` as test seams
+only. Production `main()` leaves them null.
 
 ## Testing
 
@@ -223,19 +223,15 @@ state that raises one calm banner and stays retryable. A `Result` at each call
 site would push that decision back into the callers this design deliberately
 keeps it out of.
 
-**Repository contracts arrive one at a time.** The sample defines an
-`abstract class` contract for every repository, even where only one
-implementation exists. Kotonoha is adopting that per owner rather than in one
-sweep, starting with kana progress in
-[#171](https://github.com/Koopa0/Kotonoha/pull/171); the owners that have not
-been converted are still concrete classes.
+**`KanaProgressRepository` is an abstract contract.** Formal ViewModels and
+`bootstrap()` depend on it; `LocalKanaProgressRepository` is the production
+owner. The sample defines an `abstract class` for every repository. The other
+owners here are still concrete classes; whether they get the same split is
+still open on [#149](https://github.com/Koopa0/Kotonoha/issues/149).
 
-The reasoning is recorded on
-[#149](https://github.com/Koopa0/Kotonoha/issues/149). Two points from it are
-worth repeating here, because they decide what a new contract should look like.
-A single implementation is not a reason to skip the contract — the sample's own
-`ItineraryConfigRepository` has exactly one. But unlike the sample, where a
-repository is a thin wrapper over an API, some learning rules live inside these
-repositories, so a hand-written fake that reimplements `recordAnswer` can pass
-tests against a schedule production no longer uses. A fake must delegate to the
-real value types rather than restate their rules.
+A single implementation is not a reason to skip the contract — the sample's
+own `ItineraryConfigRepository` has exactly one. But unlike the sample, where
+a repository is a thin wrapper over an API, some learning rules live inside
+these repositories, so a hand-written fake that reimplements `recordAnswer`
+can pass tests against a schedule production no longer uses. A fake must
+delegate to the real value types rather than restate their rules.
