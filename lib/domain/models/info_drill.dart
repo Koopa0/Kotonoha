@@ -53,8 +53,7 @@ class InfoDrill {
 
   bool get isMigration => requiredPartIds.isNotEmpty;
 
-  List<String> get gateIds =>
-      isMigration ? requiredPartIds : requiredSeenIds;
+  List<String> get gateIds => isMigration ? requiredPartIds : requiredSeenIds;
 
   String get say => promptKana.replaceAll(' ', '');
 

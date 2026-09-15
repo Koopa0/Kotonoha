@@ -166,10 +166,7 @@ class RecoverableStore<T> {
   /// now (see the class doc). Throws [StoreWriteFailure] when the platform
   /// reports a failed write; the primary is only replaced once preservation
   /// has succeeded.
-  Future<void> write(
-    String encoded, {
-    bool Function()? commitGuard,
-  }) async {
+  Future<void> write(String encoded, {bool Function()? commitGuard}) async {
     final current = _prefs.readString(primaryKey);
     if (current != null) {
       final verdict = _decode(current);

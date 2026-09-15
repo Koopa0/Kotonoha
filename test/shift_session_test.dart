@@ -374,11 +374,7 @@ void main() {
       sessionId: 'h',
       at: day0,
     );
-    final optOut = ShiftSession.plan(
-      drill: drill,
-      now: day0,
-      attempts: [held],
-    );
+    final optOut = ShiftSession.plan(drill: drill, now: day0, attempts: [held]);
     expect(optOut.lane, ShiftLane.sameDay);
     expect(optOut.beats, [ShiftBeat.base, ShiftBeat.shift]);
     expect(optOut.holdPending, isTrue);

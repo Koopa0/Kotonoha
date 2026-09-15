@@ -495,10 +495,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'mou ichido itte kudasai',
     replyCorrectMeaning: '請再說一次',
     replyWrongKana: ['はい', 'ちょっと まってください'],
-    requiredSeenIds: [
-      'phrase:これは なに',
-      'phrase:もういちど いってください',
-    ],
+    requiredSeenIds: ['phrase:これは なに', 'phrase:もういちど いってください'],
   ),
   ReplyDrill(
     id: 'reply:help-slow',
@@ -513,10 +510,7 @@ const List<ReplyDrill> kReplyDrills = [
     replyCorrectRomaji: 'yukkuri hanashite kudasai',
     replyCorrectMeaning: '請說慢一點',
     replyWrongKana: ['はい', 'ちょっと まってください'],
-    requiredSeenIds: [
-      'phrase:いま なんじ',
-      'phrase:ゆっくり はなしてください',
-    ],
+    requiredSeenIds: ['phrase:いま なんじ', 'phrase:ゆっくり はなしてください'],
   ),
 ];
 

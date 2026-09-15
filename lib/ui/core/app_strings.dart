@@ -458,21 +458,14 @@ abstract final class AppStrings {
       '這一回只練參道與神社裡聽懂對方在說什麼,再選一句短回應。選對不是口說錄音判定。';
   static const String replyParkPurpose =
       '這一回只練排隊入口聽懂工作人員在說什麼,再選一句短回應。選對不是口說錄音判定。';
-  static const String replyHelpPurpose =
-      '這一回只練聽不懂時怎麼請對方再說或說慢一點。選對不是口說錄音判定。';
+  static const String replyHelpPurpose = '這一回只練聽不懂時怎麼請對方再說或說慢一點。選對不是口說錄音判定。';
   static const String replyMeetHint = '還沒見過的車站詞句,先見面;見過的才聽對方再回應。';
-  static const String replyClothingMeetHint =
-      '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
-  static const String replyRestaurantMeetHint =
-      '還沒見過的餐廳詞句,先見面;見過的才聽對方再回應。';
-  static const String replyConvenienceMeetHint =
-      '還沒見過的便利商店詞句,先見面;見過的才聽對方再回應。';
-  static const String replyShrineMeetHint =
-      '還沒見過的神社詞句,先見面;見過的才聽對方再回應。';
-  static const String replyParkMeetHint =
-      '還沒見過的排隊詞句,先見面;見過的才聽對方再回應。';
-  static const String replyHelpMeetHint =
-      '還沒見過的求助詞句,先見面;見過的才聽對方再回應。';
+  static const String replyClothingMeetHint = '還沒見過的購衣詞句,先見面;見過的才聽對方再回應。';
+  static const String replyRestaurantMeetHint = '還沒見過的餐廳詞句,先見面;見過的才聽對方再回應。';
+  static const String replyConvenienceMeetHint = '還沒見過的便利商店詞句,先見面;見過的才聽對方再回應。';
+  static const String replyShrineMeetHint = '還沒見過的神社詞句,先見面;見過的才聽對方再回應。';
+  static const String replyParkMeetHint = '還沒見過的排隊詞句,先見面;見過的才聽對方再回應。';
+  static const String replyHelpMeetHint = '還沒見過的求助詞句,先見面;見過的才聽對方再回應。';
   static const String replyReadyHint = '見過的可以聽對方再選回應。還沒見過的仍先見面。';
   static const String replyNeedKana = '這回還有問句或回應讀不動。先到「手解き」補假名,選對也不會當成已會回應。';
   static const String replyStartAction = '開始這一回';
@@ -658,10 +651,8 @@ abstract final class AppStrings {
 
   // Unfinished restore journal after startup recovery — blocks learning writes
   // until [ProgressRestoreRecoveryController.retry] succeeds.
-  static const String restoreJournalRecoveryLine =
-      '上次的還原還沒處理完,學習進度暫時不能寫入。';
-  static const String restoreJournalRecoveryDetail =
-      '請再試一次把裝置上的狀態整理好。';
+  static const String restoreJournalRecoveryLine = '上次的還原還沒處理完,學習進度暫時不能寫入。';
+  static const String restoreJournalRecoveryDetail = '請再試一次把裝置上的狀態整理好。';
 
   // 歩み backup — a file of the five portable bodies, never a complete
   // learning-history claim. Analytics, unfinished rounds, and device
