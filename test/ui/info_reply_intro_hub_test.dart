@@ -356,10 +356,7 @@ void main() {
   testWidgets('reply phrase reading summary keeps もう一回 at noon', (
     tester,
   ) async {
-    final repos = await pumpHub(
-      tester,
-      ReplyHubScreen(clock: noon),
-    );
+    final repos = await pumpHub(tester, ReplyHubScreen(clock: noon));
     await learnAllKana(repos.kana);
     await leaveStationPhrases(repos.words);
     await tester.pumpAndSettle();
@@ -376,10 +373,7 @@ void main() {
   testWidgets('reply phrase reading summary hides もう一回 at night', (
     tester,
   ) async {
-    final repos = await pumpHub(
-      tester,
-      ReplyHubScreen(clock: night),
-    );
+    final repos = await pumpHub(tester, ReplyHubScreen(clock: night));
     await learnAllKana(repos.kana);
     await leaveStationPhrases(repos.words);
     await tester.pumpAndSettle();

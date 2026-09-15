@@ -39,10 +39,7 @@ void main() {
             reason: '${drill.id} must meet shipped reply $replyPhraseId',
           );
         } else {
-          expect(
-            drill.requiredSeenIds,
-            isNot(contains(replyPhraseId)),
-          );
+          expect(drill.requiredSeenIds, isNot(contains(replyPhraseId)));
         }
       }
       expect(
@@ -155,15 +152,7 @@ void main() {
     const restaurantLeaks = ['問來了幾個人', '問要點什麼', '問還要不要別的', '幾個人', '要點什麼'];
     const convenienceLeaks = ['問要不要袋子', '問要不要加熱', '問可不可以結帳', '需要袋子嗎', '要加熱嗎'];
     const shrineLeaks = ['問神社', '走進安靜', '安靜進寺', '請稍等', '在入口排隊'];
-    const parkLeaks = [
-      '在入口排隊',
-      '請稍等一下',
-      '請稍等',
-      '請你稍等',
-      '說請稍等',
-      '稍等',
-      '聽不清楚',
-    ];
+    const parkLeaks = ['在入口排隊', '請稍等一下', '請稍等', '請你稍等', '說請稍等', '稍等', '聽不清楚'];
     const helpLeaks = ['聽不清楚', '說得太快', '再說一次', '說慢一點'];
     for (final drill in kReplyDrills) {
       expect(
@@ -231,11 +220,12 @@ void main() {
     expect(drill.intentCorrect, isNot(contains('安靜進')));
     expect(drill.sceneZh, isNot(contains('聲音')));
     expect(drill.sceneZh, isNot(contains('安靜')));
-    final shrineAsk = kReplyDrills.firstWhere((d) => d.id == 'reply:jinjia-hidari');
+    final shrineAsk = kReplyDrills.firstWhere(
+      (d) => d.id == 'reply:jinjia-hidari',
+    );
     expect(shrineAsk.intentWrong, contains(drill.intentCorrect));
     expect(shrineAsk.intentWrong, isNot(contains('說要安靜進寺')));
   });
-
 
   test('どこへ いく scenes split きょうとです and おおさかです; neither is a wrong answer', () {
     final byId = {for (final drill in kReplyDrills) drill.id: drill};
@@ -340,10 +330,10 @@ void main() {
       stats: stats,
       scene: ReplySceneId.station,
     );
-    expect(
-      view.ready.map((d) => d.id).toSet(),
-      {'reply:doko-e-iku', 'reply:doko-e-iku-osaka'},
-    );
+    expect(view.ready.map((d) => d.id).toSet(), {
+      'reply:doko-e-iku',
+      'reply:doko-e-iku-osaka',
+    });
   });
 
   test('station compose never pads with clothing material', () {
@@ -955,56 +945,53 @@ void main() {
     );
     expect(session, hasLength(2));
     expect(session.map((d) => d.scene).toSet(), {ReplySceneId.help});
-    expect(session.map((d) => d.promptKana).toSet(), {
-      'これは なに',
-      'いま なんじ',
-    });
+    expect(session.map((d) => d.promptKana).toSet(), {'これは なに', 'いま なんじ'});
     expect(session.map((d) => d.replyCorrectKana), isNot(contains('はい')));
   });
 
-  test('help-slow waits for the shipped slow-request phrase, not word:ゆっくり', () {
-    final onlyAsk = ReplySession.inspect(
-      learnedChars: allChars,
-      stats: {'phrase:いま なんじ': seenAt()},
-      scene: ReplySceneId.help,
-    );
-    expect(onlyAsk.ready, isEmpty);
-    expect(onlyAsk.canPractice, isFalse);
-    expect(onlyAsk.canMeet, isTrue);
-    expect(
-      onlyAsk.unreadRequired.map((i) => i.progressId),
-      contains('phrase:ゆっくり はなしてください'),
-    );
-    expect(
-      onlyAsk.unreadRequired.map((i) => i.progressId),
-      isNot(contains('word:ゆっくり')),
-    );
+  test(
+    'help-slow waits for the shipped slow-request phrase, not word:ゆっくり',
+    () {
+      final onlyAsk = ReplySession.inspect(
+        learnedChars: allChars,
+        stats: {'phrase:いま なんじ': seenAt()},
+        scene: ReplySceneId.help,
+      );
+      expect(onlyAsk.ready, isEmpty);
+      expect(onlyAsk.canPractice, isFalse);
+      expect(onlyAsk.canMeet, isTrue);
+      expect(
+        onlyAsk.unreadRequired.map((i) => i.progressId),
+        contains('phrase:ゆっくり はなしてください'),
+      );
+      expect(
+        onlyAsk.unreadRequired.map((i) => i.progressId),
+        isNot(contains('word:ゆっくり')),
+      );
 
-    final wordOnly = ReplySession.inspect(
-      learnedChars: allChars,
-      stats: {
-        'phrase:いま なんじ': seenAt(),
-        'word:ゆっくり': seenAt(),
-      },
-      scene: ReplySceneId.help,
-    );
-    expect(wordOnly.ready.map((d) => d.id), isNot(contains('reply:help-slow')));
-    expect(wordOnly.canPractice, isFalse);
-    expect(
-      wordOnly.unreadRequired.map((i) => i.progressId),
-      contains('phrase:ゆっくり はなしてください'),
-    );
+      final wordOnly = ReplySession.inspect(
+        learnedChars: allChars,
+        stats: {'phrase:いま なんじ': seenAt(), 'word:ゆっくり': seenAt()},
+        scene: ReplySceneId.help,
+      );
+      expect(
+        wordOnly.ready.map((d) => d.id),
+        isNot(contains('reply:help-slow')),
+      );
+      expect(wordOnly.canPractice, isFalse);
+      expect(
+        wordOnly.unreadRequired.map((i) => i.progressId),
+        contains('phrase:ゆっくり はなしてください'),
+      );
 
-    final phraseMet = ReplySession.inspect(
-      learnedChars: allChars,
-      stats: {
-        'phrase:いま なんじ': seenAt(),
-        'phrase:ゆっくり はなしてください': seenAt(),
-      },
-      scene: ReplySceneId.help,
-    );
-    expect(phraseMet.ready.map((d) => d.id), contains('reply:help-slow'));
-  });
+      final phraseMet = ReplySession.inspect(
+        learnedChars: allChars,
+        stats: {'phrase:いま なんじ': seenAt(), 'phrase:ゆっくり はなしてください': seenAt()},
+        scene: ReplySceneId.help,
+      );
+      expect(phraseMet.ready.map((d) => d.id), contains('reply:help-slow'));
+    },
+  );
 
   test('help intents align with prompt meaning; scenes disambiguate repeat vs slow', () {
     final repeat = kReplyDrills.firstWhere((d) => d.id == 'reply:help-repeat');
@@ -1020,7 +1007,9 @@ void main() {
   });
 
   test('help replies do not mark the other listening request as wrong', () {
-    final byId = {for (final drill in replyDrillsFor(ReplySceneId.help)) drill.id: drill};
+    final byId = {
+      for (final drill in replyDrillsFor(ReplySceneId.help)) drill.id: drill,
+    };
     final repeat = byId['reply:help-repeat']!;
     final slow = byId['reply:help-slow']!;
     expect(repeat.replyCorrectKana, 'もういちど いってください');
@@ -1048,11 +1037,7 @@ void main() {
     );
     expect(
       view.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({
-        'phrase:じんじゃは どこ',
-        'phrase:しずかな てらに はいる',
-        'word:ひだり',
-      }),
+      containsAll({'phrase:じんじゃは どこ', 'phrase:しずかな てらに はいる', 'word:ひだり'}),
     );
   });
 
@@ -1069,13 +1054,9 @@ void main() {
     );
     expect(
       view.unreadRequired.map((i) => i.progressId).toSet(),
-      containsAll({
-        'phrase:いりぐちで ならぶ',
-        'phrase:ちょっと まってください',
-      }),
+      containsAll({'phrase:いりぐちで ならぶ', 'phrase:ちょっと まってください'}),
     );
   });
-
 
   test('evidence keeps hear / peek / hint / independent apart', () {
     expect(
