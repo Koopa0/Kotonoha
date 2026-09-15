@@ -29,6 +29,13 @@ class ProgressViewModel extends ChangeNotifier {
 
   List<Observation> _observations = const [];
   bool _observed = false;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   int get seenCount => kana.seenCount;
   int get totalCount => kana.totalCount;
@@ -47,13 +54,21 @@ class ProgressViewModel extends ChangeNotifier {
 
   /// Reads the analytics stream and derives the observations.
   Future<void> observe() async {
-    _observations = SelfPortrait.observe(await analytics.all());
-    _observed = true;
-    notifyListeners();
+    try {
+      final events = await analytics.all();
+      if (_disposed) return;
+      _observations = SelfPortrait.observe(events);
+      _observed = true;
+      notifyListeners();
+    } catch (_) {
+      if (_disposed) return;
+      rethrow;
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     kana.removeListener(notifyListeners);
     super.dispose();
   }
