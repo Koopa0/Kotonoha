@@ -149,8 +149,8 @@ Two rules follow:
    ran a different product. Production tests and screenshot fixtures use the
    same dependency contract `bootstrap()` does.
 
-`bootstrap()` takes `prefs`, `speech`, `analytics` and `kana` as test seams
-only. Production `main()` leaves them null.
+`bootstrap()` takes `prefs`, `speech`, `analytics`, `kana`, `words`, and
+`travel` as test seams only. Production `main()` leaves them null.
 
 ## Testing
 
@@ -227,10 +227,10 @@ keeps it out of.
 
 **Repository contracts arrive one owner at a time.** The sample defines an
 `abstract class` for every repository. Kotonoha is adopting that per owner
-rather than in one sweep. Kana progress, travel focus, kanji reading and
-placement are abstract contracts that formal ViewModels and `bootstrap()`
-depend on, each with a `Local…` production owner. Word progress is the last
-concrete one, tracked on
+rather than in one sweep. Every repository is now an abstract contract that
+formal ViewModels and `bootstrap()` depend on — kana progress, word progress,
+travel focus, kanji reading and placement — each with a `Local…` production
+owner. The remaining ownership work is tracked on
 [#149](https://github.com/Koopa0/Kotonoha/issues/149).
 
 Storage keys stay on the local owner rather than the contract: a substitute
@@ -239,10 +239,12 @@ implementation.
 
 A single implementation is not a reason to skip the contract — the sample's
 own `ItineraryConfigRepository` has exactly one. But unlike the sample, where
-a repository is a thin wrapper over an API, some learning rules live inside
-these repositories, so a hand-written fake that reimplements `recordAnswer`
-can pass tests against a schedule production no longer uses. A fake must
-delegate to the real value types rather than restate their rules.
+a repository is a thin wrapper over an API, some learning rules live on the
+value types these repositories apply, so a hand-written fake that
+reimplements `recordAnswer` can pass tests against a schedule production no
+longer uses. A fake must delegate to the real value types rather than
+restate their rules. `WordStat` stays distinct from `KanaStat` /
+`ReadingStat`; the contracts are not a generic SRS engine.
 
 Two conventions follow from that. A command derived from other members is
 defined on the abstract class in terms of them, rather than left to each

@@ -16,6 +16,8 @@ import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dar
 import 'package:kotonoha/ui/reading/reading_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'helpers/fake_kana_progress_repository.dart';
+import 'helpers/fake_word_progress_repository.dart';
 import 'services/fake_preferences_service.dart';
 
 const _inu = Word(kana: 'いぬ', romaji: 'inu', meaning: '狗');
@@ -344,4 +346,82 @@ void main() {
       t.vm.dispose();
     },
   );
+
+  group('replaceable word progress contract', () {
+    test(
+      'a delayed success after leave keeps the grade and does not notify',
+      () async {
+        final fake = FakeWordProgressRepository();
+        final gate = FakeRepositoryWriteGate();
+        fake.writeGate = gate;
+        final persist = ProgressPersistenceController(
+          kanaFlush: () async {},
+          kanjiFlush: () async {},
+          wordFlush: fake.flushPending,
+        );
+        final t = await makeVm(const [_inu], words: fake, persistence: persist);
+
+        var notificationsAfterLeave = 0;
+        var left = false;
+        t.vm.addListener(() {
+          if (left) notificationsAfterLeave++;
+        });
+        t.vm.reveal(unpromptedCommit: true);
+        t.vm.grade(correct: true);
+        expect(fake.statForItem('word:いぬ').srsLevel, 1);
+        await gate.entered;
+
+        left = true;
+        t.vm.dispose();
+        gate.release();
+        await _settle(
+          () =>
+              !persist.hasWriteFailure &&
+              persist.status == PersistenceStatus.idle,
+        );
+
+        expect(notificationsAfterLeave, 0);
+        expect(persist.hasWriteFailure, isFalse);
+        await fake.reloadFromPlatform();
+        expect(fake.statForItem('word:いぬ').srsLevel, 1);
+      },
+    );
+
+    test('a delayed failure after leave stays on the app owner and retry does not re-climb', () async {
+      final fake = FakeWordProgressRepository();
+      final gate = FakeRepositoryWriteGate();
+      fake.writeGate = gate;
+      final persist = ProgressPersistenceController(
+        kanaFlush: () async {},
+        kanjiFlush: () async {},
+        wordFlush: fake.flushPending,
+      );
+      final t = await makeVm(const [_inu], words: fake, persistence: persist);
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      t.vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      t.vm.reveal(unpromptedCommit: true);
+      t.vm.grade(correct: true);
+      expect(fake.statForItem('word:いぬ').correctCount, 1);
+      await gate.entered;
+
+      left = true;
+      t.vm.dispose();
+      fake.failWrites = true;
+      gate.release();
+      await _settle(() => persist.hasWriteFailure);
+
+      expect(notificationsAfterLeave, 0);
+      expect(fake.statForItem('word:いぬ').correctCount, 1);
+
+      fake.failWrites = false;
+      await persist.retry();
+      expect(persist.hasWriteFailure, isFalse);
+      expect(fake.statForItem('word:いぬ').correctCount, 1);
+      expect(fake.statForItem('word:いぬ').srsLevel, 1);
+    });
+  });
 }
