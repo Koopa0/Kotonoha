@@ -33,15 +33,16 @@ Future<void> main() async {
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 ///
-/// [prefs], [speech], [analytics], and [kana] are test seams only —
-/// production [main] leaves them null. A substitute [kana] must honour the
-/// same notify, save / retry, and snapshot-ownership contract as
-/// [LocalKanaProgressRepository]; it does not change the other owners.
+/// [prefs], [speech], [analytics], [kana], and [words] are test seams only —
+/// production [main] leaves them null. A substitute [kana] or [words] must
+/// honour the same notify, save / retry, and snapshot-ownership contract as
+/// the matching local owner; it does not change the other owners.
 Future<Widget> bootstrap({
   PreferencesService? prefs,
   SpeechService? speech,
   AnalyticsLog? analytics,
   KanaProgressRepository? kana,
+  WordProgressRepository? words,
 }) async {
   final resolvedPrefs = prefs ?? await PreferencesService.create();
   final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
@@ -50,7 +51,7 @@ Future<Widget> bootstrap({
   await ProgressRestorePlacementDiscard.recoverIfNeeded(resolvedPrefs);
   final store = kana ?? await KanaProgressRepository.load(resolvedPrefs);
   final kanji = await KanjiReadingRepository.load(resolvedPrefs);
-  final words = await WordProgressRepository.load(resolvedPrefs);
+  final wordOwner = words ?? await WordProgressRepository.load(resolvedPrefs);
   // Cross-owner recovery is a use case; the controller is what the UI
   // observes and retries through.
   final restoreRecovery = ProgressRestoreRecoveryController(
@@ -58,7 +59,7 @@ Future<Widget> bootstrap({
       prefs: resolvedPrefs,
       kana: store,
       kanji: kanji,
-      words: words,
+      words: wordOwner,
     ),
     needsRecovery: journalRecovery.needsRecovery,
   );
@@ -72,7 +73,7 @@ Future<Widget> bootstrap({
   final persistence = ProgressPersistenceController(
     kanaFlush: store.flushPending,
     kanjiFlush: kanji.flushPending,
-    wordFlush: words.flushPending,
+    wordFlush: wordOwner.flushPending,
     placementFlush: checks.flushPending,
     analyticsFlush: resolvedAnalytics.flushPending,
     travelFocusFlush: travel.flushPending,
@@ -81,7 +82,7 @@ Future<Widget> bootstrap({
       store.learnedUnitsHealth,
       store.seenUnlocksHealth,
       kanji.statsHealth,
-      words.statsHealth,
+      wordOwner.statsHealth,
       checks.health,
       travel.health,
     ],
@@ -95,14 +96,14 @@ Future<Widget> bootstrap({
   final capture = ProgressSnapshotCapture(
     kana: store,
     kanji: kanji,
-    words: words,
+    words: wordOwner,
     prefs: resolvedPrefs,
   );
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
       ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
-      ChangeNotifierProvider<WordProgressRepository>.value(value: words),
+      ChangeNotifierProvider<WordProgressRepository>.value(value: wordOwner),
       ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
       ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
       ChangeNotifierProvider<ProgressPersistenceController>.value(
@@ -126,7 +127,7 @@ Future<Widget> bootstrap({
             prefs: resolvedPrefs,
             kana: store,
             kanji: kanji,
-            words: words,
+            words: wordOwner,
             placement: checks,
           ),
           files: FilePickerSnapshotPort(),

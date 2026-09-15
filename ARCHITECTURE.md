@@ -149,8 +149,8 @@ Two rules follow:
    ran a different product. Production tests and screenshot fixtures use the
    same dependency contract `bootstrap()` does.
 
-`bootstrap()` takes `prefs`, `speech`, `analytics` and `kana` as test seams
-only. Production `main()` leaves them null.
+`bootstrap()` takes `prefs`, `speech`, `analytics`, `kana` and `words` as
+test seams only. Production `main()` leaves them null.
 
 ## Testing
 
@@ -223,15 +223,19 @@ state that raises one calm banner and stays retryable. A `Result` at each call
 site would push that decision back into the callers this design deliberately
 keeps it out of.
 
-**`KanaProgressRepository` is an abstract contract.** Formal ViewModels and
-`bootstrap()` depend on it; `LocalKanaProgressRepository` is the production
-owner. The sample defines an `abstract class` for every repository. The other
-owners here are still concrete classes; whether they get the same split is
-still open on [#149](https://github.com/Koopa0/Kotonoha/issues/149).
+**`KanaProgressRepository` and `WordProgressRepository` are abstract
+contracts.** Formal ViewModels and `bootstrap()` depend on them;
+`LocalKanaProgressRepository` and `LocalWordProgressRepository` are the
+production owners. The sample defines an `abstract class` for every
+repository. The remaining owners here (kanji, travel, placement) are still
+concrete classes; whether they get the same split is still open on
+[#149](https://github.com/Koopa0/Kotonoha/issues/149).
 
 A single implementation is not a reason to skip the contract — the sample's
 own `ItineraryConfigRepository` has exactly one. But unlike the sample, where
-a repository is a thin wrapper over an API, some learning rules live inside
-these repositories, so a hand-written fake that reimplements `recordAnswer`
-can pass tests against a schedule production no longer uses. A fake must
-delegate to the real value types rather than restate their rules.
+a repository is a thin wrapper over an API, some learning rules live on the
+value types these repositories apply, so a hand-written fake that
+reimplements `recordAnswer` can pass tests against a schedule production no
+longer uses. A fake must delegate to the real value types rather than
+restate their rules. `WordStat` stays distinct from `KanaStat` /
+`ReadingStat`; the two contracts are not a generic SRS engine.

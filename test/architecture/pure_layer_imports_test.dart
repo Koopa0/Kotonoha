@@ -344,6 +344,27 @@ void main() {
       );
     },
   );
+
+  test(
+    'ViewModels depend on the word progress contract, not the local store',
+    () {
+      // Source convention only. Runtime identity and lifetime are proven
+      // in test/word_progress_repository_contract_test.dart and the
+      // Reading leave-page tests — this regex is not that evidence.
+      final offenders = _scan(
+        dirs: ['lib/ui', 'lib/kanji/ui', 'lib/domain'],
+        forbidden: RegExp(r'\bLocalWordProgressRepository\b'),
+      );
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'ViewModels, screens and use cases must take the '
+            'WordProgressRepository contract — found:\n'
+            '${offenders.join('\n')}',
+      );
+    },
+  );
 }
 
 /// All .dart files under [dirs]; every directory must exist (a moved/renamed
