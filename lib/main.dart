@@ -33,17 +33,18 @@ Future<void> main() async {
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 ///
-/// [prefs], [speech], [analytics], [kana], and [travel] are test seams only —
-/// production [main] leaves them null. A substitute must honour the same
-/// notify and save / retry contract as the local owner it replaces
-/// ([LocalKanaProgressRepository], [LocalTravelFocusRepository]); injecting
-/// one does not change the other owners.
+/// [prefs], [speech], [analytics], [kana], [travel] and [kanji] are test
+/// seams only — production [main] leaves them null. A substitute must honour
+/// the same notify and save / retry contract as the local owner it replaces
+/// ([LocalKanaProgressRepository], [LocalTravelFocusRepository],
+/// [LocalKanjiReadingRepository]); injecting one does not change the others.
 Future<Widget> bootstrap({
   PreferencesService? prefs,
   SpeechService? speech,
   AnalyticsLog? analytics,
   KanaProgressRepository? kana,
   TravelFocusRepository? travel,
+  KanjiReadingRepository? kanji,
 }) async {
   final resolvedPrefs = prefs ?? await PreferencesService.create();
   final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
@@ -51,7 +52,7 @@ Future<Widget> bootstrap({
   );
   await ProgressRestorePlacementDiscard.recoverIfNeeded(resolvedPrefs);
   final store = kana ?? await KanaProgressRepository.load(resolvedPrefs);
-  final kanji = await KanjiReadingRepository.load(resolvedPrefs);
+  final readings = kanji ?? await KanjiReadingRepository.load(resolvedPrefs);
   final words = await WordProgressRepository.load(resolvedPrefs);
   // Cross-owner recovery is a use case; the controller is what the UI
   // observes and retries through.
@@ -59,7 +60,7 @@ Future<Widget> bootstrap({
     recovery: ProgressRestoreRecovery(
       prefs: resolvedPrefs,
       kana: store,
-      kanji: kanji,
+      kanji: readings,
       words: words,
     ),
     needsRecovery: journalRecovery.needsRecovery,
@@ -73,7 +74,7 @@ Future<Widget> bootstrap({
   // flushes any repository on retry / lifecycle drain.
   final persistence = ProgressPersistenceController(
     kanaFlush: store.flushPending,
-    kanjiFlush: kanji.flushPending,
+    kanjiFlush: readings.flushPending,
     wordFlush: words.flushPending,
     placementFlush: checks.flushPending,
     analyticsFlush: resolvedAnalytics.flushPending,
@@ -82,7 +83,7 @@ Future<Widget> bootstrap({
       store.statsHealth,
       store.learnedUnitsHealth,
       store.seenUnlocksHealth,
-      kanji.statsHealth,
+      readings.statsHealth,
       words.statsHealth,
       checks.health,
       travelFocus.health,
@@ -96,14 +97,14 @@ Future<Widget> bootstrap({
   // restore. Stateless: it never caches a snapshot.
   final capture = ProgressSnapshotCapture(
     kana: store,
-    kanji: kanji,
+    kanji: readings,
     words: words,
     prefs: resolvedPrefs,
   );
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
-      ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+      ChangeNotifierProvider<KanjiReadingRepository>.value(value: readings),
       ChangeNotifierProvider<WordProgressRepository>.value(value: words),
       ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
       ChangeNotifierProvider<TravelFocusRepository>.value(value: travelFocus),
@@ -127,7 +128,7 @@ Future<Widget> bootstrap({
           transaction: ProgressRestoreTransaction(
             prefs: resolvedPrefs,
             kana: store,
-            kanji: kanji,
+            kanji: readings,
             words: words,
             placement: checks,
           ),
