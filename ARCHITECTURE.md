@@ -196,6 +196,7 @@ snapshot identity, and immutability are not in this list.
 | No provider probing | no screen invents a second product by probing for a provider |
 | UI reaches platform sources only through services | the UI layer never touches platform packages directly (services wrap them) |
 | Bootstrap provides every owner the UI reads | the composition root provides every owner the UI reads |
+| ViewModels name repository contracts, not implementations | ViewModels depend on the kana progress contract, not the local store |
 
 The view guard discovers its own scope: a directory counts as split into View
 and ViewModel once it holds a `*_viewmodel.dart`, and every `*_screen.dart`
@@ -235,3 +236,13 @@ a repository is a thin wrapper over an API, some learning rules live inside
 these repositories, so a hand-written fake that reimplements `recordAnswer`
 can pass tests against a schedule production no longer uses. A fake must
 delegate to the real value types rather than restate their rules.
+
+`FakeKanaProgressRepository` mostly does: it hands the schedule to
+`KanaStat.recordAnswer` rather than computing one. The one line it restates is
+the confusable interval scale, `kConfusableChars.contains(kana.character) ? 0.5
+: 1.0`, which appears both there and in
+[`lib/data/repositories/kana_progress_repository.dart`](lib/data/repositories/kana_progress_repository.dart),
+with no test pinning the two together. Changing the production value would
+leave the fake on the old one, and a ViewModel test would go on passing
+against a schedule the app no longer uses. That line is the seam to lift into
+a shared pure function when the next contract lands.
