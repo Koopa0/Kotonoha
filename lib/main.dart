@@ -33,15 +33,17 @@ Future<void> main() async {
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 ///
-/// [prefs], [speech], [analytics], and [kana] are test seams only —
-/// production [main] leaves them null. A substitute [kana] must honour the
-/// same notify, save / retry, and snapshot-ownership contract as
-/// [LocalKanaProgressRepository]; it does not change the other owners.
+/// [prefs], [speech], [analytics], [kana], and [travel] are test seams only —
+/// production [main] leaves them null. A substitute must honour the same
+/// notify and save / retry contract as the local owner it replaces
+/// ([LocalKanaProgressRepository], [LocalTravelFocusRepository]); injecting
+/// one does not change the other owners.
 Future<Widget> bootstrap({
   PreferencesService? prefs,
   SpeechService? speech,
   AnalyticsLog? analytics,
   KanaProgressRepository? kana,
+  TravelFocusRepository? travel,
 }) async {
   final resolvedPrefs = prefs ?? await PreferencesService.create();
   final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
@@ -63,7 +65,7 @@ Future<Widget> bootstrap({
     needsRecovery: journalRecovery.needsRecovery,
   );
   final checks = await PlacementCheckRepository.load(resolvedPrefs);
-  final travel = await TravelFocusRepository.load(resolvedPrefs);
+  final travelFocus = travel ?? await TravelFocusRepository.load(resolvedPrefs);
   final resolvedSpeech = speech ?? await FlutterTtsSpeechService.create();
   final resolvedAnalytics = analytics ?? await openAnalyticsLog();
   // The app-scoped owner of every progress-persistence future: it takes the
@@ -75,7 +77,7 @@ Future<Widget> bootstrap({
     wordFlush: words.flushPending,
     placementFlush: checks.flushPending,
     analyticsFlush: resolvedAnalytics.flushPending,
-    travelFocusFlush: travel.flushPending,
+    travelFocusFlush: travelFocus.flushPending,
     health: [
       store.statsHealth,
       store.learnedUnitsHealth,
@@ -83,7 +85,7 @@ Future<Widget> bootstrap({
       kanji.statsHealth,
       words.statsHealth,
       checks.health,
-      travel.health,
+      travelFocus.health,
     ],
   );
   // Every production [recordObserved] write shares this owner. Shift
@@ -104,7 +106,7 @@ Future<Widget> bootstrap({
       ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
       ChangeNotifierProvider<WordProgressRepository>.value(value: words),
       ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
-      ChangeNotifierProvider<TravelFocusRepository>.value(value: travel),
+      ChangeNotifierProvider<TravelFocusRepository>.value(value: travelFocus),
       ChangeNotifierProvider<ProgressPersistenceController>.value(
         value: persistence,
       ),

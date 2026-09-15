@@ -12,6 +12,10 @@ import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 
+import 'fake_repository_write_gate.dart';
+
+export 'fake_repository_write_gate.dart' show FakeRepositoryWriteGate;
+
 /// In-memory [KanaProgressRepository] that keeps the production notify,
 /// save / retry, and snapshot-ownership rules without touching
 /// [PreferencesService]. Constructor inputs are copied so a caller cannot
@@ -286,23 +290,5 @@ class FakeKanaProgressRepository extends KanaProgressRepository {
     _durableUnlocks
       ..clear()
       ..addAll(_seenUnlocks);
-  }
-}
-
-/// Two-phase gate for a fake repository flush: the flush completes
-/// [entered] once it is about to persist, then parks until [release].
-class FakeRepositoryWriteGate {
-  final Completer<void> _entered = Completer<void>();
-  final Completer<void> _released = Completer<void>();
-
-  Future<void> get entered => _entered.future;
-
-  void release() {
-    if (!_released.isCompleted) _released.complete();
-  }
-
-  Future<void> pass() async {
-    if (!_entered.isCompleted) _entered.complete();
-    await _released.future;
   }
 }
