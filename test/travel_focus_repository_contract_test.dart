@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/travel_focus_repository.dart';
@@ -226,6 +228,75 @@ void main() {
           expect(notified, 1);
           await pending;
           await _settle(() => notified == 1);
+        });
+
+        test('a parked flush commits only its snapshot and keeps later edits dirty', () async {
+          if (spec.name == 'local') {
+            final prefs = FakePreferencesService();
+            prefs.failWriteOnAttempt['travel_focus_v1'] = {2};
+            final gate = PlatformGate();
+            prefs.writeGates['travel_focus_v1'] = gate;
+            final owner = await TravelFocusRepository.load(prefs);
+
+            final first = owner.saveFocuses([transport]);
+            await gate.entered;
+            final second = owner.saveFocuses([hotel]);
+
+            gate.release();
+            await first;
+
+            await expectLater(second, throwsA(anything));
+            expect(
+              owner.plan.focuses.single.scene,
+              TravelSceneId.hotel,
+              reason: 'the later edit stayed in memory',
+            );
+
+            final reloaded = await TravelFocusRepository.load(
+              FakePreferencesService.restarted(prefs),
+            );
+            expect(
+              reloaded.plan.focuses.single.scene,
+              TravelSceneId.transport,
+              reason: 'the parked flush committed a later in-memory edit',
+            );
+
+            prefs.failWriteOnAttempt.remove('travel_focus_v1');
+            await owner.flushPending();
+            final afterRetry = await TravelFocusRepository.load(
+              FakePreferencesService.restarted(prefs),
+            );
+            expect(afterRetry.plan.focuses.single.scene, TravelSceneId.hotel);
+            return;
+          }
+
+          final owner = FakeTravelFocusRepository();
+          final gate = FakeRepositoryWriteGate();
+          owner.writeGate = gate;
+
+          final first = owner.saveFocuses([transport]);
+          await gate.entered;
+          final second = owner.saveFocuses([hotel]);
+
+          unawaited(first.whenComplete(() => owner.failWrites = true));
+          gate.release();
+          await first;
+
+          await expectLater(second, throwsA(anything));
+          expect(
+            owner.plan.focuses.single.scene,
+            TravelSceneId.hotel,
+            reason: 'the later edit stayed in memory',
+          );
+          expect(
+            owner.durablePlan.focuses.single.scene,
+            TravelSceneId.transport,
+            reason: 'the parked flush committed a later in-memory edit',
+          );
+
+          owner.failWrites = false;
+          await owner.flushPending();
+          expect(owner.durablePlan.focuses.single.scene, TravelSceneId.hotel);
         });
       });
     }

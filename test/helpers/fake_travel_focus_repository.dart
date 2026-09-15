@@ -39,7 +39,8 @@ class FakeTravelFocusRepository extends TravelFocusRepository {
   late TravelFocusPlan _durable;
 
   Future<void> _tail = Future<void>.value();
-  bool _dirty = false;
+  int _gen = 0;
+  int _persistedGen = 0;
 
   /// Parks the next flush until released. The in-memory mutation has
   /// already notified by then.
@@ -58,7 +59,7 @@ class FakeTravelFocusRepository extends TravelFocusRepository {
   @override
   Future<void> save(TravelFocusPlan plan) {
     _plan = plan;
-    _dirty = true;
+    _gen++;
     notifyListeners();
     return _serialized(_flush);
   }
@@ -75,13 +76,15 @@ class FakeTravelFocusRepository extends TravelFocusRepository {
   }
 
   Future<void> _flush() async {
-    if (!_dirty) return;
+    if (_gen == _persistedGen) return;
+    final gen = _gen;
+    final snapshot = _plan;
     final gate = writeGate;
     if (gate != null) await gate.pass();
     if (failWrites) {
       throw const StoreWriteFailure('travel_focus_v1');
     }
-    _durable = _plan;
-    _dirty = false;
+    _durable = snapshot;
+    _persistedGen = gen;
   }
 }
