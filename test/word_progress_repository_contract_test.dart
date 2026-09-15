@@ -35,6 +35,8 @@ void main() {
   final at = DateTime(2026, 9, 15, 12);
   const id = 'word:いぬ';
   const otherId = 'phrase:そらが あおい';
+  const dueA = 'word:a';
+  const dueB = 'word:b';
 
   final cases =
       <
@@ -264,6 +266,50 @@ void main() {
           final expected = const WordStat().recordAnswer(correct: true, at: at);
           expect(t.owner.statForItem(id).srsLevel, expected.srsLevel);
           expect(t.owner.statForItem(id).correctCount, expected.correctCount);
+        });
+
+        test('introduce on a seen item is exposure, not schedule', () async {
+          final t = await spec.create();
+          await t.owner.introduce(id, at: at);
+          final afterFirst = t.owner.statForItem(id);
+
+          await t.owner.introduce(id, at: at.add(const Duration(days: 1)));
+
+          expect(t.owner.statForItem(id).srsLevel, afterFirst.srsLevel);
+          expect(t.owner.statForItem(id).dueAt, afterFirst.dueAt);
+          expect(t.owner.statForItem(id).correctCount, afterFirst.correctCount);
+        });
+
+        test('markIntroduced on a seen item is exposure, not schedule', () async {
+          final t = await spec.create();
+          await t.owner.markIntroduced(id, at: at);
+          final afterFirst = t.owner.statForItem(id);
+
+          await t.owner.markIntroduced(
+            id,
+            at: at.add(const Duration(days: 1)),
+          );
+
+          expect(t.owner.statForItem(id).srsLevel, afterFirst.srsLevel);
+          expect(t.owner.statForItem(id).dueAt, afterFirst.dueAt);
+          expect(t.owner.statForItem(id).correctCount, afterFirst.correctCount);
+        });
+
+        test('dueItemIds returns due items earliest first', () async {
+          final t = await spec.create();
+          await t.owner.recordAnswer(dueA, correct: true, at: at);
+          await t.owner.recordAnswer(
+            dueB,
+            correct: true,
+            at: at.subtract(const Duration(days: 1)),
+          );
+
+          final due = t.owner.dueItemIds(at.add(const Duration(days: 30)));
+          expect(due, [dueB, dueA]);
+          expect(
+            t.owner.dueItemIds(at.subtract(const Duration(days: 1))),
+            isEmpty,
+          );
         });
       });
     }
