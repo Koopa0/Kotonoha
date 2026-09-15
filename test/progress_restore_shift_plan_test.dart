@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
-import 'package:kotonoha/data/services/snapshot_file_port.dart';
 import 'package:kotonoha/domain/models/attempt.dart';
 import 'package:kotonoha/domain/models/shift_drill.dart';
 import 'package:kotonoha/domain/use_cases/progress_restore_transaction.dart';
@@ -98,7 +97,7 @@ void main() {
           kanji: app.kanji,
           words: app.words,
         ),
-        files: FakeSnapshotFilePort()..pickContents = await backup,
+        files: FakeSnapshotFilePort()..pickContents = backup,
       );
       final result = await restorer.restore(confirm: (_) async => true);
       expect(result.status, SnapshotRestoreStatus.restored);
@@ -128,7 +127,7 @@ void main() {
     final app = await loadAll();
 
     await app.words.recordAnswer(word, correct: true, at: day0);
-    final backup = await ProgressSnapshotCapture(
+    final backup = ProgressSnapshotCapture(
       kana: app.kana,
       kanji: app.kanji,
       words: app.words,
@@ -172,7 +171,7 @@ void main() {
     );
     await app.words.recordAnswer(word, correct: true, at: day0);
 
-    final encoded = await ProgressSnapshotCapture(
+    final encoded = ProgressSnapshotCapture(
       kana: app.kana,
       kanji: app.kanji,
       words: app.words,
