@@ -26,8 +26,12 @@ those imports a violation.
 
 The actual edges:
 
-- **UI** depends on use cases, repositories, services, and the shared models
-  and datasets. It does not import Flutter platform plugins directly.
+- **UI → repositories and services, or use cases when coordination is
+  needed.** Views and ViewModels inject repositories and services directly
+  (for example `ProgressViewModel`, `StudyViewModel`, and `HomeViewModel`).
+  A use case sits between them only when learning rules or coordination spans
+  more than one owner. UI also reads the shared models and datasets and does
+  not import Flutter platform plugins directly.
 - **Use cases** depend on repositories, services, and the shared models and
   datasets. They do not import UI.
 - **Repositories and services** depend on each other one way (repositories
@@ -68,7 +72,9 @@ values and callbacks.
 ### ViewModel
 
 One `ChangeNotifier` per feature that has state or commands. Dependencies are
-injected through the constructor. A ViewModel must not touch `BuildContext`,
+injected through the constructor — usually repositories and services; a use case
+only when the feature needs cross-owner coordination. A ViewModel must not
+touch `BuildContext`,
 `Navigator`, a concrete widget, a platform plugin, or a `Timer`. Presentation
 types stay in the UI layer.
 
