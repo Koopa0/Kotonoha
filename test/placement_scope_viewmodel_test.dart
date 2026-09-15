@@ -131,7 +131,7 @@ void main() {
 
   test('a failed draft save keeps the learner here', () async {
     final t = await makeVm();
-    t.fake.failWrites.add(PlacementCheckRepository.storageKey);
+    t.fake.failWrites.add(LocalPlacementCheckRepository.storageKey);
     t.vm.setSelected(t.vm.hiragana.first.id, selected: true);
     expect(await t.vm.startNew(), isNull);
     await _settle(() => t.persistence.hasWriteFailure);
@@ -199,7 +199,7 @@ void main() {
       final row = t.vm.hiragana.first;
       t.vm.setSelected(row.id, selected: true);
       final gate = PlatformGate();
-      t.fake.writeGates[PlacementCheckRepository.storageKey] = gate;
+      t.fake.writeGates[LocalPlacementCheckRepository.storageKey] = gate;
 
       var notificationsAfterLeave = 0;
       var left = false;
@@ -221,7 +221,7 @@ void main() {
     final t = await makeVm();
     await t.checks.save(PlacementCheck.start([t.vm.hiragana.first])!);
     final gate = PlatformGate();
-    t.fake.writeGates[PlacementCheckRepository.storageKey] = gate;
+    t.fake.writeGates[LocalPlacementCheckRepository.storageKey] = gate;
 
     var notificationsAfterLeave = 0;
     var left = false;

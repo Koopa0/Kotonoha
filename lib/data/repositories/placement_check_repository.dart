@@ -12,11 +12,66 @@ import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/placement_check.dart';
 
-/// Persists an explicit prior-range check so leaving mid-way can resume
-/// unanswered kana without inventing grades. Not a second ability store:
-/// per-kana SRS still lives on [KanaProgressRepository].
-class PlacementCheckRepository extends ChangeNotifier {
-  PlacementCheckRepository._(this._store, StoreLoad<PlacementDraft> loaded)
+/// Source of truth for an explicit prior-range check, so leaving mid-way can
+/// resume unanswered kana without inventing grades. Not a second ability
+/// store: per-kana SRS still lives on [KanaProgressRepository].
+///
+/// Formal ViewModels and `bootstrap()` depend on this contract, not on a
+/// particular store; [LocalPlacementCheckRepository] is the production owner
+/// and a test fake may replace it when it keeps the same notify and
+/// save / retry rules.
+///
+/// Storage keys deliberately do not appear here. They belong to the owner
+/// that has storage; a substitute has none, and a contract that named them
+/// would be describing one implementation.
+abstract class PlacementCheckRepository extends ChangeNotifier {
+  /// Loads the production owner. Tests that need a substitute construct a
+  /// fake; they do not go through this factory.
+  static Future<PlacementCheckRepository> load([PreferencesService? prefs]) =>
+      LocalPlacementCheckRepository.load(prefs);
+
+  /// Startup health of the backing store, surfaced as a recovery notice.
+  StoreHealth get health;
+
+  /// The current draft. [PlacementDraft] is immutable and hands out
+  /// unmodifiable collections, so a reader cannot write through this.
+  PlacementDraft get draft;
+
+  /// Replaces the in-memory draft and persists it. A failed write keeps the
+  /// memory value; the next save retries. Never invents missing answers.
+  Future<void> save(PlacementDraft draft);
+
+  /// Retries a pending write without applying a new mutation.
+  Future<void> flushPending();
+
+  /// Refuses new mutations and drains every queued persistence future, so no
+  /// stale flush can land after a restore begins.
+  Future<void> prepareForRestore();
+
+  /// Releases the restore lock taken by [prepareForRestore].
+  void finishRestore();
+
+  /// Drops any draft during a progress restore, before the journal commits.
+  /// The snapshot's portable bodies are authoritative; a draft from before
+  /// the restore must not re-apply learned rows on the results screen.
+  Future<void> discardForRestore();
+
+  Future<void> reloadFromPlatform();
+
+  /// Hides a stale draft in memory while a durable discard is still pending.
+  /// Does not touch storage — bootstrap recovery finishes the removal.
+  void hideDraftWhileDiscardPending();
+
+  /// Clearing is saving the empty draft. Defined here rather than on each
+  /// implementation so the two cannot disagree about what "cleared" means —
+  /// though unlike travel focus, this one carries no rule of its own.
+  Future<void> clear() => save(PlacementDraft.empty);
+}
+
+/// Production owner of [PlacementCheckRepository]. Persists through a
+/// [RecoverableStore] slot (data-loss firewall) over [PreferencesService].
+class LocalPlacementCheckRepository extends PlacementCheckRepository {
+  LocalPlacementCheckRepository._(this._store, StoreLoad<PlacementDraft> loaded)
     : _draft = loaded.value,
       health = loaded.health;
 
@@ -29,6 +84,7 @@ class PlacementCheckRepository extends ChangeNotifier {
 
   final RecoverableStore<PlacementDraft> _store;
   PlacementDraft _draft;
+  @override
   final StoreHealth health;
 
   Future<void> _tail = Future<void>.value();
@@ -44,7 +100,7 @@ class PlacementCheckRepository extends ChangeNotifier {
     return null;
   }
 
-  static Future<PlacementCheckRepository> load([
+  static Future<LocalPlacementCheckRepository> load([
     PreferencesService? prefs,
   ]) async {
     final service = prefs ?? await PreferencesService.create();
@@ -60,13 +116,16 @@ class PlacementCheckRepository extends ChangeNotifier {
     final draft = ProgressRestorePlacementDiscard.isPending(service)
         ? PlacementDraft.empty
         : loaded.value;
-    return PlacementCheckRepository._(store, StoreLoad(loaded.health, draft));
+    return LocalPlacementCheckRepository._(
+      store,
+      StoreLoad(loaded.health, draft),
+    );
   }
 
+  @override
   PlacementDraft get draft => _draft;
 
-  /// Replaces the in-memory draft and persists. A failed write keeps the
-  /// memory value; the next save retries. Never invents missing answers.
+  @override
   Future<void> save(PlacementDraft draft) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
@@ -76,31 +135,26 @@ class PlacementCheckRepository extends ChangeNotifier {
     return _serialized(_flush);
   }
 
-  Future<void> clear() => save(PlacementDraft.empty);
-
-  /// Refuses new mutations, drains every queued persistence future, then bumps
-  /// the restore barrier so no stale flush can land after the drain completes.
+  @override
   Future<void> prepareForRestore() async {
     _restoreLocked = true;
     await _tail;
     _restoreBarrier++;
   }
 
-  /// Releases the restore lock after [prepareForRestore].
+  @override
   void finishRestore() {
     _restoreLocked = false;
   }
 
-  /// Drops any placement draft during a progress restore, before the journal
-  /// commits. The snapshot's five portable bodies are authoritative; a draft
-  /// from before restore must not re-apply learned rows on the results screen.
+  @override
   Future<void> discardForRestore() => _discardForRestore();
 
   /// Re-reads the draft from durable storage after a restore rollback.
+  @override
   Future<void> reloadFromPlatform() => _reloadFromPlatform();
 
-  /// Hides a stale draft in memory when durable discard is still pending.
-  /// Does not touch disk — bootstrap recovery will finish removal.
+  @override
   void hideDraftWhileDiscardPending() {
     if (!_draft.hasProgress) return;
     _draft = PlacementDraft.empty;
@@ -108,6 +162,7 @@ class PlacementCheckRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   Future<void> flushPending() {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
