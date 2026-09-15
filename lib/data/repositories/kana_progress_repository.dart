@@ -14,11 +14,72 @@ import 'package:kotonoha/domain/data/kana_dataset.dart';
 import 'package:kotonoha/domain/models/kana.dart';
 import 'package:kotonoha/domain/models/kana_stat.dart';
 
-/// Source of truth for per-kana practice stats. The only stateful unit in the
-/// app; quiz session state lives in [QuizViewModel]. Persists through
+/// Source of truth for per-kana practice stats. Formal ViewModels, the
+/// app-scoped persistence owner, and restore use cases depend on this
+/// contract — not on a particular store. [LocalKanaProgressRepository] is
+/// the production owner. A test fake may replace it when it keeps the same
+/// notify, save / retry, and snapshot-ownership rules. Quiz session state
+/// still lives in [QuizViewModel]; this is not a generic SRS engine.
+abstract class KanaProgressRepository extends ChangeNotifier {
+  /// Loads the production owner. Tests that need a substitute construct a
+  /// fake; they do not go through this factory.
+  static Future<KanaProgressRepository> load([PreferencesService? prefs]) =>
+      LocalKanaProgressRepository.load(prefs);
+
+  StoreHealth get statsHealth;
+  StoreHealth get learnedUnitsHealth;
+  StoreHealth get seenUnlocksHealth;
+
+  bool get isRestoreJournalBlocked;
+
+  bool isUnitLearned(String unitId);
+  int get learnedUnitCount;
+  Set<String> get learnedUnits;
+  Future<void> markUnitLearned(String unitId);
+
+  bool isUnlockSeen(String id);
+  Set<String> get seenUnlocks;
+  Future<void> markUnlockSeen(String id);
+
+  List<Kana> get allKana;
+  List<Kana> kanaForScript(KanaScript script);
+  List<Kana> gojuonForScript(KanaScript script);
+  List<Kana> extendedForScript(KanaScript script);
+  List<Kana> get gojuonKana;
+  int seenInSet(List<Kana> set);
+  Map<String, KanaStat> get stats;
+  KanaStat statFor(Kana kana);
+  int get seenCount;
+  int get totalCount;
+  int countWithStatus(KanaStatus status);
+
+  Future<void> recordAnswer(
+    Kana kana, {
+    required bool correct,
+    required DateTime at,
+    int? latencyMs,
+    bool listening = false,
+  });
+
+  Future<void> recordPromptedPractice(Kana kana, {required DateTime at});
+
+  Future<void> flushPending();
+  Future<void> prepareForRestore();
+  void finishRestore();
+  void setRestoreJournalBlocked(bool blocked);
+  Future<void> reloadFromPlatform();
+  void replaceFromRestore({
+    required Map<String, KanaStat> stats,
+    required Set<String> learnedUnits,
+    required Set<String> seenUnlocks,
+  });
+  Future<void> reset();
+}
+
+/// Production owner of [KanaProgressRepository]. Persists through
 /// [RecoverableStore] slots (data-loss firewall) over [PreferencesService].
-class KanaProgressRepository extends ChangeNotifier {
-  KanaProgressRepository._(
+class LocalKanaProgressRepository extends KanaProgressRepository {
+  LocalKanaProgressRepository._(
     this._prefs,
     this._statsStore,
     this._learnedStore,
@@ -71,8 +132,11 @@ class KanaProgressRepository extends ChangeNotifier {
   /// mistaken for a legal fresh install. [StoreHealth.preservationPending]
   /// means a recovered value is in use but the damaged raw is not yet
   /// confirmed quarantined.
+  @override
   final StoreHealth statsHealth;
+  @override
   final StoreHealth learnedUnitsHealth;
+  @override
   final StoreHealth seenUnlocksHealth;
 
   /// Tail of the mutation queue: every persisting mutation (recordAnswer,
@@ -103,6 +167,7 @@ class KanaProgressRepository extends ChangeNotifier {
   bool _restoreJournalBlocksWrites = false;
 
   /// Whether an unfinished restore journal still blocks learning writes.
+  @override
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
   Future<void>? _blockedWriteFuture() {
@@ -116,7 +181,7 @@ class KanaProgressRepository extends ChangeNotifier {
   }
 
   /// Loads persisted stats + learned units (or starts empty).
-  static Future<KanaProgressRepository> load([
+  static Future<LocalKanaProgressRepository> load([
     PreferencesService? prefs,
   ]) async {
     final service = prefs ?? await PreferencesService.create();
@@ -144,7 +209,7 @@ class KanaProgressRepository extends ChangeNotifier {
       empty: () => <String>{},
       decode: _decodeIdSet,
     );
-    return KanaProgressRepository._(
+    return LocalKanaProgressRepository._(
       service,
       statsStore,
       learnedStore,
@@ -157,8 +222,10 @@ class KanaProgressRepository extends ChangeNotifier {
 
   // --- Learned units (sequential lessons) ---
 
+  @override
   bool isUnitLearned(String unitId) => _learnedUnits.contains(unitId);
 
+  @override
   int get learnedUnitCount => _learnedUnits.length;
 
   /// Read-only view of learned unit ids for a portable snapshot export
@@ -166,6 +233,7 @@ class KanaProgressRepository extends ChangeNotifier {
   /// retired ids are preserved, never re-derived from the current lesson
   /// dataset — so a snapshot never silently drops progress on content that has
   /// since been renamed or removed.
+  @override
   Set<String> get learnedUnits => Set.unmodifiable(_learnedUnits);
 
   /// Marks a lesson/unit as passed and persists. The returned future
@@ -174,6 +242,7 @@ class KanaProgressRepository extends ChangeNotifier {
   /// is already present still joins the queue: the id may exist only in
   /// memory after an earlier failed write, so success is only reported once
   /// every pending store is really flushed.
+  @override
   Future<void> markUnitLearned(String unitId) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
@@ -186,15 +255,18 @@ class KanaProgressRepository extends ChangeNotifier {
 
   // --- Seen unlock lines (the one-time "feature opened" moments) ---
 
+  @override
   bool isUnlockSeen(String id) => _seenUnlocks.contains(id);
 
   /// Read-only view for the pure use_case (consistent with [stats]).
+  @override
   Set<String> get seenUnlocks => Set.unmodifiable(_seenUnlocks);
 
   /// Marks an unlock line as seen and persists. The guarded add →
   /// conditional notify is what lets tap-to-dismiss settle instead of
   /// re-triggering the home's listener every frame; an already-seen id still
   /// joins the queue so a pending earlier write is flushed, never faked.
+  @override
   Future<void> markUnlockSeen(String id) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
@@ -206,40 +278,51 @@ class KanaProgressRepository extends ChangeNotifier {
   }
 
   /// Every kana the app knows (hiragana + katakana).
+  @override
   List<Kana> get allKana => kAllKana;
 
   /// Kana belonging to a given script.
+  @override
   List<Kana> kanaForScript(KanaScript script) =>
       allKana.where((k) => k.script == script).toList();
 
   /// Base gojūon kana of a script (the only ones the 11×5 grid can render).
+  @override
   List<Kana> gojuonForScript(KanaScript script) =>
       kanaForScript(script).where((k) => k.isGojuon).toList();
 
   /// Non-gojūon kana of a script (dakuten/handakuten/yoon).
+  @override
   List<Kana> extendedForScript(KanaScript script) =>
       kanaForScript(script).where((k) => !k.isGojuon).toList();
 
   /// All base gojūon kana (hira + kata, 92) — the home ring's study set so the
   /// 116 extended kana don't dilute the core five-fifty achievement.
+  @override
   List<Kana> get gojuonKana => allKana.where((k) => k.isGojuon).toList();
 
   /// Count of kana in [set] the user has seen.
+  @override
   int seenInSet(List<Kana> set) => set.where((k) => statFor(k).isSeen).length;
 
   /// Read-only view of every recorded stat, keyed by kana id.
+  @override
   Map<String, KanaStat> get stats => Map.unmodifiable(_stats);
 
   /// The stat for [kana], or an empty stat if never practiced.
+  @override
   KanaStat statFor(Kana kana) => _stats[kana.id] ?? const KanaStat();
 
   // --- Aggregate views for the home / progress screens ---
 
+  @override
   int get seenCount => allKana.where((k) => statFor(k).isSeen).length;
 
+  @override
   int get totalCount => allKana.length;
 
   /// Count of kana currently classified [status].
+  @override
   int countWithStatus(KanaStatus status) =>
       allKana.where((k) => statFor(k).status == status).length;
 
@@ -250,6 +333,7 @@ class KanaProgressRepository extends ChangeNotifier {
   /// [listening] is true only for a scored sound-to-kana trial with valid
   /// audio. Visual answers and the #49 diagnostic keep the default so
   /// listen fields stay unknown.
+  @override
   Future<void> recordAnswer(
     Kana kana, {
     required bool correct,
@@ -275,6 +359,7 @@ class KanaProgressRepository extends ChangeNotifier {
 
   /// Persists hinted-recall exposure without treating it as a successful
   /// recall or renewing the schedule. See [KanaStat.recordPromptedPractice].
+  @override
   Future<void> recordPromptedPractice(Kana kana, {required DateTime at}) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
@@ -292,10 +377,12 @@ class KanaProgressRepository extends ChangeNotifier {
   /// [StoreWriteFailure] like a mutation so the owner can observe the outcome.
   /// It advances no generation itself: [_flushAll] moves persistedGen only on a
   /// confirmed write, exactly as a mutation's flush does.
+  @override
   Future<void> flushPending() => _serialized(_flushAll);
 
   /// Refuses new mutations, drains every queued persistence future, then bumps
   /// the restore barrier so no stale flush can land after the drain completes.
+  @override
   Future<void> prepareForRestore() async {
     _restoreLocked = true;
     await _tail;
@@ -303,11 +390,13 @@ class KanaProgressRepository extends ChangeNotifier {
   }
 
   /// Releases the restore lock after [prepareForRestore].
+  @override
   void finishRestore() {
     _restoreLocked = false;
   }
 
   /// Blocks or unblocks learning writes while a restore journal needs recovery.
+  @override
   void setRestoreJournalBlocked(bool blocked) {
     if (_restoreJournalBlocksWrites == blocked) return;
     _restoreJournalBlocksWrites = blocked;
@@ -315,6 +404,7 @@ class KanaProgressRepository extends ChangeNotifier {
   }
 
   /// Reloads all three bodies from durable primaries after journal recovery.
+  @override
   Future<void> reloadFromPlatform() async {
     await _prefs.reload();
     final stats = await _statsStore.load();
@@ -340,6 +430,7 @@ class KanaProgressRepository extends ChangeNotifier {
 
   /// Replaces the three in-memory bodies after a successful restore
   /// transaction. Primaries are already on disk; generations are marked clean.
+  @override
   void replaceFromRestore({
     required Map<String, KanaStat> stats,
     required Set<String> learnedUnits,
@@ -373,6 +464,7 @@ class KanaProgressRepository extends ChangeNotifier {
   /// later-submitted mutation already touched. If even the fresh read
   /// fails, the pre-reset snapshot is restored conservatively and the store
   /// stays dirty — an unknown state is never marked persisted.
+  @override
   Future<void> reset() {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
