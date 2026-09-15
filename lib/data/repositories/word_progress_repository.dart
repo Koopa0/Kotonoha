@@ -11,18 +11,59 @@ import 'package:kotonoha/data/services/progress_store_keys.dart';
 import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
 
-/// Source of truth for per-item 詞と句 stats. Mirrors [KanjiReadingRepository]
-/// but keyed by progress id (`word:いぬ` / `phrase:そらが あおい` — namespaced so
-/// a word and a same-written phrase can never collide) and persisted separately
-/// under `word_stats_v1` — the three tracks' progress never mixes (ADR).
-/// Persists through a [RecoverableStore] slot (data-loss firewall).
+/// Source of truth for per-item 詞と句 stats. Formal ViewModels, the
+/// app-scoped persistence owner, and restore use cases depend on this
+/// contract — not on a particular store. [LocalWordProgressRepository] is
+/// the production owner. A test fake may replace it when it keeps the same
+/// notify, save / retry, and snapshot-ownership rules.
 ///
-/// Mode authority: 渡し舟 INTRODUCES an item ([introduce] — first meeting only,
-/// a no-op once seen), while the colder retrieval modes (文字起こし's objective
-/// assembly, 黙読's cold self-graded read, 聞き取り after confirmed playback)
-/// own the schedule via [recordAnswer].
-class WordProgressRepository extends ChangeNotifier {
-  WordProgressRepository._(
+/// Mirrors [KanjiReadingRepository] but keyed by progress id (`word:いぬ` /
+/// `phrase:そらが あおい` — namespaced so a word and a same-written phrase can
+/// never collide) and persisted separately under `word_stats_v1` — the three
+/// tracks' progress never mixes (ADR). [WordStat] stays a distinct value type
+/// from KanaStat / ReadingStat; this is not a generic SRS engine.
+///
+/// Mode authority: 渡し舟 INTRODUCES an item ([introduce] — first meeting
+/// only, a no-op once seen), while the colder retrieval modes (文字起こし's
+/// objective assembly, 黙読's cold self-graded read, 聞き取り after confirmed
+/// playback) own the schedule via [recordAnswer].
+abstract class WordProgressRepository extends ChangeNotifier {
+  /// Loads the production owner. Tests that need a substitute construct a
+  /// fake; they do not go through this factory.
+  static Future<WordProgressRepository> load([PreferencesService? prefs]) =>
+      LocalWordProgressRepository.load(prefs);
+
+  StoreHealth get statsHealth;
+
+  bool get isRestoreJournalBlocked;
+
+  Map<String, WordStat> get stats;
+  WordStat statForItem(String progressId);
+  int get seenItemCount;
+
+  Future<void> introduce(String progressId, {required DateTime at});
+  Future<void> markIntroduced(String progressId, {required DateTime at});
+  Future<void> recordAnswer(
+    String progressId, {
+    required bool correct,
+    required DateTime at,
+  });
+
+  Future<void> flushPending();
+  List<String> dueItemIds(DateTime now);
+
+  Future<void> prepareForRestore();
+  void finishRestore();
+  void setRestoreJournalBlocked(bool blocked);
+  Future<void> reloadFromPlatform();
+  void replaceFromRestore({required Map<String, WordStat> stats});
+  Future<void> reset();
+}
+
+/// Production owner of [WordProgressRepository]. Persists through a
+/// [RecoverableStore] slot (data-loss firewall) over [PreferencesService].
+class LocalWordProgressRepository extends WordProgressRepository {
+  LocalWordProgressRepository._(
     this._prefs,
     this._store,
     StoreLoad<Map<String, WordStat>> stats,
@@ -42,6 +83,7 @@ class WordProgressRepository extends ChangeNotifier {
 
   /// How the persisted store came up at load (see [KanjiReadingRepository]
   /// for the full health semantics).
+  @override
   final StoreHealth statsHealth;
 
   /// Tail of the mutation queue: every persisting mutation runs strictly
@@ -58,6 +100,7 @@ class WordProgressRepository extends ChangeNotifier {
   bool _restoreJournalBlocksWrites = false;
 
   /// Whether an unfinished restore journal still blocks learning writes.
+  @override
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
   Future<void>? _blockedWriteFuture() {
@@ -70,7 +113,7 @@ class WordProgressRepository extends ChangeNotifier {
     return null;
   }
 
-  static Future<WordProgressRepository> load([
+  static Future<LocalWordProgressRepository> load([
     PreferencesService? prefs,
   ]) async {
     final service = prefs ?? await PreferencesService.create();
@@ -82,17 +125,20 @@ class WordProgressRepository extends ChangeNotifier {
       empty: () => <String, WordStat>{},
       decode: _decodeStats,
     );
-    return WordProgressRepository._(service, store, await store.load());
+    return LocalWordProgressRepository._(service, store, await store.load());
   }
 
   /// Read-only view of every recorded stat, keyed by progress id.
+  @override
   Map<String, WordStat> get stats => Map.unmodifiable(_stats);
 
   /// The stat for a progress id, or an empty stat if never practised.
+  @override
   WordStat statForItem(String progressId) =>
       _stats[progressId] ?? const WordStat();
 
   /// Count of items the learner has met at least once.
+  @override
   int get seenItemCount => _stats.values.where((s) => s.isSeen).length;
 
   /// First meeting of an item (渡し舟's encode beat): counts as one correct
@@ -102,6 +148,7 @@ class WordProgressRepository extends ChangeNotifier {
   /// put. The returned future still follows the persistence owner's contract:
   /// success means every dirty store is on disk. A clean seen item is an
   /// honest no-op; a pending failed write is flushed (never a fake success).
+  @override
   Future<void> introduce(String progressId, {required DateTime at}) {
     if (statForItem(progressId).isSeen) return flushPending();
     return recordAnswer(progressId, correct: true, at: at);
@@ -110,6 +157,7 @@ class WordProgressRepository extends ChangeNotifier {
   /// 黙読 / transfer intake: the learner met the item (often after a hint)
   /// but this is not an unprompted recall. First meeting only; seen items
   /// are an honest no-op that still flushes a pending write.
+  @override
   Future<void> markIntroduced(String progressId, {required DateTime at}) {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
@@ -124,6 +172,7 @@ class WordProgressRepository extends ChangeNotifier {
   /// Records one graded answer for an item and persists. The returned future
   /// completes with an error if persisting failed — the in-memory state keeps
   /// the answer and the next mutation retries the write.
+  @override
   Future<void> recordAnswer(
     String progressId, {
     required bool correct,
@@ -140,9 +189,11 @@ class WordProgressRepository extends ChangeNotifier {
 
   /// Flushes the store to disk WITHOUT applying a new domain mutation (the
   /// app-scoped persistence owner's retry path). Safe no-op when clean.
+  @override
   Future<void> flushPending() => _serialized(_flush);
 
   /// Progress ids due for review now (dueAt ≤ now), earliest first.
+  @override
   List<String> dueItemIds(DateTime now) {
     final due =
         _stats.entries
@@ -152,22 +203,26 @@ class WordProgressRepository extends ChangeNotifier {
     return [for (final e in due) e.key];
   }
 
+  @override
   Future<void> prepareForRestore() async {
     _restoreLocked = true;
     await _tail;
     _restoreBarrier++;
   }
 
+  @override
   void finishRestore() {
     _restoreLocked = false;
   }
 
+  @override
   void setRestoreJournalBlocked(bool blocked) {
     if (_restoreJournalBlocksWrites == blocked) return;
     _restoreJournalBlocksWrites = blocked;
     notifyListeners();
   }
 
+  @override
   Future<void> reloadFromPlatform() async {
     await _prefs.reload();
     final loaded = await _store.load();
@@ -180,6 +235,7 @@ class WordProgressRepository extends ChangeNotifier {
   }
 
   /// Replaces in-memory stats after a successful restore transaction.
+  @override
   void replaceFromRestore({required Map<String, WordStat> stats}) {
     _stats
       ..clear()
@@ -193,6 +249,7 @@ class WordProgressRepository extends ChangeNotifier {
   /// owns; on a failed removal, reconciles against a fresh platform read with
   /// full [RecoverableStore] recovery semantics (see [KanjiReadingRepository]
   /// — the generation rules are identical).
+  @override
   Future<void> reset() {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
