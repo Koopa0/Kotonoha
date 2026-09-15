@@ -323,6 +323,55 @@ void main() {
     );
   });
 
+  test('a view disposes the ViewModel it builds', () {
+    // Feature state's owner is the View that constructs it (#149). A
+    // ChangeNotifier that is built in initState and never disposed outlives
+    // its screen holding every listener that ever attached — StudyScreen did
+    // exactly this, and nothing failed, because a leak is silent.
+    //
+    // Discovering the pairs from the tree means a new feature is covered the
+    // moment it lands, with no list to update here.
+    final offenders = <String>[];
+    var checked = 0;
+    final built = RegExp(r'(\w+)\s*=\s*(\w*ViewModel)\(');
+    for (final vmFile in _dartFilesUnder(['lib/ui', 'lib/kanji/ui'])) {
+      if (!vmFile.path.endsWith('_viewmodel.dart')) continue;
+      final declared = RegExp(
+        r'^class (\w+) extends ChangeNotifier',
+        multiLine: true,
+      ).allMatches(vmFile.readAsStringSync()).map((m) => m.group(1)!).toSet();
+      if (declared.isEmpty) continue;
+
+      for (final screen in vmFile.parent.listSync().whereType<File>()) {
+        if (!screen.path.endsWith('_screen.dart')) continue;
+        final source = screen.readAsStringSync();
+        for (final m in built.allMatches(source)) {
+          final field = m.group(1)!.replaceFirst('this.', '');
+          if (!declared.contains(m.group(2))) continue;
+          checked++;
+          if (!RegExp('\\b$field\\s*\\.\\s*dispose\\(\\)').hasMatch(source)) {
+            offenders.add('${screen.path}: $field = ${m.group(2)}(...)');
+          }
+        }
+      }
+    }
+    expect(
+      checked,
+      greaterThan(0),
+      reason:
+          'no screen was found constructing a ViewModel — the naming or '
+          'construction style moved and this guard is scanning nothing',
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'a View must dispose the ViewModel it builds, or the notifier '
+          'outlives the screen holding its listeners — found:\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
   test('ViewModels depend on repository contracts, not local stores', () {
     // Source convention only: a ViewModel that names a production store is
     // coupled to one implementation and can no longer be handed a fake.
