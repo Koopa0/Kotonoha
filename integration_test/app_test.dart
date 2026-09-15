@@ -11,6 +11,12 @@ import 'package:kotonoha/ui/core/app_strings.dart';
 /// value over the widget smoke test is catching launch/plugin-init/render
 /// crashes — the exact class of bug that the R8-stripped-ML-Kit launch crash was.
 ///
+/// These deliberately do NOT seed or clear stored progress. They run against
+/// whatever the device already holds, so they must stay reachable from any
+/// state and must not touch learning evidence — running them on a real phone
+/// should never cost the owner a day's practice, and fabricated progress would
+/// make a walk prove something the learner never did.
+///
 /// Run with: `flutter test integration_test` (needs an attached device).
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -60,5 +66,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('あ'), findsOneWidget);
     expect(find.text('ん'), findsOneWidget);
+  });
+
+  // #149 B6. Of the rooms split into View / ViewModel, 換句 is the one a home
+  // with no progress still offers, so it is the only one this suite can reach
+  // without fabricating practice. The host suite already covers its state and
+  // commands; what only a device adds is that the real composition root hands
+  // this route its owners and it renders against real storage rather than a
+  // fake — the same class of check as the launch test above, one route deeper.
+  testWidgets('real navigation: home → 換句 renders against real storage', (
+    tester,
+  ) async {
+    await tester.pumpWidget(await app.bootstrap());
+    await tester.pumpAndSettle();
+
+    final entry = find.text(AppStrings.shiftAction);
+    expect(entry, findsOneWidget, reason: 'the home offers no 換句 entry');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.shiftTitle), findsOneWidget);
   });
 }
