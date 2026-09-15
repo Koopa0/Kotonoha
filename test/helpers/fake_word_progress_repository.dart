@@ -173,22 +173,30 @@ class FakeWordProgressRepository extends WordProgressRepository {
   }
 
   Future<void> _flushReset() async {
-    if (!_dirty) return;
+    if (_statsGen == _statsPersistedGen) return;
+    final gen = _statsGen;
+    final payload = Map<String, WordStat>.of(_stats);
     final gate = writeGate;
     if (gate != null) await gate.pass();
     try {
       if (failWrites) {
         throw const StoreWriteFailure(ProgressStoreKeys.wordStats);
       }
-      _commitDurable();
-      _dirty = false;
+      _commitDurable(payload);
+      if (_statsGen == gen) {
+        _statsPersistedGen = gen;
+      }
     } catch (_) {
       // The optimistic clear must not survive a refused persist — memory
       // agrees with the durable snapshot that reset failed to overwrite.
       _stats
         ..clear()
         ..addAll(_durableStats);
-      _dirty = false;
+      if (_statsGen == gen) {
+        _statsPersistedGen = gen;
+      } else {
+        _statsGen++;
+      }
       notifyListeners();
       rethrow;
     }
