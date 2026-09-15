@@ -142,6 +142,88 @@ void main() {
     });
   });
 
+  group('gated flush preserves pending mid-write mutations', () {
+    const inu = 'word:いぬ';
+    const neko = 'word:ねこ';
+
+    for (final spec in cases) {
+      test(
+        '${spec.name}: a failed gated flush keeps later mutations pending '
+        'and the second future still reports failure',
+        () async {
+          late FakePreferencesService prefs;
+          FakeRepositoryWriteGate? fakeGate;
+          PlatformGate? platformGate;
+          late WordProgressRepository owner;
+          late void Function() fail;
+          late void Function() clearFail;
+
+          if (spec.name == 'local') {
+            prefs = FakePreferencesService();
+            platformGate = PlatformGate();
+            prefs.writeGates[ProgressStoreKeys.wordStats] = platformGate;
+            owner = await WordProgressRepository.load(prefs);
+            fail = () => prefs.failWrites.add(ProgressStoreKeys.wordStats);
+            clearFail = () =>
+                prefs.failWrites.remove(ProgressStoreKeys.wordStats);
+          } else {
+            final fake = FakeWordProgressRepository();
+            fakeGate = FakeRepositoryWriteGate();
+            fake.writeGate = fakeGate;
+            owner = fake;
+            fail = () => fake.failWrites = true;
+            clearFail = () => fake.failWrites = false;
+            prefs = FakePreferencesService();
+          }
+
+          final first = owner.recordAnswer(inu, correct: true, at: at);
+          final entered = spec.name == 'local'
+              ? platformGate!.entered
+              : fakeGate!.entered;
+          await entered;
+          final second = owner.recordAnswer(neko, correct: true, at: at);
+          fail();
+          if (spec.name == 'local') {
+            platformGate!.release();
+          } else {
+            fakeGate!.release();
+          }
+
+          await expectLater(first, throwsA(isA<StoreWriteFailure>()));
+          await expectLater(second, throwsA(isA<StoreWriteFailure>()));
+
+          expect(owner.statForItem(inu).isSeen, isTrue);
+          expect(owner.statForItem(neko).isSeen, isTrue);
+
+          if (spec.name == 'local') {
+            final fresh = await WordProgressRepository.load(
+              FakePreferencesService.restarted(prefs),
+            );
+            expect(fresh.statForItem(inu).isSeen, isFalse);
+            expect(fresh.statForItem(neko).isSeen, isFalse);
+          }
+
+          clearFail();
+          await owner.flushPending();
+          expect(owner.statForItem(inu).isSeen, isTrue);
+          expect(owner.statForItem(neko).isSeen, isTrue);
+
+          if (spec.name == 'local') {
+            final fresh = await WordProgressRepository.load(
+              FakePreferencesService.restarted(prefs),
+            );
+            expect(fresh.statForItem(inu).isSeen, isTrue);
+            expect(fresh.statForItem(neko).isSeen, isTrue);
+          } else {
+            await owner.reloadFromPlatform();
+            expect(owner.statForItem(inu).isSeen, isTrue);
+            expect(owner.statForItem(neko).isSeen, isTrue);
+          }
+        },
+      );
+    }
+  });
+
   group('pending writes and retry', () {
     for (final spec in cases) {
       test(

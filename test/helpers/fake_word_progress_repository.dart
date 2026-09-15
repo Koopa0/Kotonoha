@@ -36,7 +36,12 @@ class FakeWordProgressRepository extends WordProgressRepository {
   final Map<String, WordStat> _durableStats = {};
 
   Future<void> _tail = Future<void>.value();
-  bool _dirty = false;
+
+  /// Monotonic store version: dirty while [_statsGen] is ahead of
+  /// [_statsPersistedGen]; mirrors [LocalWordProgressRepository].
+  int _statsGen = 0;
+  int _statsPersistedGen = 0;
+
   bool _restoreLocked = false;
   bool _restoreJournalBlocksWrites = false;
 
@@ -83,7 +88,7 @@ class FakeWordProgressRepository extends WordProgressRepository {
     final current = statForItem(progressId);
     if (current.isSeen) return flushPending();
     _stats[progressId] = current.markIntroduced(at: at);
-    _dirty = true;
+    _statsGen++;
     notifyListeners();
     return _serialized(_flush);
   }
@@ -98,7 +103,7 @@ class FakeWordProgressRepository extends WordProgressRepository {
     if (blocked != null) return blocked;
     _stats[progressId] = statForItem(progressId)
         .recordAnswer(correct: correct, at: at);
-    _dirty = true;
+    _statsGen++;
     notifyListeners();
     return _serialized(_flush);
   }
@@ -141,7 +146,8 @@ class FakeWordProgressRepository extends WordProgressRepository {
     _stats
       ..clear()
       ..addAll(_durableStats);
-    _dirty = false;
+    _statsGen++;
+    _statsPersistedGen = _statsGen;
     notifyListeners();
   }
 
@@ -151,7 +157,8 @@ class FakeWordProgressRepository extends WordProgressRepository {
       ..clear()
       ..addAll(stats);
     _commitDurable();
-    _dirty = false;
+    _statsGen++;
+    _statsPersistedGen = _statsGen;
     notifyListeners();
   }
 
@@ -160,7 +167,7 @@ class FakeWordProgressRepository extends WordProgressRepository {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;
     _stats.clear();
-    _dirty = true;
+    _statsGen++;
     notifyListeners();
     return _serialized(_flushReset);
   }
@@ -203,19 +210,24 @@ class FakeWordProgressRepository extends WordProgressRepository {
   }
 
   Future<void> _flush() async {
-    if (!_dirty) return;
+    if (_statsGen == _statsPersistedGen) return;
+    final gen = _statsGen;
+    final payload = Map<String, WordStat>.of(_stats);
     final gate = writeGate;
     if (gate != null) await gate.pass();
     if (failWrites) {
       throw const StoreWriteFailure(ProgressStoreKeys.wordStats);
     }
-    _commitDurable();
-    _dirty = false;
+    _commitDurable(payload);
+    if (_statsGen == gen) {
+      _statsPersistedGen = gen;
+    }
   }
 
-  void _commitDurable() {
+  void _commitDurable([Map<String, WordStat>? payload]) {
+    final source = payload ?? _stats;
     _durableStats
       ..clear()
-      ..addAll(_stats);
+      ..addAll(source);
   }
 }
