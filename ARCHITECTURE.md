@@ -240,17 +240,8 @@ these repositories, so a hand-written fake that reimplements `recordAnswer`
 can pass tests against a schedule production no longer uses. A fake must
 delegate to the real value types rather than restate their rules.
 
-Two habits keep that honest, and a new contract should follow both:
-
-- **Leave only the irreducible members abstract.** A command that is derived
-  from others belongs on the abstract class, written once in terms of them,
-  so no implementation can restate it differently. `TravelFocusRepository`
-  leaves `plan`, `save`, `flushPending` and `health` abstract and defines
-  `saveFocuses`, `markServed`, `markKanaBoost` and `clear` itself, so the
-  rule that removing the last focus clears the plan — rather than storing an
-  inactive one that keeps yesterday's cursor — exists in exactly one place.
-- **Run the same probes against both owners.** Each contract test has an
-  owner-parity group that drives the local store and the fake through the
-  same assertions. That is what catches a fake whose `flushPending` marks
-  itself dirty, or whose failed write drops the in-memory value: defects
-  that make a substitute pass tests production would fail.
+Two conventions follow from that. A command derived from other members is
+defined on the abstract class in terms of them, rather than left to each
+implementation, so a rule cannot be restated two ways. And each contract
+test drives the local owner and the fake through the same assertions, so a
+substitute that diverges fails rather than quietly passing.
