@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -15,11 +16,89 @@ import 'package:kotonoha/kanji/domain/models/reading_stat.dart';
 
 /// Source of truth for per-UNIT kanji stats — a unit being a written run and
 /// the sound it makes there ('unit:学校#がっこう'), because a reading belongs to
-/// the word, not the character. Mirrors [KanaProgressRepository] but persisted
-/// separately under `kanji_units_v1` — kana and kanji progress never collide (ADR). Persists
-/// through a [RecoverableStore] slot (data-loss firewall).
-class KanjiReadingRepository extends ChangeNotifier {
-  KanjiReadingRepository._(
+/// the word, not the character. Persisted separately from kana progress under
+/// `kanji_units_v1` — the two never collide (ADR).
+///
+/// Formal ViewModels and `bootstrap()` depend on this contract, not on a
+/// particular store; [LocalKanjiReadingRepository] is the production owner and
+/// a test fake may replace it when it keeps the same notify and save / retry
+/// rules.
+///
+/// Only the members an implementation genuinely owns are abstract. The reads
+/// below are derived here, in terms of [statsView], so that no substitute can
+/// restate them — [dueUnitIds] in particular is a learning rule, not a
+/// lookup, and a fake with its own idea of what is due would let a session
+/// test pass against a schedule the app does not have.
+abstract class KanjiReadingRepository extends ChangeNotifier {
+  /// Loads the production owner. Tests that need a substitute construct a
+  /// fake; they do not go through this factory.
+  static Future<KanjiReadingRepository> load([PreferencesService? prefs]) =>
+      LocalKanjiReadingRepository.load(prefs);
+
+  /// Startup health of the backing store, surfaced as a recovery notice.
+  StoreHealth get statsHealth;
+
+  bool get isRestoreJournalBlocked;
+
+  /// The owner's stats without copying, for the derived reads below.
+  ///
+  /// Unmodifiable so it is safe to hand around internally, but a *view* — it
+  /// tracks later writes. [stats] is the public snapshot and copies, which is
+  /// why the derived reads must not go through it: `Map.unmodifiable` builds a
+  /// new map every call, so a per-unit lookup written that way would copy the
+  /// whole store on each cell of a grid.
+  @protected
+  Map<String, ReadingStat> get statsView;
+
+  /// Read-only snapshot of every recorded reading stat, keyed by reading id.
+  /// A copy: a snapshot handed out now does not move when the owner writes.
+  Map<String, ReadingStat> get stats => Map.unmodifiable(statsView);
+
+  /// The catalogue is fixed teaching content, identical for every owner.
+  List<KanjiEntry> get allKanji => kKanji;
+
+  /// The stat for a unit id, or an empty stat if never practised.
+  ReadingStat statForUnit(String unitId) =>
+      statsView[unitId] ?? const ReadingStat();
+
+  /// Count of units the learner has practised at least once.
+  int get seenUnitCount => statsView.values.where((s) => s.isSeen).length;
+
+  /// Unit ids due for review now (dueAt ≤ now), earliest first.
+  List<String> dueUnitIds(DateTime now) {
+    final due =
+        statsView.entries
+            .where((e) => e.value.dueAt != null && !e.value.dueAt!.isAfter(now))
+            .toList()
+          ..sort((a, b) => a.value.dueAt!.compareTo(b.value.dueAt!));
+    return [for (final e in due) e.key];
+  }
+
+  /// Records one self-graded answer for a reading and persists. The returned
+  /// future completes with an error if persisting failed — the in-memory
+  /// state keeps the answer and the next mutation retries the write.
+  Future<void> recordAnswer(
+    String unitId, {
+    required bool correct,
+    required DateTime at,
+  });
+
+  /// Flushes to storage WITHOUT applying a new mutation — the app-scoped
+  /// persistence owner's retry path. A safe no-op when clean.
+  Future<void> flushPending();
+
+  Future<void> prepareForRestore();
+  void finishRestore();
+  void setRestoreJournalBlocked(bool blocked);
+  Future<void> reloadFromPlatform();
+  void replaceFromRestore({required Map<String, ReadingStat> stats});
+  Future<void> reset();
+}
+
+/// Production owner of [KanjiReadingRepository]. Persists through a
+/// [RecoverableStore] slot (data-loss firewall) over [PreferencesService].
+class LocalKanjiReadingRepository extends KanjiReadingRepository {
+  LocalKanjiReadingRepository._(
     this._prefs,
     this._store,
     StoreLoad<Map<String, ReadingStat>> stats,
@@ -44,6 +123,7 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// mistaken for a legal fresh install. [StoreHealth.preservationPending]
   /// means a recovered value is in use but the damaged raw is not yet
   /// confirmed quarantined.
+  @override
   final StoreHealth statsHealth;
 
   /// Tail of the mutation queue: every persisting mutation (recordAnswer,
@@ -63,6 +143,7 @@ class KanjiReadingRepository extends ChangeNotifier {
   bool _restoreJournalBlocksWrites = false;
 
   /// Whether an unfinished restore journal still blocks learning writes.
+  @override
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
   Future<void>? _blockedWriteFuture() {
@@ -75,7 +156,7 @@ class KanjiReadingRepository extends ChangeNotifier {
     return null;
   }
 
-  static Future<KanjiReadingRepository> load([
+  static Future<LocalKanjiReadingRepository> load([
     PreferencesService? prefs,
   ]) async {
     final service = prefs ?? await PreferencesService.create();
@@ -87,25 +168,18 @@ class KanjiReadingRepository extends ChangeNotifier {
       empty: () => <String, ReadingStat>{},
       decode: _decodeStats,
     );
-    return KanjiReadingRepository._(service, store, await store.load());
+    return LocalKanjiReadingRepository._(service, store, await store.load());
   }
 
-  /// Every kanji the module knows.
-  List<KanjiEntry> get allKanji => kKanji;
-
-  /// Read-only view of every recorded reading stat, keyed by reading id.
-  Map<String, ReadingStat> get stats => Map.unmodifiable(_stats);
-
-  /// The stat for a unit id, or an empty stat if never practised.
-  ReadingStat statForUnit(String unitId) =>
-      _stats[unitId] ?? const ReadingStat();
-
-  /// Count of units the learner has practised at least once.
-  int get seenUnitCount => _stats.values.where((s) => s.isSeen).length;
+  @override
+  @protected
+  Map<String, ReadingStat> get statsView =>
+      UnmodifiableMapView<String, ReadingStat>(_stats);
 
   /// Records one self-graded answer for a reading and persists. The returned
   /// future completes with an error if persisting failed — the in-memory
   /// state keeps the answer and the next mutation retries the write.
+  @override
   Future<void> recordAnswer(
     String unitId, {
     required bool correct,
@@ -125,34 +199,29 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// is a safe no-op when clean, and rethrows [StoreWriteFailure] like a
   /// mutation so the owner can observe the outcome. It advances no generation
   /// itself ([_flush] moves persistedGen only on a confirmed write).
+  @override
   Future<void> flushPending() => _serialized(_flush);
 
-  /// Unit ids due for review now (dueAt ≤ now), earliest first.
-  List<String> dueUnitIds(DateTime now) {
-    final due =
-        _stats.entries
-            .where((e) => e.value.dueAt != null && !e.value.dueAt!.isAfter(now))
-            .toList()
-          ..sort((a, b) => a.value.dueAt!.compareTo(b.value.dueAt!));
-    return [for (final e in due) e.key];
-  }
-
+  @override
   Future<void> prepareForRestore() async {
     _restoreLocked = true;
     await _tail;
     _restoreBarrier++;
   }
 
+  @override
   void finishRestore() {
     _restoreLocked = false;
   }
 
+  @override
   void setRestoreJournalBlocked(bool blocked) {
     if (_restoreJournalBlocksWrites == blocked) return;
     _restoreJournalBlocksWrites = blocked;
     notifyListeners();
   }
 
+  @override
   Future<void> reloadFromPlatform() async {
     await _prefs.reload();
     final loaded = await _store.load();
@@ -165,6 +234,7 @@ class KanjiReadingRepository extends ChangeNotifier {
   }
 
   /// Replaces in-memory stats after a successful restore transaction.
+  @override
   void replaceFromRestore({required Map<String, ReadingStat> stats}) {
     _stats
       ..clear()
@@ -184,6 +254,7 @@ class KanjiReadingRepository extends ChangeNotifier {
   /// mutation already touched the store. If even the fresh read fails, the
   /// pre-reset snapshot is restored conservatively and the store stays
   /// dirty — an unknown state is never marked persisted.
+  @override
   Future<void> reset() {
     final blocked = _blockedWriteFuture();
     if (blocked != null) return blocked;

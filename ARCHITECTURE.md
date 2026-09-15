@@ -226,13 +226,15 @@ keeps it out of.
 
 **Repository contracts arrive one owner at a time.** The sample defines an
 `abstract class` for every repository. Kotonoha is adopting that per owner
-rather than in one sweep. `KanaProgressRepository`, `WordProgressRepository`,
-and `TravelFocusRepository` are abstract contracts that formal ViewModels and
-`bootstrap()` depend on, with `LocalKanaProgressRepository`,
-`LocalWordProgressRepository`, and `LocalTravelFocusRepository` as the
-production owners. Kanji reading and placement are still concrete classes,
-and are tracked on
+rather than in one sweep. Every repository is now an abstract contract that
+formal ViewModels and `bootstrap()` depend on — kana progress, word progress,
+travel focus, kanji reading and placement — each with a `Local…` production
+owner. The remaining ownership work is tracked on
 [#149](https://github.com/Koopa0/Kotonoha/issues/149).
+
+Storage keys stay on the local owner rather than the contract: a substitute
+has no storage, and a contract that named them would be describing one
+implementation.
 
 A single implementation is not a reason to skip the contract — the sample's
 own `ItineraryConfigRepository` has exactly one. But unlike the sample, where

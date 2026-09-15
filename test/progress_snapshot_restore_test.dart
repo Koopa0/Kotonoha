@@ -1393,7 +1393,7 @@ void main() {
       await kana.markUnitLearned('keep_me');
       final before = primaryRaws(fake);
       final beforePlacement = fake.durable['placement_check_v1'];
-      fake.failRemoves.add(PlacementCheckRepository.storageKey);
+      fake.failRemoves.add(LocalPlacementCheckRepository.storageKey);
 
       final restore = restoreFor(fake, kana, kanji, words, placement: checks);
       final preview = restore.previewEncoded(backup)!;
@@ -1421,7 +1421,7 @@ void main() {
 
     final (fake, kana, kanji, words) = await loadAll();
     final checks = await seedCompleteAoDraft(fake);
-    fake.failRemoves.add(PlacementCheckRepository.storageKey);
+    fake.failRemoves.add(LocalPlacementCheckRepository.storageKey);
 
     final files = FakeSnapshotFilePort()..pickContents = backup;
     final restorer = ProgressSnapshotRestorer(
@@ -1454,7 +1454,7 @@ void main() {
           for (final key in RestoreJournalStores.all) key: '{"partial":true}',
         },
         'placementRollback': {
-          for (final key in PlacementCheckRepository.durableKeys)
+          for (final key in LocalPlacementCheckRepository.durableKeys)
             key: fake.durable[key],
         },
       }),
@@ -1499,11 +1499,11 @@ void main() {
     expect(completeDraft.isComplete, isTrue);
 
     final lastGoodGate = PlatformGate();
-    fake.writeGates[PlacementCheckRepository.lastGoodKey] = lastGoodGate;
+    fake.writeGates[LocalPlacementCheckRepository.lastGoodKey] = lastGoodGate;
     final save = checks.save(completeDraft);
     await lastGoodGate.entered;
 
-    fake.failRemoves.add(PlacementCheckRepository.storageKey);
+    fake.failRemoves.add(LocalPlacementCheckRepository.storageKey);
     final restore = restoreFor(fake, kana, kanji, words, placement: checks);
     final preview = restore.previewEncoded(backup)!;
     final restoreFuture = restore.apply(preview.snapshot);

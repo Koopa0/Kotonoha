@@ -33,10 +33,11 @@ Future<void> main() async {
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 ///
-/// [prefs], [speech], [analytics], [kana], [words], and [travel] are test
-/// seams only — production [main] leaves them null. A substitute must honour
-/// the same notify, save / retry, and snapshot-ownership contract as the local
-/// owner it replaces; injecting one does not change the other owners.
+/// [prefs], [speech], [analytics], [kana], [words], [travel], [kanji] and
+/// [placement] are test seams only — production [main] leaves them null. A
+/// substitute must honour the same notify, save / retry, and
+/// snapshot-ownership contract as the local owner it replaces; injecting one
+/// does not change the others.
 Future<Widget> bootstrap({
   PreferencesService? prefs,
   SpeechService? speech,
@@ -44,6 +45,8 @@ Future<Widget> bootstrap({
   KanaProgressRepository? kana,
   WordProgressRepository? words,
   TravelFocusRepository? travel,
+  KanjiReadingRepository? kanji,
+  PlacementCheckRepository? placement,
 }) async {
   final resolvedPrefs = prefs ?? await PreferencesService.create();
   final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
@@ -51,7 +54,7 @@ Future<Widget> bootstrap({
   );
   await ProgressRestorePlacementDiscard.recoverIfNeeded(resolvedPrefs);
   final store = kana ?? await KanaProgressRepository.load(resolvedPrefs);
-  final kanji = await KanjiReadingRepository.load(resolvedPrefs);
+  final readings = kanji ?? await KanjiReadingRepository.load(resolvedPrefs);
   final wordOwner = words ?? await WordProgressRepository.load(resolvedPrefs);
   // Cross-owner recovery is a use case; the controller is what the UI
   // observes and retries through.
@@ -59,12 +62,13 @@ Future<Widget> bootstrap({
     recovery: ProgressRestoreRecovery(
       prefs: resolvedPrefs,
       kana: store,
-      kanji: kanji,
+      kanji: readings,
       words: wordOwner,
     ),
     needsRecovery: journalRecovery.needsRecovery,
   );
-  final checks = await PlacementCheckRepository.load(resolvedPrefs);
+  final checks =
+      placement ?? await PlacementCheckRepository.load(resolvedPrefs);
   final travelFocus = travel ?? await TravelFocusRepository.load(resolvedPrefs);
   final resolvedSpeech = speech ?? await FlutterTtsSpeechService.create();
   final resolvedAnalytics = analytics ?? await openAnalyticsLog();
@@ -73,7 +77,7 @@ Future<Widget> bootstrap({
   // flushes any repository on retry / lifecycle drain.
   final persistence = ProgressPersistenceController(
     kanaFlush: store.flushPending,
-    kanjiFlush: kanji.flushPending,
+    kanjiFlush: readings.flushPending,
     wordFlush: wordOwner.flushPending,
     placementFlush: checks.flushPending,
     analyticsFlush: resolvedAnalytics.flushPending,
@@ -82,7 +86,7 @@ Future<Widget> bootstrap({
       store.statsHealth,
       store.learnedUnitsHealth,
       store.seenUnlocksHealth,
-      kanji.statsHealth,
+      readings.statsHealth,
       wordOwner.statsHealth,
       checks.health,
       travelFocus.health,
@@ -96,14 +100,14 @@ Future<Widget> bootstrap({
   // restore. Stateless: it never caches a snapshot.
   final capture = ProgressSnapshotCapture(
     kana: store,
-    kanji: kanji,
+    kanji: readings,
     words: wordOwner,
     prefs: resolvedPrefs,
   );
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KanaProgressRepository>.value(value: store),
-      ChangeNotifierProvider<KanjiReadingRepository>.value(value: kanji),
+      ChangeNotifierProvider<KanjiReadingRepository>.value(value: readings),
       ChangeNotifierProvider<WordProgressRepository>.value(value: wordOwner),
       ChangeNotifierProvider<PlacementCheckRepository>.value(value: checks),
       ChangeNotifierProvider<TravelFocusRepository>.value(value: travelFocus),
@@ -127,7 +131,7 @@ Future<Widget> bootstrap({
           transaction: ProgressRestoreTransaction(
             prefs: resolvedPrefs,
             kana: store,
-            kanji: kanji,
+            kanji: readings,
             words: wordOwner,
             placement: checks,
           ),
