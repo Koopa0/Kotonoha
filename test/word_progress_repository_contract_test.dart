@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Koopa
 // SPDX-License-Identifier: MIT
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kotonoha/app.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
@@ -218,6 +220,88 @@ void main() {
           expect(owner.statForItem(neko).isSeen, isTrue);
         }
       });
+
+      // The probe above leaves both writes failing, so an owner that copied
+      // memory after the gate would still report two failures. This one lets
+      // the parked write succeed: it must carry only the answer it snapshotted
+      // before parking, and leave the answer that arrived during the wait
+      // dirty, so the second future reports the failure that really happened.
+      test(
+        '${spec.name}: a parked flush commits only its own snapshot',
+        () async {
+          if (spec.name == 'local') {
+            final prefs = FakePreferencesService();
+            final gate = PlatformGate();
+            prefs.writeGates[ProgressStoreKeys.wordStats] = gate;
+            prefs.failWriteOnAttempt[ProgressStoreKeys.wordStats] = {2};
+            final owner = await WordProgressRepository.load(prefs);
+
+            final first = owner.recordAnswer(inu, correct: true, at: at);
+            await gate.entered;
+            final second = owner.recordAnswer(neko, correct: true, at: at);
+
+            gate.release();
+            await first;
+            await expectLater(second, throwsA(isA<StoreWriteFailure>()));
+
+            expect(owner.statForItem(inu).isSeen, isTrue);
+            expect(
+              owner.statForItem(neko).isSeen,
+              isTrue,
+              reason: 'the answer taken during the wait left memory',
+            );
+
+            final fresh = await WordProgressRepository.load(
+              FakePreferencesService.restarted(prefs),
+            );
+            expect(fresh.statForItem(inu).isSeen, isTrue);
+            expect(
+              fresh.statForItem(neko).isSeen,
+              isFalse,
+              reason:
+                  'the parked flush committed an answer it never snapshotted',
+            );
+
+            prefs.failWriteOnAttempt.remove(ProgressStoreKeys.wordStats);
+            await owner.flushPending();
+            final afterRetry = await WordProgressRepository.load(
+              FakePreferencesService.restarted(prefs),
+            );
+            expect(afterRetry.statForItem(neko).isSeen, isTrue);
+            return;
+          }
+
+          final fake = FakeWordProgressRepository();
+          final gate = FakeRepositoryWriteGate();
+          fake.writeGate = gate;
+
+          final first = fake.recordAnswer(inu, correct: true, at: at);
+          await gate.entered;
+          final second = fake.recordAnswer(neko, correct: true, at: at);
+
+          unawaited(first.whenComplete(() => fake.failWrites = true));
+          gate.release();
+          await first;
+          await expectLater(second, throwsA(isA<StoreWriteFailure>()));
+
+          expect(fake.statForItem(inu).isSeen, isTrue);
+          expect(
+            fake.statForItem(neko).isSeen,
+            isTrue,
+            reason: 'the answer taken during the wait left memory',
+          );
+          expect(fake.durableStats[inu]?.isSeen, isTrue);
+          expect(
+            fake.durableStats[neko],
+            isNull,
+            reason: 'the parked flush committed an answer it never snapshotted',
+          );
+
+          fake.failWrites = false;
+          await fake.flushPending();
+          expect(fake.durableStats[neko]?.isSeen, isTrue);
+        },
+      );
     }
   });
 

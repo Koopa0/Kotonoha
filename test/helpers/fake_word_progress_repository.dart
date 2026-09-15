@@ -52,6 +52,11 @@ class FakeWordProgressRepository extends WordProgressRepository {
   /// When true, the next flush throws [StoreWriteFailure] and stays dirty.
   bool failWrites = false;
 
+  /// The stats a successful flush committed, for asserting what actually
+  /// reached durable storage without disturbing memory the way
+  /// [reloadFromPlatform] does.
+  Map<String, WordStat> get durableStats => Map.unmodifiable(_durableStats);
+
   @override
   bool get isRestoreJournalBlocked => _restoreJournalBlocksWrites;
 
