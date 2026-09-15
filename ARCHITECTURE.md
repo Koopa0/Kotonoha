@@ -162,7 +162,15 @@ Production `main()` leaves them null.
 | Integration | The real `bootstrap()` and real plugins. Host fakes, emulator and physical-device evidence are reported separately and never substituted for each other |
 
 `test/`, `integration_test/` and `test_driver/` are separate roles of one
-package and all three stay. Shared helpers go in `test/support/`.
+package and all three stay.
+
+Shared helpers currently live in two directories, and that is an
+inconsistency rather than a rule: `test/support/` holds
+`restore_recovery_test_support.dart` (37 import sites) and `test/helpers/`
+holds `fake_tts_client.dart` and `kana_orthography.dart` (17 between them).
+Nothing distinguishes them, and no guard enforces either. Pick one before the
+split hardens; until then, put a new helper next to the ones it resembles
+rather than starting a third home.
 
 An architecture guard is only trustworthy if it has been seen to fail. When you
 add one, put the violation back, watch the guard turn red, then remove it again
@@ -215,7 +223,19 @@ state that raises one calm banner and stays retryable. A `Result` at each call
 site would push that decision back into the callers this design deliberately
 keeps it out of.
 
-**Repositories are concrete classes.** The sample defines an `abstract class`
-contract for every repository. Kotonoha does not, and whether it should is still
-open; see [#149](https://github.com/Koopa0/Kotonoha/issues/149) for the analysis
-and the decision.
+**Repository contracts arrive one at a time.** The sample defines an
+`abstract class` contract for every repository, even where only one
+implementation exists. Kotonoha is adopting that per owner rather than in one
+sweep, starting with kana progress in
+[#171](https://github.com/Koopa0/Kotonoha/pull/171); the owners that have not
+been converted are still concrete classes.
+
+The reasoning is recorded on
+[#149](https://github.com/Koopa0/Kotonoha/issues/149). Two points from it are
+worth repeating here, because they decide what a new contract should look like.
+A single implementation is not a reason to skip the contract — the sample's own
+`ItineraryConfigRepository` has exactly one. But unlike the sample, where a
+repository is a thin wrapper over an API, some learning rules live inside these
+repositories, so a hand-written fake that reimplements `recordAnswer` can pass
+tests against a schedule production no longer uses. A fake must delegate to the
+real value types rather than restate their rules.
