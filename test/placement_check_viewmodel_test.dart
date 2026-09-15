@@ -314,7 +314,7 @@ void main() {
 
   test('a failed draft save blocks the next write until retry', () async {
     final t = await makeVm();
-    t.fake.failWrites.add(PlacementCheckRepository.storageKey);
+    t.fake.failWrites.add(LocalPlacementCheckRepository.storageKey);
     t.vm.noteAnswerablePresentation();
     t.vm.revealAsHint();
     await _settle(() => t.persistence.hasWriteFailure);
