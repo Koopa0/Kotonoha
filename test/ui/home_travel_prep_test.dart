@@ -178,7 +178,7 @@ void main() {
       expect(repos.travel.plan.servedOn[TravelSceneId.transport], isNull);
       expect(repos.words.seenItemCount, 0);
 
-      final reloaded = await TravelFocusRepository.load();
+      final reloaded = await _reloadTravel(repos.travel);
       expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
       expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
     },
@@ -348,7 +348,7 @@ void main() {
       expect(repos.travel.plan.kanaBoostOn, DateTime(2026, 9, 11));
       expect(_kanaSeenTotal(repos.kana), greaterThan(1));
 
-      final reloaded = await TravelFocusRepository.load();
+      final reloaded = await _reloadTravel(repos.travel);
       expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
       expect(reloaded.plan.servedOn[TravelSceneId.transport], isNull);
     },
@@ -426,7 +426,7 @@ void main() {
       DateTime(2026, 9, 11),
     );
 
-    final reloaded = await TravelFocusRepository.load();
+    final reloaded = await _reloadTravel(repos.travel);
     expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
     expect(
       reloaded.plan.servedOn[TravelSceneId.transport],
@@ -505,7 +505,7 @@ void main() {
       expect(find.textContaining('接著練「餐廳」'), findsNothing);
       expect(find.text(AppStrings.guidanceTravelHold), findsOneWidget);
 
-      final reloaded = await TravelFocusRepository.load();
+      final reloaded = await _reloadTravel(travel);
       expect(
         reloaded.plan.servedOn[TravelSceneId.restaurant],
         DateTime(2026, 9, 11),
@@ -575,7 +575,7 @@ void main() {
     expect(find.textContaining('接著練「交通」'), findsNothing);
     expect(find.text(AppStrings.travelPrepMeetAction), findsOneWidget);
 
-    final reloaded = await TravelFocusRepository.load();
+    final reloaded = await _reloadTravel(repos.travel);
     expect(reloaded.plan.kanaBoostOn, DateTime(2026, 9, 11));
     expect(
       reloaded.plan.servedOn[TravelSceneId.transport],
@@ -587,6 +587,20 @@ void main() {
 
 int _kanaSeenTotal(KanaProgressRepository kana) =>
     kana.stats.values.fold<int>(0, (n, s) => n + s.seenCount);
+
+/// Reads travel focus back from durable storage after draining [owner]'s
+/// write queue.
+///
+/// The UI actions above queue a persist but do not await it, and
+/// `pumpAndSettle` settles frames and timers — not an unawaited repository
+/// future. Reading storage without this drains first races the write, so the
+/// reloaded plan can still be empty on a loaded machine. `flushPending`
+/// chains onto the same serialized queue, so awaiting it means every earlier
+/// write has landed.
+Future<TravelFocusRepository> _reloadTravel(TravelFocusRepository owner) async {
+  await owner.flushPending();
+  return TravelFocusRepository.load();
+}
 
 Future<void> _finishDailyRound(WidgetTester tester) async {
   for (var i = 0; i < 24; i++) {
