@@ -197,6 +197,7 @@ snapshot identity, and immutability are not in this list.
 | UI reaches platform sources only through services | the UI layer never touches platform packages directly (services wrap them) |
 | Bootstrap provides every owner the UI reads | the composition root provides every owner the UI reads |
 | ViewModels name repository contracts, not implementations | ViewModels depend on the kana progress contract, not the local store |
+| ViewModels name repository contracts, not implementations | ViewModels depend on the word progress contract, not the local store |
 
 The view guard discovers its own scope: a directory counts as split into View
 and ViewModel once it holds a `*_viewmodel.dart`, and every `*_screen.dart`
