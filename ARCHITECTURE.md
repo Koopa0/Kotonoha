@@ -119,6 +119,23 @@ examples.
 `KanaStat`, `WordStat` and `ReadingStat` mean different things and stay
 separate. Do not merge them into one scheduler to make the layering look neater.
 
+#### What a persistence fault holds
+
+The two persistence faults gate different things, and the difference is
+deliberate. A **failed write** leaves the value in memory, the app-scoped
+`ProgressPersistenceController` retries it, and the banner tells the learner
+exactly that, so practice continues: `HomeViewModel.learningBlocked` does not
+read `hasWriteFailure`. A configuration edit is not append-only evidence — a
+half-saved travel plan or placement draft changes what later days schedule — so
+those editors do pause on it (`TravelFocusViewModel.isBlocked`,
+`PlacementScopeViewModel.isBlocked`). An **unrecovered restore** is different
+again: the durable state itself is unconfirmed, nothing may be written, and the
+home holds every learning entry, which is also the only route into those
+editors. [`test/persistence_gating_policy_test.dart`](test/persistence_gating_policy_test.dart)
+pins both halves, so a change that made the home block on a write failure, or
+that let an editor write through one, fails there rather than drifting from
+what the banner says.
+
 ### Service
 
 A service wraps one platform source and knows nothing above it. Services do not
