@@ -208,6 +208,119 @@ void main() {
     }
   });
 
+  // #149 leaves one parity gap open by name: the fake and the production
+  // owner must schedule ordinary and confusable kana the same way. Both
+  // shrink a confusable kana's next interval by half (kConfusableChars), and
+  // both restate that rule in their own recordAnswer, so a change to one can
+  // silently diverge. These probes read the schedule the two owners actually
+  // produce rather than the constant they contain.
+  group('schedule parity for ordinary and confusable kana', () {
+    final ordinary = kHiraganaGojuon.firstWhere((k) => k.character == 'う');
+    final confusable = kHiraganaGojuon.firstWhere((k) => k.character == 'あ');
+
+    final cases =
+        <({String name, Future<KanaProgressRepository> Function() create})>[
+          (
+            name: 'local',
+            create: () => KanaProgressRepository.load(FakePreferencesService()),
+          ),
+          (name: 'fake', create: () async => FakeKanaProgressRepository()),
+        ];
+
+    for (final spec in cases) {
+      group(spec.name, () {
+        test(
+          'a correct answer halves the interval for a confusable kana',
+          () async {
+            final owner = await spec.create();
+
+            await owner.recordAnswer(ordinary, correct: true, at: at);
+            await owner.recordAnswer(confusable, correct: true, at: at);
+
+            final ordinaryMins = owner
+                .statFor(ordinary)
+                .dueAt!
+                .difference(at)
+                .inMinutes;
+            final confusableMins = owner
+                .statFor(confusable)
+                .dueAt!
+                .difference(at)
+                .inMinutes;
+
+            expect(
+              ordinaryMins,
+              const Duration(days: 1).inMinutes,
+              reason:
+                  'the first correct answer no longer schedules one day out',
+            );
+            expect(
+              confusableMins,
+              ordinaryMins ~/ 2,
+              reason:
+                  'a confusable kana was not scheduled at half the interval',
+            );
+            expect(
+              owner.statFor(confusable).srsLevel,
+              owner.statFor(ordinary).srsLevel,
+              reason: 'the scale changed the level rather than the interval',
+            );
+          },
+        );
+
+        test('a wrong answer halves the relearn interval too', () async {
+          final owner = await spec.create();
+
+          await owner.recordAnswer(ordinary, correct: false, at: at);
+          await owner.recordAnswer(confusable, correct: false, at: at);
+
+          final ordinaryMins = owner
+              .statFor(ordinary)
+              .dueAt!
+              .difference(at)
+              .inMinutes;
+          final confusableMins = owner
+              .statFor(confusable)
+              .dueAt!
+              .difference(at)
+              .inMinutes;
+
+          expect(
+            ordinaryMins,
+            10,
+            reason: 'level 0 no longer relearns in 10 minutes',
+          );
+          expect(
+            confusableMins,
+            ordinaryMins ~/ 2,
+            reason: 'a confusable kana was not relearned at half the interval',
+          );
+        });
+
+        test('prompted practice renews no schedule on either kana', () async {
+          final owner = await spec.create();
+
+          await owner.recordAnswer(ordinary, correct: true, at: at);
+          await owner.recordAnswer(confusable, correct: true, at: at);
+          final ordinaryDue = owner.statFor(ordinary).dueAt;
+          final confusableDue = owner.statFor(confusable).dueAt;
+
+          await owner.recordPromptedPractice(
+            ordinary,
+            at: at.add(const Duration(hours: 1)),
+          );
+          await owner.recordPromptedPractice(
+            confusable,
+            at: at.add(const Duration(hours: 1)),
+          );
+
+          expect(owner.statFor(ordinary).dueAt, ordinaryDue);
+          expect(owner.statFor(confusable).dueAt, confusableDue);
+        });
+      });
+    }
+  });
+
   group('formal composition identity', () {
     testWidgets(
       'the load path serves the local owner as the runtime instance',
