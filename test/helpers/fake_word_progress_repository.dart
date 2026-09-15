@@ -162,7 +162,29 @@ class FakeWordProgressRepository extends WordProgressRepository {
     _stats.clear();
     _dirty = true;
     notifyListeners();
-    return _serialized(_flush);
+    return _serialized(_flushReset);
+  }
+
+  Future<void> _flushReset() async {
+    if (!_dirty) return;
+    final gate = writeGate;
+    if (gate != null) await gate.pass();
+    try {
+      if (failWrites) {
+        throw const StoreWriteFailure(ProgressStoreKeys.wordStats);
+      }
+      _commitDurable();
+      _dirty = false;
+    } catch (_) {
+      // The optimistic clear must not survive a refused persist — memory
+      // agrees with the durable snapshot that reset failed to overwrite.
+      _stats
+        ..clear()
+        ..addAll(_durableStats);
+      _dirty = false;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   /// Joins the serialized persist queue without applying a domain mutation.

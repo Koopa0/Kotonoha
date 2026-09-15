@@ -7,6 +7,7 @@ import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/progress_restore_journal.dart';
 import 'package:kotonoha/data/services/progress_store_keys.dart';
+import 'package:kotonoha/data/services/recoverable_store.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
 import 'package:kotonoha/domain/models/word_stat.dart';
 import 'package:kotonoha/main.dart';
@@ -280,20 +281,26 @@ void main() {
           expect(t.owner.statForItem(id).correctCount, afterFirst.correctCount);
         });
 
-        test('markIntroduced on a seen item is exposure, not schedule', () async {
-          final t = await spec.create();
-          await t.owner.markIntroduced(id, at: at);
-          final afterFirst = t.owner.statForItem(id);
+        test(
+          'markIntroduced on a seen item is exposure, not schedule',
+          () async {
+            final t = await spec.create();
+            await t.owner.markIntroduced(id, at: at);
+            final afterFirst = t.owner.statForItem(id);
 
-          await t.owner.markIntroduced(
-            id,
-            at: at.add(const Duration(days: 1)),
-          );
+            await t.owner.markIntroduced(
+              id,
+              at: at.add(const Duration(days: 1)),
+            );
 
-          expect(t.owner.statForItem(id).srsLevel, afterFirst.srsLevel);
-          expect(t.owner.statForItem(id).dueAt, afterFirst.dueAt);
-          expect(t.owner.statForItem(id).correctCount, afterFirst.correctCount);
-        });
+            expect(t.owner.statForItem(id).srsLevel, afterFirst.srsLevel);
+            expect(t.owner.statForItem(id).dueAt, afterFirst.dueAt);
+            expect(
+              t.owner.statForItem(id).correctCount,
+              afterFirst.correctCount,
+            );
+          },
+        );
 
         test('dueItemIds returns due items earliest first', () async {
           final t = await spec.create();
@@ -311,6 +318,114 @@ void main() {
             isEmpty,
           );
         });
+      });
+    }
+  });
+
+  group('reset failure parity', () {
+    // Local refuses removeAll; Fake refuses the empty flush. Both must
+    // reconcile memory with the durable owner — not stay optimistically empty.
+    for (final spec in cases) {
+      test(
+        '${spec.name}: a failed reset reconciles memory with durable data',
+        () async {
+          late FakePreferencesService? prefs;
+          late FakeWordProgressRepository? fake;
+          final WordProgressRepository owner;
+          if (spec.name == 'local') {
+            prefs = FakePreferencesService();
+            owner = await WordProgressRepository.load(prefs);
+          } else {
+            fake = FakeWordProgressRepository();
+            owner = fake;
+            prefs = null;
+          }
+
+          await owner.recordAnswer(id, correct: true, at: at);
+          expect(owner.statForItem(id).correctCount, 1);
+
+          if (spec.name == 'local') {
+            prefs!.failRemoves.add(ProgressStoreKeys.wordStats);
+          } else {
+            fake!.failWrites = true;
+          }
+
+          await expectLater(owner.reset(), throwsA(isA<StoreWriteFailure>()));
+          expect(owner.statForItem(id).correctCount, 1);
+
+          await owner.reloadFromPlatform();
+          expect(owner.statForItem(id).correctCount, 1);
+        },
+      );
+
+      test('${spec.name}: a failed reset matches a durable restart', () async {
+        late FakePreferencesService? prefs;
+        late FakeWordProgressRepository? fake;
+        final WordProgressRepository owner;
+        if (spec.name == 'local') {
+          prefs = FakePreferencesService();
+          owner = await WordProgressRepository.load(prefs);
+        } else {
+          fake = FakeWordProgressRepository();
+          owner = fake;
+          prefs = null;
+        }
+
+        await owner.recordAnswer(id, correct: true, at: at);
+
+        if (spec.name == 'local') {
+          prefs!.failRemoves.add(ProgressStoreKeys.wordStats);
+        } else {
+          fake!.failWrites = true;
+        }
+
+        await expectLater(owner.reset(), throwsA(isA<StoreWriteFailure>()));
+
+        if (spec.name == 'local') {
+          final fresh = await WordProgressRepository.load(
+            FakePreferencesService.restarted(prefs!),
+          );
+          expect(owner.statForItem(id).correctCount, 1);
+          expect(fresh.statForItem(id).correctCount, 1);
+        } else {
+          final beforeReload = owner.statForItem(id).correctCount;
+          await owner.reloadFromPlatform();
+          expect(owner.statForItem(id).correctCount, beforeReload);
+        }
+      });
+
+      test('${spec.name}: reset succeeds once the fault clears', () async {
+        late FakePreferencesService? prefs;
+        late FakeWordProgressRepository? fake;
+        final WordProgressRepository owner;
+        if (spec.name == 'local') {
+          prefs = FakePreferencesService();
+          owner = await WordProgressRepository.load(prefs);
+        } else {
+          fake = FakeWordProgressRepository();
+          owner = fake;
+          prefs = null;
+        }
+
+        await owner.recordAnswer(id, correct: true, at: at);
+
+        if (spec.name == 'local') {
+          prefs!.failRemoves.add(ProgressStoreKeys.wordStats);
+        } else {
+          fake!.failWrites = true;
+        }
+
+        await expectLater(owner.reset(), throwsA(isA<StoreWriteFailure>()));
+
+        if (spec.name == 'local') {
+          prefs!.failRemoves.clear();
+        } else {
+          fake!.failWrites = false;
+        }
+
+        await owner.reset();
+        expect(owner.statForItem(id).correctCount, 0);
+        expect(owner.stats, isEmpty);
       });
     }
   });
