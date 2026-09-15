@@ -5,14 +5,12 @@ are supplied. It follows the [Flutter architecture guide][guide] and
 [recommendations][rec]; the sections below record where Kotonoha follows them,
 and where it deliberately does not and why.
 
-The [Guards](#guards) table maps each import and composition-root rule to
-the test in
-[`test/architecture/pure_layer_imports_test.dart`](test/architecture/pure_layer_imports_test.dart)
-that enforces it. That file walks the source tree at test time and checks the
-listed conventions only; it does not prove ViewModel lifecycle, repository
-immutability, or runtime identity. Those have separate tests (see
-[Testing](#testing)). If you change a guarded rule here, change its guard in
-the same commit.
+The source conventions in [Guards](#guards) are checked by
+[`test/architecture/pure_layer_imports_test.dart`](test/architecture/pure_layer_imports_test.dart).
+That test walks the listed imports and naming; it does not cover ViewModel
+lifecycle, repository snapshot identity, or immutability. Those have their
+own tests, and those tests have their own scope. If you change a listed
+convention, change its guard in the same commit.
 
 [guide]: https://docs.flutter.dev/app-architecture/guide
 [rec]: https://docs.flutter.dev/app-architecture/recommendations
@@ -20,19 +18,25 @@ the same commit.
 
 ## Layers
 
-Dependencies point one way from presentation through use cases to truth
-owners:
+`domain` holds two kinds of code: use cases, and the shared models and
+datasets. The data layer is allowed to import the latter —
+`KanaProgressRepository` imports `Kana`, `KanaStat`, and the kana /
+confusable datasets — so a single arrow **UI → domain → data** would call
+those imports a violation.
 
-- **UI → use cases → repositories and services.** Views and ViewModels call
-  use cases; use cases coordinate repositories and services. Data does not
-  import use cases or UI.
-- **Repositories and services → pure domain values.** Models, stats and
-  datasets in `lib/domain/models/`, `lib/domain/data/` and `lib/kanji/domain/`
-  are shared vocabulary. A repository may import these to type its store (for
-  example `Kana`, `KanaStat` and `kana_dataset` in
-  `kana_progress_repository.dart`). That is not a layer violation.
+The actual edges:
 
-Nothing in those dependency arrows points back.
+- **UI** depends on use cases, repositories, services, and the shared models
+  and datasets. It does not import Flutter platform plugins directly.
+- **Use cases** depend on repositories, services, and the shared models and
+  datasets. They do not import UI.
+- **Repositories and services** depend on each other one way (repositories
+  import services; services do not import repositories) and on the shared
+  models and datasets. They do not import use cases or UI. A repository does
+  not import another repository.
+- **Models and datasets** (`lib/domain/models/`, `lib/domain/data/`, and the
+  `lib/kanji/domain` equivalents) are shared values. They import neither UI
+  nor data.
 
 | Layer | Directory | Owns |
 | --- | --- | --- |
@@ -90,14 +94,17 @@ Each kind of data has exactly one truth owner. A repository owns loading,
 caching, retry, durability, and notification for its own data, and nothing else.
 
 What a repository hands out is a snapshot the caller cannot write through.
-Collections should be returned unmodifiable, and a value already handed out
-should not change when the owner writes the next one.
 [`test/repository_ownership_test.dart`](test/repository_ownership_test.dart)
-checks that contract where it matters most: kana, word, travel and placement
-collections in steady use, and kanji stats on a cold store. It does not replay
-every owner write for every collection; `gojuonKana` is allowed to return a
-fresh, independently mutable list because it does not expose the owner's
-catalogue.
+checks the collections it names:
+
+- Kana stats, learned units, seen unlocks, word stats, the travel plan, and
+  the placement draft reject mutation, and a snapshot taken before a write
+  does not change when the owner writes again.
+- Kanji stats is checked only as a cold map: mutation is rejected, but there
+  is no owner write in that test.
+- `gojuonKana` is a fresh list on each read. The list itself is mutable; the
+  test only asserts two reads are not the same object, so a caller writing
+  the list cannot reach the owner.
 
 Coordination across two owners is a use case, never a repository reaching for a
 sibling. `ProgressSnapshotCapture` and `ProgressRestoreTransaction` are the
@@ -121,9 +128,9 @@ the speech service, wires the two persistence controllers, and provides all of
 them above the app.
 
 Eleven objects are registered there today: the three progress repositories
-(kana, kanji reading and words), the placement and travel repositories, the
-persistence and restore-recovery controllers, the speech service, the analytics
-log, and the snapshot exporter and restorer.
+(kana, kanji, word) plus placement and travel — five repositories — then the
+persistence and restore-recovery controllers, the speech service, the
+analytics log, and the snapshot exporter and restorer.
 
 Two rules follow:
 
@@ -144,7 +151,7 @@ Production `main()` leaves them null.
 | Layer | What the test proves |
 | --- | --- |
 | ViewModel and use case | Learning decisions, without pumping a widget. Clock, random and IO contracts are injected |
-| Repository and service | The public contract, immutable outputs, the real stored format, and failure, retry and cancellation. Not the number of times a mock was called |
+| Repository and service | The public contract, the real stored format, and failure, retry and cancellation. Snapshot scope is only as far as `repository_ownership_test` names. Not the number of times a mock was called |
 | Widget | Rendering, commands, navigation, injection, large text, small screens, and lifecycle events |
 | Integration | The real `bootstrap()` and real plugins. Host fakes, emulator and physical-device evidence are reported separately and never substituted for each other |
 
@@ -157,6 +164,9 @@ and record both results. A guard that has only ever been green may be scanning
 nothing.
 
 ## Guards
+
+These are the source conventions `pure_layer_imports_test` scans. Lifecycle,
+snapshot identity, and immutability are not in this list.
 
 | Rule | Guard |
 | --- | --- |
