@@ -323,27 +323,29 @@ void main() {
     );
   });
 
-  test(
-    'ViewModels depend on the kana progress contract, not the local store',
-    () {
-      // Source convention only: a ViewModel that names the production store
-      // is coupled to one implementation. Runtime identity and lifetime are
-      // proven separately in test/kana_progress_repository_contract_test.dart
-      // and the Quiz leave-page tests — this regex is not that evidence.
-      final offenders = _scan(
-        dirs: ['lib/ui', 'lib/kanji/ui', 'lib/domain'],
-        forbidden: RegExp(r'\bLocalKanaProgressRepository\b'),
-      );
-      expect(
-        offenders,
-        isEmpty,
-        reason:
-            'ViewModels, screens and use cases must take the '
-            'KanaProgressRepository contract — found:\n'
-            '${offenders.join('\n')}',
-      );
-    },
-  );
+  test('ViewModels depend on repository contracts, not local stores', () {
+    // Source convention only: a ViewModel that names a production store is
+    // coupled to one implementation and can no longer be handed a fake.
+    // Runtime identity and lifetime are proven separately, in each
+    // repository's *_contract_test.dart and the leave-page tests — this
+    // regex is not that evidence.
+    //
+    // The pattern is deliberately open: it covers every Local*Repository,
+    // so the next contract to land is guarded the moment it is named,
+    // with no list to update here.
+    final offenders = _scan(
+      dirs: ['lib/ui', 'lib/kanji/ui', 'lib/domain'],
+      forbidden: RegExp(r'\bLocal[A-Za-z0-9_]*Repository\b'),
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'ViewModels, screens and use cases must take the repository '
+          'contract, not its local implementation — found:\n'
+          '${offenders.join('\n')}',
+    );
+  });
 }
 
 /// All .dart files under [dirs]; every directory must exist (a moved/renamed
