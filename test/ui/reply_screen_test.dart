@@ -675,23 +675,24 @@ void main() {
     expect(logged[1].correct, isTrue);
   });
 
-  testWidgets('unusable-card scene げんきんです is independent without scene negation', (
-    tester,
-  ) async {
-    final env = await pumpReply(tester, drills: [_cardUnusable]);
-    _expectSceneKeepsAskHidden(_cardUnusable);
-    expect(find.text('不能用卡'), findsNothing);
-    expect(find.text('搖頭'), findsNothing);
-    expect(find.text('收銀箱'), findsNothing);
-    await _hearThenPick(tester, intent: '說不能用卡', reply: 'げんきんです');
-    final logged = await env.analytics.all();
-    expect(logged[0].meta[AttemptMeta.heard], isTrue);
-    expect(logged[0].meta[AttemptMeta.prompted], isFalse);
-    expect(logged[0].meta[AttemptMeta.hinted], isFalse);
-    expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
-    expect(logged[1].meta[AttemptMeta.scored], isTrue);
-    expect(logged[1].correct, isTrue);
-  });
+  testWidgets(
+    'unusable-card scene げんきんです is independent without scene negation',
+    (tester) async {
+      final env = await pumpReply(tester, drills: [_cardUnusable]);
+      _expectSceneKeepsAskHidden(_cardUnusable);
+      expect(find.text('不能用卡'), findsNothing);
+      expect(find.text('搖頭'), findsNothing);
+      expect(find.text('收銀箱'), findsNothing);
+      await _hearThenPick(tester, intent: '說不能用卡', reply: 'げんきんです');
+      final logged = await env.analytics.all();
+      expect(logged[0].meta[AttemptMeta.heard], isTrue);
+      expect(logged[0].meta[AttemptMeta.prompted], isFalse);
+      expect(logged[0].meta[AttemptMeta.hinted], isFalse);
+      expect(logged[1].meta[AttemptMeta.evidence], ReplyEvidence.independent);
+      expect(logged[1].meta[AttemptMeta.scored], isTrue);
+      expect(logged[1].correct, isTrue);
+    },
+  );
 
   testWidgets('hinted station-confirm is not independent hearing', (
     tester,

@@ -43,6 +43,7 @@ class FakePreferencesService implements PreferencesService {
   /// the caller sees an exception yet the data is genuinely gone. Distinct
   /// from [throwRemoves], which throws BEFORE touching durable storage.
   final Set<String> throwRemovesAfterEffect = <String>{};
+
   /// 1-based write attempt indices that return `false` for [key].
   final Map<String, Set<int>> failWriteOnAttempt = <String, Set<int>>{};
   final Map<String, int> _writeAttemptCounts = <String, int>{};
