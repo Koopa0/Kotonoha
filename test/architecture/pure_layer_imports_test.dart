@@ -5,8 +5,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// RULER guards for the one-way dependency rules (CLAUDE.md /
-/// docs/architecture.md). Each rule below was once held only by code review +
+/// RULER guards for the one-way dependency rules written down in
+/// ARCHITECTURE.md. Each rule below was once held only by code review +
 /// doc-comment reminders — `flutter analyze` and the whole suite stay GREEN if
 /// someone quietly breaks one (e.g. adds `import 'package:flutter/material.dart';`
 /// to a domain file, or reaches for a Timer inside a ViewModel). These tests walk
