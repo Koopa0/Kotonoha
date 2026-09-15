@@ -187,12 +187,14 @@ class FakeWordProgressRepository extends WordProgressRepository {
         _statsPersistedGen = gen;
       }
     } catch (_) {
-      // The optimistic clear must not survive a refused persist — memory
-      // agrees with the durable snapshot that reset failed to overwrite.
-      _stats
-        ..clear()
-        ..addAll(_durableStats);
+      // Re-check generation after the await: a later-submitted mutation
+      // owns the store now and must never be overwritten.
       if (_statsGen == gen) {
+        // The optimistic clear must not survive a refused persist — memory
+        // agrees with the durable snapshot that reset failed to overwrite.
+        _stats
+          ..clear()
+          ..addAll(_durableStats);
         _statsPersistedGen = gen;
       } else {
         _statsGen++;
