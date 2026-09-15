@@ -33,19 +33,22 @@ Future<void> main() async {
 /// open the analytics log. Shared by [main] and the integration test so the
 /// end-to-end test exercises the real bootstrap (catching launch/init crashes).
 ///
-/// [prefs], [speech], and [analytics] are test seams only — production [main]
-/// leaves them null.
+/// [prefs], [speech], [analytics], and [kana] are test seams only —
+/// production [main] leaves them null. A substitute [kana] must honour the
+/// same notify, save / retry, and snapshot-ownership contract as
+/// [LocalKanaProgressRepository]; it does not change the other owners.
 Future<Widget> bootstrap({
   PreferencesService? prefs,
   SpeechService? speech,
   AnalyticsLog? analytics,
+  KanaProgressRepository? kana,
 }) async {
   final resolvedPrefs = prefs ?? await PreferencesService.create();
   final journalRecovery = await ProgressRestoreJournal.recoverIfNeeded(
     resolvedPrefs,
   );
   await ProgressRestorePlacementDiscard.recoverIfNeeded(resolvedPrefs);
-  final store = await KanaProgressRepository.load(resolvedPrefs);
+  final store = kana ?? await KanaProgressRepository.load(resolvedPrefs);
   final kanji = await KanjiReadingRepository.load(resolvedPrefs);
   final words = await WordProgressRepository.load(resolvedPrefs);
   // Cross-owner recovery is a use case; the controller is what the UI

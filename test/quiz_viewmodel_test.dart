@@ -13,6 +13,8 @@ import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dar
 import 'package:kotonoha/ui/quiz/quiz_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'helpers/fake_kana_progress_repository.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const all = kHiraganaGojuon;
@@ -874,5 +876,107 @@ void main() {
     expect(repo.statFor(kana).listenCorrectCount, 1);
     expect(repo.statFor(kana).listeningUnknown, isFalse);
     vm.dispose();
+  });
+
+  group('replaceable kana progress contract', () {
+    Future<void> settle(bool Function() done) async {
+      for (var i = 0; i < 32 && !done(); i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(done(), isTrue, reason: 'write did not settle');
+    }
+
+    test(
+      'a delayed success after leave keeps the grade and does not notify',
+      () async {
+        final fake = FakeKanaProgressRepository();
+        final gate = FakeRepositoryWriteGate();
+        fake.writeGate = gate;
+        final persist = ProgressPersistenceController(
+          kanaFlush: fake.flushPending,
+          kanjiFlush: () async {},
+          wordFlush: () async {},
+        );
+        final target = question('あ').target;
+        final vm = QuizViewModel(
+          items: [
+            SessionItem(
+              question: question('あ'),
+              mode: PracticeMode.quickReview,
+            ),
+          ],
+          repository: fake,
+          persistence: persist,
+          clock: () => fixedNow,
+        );
+
+        var notificationsAfterLeave = 0;
+        var left = false;
+        vm.addListener(() {
+          if (left) notificationsAfterLeave++;
+        });
+        vm.selectAnswer(0);
+        expect(fake.statFor(target).srsLevel, 1);
+        await gate.entered;
+
+        left = true;
+        vm.dispose();
+        gate.release();
+        await settle(
+          () =>
+              !persist.hasWriteFailure &&
+              persist.status == PersistenceStatus.idle,
+        );
+
+        expect(notificationsAfterLeave, 0);
+        expect(persist.hasWriteFailure, isFalse);
+        await fake.reloadFromPlatform();
+        expect(fake.statFor(target).srsLevel, 1);
+      },
+    );
+
+    test('a delayed failure after leave stays on the app owner and retry does not re-climb', () async {
+      final fake = FakeKanaProgressRepository();
+      final gate = FakeRepositoryWriteGate();
+      fake.writeGate = gate;
+      final persist = ProgressPersistenceController(
+        kanaFlush: fake.flushPending,
+        kanjiFlush: () async {},
+        wordFlush: () async {},
+      );
+      final target = question('あ').target;
+      final vm = QuizViewModel(
+        items: [
+          SessionItem(question: question('あ'), mode: PracticeMode.quickReview),
+        ],
+        repository: fake,
+        persistence: persist,
+        clock: () => fixedNow,
+      );
+
+      var notificationsAfterLeave = 0;
+      var left = false;
+      vm.addListener(() {
+        if (left) notificationsAfterLeave++;
+      });
+      vm.selectAnswer(0);
+      expect(fake.statFor(target).correctCount, 1);
+      await gate.entered;
+
+      left = true;
+      vm.dispose();
+      fake.failWrites = true;
+      gate.release();
+      await settle(() => persist.hasWriteFailure);
+
+      expect(notificationsAfterLeave, 0);
+      expect(fake.statFor(target).correctCount, 1);
+
+      fake.failWrites = false;
+      await persist.retry();
+      expect(persist.hasWriteFailure, isFalse);
+      expect(fake.statFor(target).correctCount, 1);
+      expect(fake.statFor(target).srsLevel, 1);
+    });
   });
 }

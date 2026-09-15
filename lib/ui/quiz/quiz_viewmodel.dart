@@ -44,6 +44,9 @@ class QuizViewModel extends ChangeNotifier {
   }
 
   final List<SessionItem> items;
+
+  /// Per-kana schedule owner. Injected as the repository contract so tests
+  /// can substitute a fake without changing quiz rules.
   final KanaProgressRepository repository;
   final ProgressPersistenceController persistence;
   final AnalyticsLog? analytics;

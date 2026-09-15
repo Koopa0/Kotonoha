@@ -322,6 +322,28 @@ void main() {
           '${missing.join('\n')}',
     );
   });
+
+  test(
+    'ViewModels depend on the kana progress contract, not the local store',
+    () {
+      // Source convention only: a ViewModel that names the production store
+      // is coupled to one implementation. Runtime identity and lifetime are
+      // proven separately in test/kana_progress_repository_contract_test.dart
+      // and the Quiz leave-page tests — this regex is not that evidence.
+      final offenders = _scan(
+        dirs: ['lib/ui', 'lib/kanji/ui', 'lib/domain'],
+        forbidden: RegExp(r'\bLocalKanaProgressRepository\b'),
+      );
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'ViewModels, screens and use cases must take the '
+            'KanaProgressRepository contract — found:\n'
+            '${offenders.join('\n')}',
+      );
+    },
+  );
 }
 
 /// All .dart files under [dirs]; every directory must exist (a moved/renamed
