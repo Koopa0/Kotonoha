@@ -149,8 +149,8 @@ Two rules follow:
    ran a different product. Production tests and screenshot fixtures use the
    same dependency contract `bootstrap()` does.
 
-`bootstrap()` takes `prefs`, `speech`, `analytics`, `kana` and `words` as
-test seams only. Production `main()` leaves them null.
+`bootstrap()` takes `prefs`, `speech`, `analytics`, `kana`, `words`, and
+`travel` as test seams only. Production `main()` leaves them null.
 
 ## Testing
 
@@ -196,8 +196,7 @@ snapshot identity, and immutability are not in this list.
 | No provider probing | no screen invents a second product by probing for a provider |
 | UI reaches platform sources only through services | the UI layer never touches platform packages directly (services wrap them) |
 | Bootstrap provides every owner the UI reads | the composition root provides every owner the UI reads |
-| ViewModels name repository contracts, not implementations | ViewModels depend on the kana progress contract, not the local store |
-| ViewModels name repository contracts, not implementations | ViewModels depend on the word progress contract, not the local store |
+| ViewModels name repository contracts, not implementations | ViewModels depend on repository contracts, not local stores |
 
 The view guard discovers its own scope: a directory counts as split into View
 and ViewModel once it holds a `*_viewmodel.dart`, and every `*_screen.dart`
@@ -225,12 +224,14 @@ state that raises one calm banner and stays retryable. A `Result` at each call
 site would push that decision back into the callers this design deliberately
 keeps it out of.
 
-**`KanaProgressRepository` and `WordProgressRepository` are abstract
-contracts.** Formal ViewModels and `bootstrap()` depend on them;
-`LocalKanaProgressRepository` and `LocalWordProgressRepository` are the
-production owners. The sample defines an `abstract class` for every
-repository. The remaining owners here (kanji, travel, placement) are still
-concrete classes; whether they get the same split is still open on
+**Repository contracts arrive one owner at a time.** The sample defines an
+`abstract class` for every repository. Kotonoha is adopting that per owner
+rather than in one sweep. `KanaProgressRepository`, `WordProgressRepository`,
+and `TravelFocusRepository` are abstract contracts that formal ViewModels and
+`bootstrap()` depend on, with `LocalKanaProgressRepository`,
+`LocalWordProgressRepository`, and `LocalTravelFocusRepository` as the
+production owners. Kanji reading and placement are still concrete classes,
+and are tracked on
 [#149](https://github.com/Koopa0/Kotonoha/issues/149).
 
 A single implementation is not a reason to skip the contract — the sample's
@@ -240,4 +241,10 @@ value types these repositories apply, so a hand-written fake that
 reimplements `recordAnswer` can pass tests against a schedule production no
 longer uses. A fake must delegate to the real value types rather than
 restate their rules. `WordStat` stays distinct from `KanaStat` /
-`ReadingStat`; the two contracts are not a generic SRS engine.
+`ReadingStat`; the contracts are not a generic SRS engine.
+
+Two conventions follow from that. A command derived from other members is
+defined on the abstract class in terms of them, rather than left to each
+implementation, so a rule cannot be restated two ways. And each contract
+test drives the local owner and the fake through the same assertions, so a
+substitute that diverges fails rather than quietly passing.
