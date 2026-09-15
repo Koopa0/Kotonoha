@@ -367,6 +367,15 @@ void main() {
             await t.owner.markIntroduced(id, at: at);
             final afterFirst = t.owner.statForItem(id);
 
+            // WordStat.markIntroduced already returns `this` for a seen item,
+            // so the stat alone cannot tell whether the owner's own
+            // first-meeting guard is present. What the guard adds is that a
+            // repeat does not become a write at all: it must not notify and
+            // must not queue a persist. Assert that, or this probe passes
+            // against an owner that dirties itself on every re-exposure.
+            var notified = 0;
+            t.owner.addListener(() => notified++);
+
             await t.owner.markIntroduced(
               id,
               at: at.add(const Duration(days: 1)),
@@ -377,6 +386,11 @@ void main() {
             expect(
               t.owner.statForItem(id).correctCount,
               afterFirst.correctCount,
+            );
+            expect(
+              notified,
+              0,
+              reason: 're-exposing a seen item was treated as a mutation',
             );
           },
         );
