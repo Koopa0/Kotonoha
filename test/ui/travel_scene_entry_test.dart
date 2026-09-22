@@ -370,7 +370,7 @@ void main() {
   );
 
   testWidgets(
-    'small pool: ferry えき／ここ then もう一回 returns to hub recall／listen',
+    'small pool: ferry えき／ここ／くうこう then もう一回 returns to hub recall／listen',
     (tester) async {
       final repos = await pumpHub(tester, scene: TravelSceneId.transport);
       await learnRows(repos.kana, const [0, 1]);
@@ -380,6 +380,9 @@ void main() {
       await tester.tap(find.text(AppStrings.travelSceneMeetAction));
       await tester.pumpAndSettle();
       expect(find.byType(FerryScreen), findsOneWidget);
+      // あ行・か行 also makes the newly included くうこう readable.
+      expect(find.text('1 / 3'), findsOneWidget);
+      await finishFerryWord(tester);
       await finishFerryWord(tester);
       await finishFerryWord(tester);
       expect(find.text(AppStrings.practiceAgain), findsOneWidget);
@@ -393,6 +396,7 @@ void main() {
       expect(find.text(AppStrings.travelSceneListenAction), findsOneWidget);
       expect(repos.words.statForItem('word:えき').isSeen, isTrue);
       expect(repos.words.statForItem('word:ここ').isSeen, isTrue);
+      expect(repos.words.statForItem('word:くうこう').isSeen, isTrue);
       expect(repos.words.statForItem('word:ふく').isSeen, isFalse);
     },
   );
