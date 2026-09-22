@@ -1,11 +1,11 @@
-# Word spelling at reveal
+# Japanese spelling and travel reading contexts
 
 A learner who meets `くうこう / kuukou / 機場` needs to recognise **空港**
 on a sign. The Chinese gloss cannot serve as Japanese orthography: 車站 is 駅,
 飛機 is 飛行機, and even shared words can use different glyphs (學校 → 学校).
 
-Every entry in `kWords` explicitly supplies `Word.writtenForm`. It is a curated,
-display-only everyday spelling, not a conversion of the Traditional Chinese
+Every entry in `kWords` and `kPhrases` explicitly supplies a `writtenForm`.
+It is a curated, display-only everyday spelling, not a conversion of the Traditional Chinese
 meaning and not an exhaustive dictionary of alternative spellings.
 
 - Use Japanese kanji and okurigana where appropriate: 空港, 学校, 食べる.
@@ -19,9 +19,31 @@ meaning and not an exhaustive dictionary of alternative spellings.
   note or expose it during a blind audio/reading prompt.
 
 The kana prompt, TTS input, answer tiles, readability gate and `word:<kana>`
-identity are unchanged. No progress migration or kanji-track mastery credit is
-involved. Recognising the spelling is exposure, not a new tested skill; this
-change does not claim to measure kanji recall.
+identity are unchanged. Phrases likewise retain their `phrase:<kana>`
+identities. No progress migration or kanji-track mastery credit is involved. Recognising the spelling is exposure, not a new tested skill; this
+display does not claim to measure kanji recall.
+
+## Practice beyond exposure
+
+Kana phrases reveal the same utterance in everyday Japanese spelling: for
+example, えきは どこ → 駅はどこ and カードは つかえません → カードは使えません.
+Negative forms, particles and polite endings must agree with the kana prompt.
+The 124 phrases include six new airport and onward-transport utterances.
+
+The transport scene includes 空港, 飛行機 and 両替 plus those six phrases. They
+follow the existing kana-readability and introduction-before-review rules.
+
+`kTravelReadings` adds 18 original mixed-script sentences to the existing
+kanji curriculum. 空港, 飛行機, 荷物, 改札, 予約, 両替, 乗り換え and お土産 each
+have two contexts. Compound readings stay on whole ruby segments; okurigana
+stays outside the annotated segment. Existing sentence order is preserved.
+The harvested `unit:<written>#<reading>` records and `sentence:<written>`
+records use the existing kanji practice and scheduling paths. Seeing a word
+or kana phrase never grants progress to these separate reading records.
+
+A singleton kanji review may lack distractors in both its session and the
+character inventory. In that case, the quiz view model retries with the
+production sentence corpus, so one visible answer cannot count as recall.
 
 ## Content reference checks
 
@@ -42,3 +64,13 @@ shown-after-reveal, next-item reset, TTS input, retained progress after reload,
 correct/incorrect dictation, and 320px layouts with 2x text. These are host widget
 tests with simulated speech; they do not certify physical-device audio or
 human retention.
+
+`phrase_written_form_flow_test.dart` checks revealed short sentences, negative
+forms, speech input and progress identity at 320px with 2x text.
+`travel_written_bridge_test.dart` checks corpus alignment, independent IDs,
+scene inclusion and scheduling. `travel_scene_entry_test.dart` opens the real
+transport entry and reaches the airport word and phrase.
+`travel_reading_flow_test.dart` exercises introduction, independent kanji
+recall with distractors, persistence and untouched word progress. Removing
+the singleton fallback makes the 荷物 recall test fail because only one
+answer remains.

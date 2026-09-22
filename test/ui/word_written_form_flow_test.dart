@@ -12,7 +12,7 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_theme.dart';
-import 'package:kotonoha/ui/core/widgets/word_written_form.dart';
+import 'package:kotonoha/ui/core/widgets/japanese_written_form.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/reading/reading_screen.dart';
 import 'package:provider/provider.dart';
@@ -87,7 +87,7 @@ void main() {
       );
       expect(find.text('空港'), findsNothing);
       expect(find.text('機場'), findsNothing);
-      expect(find.byType(WordWrittenForm), findsNothing);
+      expect(find.byType(JapaneseWrittenForm), findsNothing);
       await tap(tester, AppStrings.ferryShowText);
       expect(find.text('くうこう'), findsOneWidget);
       expect(find.text('空港'), findsOneWidget);
@@ -100,7 +100,7 @@ void main() {
       expect(find.text('空港'), findsOneWidget);
       await tap(tester, AppStrings.iReadIt);
       expect(find.text('空港'), findsNothing);
-      expect(find.byType(WordWrittenForm), findsNothing);
+      expect(find.byType(JapaneseWrittenForm), findsNothing);
       await tap(tester, AppStrings.ferryShowText);
       expect(find.text('紙（紙）・髪（頭髮）'), findsOneWidget);
       await tap(tester, AppStrings.ferryReadSelf);
@@ -162,7 +162,7 @@ void main() {
         expect(find.text('空港'), findsOneWidget);
         expect(find.text('機場'), findsOneWidget);
         await tap(tester, AppStrings.dictationNext);
-        expect(find.byType(WordWrittenForm), findsNothing);
+        expect(find.byType(JapaneseWrittenForm), findsNothing);
         expect(speech.spoken.every((text) => text == 'くうこう'), isTrue);
         expect(tester.takeException(), isNull);
       },
@@ -185,11 +185,11 @@ void main() {
     expect(find.text('空港'), findsOneWidget);
     await tap(tester, AppStrings.listeningHeard);
     expect(find.text('空港'), findsNothing);
-    expect(find.byType(WordWrittenForm), findsNothing);
+    expect(find.byType(JapaneseWrittenForm), findsNothing);
     await tap(tester, AppStrings.listeningReveal);
     expect(
       find.descendant(
-        of: find.byType(WordWrittenForm),
+        of: find.byType(JapaneseWrittenForm),
         matching: find.text('コーヒー'),
       ),
       findsOneWidget,

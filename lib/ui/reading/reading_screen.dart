@@ -8,16 +8,17 @@ import 'package:kotonoha/data/repositories/kana_progress_repository.dart';
 import 'package:kotonoha/data/repositories/word_progress_repository.dart';
 import 'package:kotonoha/data/services/analytics_log.dart';
 import 'package:kotonoha/data/services/speech_service.dart';
+import 'package:kotonoha/domain/models/phrase.dart';
 import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/domain/use_cases/particles.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/japanese_written_form.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
-import 'package:kotonoha/ui/core/widgets/word_written_form.dart';
 import 'package:kotonoha/ui/reading/reading_viewmodel.dart';
 import 'package:provider/provider.dart';
 
@@ -278,7 +279,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
                                       endIndent: 24,
                                     ),
                                     if (current is Word)
-                                      WordWrittenForm(word: current),
+                                      JapaneseWrittenForm(
+                                        text: current.writtenForm,
+                                      ),
+                                    if (current is Phrase)
+                                      JapaneseWrittenForm(
+                                        text: current.writtenForm,
+                                      ),
                                     Text(
                                       current.romaji,
                                       textAlign: TextAlign.center,

@@ -1177,6 +1177,56 @@ void main() {
     expect(repos.words.statForItem('word:つかえません').isSeen, isTrue);
   });
 
+  for (final id in const ['word:くうこう', 'phrase:この バスは くうこうに いきますか']) {
+    testWidgets('transport 先見面 reaches $id and reveals its Japanese spelling', (
+      tester,
+    ) async {
+      final repos = await pumpHub(tester, scene: TravelSceneId.transport);
+      for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+        await repos.kana.markUnitLearned(lesson.id);
+      }
+      for (final other in TravelScene.progressIds[TravelSceneId.transport]!) {
+        if (other != id) await repos.words.markIntroduced(other, at: noon());
+      }
+      await tester.pumpAndSettle();
+      expect(repos.words.statForItem(id).isSeen, isFalse);
+      await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+      await tester.pumpAndSettle();
+      final isWord = id.startsWith('word:');
+      final written = isWord ? '空港' : 'このバスは空港に行きますか';
+      expect(find.text(written), findsNothing);
+      expect(find.byType(isWord ? FerryScreen : ReadingScreen), findsOneWidget);
+      await tester.tap(
+        find.text(isWord ? AppStrings.ferryShowText : AppStrings.recallHint),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(written), findsOneWidget);
+      expect(repos.words.statForItem(id).isSeen, isFalse);
+      if (isWord) {
+        await tester.ensureVisible(find.text(AppStrings.ferryReadSelf));
+        await tester.tap(find.text(AppStrings.ferryReadSelf));
+        await tester.pumpAndSettle();
+      }
+      final grade = isWord ? AppStrings.iReadIt : AppStrings.iReadAfterHint;
+      await tester.ensureVisible(find.text(grade));
+      await tester.tap(find.text(grade));
+      await tester.pumpAndSettle();
+      expect(repos.words.statForItem(id).isSeen, isTrue);
+      await repos.words.flushPending();
+      expect(
+        (await WordProgressRepository.load()).statForItem(id).isSeen,
+        isTrue,
+      );
+      expect(
+        (await KanjiReadingRepository.load())
+            .statForUnit('unit:空港#くうこう')
+            .isSeen,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   Future<void> learnAllKana(KanaProgressRepository kana) async {
     for (final lesson in Lessons.fromKana(kana.allKana)) {
       await kana.markUnitLearned(lesson.id);

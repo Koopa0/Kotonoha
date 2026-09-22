@@ -2,20 +2,19 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/material.dart';
-import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 
-/// The bridge from a word's sound to the spelling encountered in Japan.
+/// The bridge from a word or phrase's sound to everyday Japanese spelling.
 /// Callers mount this only in the revealed answer, never in an audio prompt.
-class WordWrittenForm extends StatelessWidget {
-  const WordWrittenForm({required this.word, super.key});
+class JapaneseWrittenForm extends StatelessWidget {
+  const JapaneseWrittenForm({required this.text, super.key});
 
-  final Word word;
+  final String? text;
 
   @override
   Widget build(BuildContext context) {
-    final writtenForm = word.writtenForm;
+    final writtenForm = text;
     if (writtenForm == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),

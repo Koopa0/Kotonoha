@@ -16,7 +16,7 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
-import 'package:kotonoha/ui/core/widgets/word_written_form.dart';
+import 'package:kotonoha/ui/core/widgets/japanese_written_form.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
@@ -211,7 +211,7 @@ void main() {
     );
     expect(
       find.descendant(
-        of: find.byType(WordWrittenForm),
+        of: find.byType(JapaneseWrittenForm),
         matching: find.text('右'),
       ),
       findsOneWidget,
