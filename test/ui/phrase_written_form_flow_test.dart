@@ -109,25 +109,28 @@ void main() {
     },
   );
 
-  testWidgets('naturally kana-only phrase retains its ordinary spelling', (
-    tester,
-  ) async {
-    final words = await WordProgressRepository.load();
-    await pumpPage(
+  // ただいま IS its own spelling; ほかに よろしいですか differs from ほかによろしい
+  // ですか only by the spaces the kana keeps for layout. Neither has anything to
+  // bridge to, so the reveal shows no 日文寫法 block rather than a repeated line.
+  for (final kana in ['ただいま', 'ほかに よろしいですか']) {
+    testWidgets('a phrase written as it sounds gets no 日文寫法 line: $kana', (
       tester,
-      ReadingScreen(items: [phrase('ただいま')], title: AppStrings.sentenceTitle),
-      words,
-      const SilentSpeechService(),
-    );
-    await tap(tester, AppStrings.recallHint);
-    expect(
-      find.descendant(
-        of: find.byType(JapaneseWrittenForm),
-        matching: find.text('ただいま'),
-      ),
-      findsOneWidget,
-    );
-    await tap(tester, AppStrings.iReadAfterHint);
-    expect(tester.takeException(), isNull);
-  });
+    ) async {
+      final item = phrase(kana);
+      final words = await WordProgressRepository.load();
+      await pumpPage(
+        tester,
+        ReadingScreen(items: [item], title: AppStrings.sentenceTitle),
+        words,
+        const SilentSpeechService(),
+      );
+      await tap(tester, AppStrings.recallHint);
+      expect(find.text(AppStrings.wordWrittenForm), findsNothing);
+      // The kana prompt, and no second copy of it under a label.
+      expect(find.text(item.kana), findsOneWidget);
+      expect(find.text(item.meaning), findsOneWidget);
+      await tap(tester, AppStrings.iReadAfterHint);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

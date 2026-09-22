@@ -73,6 +73,11 @@ class KanjiPhrase implements ReadingItem {
   @override
   Season? get season => null;
 
+  /// A sentence is already everyday written Japanese — its own text IS the
+  /// spelling, so there is no second form to show beside it.
+  @override
+  String? get writtenForm => null;
+
   /// The non-kanji stretches, one string per plain segment. Each must be
   /// independently readable — a chōonpu never leans across a kanji boundary.
   @override

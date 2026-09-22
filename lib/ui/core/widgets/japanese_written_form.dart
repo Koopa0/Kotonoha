@@ -2,20 +2,28 @@
 // SPDX-License-Identifier: MIT
 
 import 'package:flutter/material.dart';
+import 'package:kotonoha/domain/models/reading_item.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 
 /// The bridge from a word or phrase's sound to everyday Japanese spelling.
 /// Callers mount this only in the revealed answer, never in an audio prompt.
+///
+/// It shows nothing when there is nothing to bridge: many entries are written
+/// exactly as they sound (パン, ください, きれい), and a sentence is already its
+/// own spelling. Repeating the kana under a label would teach nothing and only
+/// add a line to read.
 class JapaneseWrittenForm extends StatelessWidget {
-  const JapaneseWrittenForm({required this.text, super.key});
+  const JapaneseWrittenForm({required this.item, super.key});
 
-  final String? text;
+  final ReadingItem item;
 
   @override
   Widget build(BuildContext context) {
-    final writtenForm = text;
-    if (writtenForm == null) return const SizedBox.shrink();
+    final writtenForm = item.writtenForm;
+    if (writtenForm == null || _bare(writtenForm) == _bare(item.displayText)) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
@@ -41,4 +49,8 @@ class JapaneseWrittenForm extends StatelessWidget {
       ),
     );
   }
+
+  /// Spacing is layout, not spelling: a phrase's kana keeps reading spaces its
+  /// written form does not, so the two are compared without any.
+  static String _bare(String text) => text.replaceAll(RegExp(r'\s+'), '');
 }

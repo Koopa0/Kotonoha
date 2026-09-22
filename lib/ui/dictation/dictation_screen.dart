@@ -356,7 +356,7 @@ class _DictationScreenState extends State<DictationScreen> {
                             ),
                             const SizedBox(height: 6),
                           ],
-                          JapaneseWrittenForm(text: current.writtenForm),
+                          JapaneseWrittenForm(item: current),
                           Text(
                             current.romaji,
                             textAlign: TextAlign.center,

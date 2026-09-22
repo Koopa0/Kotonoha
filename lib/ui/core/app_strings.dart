@@ -22,8 +22,6 @@ enum ClosingBand {
 /// never translated. Keeping every string here means the interface language
 /// lives in one place.
 abstract final class AppStrings {
-  static const wordWrittenForm = '日文寫法';
-
   // App / brand
   // Presentation always uses 言の葉; "kotonoha" stays a code-only identifier.
   static const String appTitle = '言の葉';
@@ -214,6 +212,10 @@ abstract final class AppStrings {
   static const String iCouldnt = '讀不出';
   static String readingSummary(int correct, int total) =>
       '讀對 $correct / $total';
+
+  // The reveal label over an entry's everyday spelling, shared by 渡し舟 /
+  // 黙読 / 聞き取り / 文字起こし. Absent when the kana IS the spelling.
+  static const String wordWrittenForm = '日文寫法';
 
   // Unprompted kana recall inside 今日の稽古 — same quiet self-grade as 黙読,
   // never a second score table. 看答案 is shared with 手習い.

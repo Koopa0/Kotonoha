@@ -14,9 +14,12 @@ meaning and not an exhaustive dictionary of alternative spellings.
 - When the existing entry combines meanings with different spellings, show
   short Traditional Chinese sense labels, e.g. 紙（紙）・髪（頭髮） and
   止まる（停下）・泊まる（過夜）. Do not imply those are interchangeable spellings.
-- Render the labelled 日文寫法 block automatically after reveal in 渡し舟,
-  黙読, 聞き取り and 文字起こし. Do not put it behind the optional false-friend
-  note or expose it during a blind audio/reading prompt.
+- Render the labelled 日文寫法 block after reveal in 渡し舟, 黙読, 聞き取り and
+  文字起こし, but only when the spelling differs from the kana the learner just
+  read. An entry already written as it sounds (パン, ください, きれい) shows no
+  block at all — the label plus a repeat of the prompt carries nothing. Do not
+  put the block behind the optional false-friend note or expose it during a
+  blind audio/reading prompt.
 
 The kana prompt, TTS input, answer tiles, readability gate and `word:<kana>`
 identity are unchanged. Phrases likewise retain their `phrase:<kana>`

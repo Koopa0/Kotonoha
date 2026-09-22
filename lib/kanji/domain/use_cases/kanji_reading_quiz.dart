@@ -19,9 +19,14 @@ import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 ///     is reasoning from characters does not.
 ///  2. **Other real readings of the same kanji** — 生 as せい/しょう/なま/う,
 ///     so knowing "生 is せい somewhere" is not enough.
-///  3. **Readings of other units in the supplied pool**, to fill the options
-///     when the inventory is thin. The caller normally supplies the session,
-///     and may use the wider corpus when that would leave only the answer.
+///  3. **Readings of other units the learner has met** — the [pool], normally
+///     this session — to fill the options when the inventory is thin.
+///
+/// Two options is the floor: a card offering only the answer is not a question,
+/// and the one tap available would be filed as recall that never happened. When
+/// the pool cannot reach it (荷物 reviewed alone, with neither 荷 nor 物 in the
+/// reading inventory), and only then, readings are borrowed from [corpus] — the
+/// wider harvested set, met or not.
 ///
 /// Pure logic: no `package:flutter/*` imports. Deterministic under [Random].
 class KanjiReadingQuiz {
@@ -34,8 +39,9 @@ class KanjiReadingQuiz {
     KanjiUnit target,
     List<KanjiUnit> pool,
     List<KanjiEntry> inventory,
-    Random rng,
-  ) {
+    Random rng, {
+    List<KanjiUnit> corpus = const [],
+  }) {
     final answer = target.reading;
     final readingsOf = <String, List<String>>{
       for (final e in inventory)
@@ -51,11 +57,8 @@ class KanjiReadingQuiz {
     final alternatives = <String>{
       for (final char in target.chars) ...?readingsOf[char],
     }..remove(answer);
-    // 3. Other real readings from the supplied pool, as filler.
-    final others = <String>{
-      for (final u in pool)
-        if (u.id != target.id) u.reading,
-    }..remove(answer);
+    // 3. Other real readings from the pool the learner has met, as filler.
+    final others = _otherReadings(pool, target, answer);
 
     final ranked = <String>[
       ...constructed,
@@ -63,10 +66,19 @@ class KanjiReadingQuiz {
       ...(others.toList()..shuffle(rng)),
     ];
     final distractors = <String>[];
-    for (final candidate in ranked) {
-      if (distractors.length >= optionCount - 1) break;
-      if (candidate.isEmpty || distractors.contains(candidate)) continue;
-      distractors.add(candidate);
+    void take(Iterable<String> candidates) {
+      for (final candidate in candidates) {
+        if (distractors.length >= optionCount - 1) break;
+        if (candidate.isEmpty || distractors.contains(candidate)) continue;
+        distractors.add(candidate);
+      }
+    }
+
+    take(ranked);
+    // Only now, and only to clear the floor: borrowing is lazy, so a pool that
+    // can answer for itself sees the same question it always did.
+    if (distractors.isEmpty) {
+      take(_otherReadings(corpus, target, answer).toList()..shuffle(rng));
     }
 
     final options = <String>[answer, ...distractors]..shuffle(rng);
@@ -76,6 +88,17 @@ class KanjiReadingQuiz {
       correctIndex: options.indexOf(answer),
     );
   }
+
+  /// Real readings of every unit in [units] but [target] itself, minus the
+  /// answer — the filler tier, and what a borrow from the corpus draws on.
+  Set<String> _otherReadings(
+    List<KanjiUnit> units,
+    KanjiUnit target,
+    String answer,
+  ) => <String>{
+    for (final u in units)
+      if (u.id != target.id) u.reading,
+  }..remove(answer);
 
   /// Readings built by reading each kanji of [unit] separately and gluing the
   /// pieces together — every combination, longest-plausible first. Empty when

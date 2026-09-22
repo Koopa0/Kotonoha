@@ -31,6 +31,10 @@ abstract interface class ReadingItem {
   /// Meaning, in Traditional Chinese.
   String get meaning;
 
+  /// Everyday Japanese spelling shown beside the revealed kana, or null when
+  /// there is none to show.
+  String? get writtenForm;
+
   /// The season this reading evokes, or null for a season-neutral one (always
   /// "in season"). Drives the silent seasonal-lift in sampling, never displayed.
   Season? get season;

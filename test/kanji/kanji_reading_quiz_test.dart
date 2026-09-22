@@ -150,6 +150,55 @@ void main() {
     expect(q.options, contains('きっさ'));
   });
 
+  final nimotsu = KanjiUnit(
+    written: '荷物',
+    reading: 'にもつ',
+    example: phraseWith('荷物', 'にもつ', 'です'),
+  );
+
+  test(
+    'a lone review borrows from the corpus instead of offering one option',
+    () {
+      // 荷物 travelling alone: the inventory knows neither 荷 nor 物, so nothing
+      // can be constructed and the session holds no other reading. A single
+      // option is not a question — the one tap available would be filed as
+      // recall the learner never performed.
+      const quiz = KanjiReadingQuiz();
+      expect(
+        quiz.buildQuestion(nimotsu, [nimotsu], inventory, Random(4)).options,
+        hasLength(1),
+      );
+
+      final borrowed = quiz.buildQuestion(
+        nimotsu,
+        [nimotsu],
+        inventory,
+        Random(4),
+        corpus: [nimotsu, gakkou, nama],
+      );
+      expect(borrowed.options.length, greaterThanOrEqualTo(2));
+      expect(borrowed.answer, 'にもつ');
+      expect(borrowed.options.where((o) => o == 'にもつ'), hasLength(1));
+      expect(borrowed.options[borrowed.correctIndex], 'にもつ');
+    },
+  );
+
+  test('a pool that can fill the card never reaches for the corpus', () {
+    // Same seed, same question: borrowing is a floor, not an extra ingredient,
+    // so offering a corpus must not move a single existing card.
+    List<String> run({List<KanjiUnit> corpus = const []}) =>
+        const KanjiReadingQuiz()
+            .buildQuestion(
+              gakkou,
+              [gakkou, nama],
+              inventory,
+              Random(7),
+              corpus: corpus,
+            )
+            .options;
+    expect(run(corpus: [gakkou, nama, nimotsu]), run());
+  });
+
   group('against the real corpus', () {
     final units = KanjiUnits.fromPhrases(kKanjiPhrases);
 
