@@ -16,6 +16,39 @@ void main() {
       if (k.script == KanaScript.hiragana) k.character,
   };
 
+  test(
+    'every phrase supplies a written form without changing kana identity',
+    () {
+      for (final phrase in kPhrases) {
+        expect(phrase.writtenForm, isNotNull, reason: phrase.kana);
+        expect(phrase.writtenForm!.trim(), isNotEmpty, reason: phrase.kana);
+        expect(phrase.displayText, phrase.kana);
+        expect(phrase.progressId, 'phrase:${phrase.kana}');
+        expect(phrase.gatingText, [phrase.kana]);
+      }
+      expect(kPhrases.map((p) => p.progressId).toSet().length, kPhrases.length);
+    },
+  );
+
+  test('written forms preserve sentence senses and normal kana usage', () {
+    const expected = {
+      'えきは どこ': '駅はどこ',
+      'カードは つかえません': 'カードは使えません',
+      'よやくが あります': '予約があります',
+      'かぜが すずしい': '風が涼しい',
+      'てがみを かく': '手紙を書く',
+      'ただいま': 'ただいま',
+      'この バスは くうこうに いきますか': 'このバスは空港に行きますか',
+    };
+    for (final entry in expected.entries) {
+      expect(
+        kPhrases.singleWhere((p) => p.kana == entry.key).writtenForm,
+        entry.value,
+        reason: entry.key,
+      );
+    }
+  });
+
   test('phrase tokens exclude layout spaces', () {
     expect(KanaTokenizer.tokenize('そらが あおい'), ['そ', 'ら', 'が', 'あ', 'お', 'い']);
   });

@@ -19,6 +19,44 @@ void main() {
     }
   });
 
+  test('every corpus word explicitly supplies a Japanese written form', () {
+    for (final w in kWords) {
+      expect(w.writtenForm, isNotNull, reason: w.kana);
+      expect(w.writtenForm!.trim(), isNotEmpty, reason: w.kana);
+      expect(w.progressId, 'word:${w.kana}');
+      expect(w.displayText, w.kana);
+      expect(w.gatingText, [w.kana]);
+    }
+  });
+
+  test(
+    'Japanese spellings are independent of Traditional Chinese meanings',
+    () {
+      const expected = {
+        'くうこう': '空港',
+        'えき': '駅',
+        'ひこうき': '飛行機',
+        'びょういん': '病院',
+        'がっこう': '学校',
+        'くすり': '薬',
+        'かみ': '紙（紙）・髪（頭髮）',
+        'はやい': '速い（快）・早い（早）',
+        'やさしい': '優しい（溫柔）・易しい（簡單）',
+        'とまる': '止まる（停下）・泊まる（過夜）',
+        'コーヒー': 'コーヒー',
+        'ください': 'ください',
+        'エム': 'M',
+      };
+      for (final entry in expected.entries) {
+        expect(
+          kWords.singleWhere((w) => w.kana == entry.key).writtenForm,
+          entry.value,
+          reason: entry.key,
+        );
+      }
+    },
+  );
+
   test('every word is orthographically clean for its script', () {
     // Script-pure units, curated small-vowel combos only, and legal
     // special-mora environments (no leading/trailing っ, ー only in katakana

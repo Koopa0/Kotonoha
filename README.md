@@ -12,13 +12,17 @@ words, short sentences, listening, and kanji readings in context.
 
 - **Kana.** Learn hiragana and katakana a row at a time, compare similar
   characters, and move from multiple choice to recalling readings without hints.
-- **Words and sentences.** Learn vocabulary by ear, assemble its spelling,
-  and check the reading and meaning of a sentence after a word changes.
+- **Words and sentences.** Learn vocabulary by ear, assemble its kana,
+  and see its everyday Japanese spelling alongside the reading and Chinese meaning
+  on reveal (空港 / くうこう / 機場).
+  Short kana phrases also reveal their everyday spelling (えきはどこ → 駅はどこ).
+  Practice sentences with word substitutions, then check their reading and meaning.
 - **Listening.** Hear familiar station phrases before revealing the text,
   then listen again.
-- **Travel.** Practice transport, clothes shopping, shrines and castles, and
-  park queues. Choose one or two travel focuses to guide your next practice.
-- **Kanji readings.** Learn and recall readings within words and sentences.
+- **Travel.** Practice airport and onward transport, clothes shopping, shrines
+  and castles, and park queues. Choose one or two travel focuses to guide your next practice.
+- **Kanji readings.** Learn and recall readings within words and sentences,
+  including 空港, 飛行機 and 荷物 in travel contexts.
 - **Progress.** See which material you have practiced and save or restore
   kana, kanji, and word progress through a file. Answer history is not included.
 

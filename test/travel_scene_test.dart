@@ -313,7 +313,11 @@ void main() {
   );
 
   test('hasMoreIntro is false on a spent あ行・か行 pool, true with leftover', () {
-    final spent = {'word:えき': seenAt(), 'word:ここ': seenAt()};
+    final spent = {
+      'word:えき': seenAt(),
+      'word:ここ': seenAt(),
+      'word:くうこう': seenAt(),
+    };
     expect(
       TravelScene.hasMoreIntro(
         scene: TravelSceneId.transport,

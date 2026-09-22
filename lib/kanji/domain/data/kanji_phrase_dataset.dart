@@ -5,11 +5,13 @@ import 'package:kotonoha/kanji/domain/data/phrases/minna_l01_06.dart';
 import 'package:kotonoha/kanji/domain/data/phrases/minna_l07_12.dart';
 import 'package:kotonoha/kanji/domain/data/phrases/minna_l13_19.dart';
 import 'package:kotonoha/kanji/domain/data/phrases/minna_l20_25.dart';
+import 'package:kotonoha/kanji/domain/data/phrases/travel_readings.dart';
 import 'package:kotonoha/kanji/domain/models/kanji_phrase.dart';
 
-/// Short kanji sentences for the furigana-fade reading bridge. Every kanji uses
-/// a reading from kKanji (so its furigana fades as that reading matures), and
-/// the surrounding kana is N5-simple. Reading-ids match `reading:漢字#ヨミ`.
+/// Short kanji sentences for the furigana-fade reading bridge. Their written
+/// runs and furigana are harvested into kKanjiUnits; each run fades only as
+/// that unit matures. The surrounding kana is N5-simple. The single-character
+/// kKanji inventory supplies distractors, not the set of permitted readings.
 ///
 /// Pure data: no `package:flutter/*` imports.
 const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
@@ -814,4 +816,5 @@ const List<KanjiPhrase> kKanjiPhrases = <KanjiPhrase>[
   ...kMinnaL07to12,
   ...kMinnaL13to19,
   ...kMinnaL20to25,
+  ...kTravelReadings,
 ];

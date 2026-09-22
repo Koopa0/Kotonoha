@@ -370,7 +370,7 @@ void main() {
   );
 
   testWidgets(
-    'small pool: ferry えき／ここ then もう一回 returns to hub recall／listen',
+    'small pool: ferry えき／ここ／くうこう then もう一回 returns to hub recall／listen',
     (tester) async {
       final repos = await pumpHub(tester, scene: TravelSceneId.transport);
       await learnRows(repos.kana, const [0, 1]);
@@ -380,6 +380,9 @@ void main() {
       await tester.tap(find.text(AppStrings.travelSceneMeetAction));
       await tester.pumpAndSettle();
       expect(find.byType(FerryScreen), findsOneWidget);
+      // あ行・か行 also makes the newly included くうこう readable.
+      expect(find.text('1 / 3'), findsOneWidget);
+      await finishFerryWord(tester);
       await finishFerryWord(tester);
       await finishFerryWord(tester);
       expect(find.text(AppStrings.practiceAgain), findsOneWidget);
@@ -393,6 +396,7 @@ void main() {
       expect(find.text(AppStrings.travelSceneListenAction), findsOneWidget);
       expect(repos.words.statForItem('word:えき').isSeen, isTrue);
       expect(repos.words.statForItem('word:ここ').isSeen, isTrue);
+      expect(repos.words.statForItem('word:くうこう').isSeen, isTrue);
       expect(repos.words.statForItem('word:ふく').isSeen, isFalse);
     },
   );
@@ -1149,7 +1153,13 @@ void main() {
       reason: '未捲到否定意思前不能完成',
     );
     expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
-    await tester.ensureVisible(find.text('不能用'));
+    // Scroll the meaning into the bottom of view, as when reading down the
+    // card. Top-aligning it would deliberately scroll the preceding kana
+    // offscreen now that the written-form block extends the card below it.
+    await Scrollable.ensureVisible(
+      tester.element(find.text('不能用')),
+      alignment: 1,
+    );
     await tester.pumpAndSettle();
     expect(find.text('不能用').hitTestable(), findsOneWidget);
     final meaning = tester.getRect(find.text('不能用'));
@@ -1170,6 +1180,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(repos.words.statForItem('word:つかえません').isSeen, isTrue);
   });
+
+  for (final id in const ['word:くうこう', 'phrase:この バスは くうこうに いきますか']) {
+    testWidgets('transport 先見面 reaches $id and reveals its Japanese spelling', (
+      tester,
+    ) async {
+      final repos = await pumpHub(tester, scene: TravelSceneId.transport);
+      for (final lesson in Lessons.fromKana(repos.kana.allKana)) {
+        await repos.kana.markUnitLearned(lesson.id);
+      }
+      for (final other in TravelScene.progressIds[TravelSceneId.transport]!) {
+        if (other != id) await repos.words.markIntroduced(other, at: noon());
+      }
+      await tester.pumpAndSettle();
+      expect(repos.words.statForItem(id).isSeen, isFalse);
+      await tester.tap(find.text(AppStrings.travelSceneMeetAction));
+      await tester.pumpAndSettle();
+      final isWord = id.startsWith('word:');
+      final written = isWord ? '空港' : 'このバスは空港に行きますか';
+      expect(find.text(written), findsNothing);
+      expect(find.byType(isWord ? FerryScreen : ReadingScreen), findsOneWidget);
+      await tester.tap(
+        find.text(isWord ? AppStrings.ferryShowText : AppStrings.recallHint),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(written), findsOneWidget);
+      expect(repos.words.statForItem(id).isSeen, isFalse);
+      if (isWord) {
+        await tester.ensureVisible(find.text(AppStrings.ferryReadSelf));
+        await tester.tap(find.text(AppStrings.ferryReadSelf));
+        await tester.pumpAndSettle();
+      }
+      final grade = isWord ? AppStrings.iReadIt : AppStrings.iReadAfterHint;
+      await tester.ensureVisible(find.text(grade));
+      await tester.tap(find.text(grade));
+      await tester.pumpAndSettle();
+      expect(repos.words.statForItem(id).isSeen, isTrue);
+      await repos.words.flushPending();
+      expect(
+        (await WordProgressRepository.load()).statForItem(id).isSeen,
+        isTrue,
+      );
+      expect(
+        (await KanjiReadingRepository.load())
+            .statForUnit('unit:空港#くうこう')
+            .isSeen,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   Future<void> learnAllKana(KanaProgressRepository kana) async {
     for (final lesson in Lessons.fromKana(kana.allKana)) {

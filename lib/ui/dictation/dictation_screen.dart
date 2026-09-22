@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/japanese_written_form.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
 import 'package:kotonoha/ui/dictation/dictation_viewmodel.dart';
@@ -355,6 +356,7 @@ class _DictationScreenState extends State<DictationScreen> {
                             ),
                             const SizedBox(height: 6),
                           ],
+                          JapaneseWrittenForm(text: current.writtenForm),
                           Text(
                             current.romaji,
                             textAlign: TextAlign.center,

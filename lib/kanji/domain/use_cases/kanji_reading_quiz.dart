@@ -19,8 +19,9 @@ import 'package:kotonoha/kanji/domain/models/kanji_unit.dart';
 ///     is reasoning from characters does not.
 ///  2. **Other real readings of the same kanji** — 生 as せい/しょう/なま/う,
 ///     so knowing "生 is せい somewhere" is not enough.
-///  3. **Readings of other units the learner has met**, to fill the options
-///     when the inventory is thin.
+///  3. **Readings of other units in the supplied pool**, to fill the options
+///     when the inventory is thin. The caller normally supplies the session,
+///     and may use the wider corpus when that would leave only the answer.
 ///
 /// Pure logic: no `package:flutter/*` imports. Deterministic under [Random].
 class KanjiReadingQuiz {
@@ -50,7 +51,7 @@ class KanjiReadingQuiz {
     final alternatives = <String>{
       for (final char in target.chars) ...?readingsOf[char],
     }..remove(answer);
-    // 3. Anything else the learner has seen, as filler.
+    // 3. Other real readings from the supplied pool, as filler.
     final others = <String>{
       for (final u in pool)
         if (u.id != target.id) u.reading,

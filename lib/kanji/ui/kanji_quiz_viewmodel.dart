@@ -204,6 +204,12 @@ class KanjiQuizViewModel extends ChangeNotifier {
     _question = _isTeach
         ? null
         : quiz.buildQuestion(p, units, kanji.allKanji, _rng);
+    // A singleton review can have no distractors in the character inventory
+    // (e.g. 荷物). Borrow readings from the sentence corpus in that case:
+    // showing only the answer would turn a tap into false recall evidence.
+    if (_question != null && _question!.options.length < 2) {
+      _question = quiz.buildQuestion(p, _corpus, kanji.allKanji, _rng);
+    }
   }
 
   void _logAttempt({

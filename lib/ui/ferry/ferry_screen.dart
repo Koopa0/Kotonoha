@@ -13,6 +13,7 @@ import 'package:kotonoha/domain/models/word.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
+import 'package:kotonoha/ui/core/widgets/japanese_written_form.dart';
 import 'package:kotonoha/ui/core/widgets/pull_note.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
@@ -276,6 +277,9 @@ class _FerryScreenState extends State<FerryScreen> {
                                         color: AppColors.ink,
                                         fontSize: 18,
                                       ),
+                                    ),
+                                    JapaneseWrittenForm(
+                                      text: current.writtenForm,
                                     ),
                                     if (current.falseFriend != null)
                                       _FalseFriendNote(

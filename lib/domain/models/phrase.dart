@@ -15,6 +15,7 @@ class Phrase implements ReadingItem {
     required this.kana,
     required this.romaji,
     required this.meaning,
+    this.writtenForm,
     this.season,
   });
 
@@ -26,6 +27,11 @@ class Phrase implements ReadingItem {
 
   @override
   final String meaning;
+
+  /// The same utterance in everyday Japanese orthography, shown on reveal.
+  /// Display-only: kana remains the speech, readability and progress source.
+  /// Corpus entries supply this even when the natural spelling is all kana.
+  final String? writtenForm;
 
   /// The season this phrase evokes (null = season-neutral). Drives the silent
   /// seasonal-lift; never displayed.
