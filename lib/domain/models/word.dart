@@ -17,6 +17,7 @@ class Word implements ReadingItem {
     required this.kana,
     required this.romaji,
     required this.meaning,
+    this.writtenForm,
     this.script = KanaScript.hiragana,
     this.theme,
     this.falseFriend,
@@ -36,6 +37,12 @@ class Word implements ReadingItem {
   /// Meaning, in Traditional Chinese (the learner's mother tongue).
   @override
   final String meaning;
+
+  /// Everyday Japanese spelling shown only after reveal, e.g. `空港`.
+  /// May include sense labels for homophones, e.g. `紙（紙）・髪（頭髮）`.
+  /// Curated corpus entries always supply it, including kana-only spellings.
+  /// Display-only: never used for speech, kana gating, answers or progress IDs.
+  final String? writtenForm;
 
   final KanaScript script;
 

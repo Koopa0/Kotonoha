@@ -12,8 +12,10 @@ words, short sentences, listening, and kanji readings in context.
 
 - **Kana.** Learn hiragana and katakana a row at a time, compare similar
   characters, and move from multiple choice to recalling readings without hints.
-- **Words and sentences.** Learn vocabulary by ear, assemble its spelling,
-  and check the reading and meaning of a sentence after a word changes.
+- **Words and sentences.** Learn vocabulary by ear, assemble its kana,
+  and see its everyday Japanese spelling alongside the reading and Chinese meaning
+  on reveal (空港 / くうこう / 機場).
+  Practice sentences with word substitutions, then check their reading and meaning.
 - **Listening.** Hear familiar station phrases before revealing the text,
   then listen again.
 - **Travel.** Practice transport, clothes shopping, shrines and castles, and

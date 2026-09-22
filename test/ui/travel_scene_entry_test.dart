@@ -1149,7 +1149,13 @@ void main() {
       reason: '未捲到否定意思前不能完成',
     );
     expect(repos.words.statForItem('word:つかえません').isSeen, isFalse);
-    await tester.ensureVisible(find.text('不能用'));
+    // Scroll the meaning into the bottom of view, as when reading down the
+    // card. Top-aligning it would deliberately scroll the preceding kana
+    // offscreen now that the written-form block extends the card below it.
+    await Scrollable.ensureVisible(
+      tester.element(find.text('不能用')),
+      alignment: 1,
+    );
     await tester.pumpAndSettle();
     expect(find.text('不能用').hitTestable(), findsOneWidget);
     final meaning = tester.getRect(find.text('不能用'));

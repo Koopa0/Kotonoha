@@ -16,6 +16,7 @@ import 'package:kotonoha/kanji/data/repositories/kanji_reading_repository.dart';
 import 'package:kotonoha/ui/core/app_strings.dart';
 import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dart';
 import 'package:kotonoha/ui/core/persistence/progress_restore_recovery_controller.dart';
+import 'package:kotonoha/ui/core/widgets/word_written_form.dart';
 import 'package:kotonoha/ui/ferry/ferry_screen.dart';
 import 'package:kotonoha/ui/home/home_screen.dart';
 import 'package:kotonoha/ui/lessons/lessons_screen.dart';
@@ -202,7 +203,19 @@ void main() {
     await tester.tap(find.text(AppStrings.ferryShowText));
     await tester.pumpAndSettle();
     expect(find.text('みぎ'), findsOneWidget);
-    expect(find.text('右'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey<String>('ferry-meaning')))
+          .data,
+      '右',
+    );
+    expect(
+      find.descendant(
+        of: find.byType(WordWrittenForm),
+        matching: find.text('右'),
+      ),
+      findsOneWidget,
+    );
     expect(repos.words.statForItem('word:みぎ').isSeen, isFalse);
     expect(repos.words.statForItem('phrase:えきは どこ').srsLevel, 0);
     final logged = await repos.analytics.all();

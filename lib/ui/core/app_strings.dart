@@ -22,6 +22,8 @@ enum ClosingBand {
 /// never translated. Keeping every string here means the interface language
 /// lives in one place.
 abstract final class AppStrings {
+  static const wordWrittenForm = '日文寫法';
+
   // App / brand
   // Presentation always uses 言の葉; "kotonoha" stays a code-only identifier.
   static const String appTitle = '言の葉';

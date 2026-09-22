@@ -15,6 +15,7 @@ import 'package:kotonoha/ui/core/persistence/progress_persistence_controller.dar
 import 'package:kotonoha/ui/core/theme/app_colors.dart';
 import 'package:kotonoha/ui/core/widgets/session_summary.dart';
 import 'package:kotonoha/ui/core/widgets/speak_button.dart';
+import 'package:kotonoha/ui/core/widgets/word_written_form.dart';
 import 'package:kotonoha/ui/dictation/dictation_viewmodel.dart';
 import 'package:provider/provider.dart';
 
@@ -355,6 +356,7 @@ class _DictationScreenState extends State<DictationScreen> {
                             ),
                             const SizedBox(height: 6),
                           ],
+                          WordWrittenForm(word: current),
                           Text(
                             current.romaji,
                             textAlign: TextAlign.center,
