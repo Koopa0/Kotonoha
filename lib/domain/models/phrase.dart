@@ -31,6 +31,7 @@ class Phrase implements ReadingItem {
   /// The same utterance in everyday Japanese orthography, shown on reveal.
   /// Display-only: kana remains the speech, readability and progress source.
   /// Corpus entries supply this even when the natural spelling is all kana.
+  @override
   final String? writtenForm;
 
   /// The season this phrase evokes (null = season-neutral). Drives the silent

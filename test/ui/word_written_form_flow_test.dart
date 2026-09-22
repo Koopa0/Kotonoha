@@ -169,6 +169,23 @@ void main() {
     );
   }
 
+  testWidgets('a word spelled as it sounds gets no 日文寫法 line', (tester) async {
+    // パン IS ordinary Japanese spelling. Repeating the kana under a label
+    // would be a line with nothing in it to read.
+    final words = await WordProgressRepository.load();
+    await pumpPage(
+      tester,
+      ReadingScreen(items: [word('パン')], title: '黙読'),
+      words,
+      const SilentSpeechService(),
+    );
+    await tap(tester, AppStrings.recallHint);
+    expect(find.text(AppStrings.wordWrittenForm), findsNothing);
+    expect(find.text('パン'), findsOneWidget);
+    expect(find.text('麵包'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('listening keeps spelling hidden until reveal then resets it', (
     tester,
   ) async {
@@ -176,7 +193,7 @@ void main() {
     await pumpListening(
       tester,
       speech: speech,
-      items: [word('くうこう'), word('コーヒー')],
+      items: [word('くうこう'), word('えき')],
       size: const Size(320, 640),
       textScale: 2,
     );
@@ -190,7 +207,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(JapaneseWrittenForm),
-        matching: find.text('コーヒー'),
+        matching: find.text('駅'),
       ),
       findsOneWidget,
     );

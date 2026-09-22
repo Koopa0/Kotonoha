@@ -257,6 +257,7 @@ class _FerryScreenState extends State<FerryScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 8),
+                                    JapaneseWrittenForm(item: current),
                                     Text(
                                       current.romaji,
                                       textAlign: TextAlign.center,
@@ -277,9 +278,6 @@ class _FerryScreenState extends State<FerryScreen> {
                                         color: AppColors.ink,
                                         fontSize: 18,
                                       ),
-                                    ),
-                                    JapaneseWrittenForm(
-                                      text: current.writtenForm,
                                     ),
                                     if (current.falseFriend != null)
                                       _FalseFriendNote(

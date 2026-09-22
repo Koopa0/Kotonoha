@@ -42,6 +42,7 @@ class Word implements ReadingItem {
   /// May include sense labels for homophones, e.g. `紙（紙）・髪（頭髮）`.
   /// Curated corpus entries always supply it, including kana-only spellings.
   /// Display-only: never used for speech, kana gating, answers or progress IDs.
+  @override
   final String? writtenForm;
 
   final KanaScript script;
